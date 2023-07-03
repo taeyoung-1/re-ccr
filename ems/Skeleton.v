@@ -66,6 +66,7 @@ End SkEnv.
 
 
 Require Import Orders.
+Require Import Any.
 
 Module Sk.
   Class ld: Type := mk {
@@ -89,15 +90,19 @@ Module Sk.
 
 
   (* Imp Instance *)
-  Inductive gdef: Type := Gfun | Gvar (gv: Z).
+  Module GDef <: Typ. Definition t := Any.t. End GDef.
 
-  Module GDef <: Typ. Definition t := gdef. End GDef.
   Module SkSort := AListSort GDef.
 
-  Definition sort: alist gname gdef -> alist gname gdef := SkSort.sort.
+  (* Inductive gdef: Type := Gfun | Gvar (gv: Z). *)
+
+  (* Module GDef <: Typ. Definition t := gdef. End GDef. *)
+  (* Module SkSort := AListSort GDef. *)
+
+  Definition sort: alist gname Any.t -> alist gname Any.t := SkSort.sort.
 
   Program Definition gdefs: ld :=
-    @mk (alist gname gdef) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) _ _ _ _ _ _ _.
+    @mk (alist gname Any.t) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) _ _ _ _ _ _ _.
   Next Obligation.
   Proof.
     eapply SkSort.sort_add_comm. auto.
