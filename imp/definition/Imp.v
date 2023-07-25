@@ -85,7 +85,7 @@ Record programL : Type := mk_programL {
   prog_varsL : progVars;
   prog_funsL : list (mname * (gname * function));
   publicL : list gname;
-  defsL : list (gname * Sk.gdef);
+  defsL : list (gname * gdef);
 }.
 
 Record program : Type := mk_program {
@@ -101,9 +101,9 @@ Record program : Type := mk_program {
     let ivs := List.map fst prog_vars in
     let ifs := List.map fst prog_funs in
     sys ++ evs ++ efs ++ ivs ++ ifs;
-  defs : list (gname * Sk.gdef) :=
-    let fs := (List.map (fun '(fn, _) => (fn, Sk.Gfun)) prog_funs) in
-    let vs := (List.map (fun '(vn, vv) => (vn, Sk.Gvar vv)) prog_vars) in
+  defs : list (gname * gdef) :=
+    let fs := (List.map (fun '(fn, _) => (fn, Gfun)) prog_funs) in
+    let vs := (List.map (fun '(vn, vv) => (vn, Gvar vv)) prog_vars) in
     (List.filter (negb ∘ call_ban ∘ fst) (fs ++ vs));
 }.
 
@@ -373,7 +373,7 @@ Section MODSEM.
 
   Definition get_mod (m : program) : Mod.t := {|
     Mod.get_modsem := fun ge => (modsem m (Sk.load_skenv ge));
-    Mod.sk := m.(defs);
+    Mod.sk := List.map (update_snd Any.upcast) m.(defs);
   |}.
 
   Definition modsemL (mL : programL) (ge: SkEnv.t) : ModSemL.t := {|
@@ -385,7 +385,7 @@ Section MODSEM.
 
   Definition get_modL (mL : programL) : ModL.t := {|
     ModL.get_modsem := fun ge => (modsemL mL (Sk.load_skenv ge));
-    ModL.sk := mL.(defsL);
+    ModL.sk := List.map (update_snd Any.upcast) mL.(defsL);
   |}.
 
   Lemma comm_imp_mod_lift :

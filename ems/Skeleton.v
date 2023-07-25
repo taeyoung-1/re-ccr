@@ -94,10 +94,6 @@ Module Sk.
 
   Module SkSort := AListSort GDef.
 
-  (* Inductive gdef: Type := Gfun | Gvar (gv: Z). *)
-
-  (* Module GDef <: Typ. Definition t := gdef. End GDef. *)
-  (* Module SkSort := AListSort GDef. *)
 
   Definition sort: alist gname Any.t -> alist gname Any.t := SkSort.sort.
 

@@ -13,6 +13,9 @@ Set Implicit Arguments.
 
 Local Open Scope nat_scope.
 
+Inductive gdef: Type := Gfun | Gvar (gv: Z).
+
+
 Notation mblock := nat (only parsing).
 Notation ptrofs := Z (only parsing).
 
@@ -180,12 +183,12 @@ Module Mem.
     Mem.mk
       (fun blk ofs =>
          do '(g, gd) <- (List.nth_error sk blk);
-         match gd with
-         | Sk.Gfun =>
-           None
-         | Sk.Gvar gv =>
+         match Any.downcast gd with
+         | Some Gfun => None
+         | Some (Gvar gv) =>
            if csl g then None else
            if (dec ofs 0%Z) then Some (Vint gv) else None
+         | None => None
          end)
       (*** TODO: This simplified model doesn't allow function pointer comparsion.
            To be more faithful, we need to migrate the notion of "permission" from CompCert.

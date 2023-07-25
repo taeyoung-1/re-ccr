@@ -32,7 +32,7 @@ Section GENV.
         (FOUND : find
                    ((fun '(k2, _) => f ?[ eq ] k2) <*>
                      (fun '(mn, (fn, f)) =>
-                      (fn, transl_all mn (T:=_) ∘ cfunU (eval_imp (Sk.load_skenv (Sk.sort (defsL src))) f)))) (prog_funsL src) =
+                      (fn, transl_all mn (T:=_) ∘ cfunU (eval_imp (Sk.load_skenv (Sk.sort (List.map (update_snd Any.upcast) (defsL src)))) f)))) (prog_funsL src) =
                  Some (mn, (fn, impf)))
     :
       (fn = f) /\ (In (mn, (fn, impf)) (prog_funsL src)).
