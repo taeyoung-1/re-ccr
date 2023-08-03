@@ -1032,17 +1032,11 @@ Section DECOMP.
       (* return *)
       Ret (e', le', Some (Some retv))
     | None =>
-      if (* is_break *)
-        match obc with
-        | None => false
-        | Some bc => bc
-        end
-      then
-        (* break, not return *)
-        Ret (e', le', Some None)
-      else
-        (* continue *)
-        Ret (e', le', None)
+      match obc with
+      | Some true => Ret (e', le', Some None)
+      | Some false => triggerUB
+      | None => Ret (e', le', None)
+      end
     end.
 
   Definition sloop_iter_body
@@ -1096,7 +1090,6 @@ Section DECOMP.
              (e: env) (le: temp_env)
              (oa: option expr)
     : itree eff (option val) :=
-    free_list_aux (blocks_of_env ce e);;;
     match oa with
     | None => Ret (Some Vundef)
     | Some a =>
@@ -1185,13 +1178,75 @@ Section DECOMP.
     match t with
     | None => triggerUB
     | Some (e, le) =>
-      '(_, _, c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; c?;;;
+      '(e', _, c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; c?;;;
+      free_list_aux (blocks_of_env ce e');;;
       let v := match ov with
                | None => Vundef
                | Some v => v
                end
       in
       Ret v
+    end.
+
+  Definition treat_flow (itr_sreturn: itr_t) (itr_sbreak: itr_t) (itr_scontinue: itr_t) (itr_skip: itr_t) 
+  : option bool -> option val -> itr_t :=
+    fun optb optv =>
+      match optv with
+      | Some _ => itr_sreturn
+      | None =>
+        match optb with
+        | Some true => itr_sbreak
+        | Some false => itr_scontinue
+        | None => itr_skip
+        end
+      end.
+ 
+  Fixpoint decomp_cont (retty: type) (k: Clight.cont) (e: env) (le: temp_env) (optb: option bool) (optv: option val) : itree eff val :=
+    match k with
+    | Kseq code k' => 
+      '(e', le', optb', optv') <- (treat_flow 
+                                    (Ret (e, le, None, optv)) 
+                                    (Ret (e, le, optb, None)) 
+                                    (Ret (e, le, optb, None)) 
+                                    (decomp_stmt retty code e le)) optb optv;;
+      decomp_cont retty k' e' le' optb' optv'
+    | Kloop1 code1 code2 k' => 
+      '(e', le', optb', optv') <- (treat_flow 
+                                    (Ret (e, le, None, optv)) 
+                                    (Ret (e, le, None, None)) 
+                                    ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt retty code2 e le);;
+                                     match ov2 with
+                                     | Some v2 => Ret (e2, le2, None, v2)
+                                     | None => _sloop_itree e2 le2 (decomp_stmt retty code1) (decomp_stmt retty code2)
+                                     end)
+                                    ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt retty code2 e le);;
+                                     match ov2 with
+                                     | Some v2 => Ret (e2, le2, None, v2)
+                                     | None => _sloop_itree e2 le2 (decomp_stmt retty code1) (decomp_stmt retty code2)
+                                     end)) optb optv;;
+      decomp_cont retty k' e' le' optb' optv'
+    | Kloop2 code1 code2 k' =>
+      '(e', le', optb', optv') <- (treat_flow 
+                                    (Ret (e, le, None, optv)) 
+                                    (Ret (e, le, None, None)) 
+                                    triggerUB
+                                    (_sloop_itree e le (decomp_stmt retty code1) (decomp_stmt retty code2))) optb optv;;
+      decomp_cont retty k' e' le' optb' optv'
+    | Kstop => 
+      '(_, _, _, optv') <- (treat_flow 
+                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
+                            triggerUB 
+                            triggerUB 
+                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
+      v <- optv'?;; Ret v
+    | Kcall optid f e' le' k' =>
+      '(_, _, _, optv') <- (treat_flow 
+                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
+                            triggerUB 
+                            triggerUB 
+                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
+      v <- optv?;; decomp_cont f.(fn_return) k' e' (set_opttemp optid v le') None None
+    | _ => triggerUB
     end.
 
 End DECOMP.

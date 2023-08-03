@@ -28,6 +28,7 @@ Makefile.coq: Makefile $(COQTHEORIES)
          echo "-R mem $(COQMODULE)"; \
          echo "-R examples $(COQMODULE)"; \
          echo "-R extract $(COQMODULE)"; \
+         echo "-R clightlight $(COQMODULE)"; \
    echo $(COQTHEORIES)) > _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
 
