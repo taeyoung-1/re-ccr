@@ -947,9 +947,9 @@ Definition function_entry_c
 
 Section DECOMP.
 
-  Notation itr_t :=
-    (itree eff (env * temp_env *
-                option bool (*break/continue*) * option val)).
+  Definition runtime_env : Type := env * temp_env * option bool * option val.
+
+  Notation itr_t := (itree eff runtime_env).
 
   Definition _sassign_c e le a1 a2 :=
     v <- eval_lvalue_c e le a1;;
@@ -1108,7 +1108,7 @@ Section DECOMP.
     : itr_t :=
     match stmt with
     | Sskip =>
-      Ret ((* k, *) e, le, None, None)
+      tau;;Ret ((* k, *) e, le, None, None)
     | Sassign a1 a2 =>
       _sassign_c e le a1 a2;;;
       Ret (e, le, None, None)
@@ -1188,66 +1188,73 @@ Section DECOMP.
       Ret v
     end.
 
-  Definition treat_flow (itr_sreturn: itr_t) (itr_sbreak: itr_t) (itr_scontinue: itr_t) (itr_skip: itr_t) 
-  : option bool -> option val -> itr_t :=
-    fun optb optv =>
-      match optv with
-      | Some _ => itr_sreturn
+    Lemma unfold_decomp_stmt :
+    decomp_stmt =
+  fun retty stmt e le =>
+    match stmt with
+    | Sskip =>
+      tau;;Ret ((* k, *) e, le, None, None)
+    | Sassign a1 a2 =>
+      _sassign_c e le a1 a2;;;
+      Ret (e, le, None, None)
+    | Sset id a =>
+      v <- eval_expr_c e le a ;;
+      match v with
+      | Some v =>
+        let le' := PTree.set id v le in
+        Ret (e, le', None, None)
       | None =>
-        match optb with
-        | Some true => itr_sbreak
-        | Some false => itr_scontinue
-        | None => itr_skip
+        triggerUB
+      end
+    | Scall optid a al =>
+        v <- _scall_c e le a al;;
+        Ret (e, (set_opttemp optid v le), None, None)
+    | Sbuiltin optid ef targs el => triggerUB
+    | Ssequence s1 s2 =>
+      '(e', le', bc, v) <- decomp_stmt retty s1 e le;;
+      match v with
+      | Some retval =>
+        Ret (e', le', None, v)
+      | None =>
+        match bc with
+        | None =>
+          decomp_stmt retty s2 e' le'
+        | Some _ =>
+          Ret (e', le', bc, None)
         end
-      end.
- 
-  Fixpoint decomp_cont (retty: type) (k: Clight.cont) (e: env) (le: temp_env) (optb: option bool) (optv: option val) : itree eff val :=
-    match k with
-    | Kseq code k' => 
-      '(e', le', optb', optv') <- (treat_flow 
-                                    (Ret (e, le, None, optv)) 
-                                    (Ret (e, le, optb, None)) 
-                                    (Ret (e, le, optb, None)) 
-                                    (decomp_stmt retty code e le)) optb optv;;
-      decomp_cont retty k' e' le' optb' optv'
-    | Kloop1 code1 code2 k' => 
-      '(e', le', optb', optv') <- (treat_flow 
-                                    (Ret (e, le, None, optv)) 
-                                    (Ret (e, le, None, None)) 
-                                    ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt retty code2 e le);;
-                                     match ov2 with
-                                     | Some v2 => Ret (e2, le2, None, v2)
-                                     | None => _sloop_itree e2 le2 (decomp_stmt retty code1) (decomp_stmt retty code2)
-                                     end)
-                                    ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt retty code2 e le);;
-                                     match ov2 with
-                                     | Some v2 => Ret (e2, le2, None, v2)
-                                     | None => _sloop_itree e2 le2 (decomp_stmt retty code1) (decomp_stmt retty code2)
-                                     end)) optb optv;;
-      decomp_cont retty k' e' le' optb' optv'
-    | Kloop2 code1 code2 k' =>
-      '(e', le', optb', optv') <- (treat_flow 
-                                    (Ret (e, le, None, optv)) 
-                                    (Ret (e, le, None, None)) 
-                                    triggerUB
-                                    (_sloop_itree e le (decomp_stmt retty code1) (decomp_stmt retty code2))) optb optv;;
-      decomp_cont retty k' e' le' optb' optv'
-    | Kstop => 
-      '(_, _, _, optv') <- (treat_flow 
-                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
-                            triggerUB 
-                            triggerUB 
-                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
-      v <- optv'?;; Ret v
-    | Kcall optid f e' le' k' =>
-      '(_, _, _, optv') <- (treat_flow 
-                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
-                            triggerUB 
-                            triggerUB 
-                            (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
-      v <- optv?;; decomp_cont f.(fn_return) k' e' (set_opttemp optid v le') None None
-    | _ => triggerUB
+      end
+    | Sifthenelse a s1 s2 =>
+      b <- _site_c e le a;;
+      match b with
+      | Some b =>
+        if (b: bool) then (decomp_stmt retty s1 e le)
+        else (decomp_stmt retty s2 e le)
+      | None =>
+        triggerUB
+      end
+    | Sloop s1 s2 =>
+      let itr1 := decomp_stmt retty s1 in
+      let itr2 := decomp_stmt retty s2 in
+      _sloop_itree e le itr1 itr2
+    (* '(e, le, m, bc, v) <- itr ;; *)
+
+    | Sbreak =>
+      Ret (e, le, Some true, None)
+    | Scontinue =>
+      Ret (e, le, Some false, None)
+    | Sreturn oa =>
+      v <- _sreturn_c retty e le oa;;
+      match v with
+      | Some v =>
+        Ret (e, le, None, Some v)
+      | None =>
+        triggerUB
+      end
+    | _ =>
+      (* not supported *)
+      triggerUB
     end.
+    Proof. repeat (apply func_ext; i). destruct x0; et. Qed.
 
 End DECOMP.
 End Clight.
@@ -1471,7 +1478,12 @@ Section DECOMP_PROG.
       | Gvar _ => decomp_fundefs sk defs'
       | Gfun fd =>
         match fd with
-        | Internal f => (id, decomp_func sk ce f) :: decomp_fundefs sk defs'
+        | Internal f => 
+          (id, fun vl => 
+                  v <- decomp_func sk ce f vl;; 
+                  (if Pos.eq_dec id (ident_of_string "main")
+                   then (match v with Vint _ => Ret v | _ => triggerUB end)
+                   else Ret v)) :: decomp_fundefs sk defs'
         | _ => decomp_fundefs sk defs'
         end
       end

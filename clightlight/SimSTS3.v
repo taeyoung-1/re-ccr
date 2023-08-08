@@ -682,10 +682,8 @@ Section SIM.
   Variant _sim sim (f_src f_tgt: bool) (st_src0: L0.(STS.state)) (st_tgt0: L1.(Smallstep.state)): Prop :=
   | sim_fin
       retv
-      (RANGE: (0 <= retv <= Int.max_unsigned)%Z)
-      (* (RANGE: (Int.min_signed <= retv <= Int.max_signed)%Z) *)
       (SRT: _.(state_sort) st_src0 = final retv↑)
-      (SRT: _.(Smallstep.final_state) st_tgt0 (Int.repr retv))
+      (SRT: _.(Smallstep.final_state) st_tgt0 retv)
       (* (DTM: True) (*** TODO: copy-paste sd_final_determ in Smallstep.v ***) *)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0

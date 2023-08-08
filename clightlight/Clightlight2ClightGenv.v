@@ -49,7 +49,12 @@ Section GENV.
   Lemma decomp_fundefs_decomp_func i p
         (INLEFT: In (p, i) (decomp_fundefs types WF_TYPES sge defs)) 
     :
-        exists f, i = decomp_func sge ce f /\ In (p, Gfun (Internal f)) defs.
+        exists f, 
+          (i = fun vl => 
+                v <- decomp_func sge ce f vl;; 
+                (if Pos.eq_dec p (ident_of_string "main")
+                 then (match v with Values.Vint _ => Ret v | _ => triggerUB end)
+                 else Ret v)) /\ In (p, Gfun (Internal f)) defs.
   Proof.
     induction defs.
     { inv INLEFT. }

@@ -13,6 +13,16 @@ Section LENV.
   Context `{Σ: GRA.t}.
   Context `{builtins : builtinsTy}.
 
+  Lemma match_update_le defs le tle o v
+        (MLE: match_le defs le tle)
+    :
+      match_le defs (set_opttemp o v le) (set_opttemp o (map_val defs v) tle).
+  Proof.
+    destruct o; ss. econs. i. inv MLE. destruct (Pos.eq_dec i id).
+    - subst. rewrite PTree.gss in *. clarify.
+    - rewrite PTree.gso in *; et.
+  Qed.
+
   Lemma update_le
         defs x id v sv le tle
         (SRC_UPDATE: Maps.PTree.get x (Maps.PTree.set id v tle) = Some sv)

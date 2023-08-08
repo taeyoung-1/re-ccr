@@ -20,20 +20,121 @@ Set Implicit Arguments.
 Section MEM.
 
   Context `{Σ: GRA.t}.
-  Context `{builtins: builtinsTy}.
-(* 
-  Hypothesis map_blk_after_init :
-    forall src blk
-      (COMP : exists tgt, compile src = OK tgt)
-      (ALLOCED : blk >= (src_init_nb src)),
-      (<<ALLOCMAP: (map_blk src blk) = Pos.of_succ_nat (tgt_init_len + (ext_len src) + (int_len src - sk_len src) + blk)>>).
 
-  Hypothesis map_blk_inj :
-    forall src b1 b2
-      (COMP : exists tgt, Imp2Csharpminor.compile src = OK tgt)
-      (WFPROG: (incl (name1 src.(defsL)) ((name1 src.(prog_varsL)) ++ (name2 src.(prog_funsL)))))
-      (WFSK: Sk.wf src.(defsL)),
-      <<INJ: map_blk src b1 = map_blk src b2 -> b1 = b2>>.
+  Import List.
+
+  Lemma map_blk_after_init :
+    forall defs blk
+      (ALLOCED : S (length (get_sk defs)) <= Pos.to_nat blk),
+      (<<ALLOCMAP: map_blk defs blk = Pos.of_nat ((List.length defs - List.length (get_sk defs)) + (Pos.to_nat blk))>>).
+  Proof. unfold map_blk. i. des_ifs. Qed.
+
+  Lemma fold_left_prop :
+    forall A B C (f: A -> C) (g: A -> B -> A) (h: C -> C) l i
+      (COMM: forall a b, f (g a b) = h (f a)),
+      f (fold_left g l i) = fold_left (fun x _ => h x) l (f i).
+  Proof.
+    i. do 2 rewrite <- fold_left_rev_right. set (rev l) as l'. clearbody l'. induction l'; ss.
+    rewrite COMM. f_equal. et.
+  Qed.
+  
+  Variable defs : list (ident * globdef fundef Ctypes.type).
+
+  Hypothesis defs_ident_from_string :
+    forall p gd , In (p, gd) defs -> exists s, ident_of_string s = p.
+  
+  Hypothesis def_ident_nodup : NoDup (map (fun '(id, _) => id) defs).
+
+  Lemma get_sk_incl :
+    forall s a , In (s, a) (get_sk defs) -> exists gd, In (ident_of_string s, gd) defs.
+  Proof.
+    clear def_ident_nodup. i. depgen s. revert a. induction defs; i.
+    - inv H.
+    - destruct a.
+      assert (HINT: exists s, ident_of_string s = i).
+      { eapply defs_ident_from_string. instantiate (1 := g). ss. auto. }
+      des. symmetry in HINT. subst. ss. des_ifs; ss.
+      + rewrite string_of_ident_of_string in H. des.
+        { inv H. et. } { apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } }
+      + apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } 
+      + apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } 
+      + rewrite string_of_ident_of_string in H. des.
+        { inv H. et. } { apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } }
+  Qed.
+
+  Local Transparent Sk.load_skenv.
+
+  Lemma map_blk_global_region :
+    forall blk
+      (SRC_GLOBAL: S (length (get_sk defs)) > Pos.to_nat blk),
+      (<<TGT_GLOBAL: Pos.to_nat (map_blk defs blk) < S (List.length defs)>>).
+  Proof.
+    i. unfold map_blk. 
+    change (Genv.add_globals _ defs) with (Genv.globalenv (AST.mkprogram defs (map fst defs) xH)).
+    des_ifs; try nia; red.
+    - clear - Heq0. 
+      unfold Genv.find_symbol in *. apply Genv.genv_symb_range in Heq0.
+      replace (Genv.genv_next _) with (Pos.of_nat (S (List.length defs))) in Heq0.
+      2:{ clear. unfold Genv.globalenv. unfold Genv.add_globals.
+          rewrite fold_left_prop with (h := Pos.succ); et. 
+          induction defs; try (ss; nia). ss. rewrite IHl.
+          clear. do 2 rewrite <- fold_left_rev_right. set (rev l) as d'. clearbody d'.
+          induction d'; ss; nia. }
+      set (S _) as n in *. assert (n > 0) by now ss; nia. clearbody n. clear -Heq0 H. 
+      gen b. induction H; i; try nia.
+      + inv Heq0. unfold Pos.compare in *. ss. des_ifs.
+      + rewrite Nat2Pos.inj_succ in Heq0; try nia. apply Coqlib.Plt_succ_inv in Heq0.
+        des; try (subst; nia). apply IHle in Heq0. nia.
+    - unfold Sk.load_skenv in Heq. ss. uo. des_ifs_safe.
+      apply nth_error_In in Heq. apply get_sk_incl in Heq. des.
+      set (AST.mkprogram _ _ _) as prog in Heq0.
+      change defs with (prog_defs prog) in Heq.
+      apply Genv.find_symbol_exists in Heq. des. clarify.
+    - unfold Sk.load_skenv in Heq. ss. uo. des_ifs. apply nth_error_None in Heq1. nia.
+  Qed.
+
+  Lemma map_blk_inj :
+    forall b1 b2, <<INJ: map_blk defs b1 = map_blk defs b2 -> b1 = b2>>.
+  Proof.
+    i.
+    assert (LEN: length (get_sk defs) <= length defs).
+    { clear. induction defs; et. simpl. des_ifs; ss; try nia. }
+    red. i. dup H.
+    unfold map_blk in H0.
+    destruct (ge_dec (Pos.to_nat b1) _) in H0; destruct (ge_dec (Pos.to_nat b2) _) in H0; try nia; clear H0.
+    - assert (contra1: Pos.to_nat b2 < S (length (get_sk defs))) by nia.
+      apply map_blk_global_region in contra1. 
+      assert (contra2: S (length (get_sk defs)) <= Pos.to_nat b1) by nia.
+      apply map_blk_after_init in contra2. rewrite H in contra2. red in contra2. red in contra1.
+      nia. 
+    - assert (contra1: Pos.to_nat b1 < S (length (get_sk defs))) by nia.
+      apply map_blk_global_region in contra1. 
+      assert (contra2: S (length (get_sk defs)) <= Pos.to_nat b2) by nia.
+      apply map_blk_after_init in contra2. rewrite H in contra1. red in contra2. red in contra1.
+      nia. 
+    - (* may not needed *)
+      unfold map_blk in H. destruct (ge_dec (Pos.to_nat b1) _) in H; destruct (ge_dec (Pos.to_nat b2) _) in H; try nia.
+      assert (H1: Init.Nat.pred (Pos.to_nat b1) < length (get_sk defs)) by nia.
+      assert (H2: Init.Nat.pred (Pos.to_nat b2) < length (get_sk defs)) by nia.
+      apply nth_error_Some in H1.
+      apply nth_error_Some in H2.
+      unfold Sk.load_skenv in *. uo. ss.
+      dup H1. dup H2. rename H3 into H4. rename H0 into H3.
+      destruct (nth_error _) eqn: E1 in H3; clarify. dup E1. rename E0 into E3. apply nth_error_In in E1.
+      destruct (nth_error _) eqn: E2 in H4; clarify. dup E2. rename E0 into E4. apply nth_error_In in E2.
+      destruct p. destruct p0.
+      apply get_sk_incl in E1.
+      apply get_sk_incl in E2.
+      rewrite E3 in H. rewrite E4 in H.
+      change defs with (prog_defs (AST.mkprogram defs (map fst defs) xH)) in E1.
+      change defs with (prog_defs (AST.mkprogram defs (map fst defs) xH)) in E2.
+      des. apply Genv.find_symbol_exists in E1. apply Genv.find_symbol_exists in E2.
+      des. unfold Genv.globalenv in *. ss. des_ifs.
+      (* TODO: from here, proof with noDup is trivial *)
+      (* noDup property is needed to satisfy one-to-one correspondence in global region *)
+      Admitted.
+
+(* 
 
   Variable src : Imp.programL.
   Variable m : Mem.t.
@@ -110,17 +211,45 @@ Section MEM.
           ii. apply map_blk_inj in H; eauto. 
     - apply MMEM in H; des. hexploit Mem.store_valid_access_1; eauto. 
   Qed.
+*)
 
-  Lemma match_mem_free
-        blk ofs m2
-        (SMEM: Mem.free m blk ofs = Some m2)
+  Local Transparent Mem.free.
+
+  Lemma match_mem_free m tm b lo hi m'
+        (SMEM: Mem.free m b lo hi = Some m')
+        (MM_PRE: match_mem defs m tm)
     :
-      (<<MM2: match_mem src m2 tm>>).
+    exists tm',
+        (<<TMEM: Mem.free tm (map_blk defs b) lo hi = Some tm'>>) /\
+        (<<MM_POST: match_mem defs m' tm'>>).
   Proof.
-    inv MM. unfold Mem.free in SMEM. des_ifs. apply MMEM in Heq. des.
-    split; i; eauto. ss. unfold update in H. des_ifs; eauto.
+    inv MM_PRE. unfold Mem.free in *. eexists. split. 
+    - des_ifs. exfalso. apply n. unfold Mem.range_perm, Mem.perm in *.
+      i. rewrite <- MEM_PERM. et.
+    - des_ifs. unfold Mem.unchecked_free. econs; et.
+      ss. i. set (Pos.eq_dec b b0) as x. destruct x.
+      + subst. repeat rewrite PMap.gss. repeat rewrite MEM_PERM. et.
+      + rewrite PMap.gso by et.
+        assert (map_blk defs b <> map_blk defs b0).
+        { red. i. apply n. apply map_blk_inj in H; et. }
+        rewrite PMap.gso; et.
   Qed.
 
+  Lemma match_mem_free_list m tm l m'
+        (SMEM: Mem.free_list m l = Some m')
+        (MM_PRE: match_mem defs m tm)
+    :
+    exists tm',
+        (<<TMEM: Mem.free_list tm (map (fun '(b, lo, hi) => (map_blk defs b, lo, hi)) l) = Some tm'>>) /\
+        (<<MM_POST: match_mem defs m' tm'>>).
+  Proof.
+    depgen m. revert m' tm. induction l; i; ss; clarify.
+    - eexists; et.
+    - des_ifs_safe. hexploit match_mem_free; et. i. des. rewrite TMEM.
+      hexploit IHl; et.
+  Qed.
+
+(*
   Lemma match_mem_store
         blk ofs v m2
         (SMEM: Mem.store m blk ofs v = Some m2)
