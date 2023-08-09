@@ -31,14 +31,14 @@ Global Program Instance EMSConfigC: EMSConfig := {|
 Definition admit (excuse: String.string) {T: Type} : T.  Admitted.
 Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
-Section GType.
+(* Section GType.
   
   Inductive C_SkelEntry:=
   | Cgfun (function_type: type)
   | Cgvar (gv: globvar type)
   .
 
-End GType.
+End GType. *)
 
 Section Clight.
 Context {eff : Type -> Type}.
@@ -55,14 +55,66 @@ Section EVAL_EXPR_COMP.
   Definition divide_c (n m: Z): bool :=
     let x := m / n in
     (x * n =? m).
+  
+  Definition signedness_eq sg1 sg2 : bool :=
+    match sg1, sg2 with
+    | Signed, Signed 
+    | Unsigned, Unsigned => true
+    | _, _ => false
+    end.
+
+  Definition load_bitfield_c (ty: type) 
+            (sz: intsize) (sg: signedness) (pos: Z) (width: Z) 
+            (addr: val) : itree eff val :=
+  let chk := (0 <=? pos) && (0 <? width) 
+            && (width <=? bitsize_intsize sz) 
+            && (pos + width <=? Cop.bitsize_carrier sz) in
+  match ty, chk with
+  | Tint sz sg1 attr, true =>
+    if signedness_eq sg1
+        (if Coqlib.zlt width (bitsize_intsize sz) 
+        then Signed else sg) 
+    then v <- ccallU "load" (Cop.chunk_for_carrier sz, addr);;
+        match v with
+        | Vint c => 
+          Ret (Vint (Cop.bitfield_extract sz sg pos width c))
+        | _ => triggerUB
+        end
+    else triggerUB
+  | _, _ => triggerUB
+  end.
+
+  Definition store_bitfield_c (ty: type) 
+            (sz: intsize) (sg: signedness) (pos: Z) (width: Z) 
+            (addr: val) (v: val) : itree eff val :=
+  let chk := (0 <=? pos) && (0 <? width) 
+            && (width <=? bitsize_intsize sz) 
+            && (pos + width <=? Cop.bitsize_carrier sz) in
+  match ty, v, chk with
+  | Tint sz sg1 attr, Vint n, true =>
+    if signedness_eq sg1
+        (if Coqlib.zlt width (bitsize_intsize sz) 
+        then Signed else sg) 
+    then v <- ccallU "load" (Cop.chunk_for_carrier sz, addr);;
+        match v with
+        | Vint c => 
+          let stored_v := Vint (Int.bitfield_insert (Cop.first_bit sz pos width) width c n) in
+          `_ : () <- ccallU "store" (Cop.chunk_for_carrier sz, addr, stored_v);;
+          Ret (Vint (Cop.bitfield_normalize sz sg width n))
+        | _ => triggerUB
+        end
+    else triggerUB
+  | _, _, _ => triggerUB
+  end.
 
   Definition assign_loc_c (ce: composite_env)
            (ty: type) (b: block) (ofs: ptrofs)
+           (bf: bitfield)
            (v: val): itree eff unit :=
-  match access_mode ty with
-  | By_value chunk =>
+  match access_mode ty, bf with
+  | By_value chunk, Full =>
     ccallU "store" (chunk, Vptr b ofs, v)
-  | By_copy =>
+  | By_copy, Full =>
     match v with
     | Vptr b' ofs' =>
       let chk1 :=
@@ -74,88 +126,84 @@ Section EVAL_EXPR_COMP.
                     (alignof_blockcopy ce ty)
                     (Ptrofs.unsigned ofs))
           else true in
-      if negb chk1 then Ret tt else
+      if negb chk1 then triggerUB else
         let chk2 :=
             (orb (negb (b' =? b))%positive
                  (orb (Ptrofs.unsigned ofs' =? Ptrofs.unsigned ofs)
                       (orb (Ptrofs.unsigned ofs' + sizeof ce ty <=? Ptrofs.unsigned ofs)
                            (Ptrofs.unsigned ofs + sizeof ce ty <=? Ptrofs.unsigned ofs'))))%Z
         in
-        if negb chk2 then Ret tt else
-          bytes <- @ccallU _ _ _ _ (option (list memval))
-                           "loadbytes" (Vptr b' ofs', sizeof ce ty);;
+        if negb chk2 then triggerUB else
+          `bytes : list memval <- ccallU "loadbytes" (Vptr b' ofs', sizeof ce ty);;
           ccallU "storebytes" (Vptr b ofs, bytes)
-    | _ => Ret tt
+    | _ => triggerUB
     end
-  | By_reference => Ret tt
-  | By_nothing => Ret tt
+  | _, Bits sz sg pos width => 
+    store_bitfield_c ty sz sg pos width (Vptr b ofs) v;;; Ret tt
+  | _, _ => triggerUB
   end.
 
   Definition deref_loc_c (ty: type)
-             (b:block) (ofs: ptrofs): itree eff (option val) :=
-    match access_mode ty with
-    | By_value chunk => (v <- ccallU "load" (chunk, Vptr b ofs);; Ret(Some v) )
-    | By_reference => Ret (Some (Vptr b ofs))
-    | By_copy => Ret (Some (Vptr b ofs))
-    | By_nothing => Ret None
+             (b:block) (ofs: ptrofs) (bf: bitfield): itree eff val :=
+    match access_mode ty, bf with
+    | By_value chunk, Full => ccallU "load" (chunk, Vptr b ofs)
+    | By_reference, Full 
+    | By_copy, Full => Ret (Vptr b ofs)
+    | _, Bits sz sg pos width =>
+      load_bitfield_c ty sz sg pos width (Vptr b ofs)
+    | _, _ => triggerUB
     end.
 
   Variable e: Clight.env.
   Variable le: Clight.temp_env.
 
   Section EVAL_LVALUE.
-    Variable _eval_expr_c: expr -> itree eff (option val).
+    Variable _eval_expr_c: expr -> itree eff val.
 
     Definition _eval_lvalue_c (a: expr)
-      : itree eff (option (block * (ptrofs * bitfield))) :=
+      : itree eff (block * (ptrofs * bitfield)) :=
       match a with
       | Evar id ty =>
         match e ! id with
         | Some (l, ty') =>
-          if type_eq ty ty' then Ret (Some (l, (Ptrofs.zero, Full)))
-          else Ret None
+          if type_eq ty ty' then Ret (l, (Ptrofs.zero, Full))
+          else triggerUB
         | None =>
           match SkEnv.id2blk skenv (string_of_ident id) with
-          | Some i => Ret (Some (Pos.of_nat (S i), (Ptrofs.zero, Full)))
-          | None => Ret None
+          | Some i => Ret (Pos.of_nat (S i), (Ptrofs.zero, Full))
+          | None => triggerUB
           end
         end
       | Ederef a ty =>
         v <- _eval_expr_c a;;
         match v with
-        | Some (Vptr l ofs) => Ret (Some (l, (ofs, Full)))
-        | _ => Ret None
+        | Vptr l ofs => Ret (l, (ofs, Full))
+        | _ => triggerUB
         end
       | Efield a i ty =>
         v <- _eval_expr_c a;;
         match v with
-        | Some (Vptr l ofs) =>
+        | Vptr l ofs =>
           match Clight.typeof a with
           | Tstruct id att =>
-            match ce ! id with
-            | Some co =>
-              match field_offset ce i (co_members co) with
-              | Errors.OK (delta, bf) =>
-                Ret (Some (l, (Ptrofs.add ofs (Ptrofs.repr delta), bf)))
-              | _ => Ret None
-              end
-            | _ => Ret None
+            co <- (ce ! id)?;;
+            match field_offset ce i (co_members co) with
+            | Errors.OK (delta, bf) =>
+              Ret (l, (Ptrofs.add ofs (Ptrofs.repr delta), bf))
+            | _ => triggerUB
             end
           | Tunion id att =>
-            match ce ! id with
-            | Some co =>
-                match union_field_offset ce i (co_members co) with
-                | Errors.OK (delta, bf) =>
-                    Ret (Some (l, ((Ptrofs.add ofs (Ptrofs.repr delta)), bf)))
-                | _ => Ret None
-                end
-            | None => Ret None
+            co <- (ce ! id)?;;
+            match union_field_offset ce i (co_members co) with
+            | Errors.OK (delta, bf) =>
+                Ret (l, ((Ptrofs.add ofs (Ptrofs.repr delta)), bf))
+            | _ => triggerUB
             end
-          | _ => Ret None
+          | _ => triggerUB
           end
-        | _ => Ret None
+        | _ => triggerUB
         end
-      | _ => Ret None
+      | _ => triggerUB
       end.
 
   End EVAL_LVALUE.
@@ -206,7 +254,7 @@ Section EVAL_EXPR_COMP.
     | Cop.bool_default => Ret None
     end
   .
-
+  
   Definition unary_op_c op v ty: itree eff (option val) :=
     match op with
     | Cop.Onotbool =>
@@ -379,7 +427,7 @@ Section EVAL_EXPR_COMP.
     | Cop.cast_case_void => Ret (Some v)
     | Cop.cast_case_default => Ret None
     end.
-
+  
   Definition sem_binarith_c sem_int sem_long sem_float sem_single
              v1 t1 v2 t2: itree eff (option val) :=
     let c := Cop.classify_binarith t1 t2 in
@@ -824,81 +872,61 @@ Section EVAL_EXPR_COMP.
     | Cop.Oge => sem_cmp_c Cge v1 t1 v2 t2
     end.
   
-  Fixpoint eval_expr_c (expr: Clight.expr): itree eff (option val) :=
+
+  Fixpoint eval_expr_c (expr: Clight.expr): itree eff val :=
     match expr with
-    | Econst_int i ty => Ret (Some (Vint i))
-    | Econst_float f ty => Ret (Some (Vfloat f))
-    | Econst_single f ty => Ret (Some (Vsingle f))
-    | Econst_long i ty => Ret (Some (Vlong i))
-    | Etempvar id ty => Ret ((le ! id))
+    | Econst_int i ty => Ret (Vint i)
+    | Econst_float f ty => Ret (Vfloat f)
+    | Econst_single f ty => Ret (Vsingle f)
+    | Econst_long i ty => Ret (Vlong i)
+    | Etempvar id ty => (le ! id)?
     | Eaddrof a ty =>
-      v <- _eval_lvalue_c eval_expr_c a;;
-      match v with
-      | None => Ret None (*??*)
-      | Some (loc, (ofs, bf)) => Ret (Some (Vptr loc ofs))
+      '(loc, (ofs, bf)) <- _eval_lvalue_c eval_expr_c a;;
+      match bf with
+      | Full => Ret (Vptr loc ofs)
+      | _ => triggerUB
       end
     | Eunop op a ty =>
       v <- eval_expr_c a;;
-      match v with
-      | None => Ret None
-      | Some v1 =>
-        unary_op_c op v1 (Clight.typeof a)
-      end
+      v' <- unary_op_c op v (Clight.typeof a);;
+      v'?
     | Ebinop op a1 a2 ty =>
       v1 <- eval_expr_c a1;;
       v2 <- eval_expr_c a2;;
-      match v1, v2 with
-      | Some v1, Some v2 =>
-        binary_op_c ce op
-                    v1 (Clight.typeof a1)
-                    v2 (Clight.typeof a2)
-      | _, _ => Ret None
-      end
+      v <- binary_op_c ce op
+                  v1 (Clight.typeof a1)
+                  v2 (Clight.typeof a2);;
+      v?
     | Ecast a ty =>
       v <- eval_expr_c a;;
-      match v with
-      | None => Ret None
-      | Some v1 =>
-        sem_cast_c v1 (Clight.typeof a) ty
-      end
+      v' <- sem_cast_c v (Clight.typeof a) ty;;
+      v'?
     | Esizeof ty1 ty =>
-      Ret (Some (Vptrofs (Ptrofs.repr (sizeof ce ty1))))
+      Ret (Vptrofs (Ptrofs.repr (sizeof ce ty1)))
     | Ealignof ty1 ty =>
-      Ret (Some (Vptrofs (Ptrofs.repr (alignof ce ty1))))
+      Ret (Vptrofs (Ptrofs.repr (alignof ce ty1)))
     | a =>
-      v <- _eval_lvalue_c eval_expr_c a;;
-      match v with
-      | None => Ret None
-      | Some (loc, (ofs, bf)) =>
-        v <- deref_loc_c (Clight.typeof a) loc ofs;; Ret v
-      end
+      '(loc, (ofs, bf)) <- _eval_lvalue_c eval_expr_c a;;
+      v <- deref_loc_c (Clight.typeof a) loc ofs bf;; Ret v
     end.
 
 
   Definition eval_lvalue_c
-    : expr -> itree eff (option (block * (ptrofs * bitfield))) :=
+    : expr -> itree eff (block * (ptrofs * bitfield)) :=
     _eval_lvalue_c eval_expr_c.
 
   Fixpoint eval_exprlist_c
            (es: list expr) (ts: typelist)
-    : itree eff (option (list val)) :=
+    : itree eff (list val) :=
     match es, ts with
-    | [], Ctypes.Tnil =>
-        Ret (Some [])
+    | [], Ctypes.Tnil => Ret []
     | e::es', Ctypes.Tcons ty ts' =>
       v1 <- eval_expr_c e;;
       vs <- eval_exprlist_c es' ts';; 
-      match v1, vs with
-      | Some v1, Some vs =>
-        v2 <- sem_cast_c v1 (typeof e) ty;;
-        match v2 with
-        | Some v2 => Ret (Some (v2::vs))
-        | None => Ret None
-        end
-      | _, _ =>
-          Ret None
-      end
-    | _, _ => Ret None
+      v1' <- sem_cast_c v1 (typeof e) ty;;
+      v1'' <- v1'?;;
+      Ret (v1'':: vs)
+    | _, _ => triggerUB
     end.
 
 End EVAL_EXPR_COMP.
@@ -920,30 +948,22 @@ Fixpoint alloc_variables_c (ce: composite_env) (e: env)
     v <- ccallU "salloc" (0%Z, sizeof ce ty);;
     match v with
     | Vptr b ofs => alloc_variables_c ce (PTree.set id (b, ty) e) vars'
-    | _ => triggerUB
+    | _ => triggerUB (* dummy *)
     end
   end.
 
 Definition function_entry_c
            (ce: composite_env) (f: function) (vargs: list val)
-  : itree eff (option (env * temp_env)) :=
+  : itree eff (env * temp_env) :=
   if (id_list_norepet_c (var_names (fn_vars f)) &&
       id_list_norepet_c (var_names (fn_params f)) &&
       id_list_disjoint_c (var_names (fn_params f))
                          (var_names (fn_temps f)))%bool
   then
     e <- alloc_variables_c ce empty_env (fn_vars f);;
-    match
-      bind_parameter_temps (fn_params f) vargs
-                            (create_undef_temps
-                               (fn_temps f))
-    with
-    | None => Ret None
-    | Some le => Ret
-
- (Some (e, le))
-    end
-  else Ret None.
+    le <- (bind_parameter_temps (fn_params f) vargs (create_undef_temps (fn_temps f)))?;;
+    Ret (e, le)
+  else triggerUB.
 
 Section DECOMP.
 
@@ -952,37 +972,26 @@ Section DECOMP.
   Notation itr_t := (itree eff runtime_env).
 
   Definition _sassign_c e le a1 a2 :=
-    v <- eval_lvalue_c e le a1;;
-    match v with
-    | Some (loc, (ofs, bf)) =>
-      v2 <- eval_expr_c e le a2;; 
-      match v2 with
-      | Some v2 =>
-        v <- sem_cast_c v2 (typeof a2) (typeof a1);;
-        match v with
-        | Some v =>
-          assign_loc_c ce (typeof a1) loc ofs v
-        | None => Ret tt
-        end
-      | None => Ret tt
-      end
-    | None => Ret tt
-    end.
+    tau;;
+    '(loc, (ofs, bf)) <- eval_lvalue_c e le a1;;
+     v2 <- eval_expr_c e le a2;; 
+     v2' <- sem_cast_c v2 (typeof a2) (typeof a1);;
+     v2' <- v2'?;;
+     assign_loc_c ce (typeof a1) loc ofs bf v2.
 
   Definition _scall_c e le a al
     : itree eff val :=
     match Cop.classify_fun (typeof a) with
     | Cop.fun_case_f tyargs tyres cconv =>
-      vf <- (eval_expr_c e le a);;
-      vf <- vf?;;
+      tau;;
+      vf <- eval_expr_c e le a;;
       vargs <- eval_exprlist_c e le al tyargs;;
-      vargs <- vargs?;;
       match vf with
       | Vptr b ofs =>
           '(gsym, skentry) <- (nth_error sk (pred (Pos.to_nat b)))?;;
-          gd <- (skentry↓)?;;
-          fd <- (match gd with Cgfun fd => Some fd | _ => None end)?;;
-          if type_eq fd
+          `gd : globdef _ type <- (skentry↓)?;;
+          fd <- (match gd with Gfun fd => Some fd | _ => None end)?;;
+          if type_eq (type_of_fundef fd)
                (Tfunction tyargs tyres cconv)
           then ccallU gsym vargs
           else triggerUB
@@ -993,13 +1002,11 @@ Section DECOMP.
 
   Definition _site_c
              (e: env) (le: temp_env) (a: expr)
-    : itree eff (option bool) :=
+    : itree eff bool :=
+    tau;;
     v1 <- eval_expr_c e le a;;
-    match v1 with
-    | Some v1 =>
-      bool_val_c v1 (typeof a)
-    | None => Ret None
-    end.
+    b <- bool_val_c v1 (typeof a);;
+    b?.
 
   Definition sloop_iter_body_one
              (itr: itr_t)
@@ -1075,7 +1082,7 @@ Section DECOMP.
     match l with
     | nil => Ret tt
     | (b, lo, hi):: l' =>
-      @ccallU _ _ _ _ unit "sfree" (b, lo, hi);;;
+      `_ : () <- ccallU "sfree" (b, lo, hi);;
       free_list_aux l'
     end.
 
@@ -1089,38 +1096,32 @@ Section DECOMP.
              (retty: type)
              (e: env) (le: temp_env)
              (oa: option expr)
-    : itree eff (option val) :=
+    : itree eff val :=
     match oa with
-    | None => Ret (Some Vundef)
+    | None => Ret Vundef
     | Some a =>
+      tau;;
       v <- eval_expr_c e le a;;
-      match v with
-      | None => Ret None
-      | Some v =>
-        sem_cast_c v (typeof a) retty
-      end
+      v' <- sem_cast_c v (typeof a) retty;;
+      v'?
     end.
 
   Fixpoint decomp_stmt
            (retty: type)
-           (stmt: statement) (* (k: cont) *)
+           (stmt: statement)
            (e: env) (le: temp_env)
     : itr_t :=
     match stmt with
     | Sskip =>
-      tau;;Ret ((* k, *) e, le, None, None)
+      tau;;Ret (e, le, None, None)
     | Sassign a1 a2 =>
       _sassign_c e le a1 a2;;;
       Ret (e, le, None, None)
     | Sset id a =>
+      tau;;
       v <- eval_expr_c e le a ;;
-      match v with
-      | Some v =>
-        let le' := PTree.set id v le in
-        Ret (e, le', None, None)
-      | None =>
-        triggerUB
-      end
+      let le' := PTree.set id v le in
+      Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
         Ret (e, (set_opttemp optid v le), None, None)
@@ -1140,31 +1141,19 @@ Section DECOMP.
       end
     | Sifthenelse a s1 s2 =>
       b <- _site_c e le a;;
-      match b with
-      | Some b =>
-        if (b: bool) then (decomp_stmt retty s1 e le)
-        else (decomp_stmt retty s2 e le)
-      | None =>
-        triggerUB
-      end
+      if (b: bool) then (decomp_stmt retty s1 e le)
+      else (decomp_stmt retty s2 e le)
     | Sloop s1 s2 =>
       let itr1 := decomp_stmt retty s1 in
       let itr2 := decomp_stmt retty s2 in
       _sloop_itree e le itr1 itr2
-    (* '(e, le, m, bc, v) <- itr ;; *)
-
     | Sbreak =>
       Ret (e, le, Some true, None)
     | Scontinue =>
       Ret (e, le, Some false, None)
     | Sreturn oa =>
       v <- _sreturn_c retty e le oa;;
-      match v with
-      | Some v =>
-        Ret (e, le, None, Some v)
-      | None =>
-        triggerUB
-      end
+      Ret (e, le, None, Some v)
     | _ =>
       (* not supported *)
       triggerUB
@@ -1174,18 +1163,12 @@ Section DECOMP.
            (f: Clight.function)
            (vargs: list val)
     : itree eff val :=
-    t <- function_entry_c ce f vargs;;
-    match t with
-    | None => triggerUB
-    | Some (e, le) =>
-      '(e', _, c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; c?;;;
-      free_list_aux (blocks_of_env ce e');;;
-      let v := match ov with
-               | None => Vundef
-               | Some v => v
-               end
-      in
-      Ret v
+    '(e, le) <- function_entry_c ce f vargs;;
+    '(e', _, c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; c?;;;
+    free_list_aux (blocks_of_env ce e');;;
+    match ov with
+    | None => Ret Vundef
+    | Some v => Ret v
     end.
 
     Lemma unfold_decomp_stmt :
@@ -1193,19 +1176,15 @@ Section DECOMP.
   fun retty stmt e le =>
     match stmt with
     | Sskip =>
-      tau;;Ret ((* k, *) e, le, None, None)
+      tau;;Ret (e, le, None, None)
     | Sassign a1 a2 =>
       _sassign_c e le a1 a2;;;
       Ret (e, le, None, None)
     | Sset id a =>
+      tau;;
       v <- eval_expr_c e le a ;;
-      match v with
-      | Some v =>
-        let le' := PTree.set id v le in
-        Ret (e, le', None, None)
-      | None =>
-        triggerUB
-      end
+      let le' := PTree.set id v le in
+      Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
         Ret (e, (set_opttemp optid v le), None, None)
@@ -1225,31 +1204,19 @@ Section DECOMP.
       end
     | Sifthenelse a s1 s2 =>
       b <- _site_c e le a;;
-      match b with
-      | Some b =>
-        if (b: bool) then (decomp_stmt retty s1 e le)
-        else (decomp_stmt retty s2 e le)
-      | None =>
-        triggerUB
-      end
+      if (b: bool) then (decomp_stmt retty s1 e le)
+      else (decomp_stmt retty s2 e le)
     | Sloop s1 s2 =>
       let itr1 := decomp_stmt retty s1 in
       let itr2 := decomp_stmt retty s2 in
       _sloop_itree e le itr1 itr2
-    (* '(e, le, m, bc, v) <- itr ;; *)
-
     | Sbreak =>
       Ret (e, le, Some true, None)
     | Scontinue =>
       Ret (e, le, Some false, None)
     | Sreturn oa =>
       v <- _sreturn_c retty e le oa;;
-      match v with
-      | Some v =>
-        Ret (e, le, None, Some v)
-      | None =>
-        triggerUB
-      end
+      Ret (e, le, None, Some v)
     | _ =>
       (* not supported *)
       triggerUB
@@ -1494,14 +1461,10 @@ Section DECOMP_PROG.
     | [] => []
     | (id, gdef) :: defs' =>
         match gdef with
-        | Gvar gv =>
-            match gv.(gvar_init) with
-            | [] => get_sk defs'
-            | _ => (string_of_ident id, (Cgvar gv)↑) :: get_sk defs'
-            end
+        | Gvar gv => (string_of_ident id, gdef↑) :: get_sk defs'
         | Gfun gf =>
             match gf with
-            | Internal f => (string_of_ident id, (Cgfun (type_of_function f))↑) :: get_sk defs'
+            | Internal f => (string_of_ident id, gdef↑) :: get_sk defs'
             | _ => get_sk defs'
             end
         end

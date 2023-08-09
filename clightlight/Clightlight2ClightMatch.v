@@ -11,7 +11,8 @@ Require Import Clight_Mem0.
 
 Set Implicit Arguments.
 
-From compcert Require Import Ctypes Clight Clightdefs.
+From compcert Require Import Ctypes Clight Clightdefs Globalenvs.
+Import Genv.
 
 Section MATCH.
 
@@ -66,14 +67,15 @@ Section MATCH.
     :
       match_e defs se te.
 
-  Variant match_ge defs : SkEnv.t -> (Genv.t (Ctypes.fundef function) type) -> Prop :=
+  Variant match_ge defs : Sk.t -> Genv.t (Ctypes.fundef function) type -> Prop :=
   | match_ge_intro
-      sge tge
-      (MG: forall gn idx,
-          (sge.(SkEnv.id2blk) gn = Some idx) ->
-          (Genv.find_symbol tge (ident_of_string gn) = Some (map_blk defs (Pos.of_succ_nat idx))))
+      sk ge
+      (PUBLIC_INCL: forall s, In s (List.map fst sk) -> In (ident_of_string s) ge.(genv_public))
+      (S2B_MATCH: forall s n, (do '(blk, _) <- find_idx (fun '(s', _) => string_dec s s') sk; Some blk) = Some n -> ge.(genv_symb) ! (ident_of_string s) = Some (map_blk defs (Pos.of_succ_nat n)))
+      (B2D_MATCH: forall s n agd, nth_error sk n = Some (s, agd) -> exists gd, ge.(genv_defs) ! (map_blk defs (Pos.of_succ_nat n)) = Some gd /\ Any.downcast agd = Some gd)
+      (NEXT_MATCH: ge.(genv_next) = map_blk defs (Pos.of_succ_nat (List.length sk)))
     :
-      match_ge defs sge tge.
+      match_ge defs sk ge.
 
   (* global env is fixed when src program is fixed *)
   Variable sk : Sk.t.

@@ -215,11 +215,13 @@ Section PROOF.
         end
     end.
   
-  Definition alloc_global (m : mem) (idg : string * C_SkelEntry) :=
-    let (_, g) := idg in
-    match g with
-    | Cgfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
-    | Cgvar v =>
+  Definition alloc_global (m : mem) (entry : string * Any.t) :=
+    let (_, agd) := entry in
+    match @Any.downcast (globdef Clight.fundef type) agd with
+    | Some g => 
+      match g with
+      | Gfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
+      | Gvar v =>
         let init := gvar_init v in
         let sz := init_data_list_size init in
         let (m1, b) := Mem.alloc m 0 sz in
@@ -231,12 +233,12 @@ Section PROOF.
             end
         | None => None
         end
+      end
+    | None => None
     end.
-      
 
-  Fixpoint alloc_globals (m: mem) (gl: list (string * C_SkelEntry))
-                       {struct gl} : option mem :=
-  match gl with
+  Fixpoint alloc_globals (m: mem) (sk: list (string * Any.t)) : option mem :=
+  match sk with
   | nil => Some m
   | g :: gl' =>
       match alloc_global m g with
@@ -245,24 +247,10 @@ Section PROOF.
       end
   end.
 
-  Fixpoint unfold_skel (sk: Sk.t) : option (list (string * C_SkelEntry)) :=
-    match sk with
-    | [] => Some []
-    | (ident, any) :: t =>
-        match Any.downcast any with
-        | Some d => match unfold_skel t with Some t' => Some ((ident, d) :: t') | None => @None (list (string * C_SkelEntry)) end
-        | _ => @None (list (string * C_SkelEntry))
-        end
-    end.
-
   Definition load_mem :=
-    match unfold_skel sk with
-    | Some gl =>
-        match alloc_globals Mem.empty gl with
-        | Some m => m
-        | None => Mem.empty
-        end
-    | None => Mem.empty
+    match alloc_globals Mem.empty sk with
+    | Some m => m
+    | None => Mem.empty (* dummy *)
     end.
   
   Definition MemSem : ModSem.t :=
@@ -282,11 +270,31 @@ End PROOF.
 
 Definition size_t := if Archi.ptr64 then tulong else tuint.
 
+Definition malloc_def := 
+  {|
+    fn_return := tptr tvoid;
+    fn_callconv := cc_default;
+    fn_params := [(ident_of_string "size", size_t)];
+    fn_vars := nil;
+    fn_temps := nil;
+    fn_body := Sskip;
+  |}.
+
+Definition free_def := 
+  {|
+    fn_return := tvoid;
+    fn_callconv := cc_default;
+    fn_params := [(ident_of_string "ptr", tptr tvoid)];
+    fn_vars := nil;
+    fn_temps := nil;
+    fn_body := Sskip;
+  |}.
+
 Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
-    Mod.sk := [("malloc", (Cgfun (Tfunction (Tcons size_t Tnil) (tptr tvoid) cc_default))↑);
-               ("free", (Cgfun (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
+    Mod.sk := [("malloc", (@Gfun _ type (Internal malloc_def))↑);
+               ("free", (@Gfun _ type (Internal free_def))↑)]
 (*                ("realloc", (Cgfun (Tfunction (Tcons (tptr tvoid) (Tcons size_t Tnil)) (tptr tvoid) cc_default))↑)] *)
   |}
 .

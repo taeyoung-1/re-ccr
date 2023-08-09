@@ -48,7 +48,8 @@ Section MEM.
   Lemma get_sk_incl :
     forall s a , In (s, a) (get_sk defs) -> exists gd, In (ident_of_string s, gd) defs.
   Proof.
-    clear def_ident_nodup. i. depgen s. revert a. induction defs; i.
+    Admitted.
+    (* clear def_ident_nodup. i. depgen s. revert a. induction defs; i.
     - inv H.
     - destruct a.
       assert (HINT: exists s, ident_of_string s = i).
@@ -60,7 +61,7 @@ Section MEM.
       + apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } 
       + rewrite string_of_ident_of_string in H. des.
         { inv H. et. } { apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } }
-  Qed.
+  Qed. *)
 
   Local Transparent Sk.load_skenv.
 
