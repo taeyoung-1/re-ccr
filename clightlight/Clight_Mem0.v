@@ -199,7 +199,7 @@ Section PROOF.
     | Init_space _ => Some m
     | Init_addrof symb ofs =>
         match SkEnv.id2blk skenv (string_of_ident symb) with
-        | Some b' => Mem.store Mptr m b p (Vptr (Pos.of_nat (S b')) ofs)
+        | Some b' => Mem.store Mptr m b p (Vptr (Pos.of_succ_nat b') ofs)
         | None => None
         end
     end.

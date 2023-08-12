@@ -8,7 +8,6 @@ Require Import Any.
 Require Import ModSem.
 
 Require Import Clightlight2ClightMatch.
-Require Import Clightlight2ClightGenv.
 
 From compcert Require Import Csharpminor.
 
@@ -71,58 +70,58 @@ Section ARITH.
   Qed.
 
   Lemma map_val_addl_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.addl a b = v)
     :
-      Values.Val.addl (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.addl (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
   Lemma map_val_add_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.add a b = v)
     :
-      Values.Val.add (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.add (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
   Lemma map_val_sub_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.sub a b = v)
     :
-      Values.Val.sub (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.sub (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
   Lemma map_val_subl_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.subl a b = v)
     :
-      Values.Val.subl (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.subl (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
   Lemma map_val_mul_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.mul a b = v)
     :
-      Values.Val.mul (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.mul (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
   Lemma map_val_mull_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.mull a b = v)
     :
-      Values.Val.mull (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.mull (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted.
 
 (*   Lemma map_val_div_comm
-        defs a b v
+        sk defs a b v
         (VADD: Values.Val.div a b = v)
     :
-      Values.Val.div (map_val defs a) (map_val defs b) = (map_val defs v).
+      Values.Val.div (map_val sk defs a) (map_val sk defs b) = (map_val sk defs v).
   Proof.
   Admitted. *)
 

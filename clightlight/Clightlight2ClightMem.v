@@ -23,11 +23,12 @@ Section MEM.
 
   Import List.
 
-  Lemma map_blk_after_init :
-    forall defs blk
-      (ALLOCED : S (length (get_sk defs)) <= Pos.to_nat blk),
-      (<<ALLOCMAP: map_blk defs blk = Pos.of_nat ((List.length defs - List.length (get_sk defs)) + (Pos.to_nat blk))>>).
-  Proof. unfold map_blk. i. des_ifs. Qed.
+  (* Lemma map_blk_after_init :
+    forall sk defs blk
+      (ALLOCED : Pos.of_succ_nat (length sk) <= blk),
+      (<<ALLOCMAP: map_blk sk defs blk = Pos.of_nat ((List.length defs - List.length sk) + (Pos.to_nat blk))>>).
+  Proof.
+    unfold map_blk. i. des_ifs; rewrite Pos.leb_gt in Heq; nia. Qed.
 
   Lemma fold_left_prop :
     forall A B C (f: A -> C) (g: A -> B -> A) (h: C -> C) l i
@@ -41,99 +42,119 @@ Section MEM.
   Variable defs : list (ident * globdef fundef Ctypes.type).
 
   Hypothesis defs_ident_from_string :
-    forall p gd , In (p, gd) defs -> exists s, ident_of_string s = p.
+    forall p , In p (map fst defs) -> exists s, ident_of_string s = p.
   
-  Hypothesis def_ident_nodup : NoDup (map (fun '(id, _) => id) defs).
+  Hypothesis def_ident_nodup : NoDup (map fst defs). *)
 
-  Lemma get_sk_incl :
-    forall s a , In (s, a) (get_sk defs) -> exists gd, In (ident_of_string s, gd) defs.
+  (* Lemma get_sk_incl :
+    forall s l, (forall p, In p (map fst l) -> exists s, ident_of_string s = p) 
+                  -> In s (map fst (get_sk l)) 
+                  -> In (ident_of_string s) (map fst l).
   Proof.
-    Admitted.
-    (* clear def_ident_nodup. i. depgen s. revert a. induction defs; i.
-    - inv H.
-    - destruct a.
-      assert (HINT: exists s, ident_of_string s = i).
-      { eapply defs_ident_from_string. instantiate (1 := g). ss. auto. }
-      des. symmetry in HINT. subst. ss. des_ifs; ss.
-      + rewrite string_of_ident_of_string in H. des.
-        { inv H. et. } { apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } }
-      + apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } 
-      + apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } 
-      + rewrite string_of_ident_of_string in H. des.
-        { inv H. et. } { apply IHl in H. { des. et. } { i. eapply defs_ident_from_string. et. } }
+    i. induction l; et. ss. des_ifs. 
+    - ss. des.
+      + clarify. left. hexploit H; et. i. des. rewrite <- H.
+        rewrite string_of_ident_of_string. et.
+      + hexploit IHl; et.
+    - ss. hexploit IHl; et. 
+    - ss. des.
+      + clarify. left. hexploit H; et. i. des. rewrite <- H.
+        rewrite string_of_ident_of_string. et.
+      + hexploit IHl; et.
+  Qed.
+
+  Lemma get_sk_NoDup : forall l, 
+                      (forall p, In p (map fst l) -> exists s, ident_of_string s = p) ->
+                      NoDup (map fst l) -> NoDup (map fst (get_sk l)).
+  Proof.
+    induction l; try econs. i. ss. des_ifs.
+    - ss. inv H. econs. 
+      + red. i. eapply H3. hexploit H; et. i. des. subst. 
+        rewrite string_of_ident_of_string in H. eapply get_sk_incl; et.
+      + eapply IHl; et.
+    - ss. inv H. eapply IHl; et.
+    - ss. inv H. econs. 
+      + red. i. eapply H3. hexploit H; et. i. des. subst. 
+        rewrite string_of_ident_of_string in H. eapply get_sk_incl; et.
+      + eapply IHl; et.
   Qed. *)
 
   Local Transparent Sk.load_skenv.
 
-  Lemma map_blk_global_region :
-    forall blk
-      (SRC_GLOBAL: S (length (get_sk defs)) > Pos.to_nat blk),
-      (<<TGT_GLOBAL: Pos.to_nat (map_blk defs blk) < S (List.length defs)>>).
+  Local Open Scope positive.
+  Lemma map_blk_local_region :
+    forall sk tge blk
+      (ALLOCED : Pos.of_succ_nat (length sk) <= blk),
+      (<<ALLOCMAP: tge.(Genv.genv_next) <= map_blk sk tge blk>>).
   Proof.
-    i. unfold map_blk. 
-    change (Genv.add_globals _ defs) with (Genv.globalenv (AST.mkprogram defs (map fst defs) xH)).
-    des_ifs; try nia; red.
-    - clear - Heq0. 
-      unfold Genv.find_symbol in *. apply Genv.genv_symb_range in Heq0.
-      replace (Genv.genv_next _) with (Pos.of_nat (S (List.length defs))) in Heq0.
-      2:{ clear. unfold Genv.globalenv. unfold Genv.add_globals.
-          rewrite fold_left_prop with (h := Pos.succ); et. 
-          induction defs; try (ss; nia). ss. rewrite IHl.
-          clear. do 2 rewrite <- fold_left_rev_right. set (rev l) as d'. clearbody d'.
-          induction d'; ss; nia. }
-      set (S _) as n in *. assert (n > 0) by now ss; nia. clearbody n. clear -Heq0 H. 
-      gen b. induction H; i; try nia.
-      + inv Heq0. unfold Pos.compare in *. ss. des_ifs.
-      + rewrite Nat2Pos.inj_succ in Heq0; try nia. apply Coqlib.Plt_succ_inv in Heq0.
-        des; try (subst; nia). apply IHle in Heq0. nia.
-    - unfold Sk.load_skenv in Heq. ss. uo. des_ifs_safe.
-      apply nth_error_In in Heq. apply get_sk_incl in Heq. des.
-      set (AST.mkprogram _ _ _) as prog in Heq0.
-      change defs with (prog_defs prog) in Heq.
-      apply Genv.find_symbol_exists in Heq. des. clarify.
-    - unfold Sk.load_skenv in Heq. ss. uo. des_ifs. apply nth_error_None in Heq1. nia.
+    i. red. unfold map_blk. 
+    set (Z.add _ _) as t1. 
+    assert (t1 > 0)%Z by now unfold t1; rewrite <- Pos2Z.add_neg_pos; nia. 
+    destruct t1 eqn: E3; try nia. 
+    des_ifs; try rewrite Pos.leb_le in Heq; try rewrite Pos.leb_gt in Heq; try nia.
+    unfold t1 in *. clear t1 H. rewrite <- Pos2Z.add_neg_pos in E3. nia. 
   Qed.
 
-  Lemma map_blk_inj :
-    forall b1 b2, <<INJ: map_blk defs b1 = map_blk defs b2 -> b1 = b2>>.
+  Lemma map_blk_global_region :
+    forall sk tge blk
+      (SRC_GLOBAL: blk < Pos.of_succ_nat (length sk))
+      (MGE : match_ge sk tge),
+      (<<TGT_GLOBAL: map_blk sk tge blk < tge.(Genv.genv_next)>>).
   Proof.
-    i.
-    assert (LEN: length (get_sk defs) <= length defs).
-    { clear. induction defs; et. simpl. des_ifs; ss; try nia. }
-    red. i. dup H.
-    unfold map_blk in H0.
-    destruct (ge_dec (Pos.to_nat b1) _) in H0; destruct (ge_dec (Pos.to_nat b2) _) in H0; try nia; clear H0.
-    - assert (contra1: Pos.to_nat b2 < S (length (get_sk defs))) by nia.
-      apply map_blk_global_region in contra1. 
-      assert (contra2: S (length (get_sk defs)) <= Pos.to_nat b1) by nia.
-      apply map_blk_after_init in contra2. rewrite H in contra2. red in contra2. red in contra1.
-      nia. 
-    - assert (contra1: Pos.to_nat b1 < S (length (get_sk defs))) by nia.
-      apply map_blk_global_region in contra1. 
-      assert (contra2: S (length (get_sk defs)) <= Pos.to_nat b2) by nia.
-      apply map_blk_after_init in contra2. rewrite H in contra1. red in contra2. red in contra1.
-      nia. 
-    - (* may not needed *)
-      unfold map_blk in H. destruct (ge_dec (Pos.to_nat b1) _) in H; destruct (ge_dec (Pos.to_nat b2) _) in H; try nia.
-      assert (H1: Init.Nat.pred (Pos.to_nat b1) < length (get_sk defs)) by nia.
-      assert (H2: Init.Nat.pred (Pos.to_nat b2) < length (get_sk defs)) by nia.
+    i. inv MGE. red. unfold map_blk.
+    des_ifs; try rewrite Pos.leb_le in Heq; try rewrite Pos.leb_gt in Heq; try nia.
+    - eapply Genv.genv_symb_range. et.
+    - apply Sk.load_skenv_wf in WFSK. unfold SkEnv.wf in WFSK. apply WFSK in Heq0. rewrite <- (string_of_ident_of_string s) in Heq0. apply MGE0 in Heq0. clarify.
+    - rewrite Pos2Nat.inj_lt in Heq. rewrite SuccNat2Pos.id_succ in Heq. assert (H0: (Init.Nat.pred (Pos.to_nat blk) < length sk)%nat) by nia.
+      apply nth_error_Some in H0. unfold Sk.load_skenv in Heq0. ss. uo. des_ifs.
+  Qed.
+
+  Local Open Scope Z.
+  Lemma map_blk_inj :
+    forall sk tge b1 b2 (MGE: match_ge sk tge),
+    <<INJ: map_blk sk tge b1 = map_blk sk tge b2 -> b1 = b2>>.
+  Proof.
+    i. red. i. dup H. rename H0 into T.
+    unfold map_blk in H.
+    destruct (_ (Pos.of_succ_nat _) _) eqn:E in H; try rewrite Pos.leb_le in E; try rewrite Pos.leb_gt in E;
+     destruct (_ (Pos.of_succ_nat _) _) eqn:E1 in H; try rewrite Pos.leb_le in E1; try rewrite Pos.leb_gt in E1.
+    - set (Z.add _ _) as t1 in H. set (Z.add _ _) as t2 in H.
+      assert (t1 > 0) by now unfold t1; rewrite <- Pos2Z.add_neg_pos; nia. 
+      assert (t2 > 0) by now unfold t2; rewrite <- Pos2Z.add_neg_pos; nia. 
+      destruct t1 eqn: E3; destruct t2 eqn: E4; try nia.
+    - eapply map_blk_global_region in E1; et. apply map_blk_local_region with (tge := tge) in E. rewrite T in E. red in E. red in E1. nia.
+    - eapply map_blk_global_region in E; et. apply map_blk_local_region with (tge := tge) in E1. rewrite T in E.  red in E. red in E1. nia.
+    - inv MGE. rewrite Pos2Nat.inj_lt in E. rewrite Pos2Nat.inj_lt in E1.
+      rewrite SuccNat2Pos.id_succ in E. rewrite SuccNat2Pos.id_succ in E1.
+      assert (H0: (Init.Nat.pred (Pos.to_nat b1) < length sk)%nat) by nia.
+      assert (H1: (Init.Nat.pred (Pos.to_nat b2) < length sk)%nat) by nia.
+      apply nth_error_Some in H0.
       apply nth_error_Some in H1.
-      apply nth_error_Some in H2.
-      unfold Sk.load_skenv in *. uo. ss.
-      dup H1. dup H2. rename H3 into H4. rename H0 into H3.
-      destruct (nth_error _) eqn: E1 in H3; clarify. dup E1. rename E0 into E3. apply nth_error_In in E1.
-      destruct (nth_error _) eqn: E2 in H4; clarify. dup E2. rename E0 into E4. apply nth_error_In in E2.
-      destruct p. destruct p0.
-      apply get_sk_incl in E1.
-      apply get_sk_incl in E2.
-      rewrite E3 in H. rewrite E4 in H.
-      change defs with (prog_defs (AST.mkprogram defs (map fst defs) xH)) in E1.
-      change defs with (prog_defs (AST.mkprogram defs (map fst defs) xH)) in E2.
-      des. apply Genv.find_symbol_exists in E1. apply Genv.find_symbol_exists in E2.
-      des. unfold Genv.globalenv in *. ss. des_ifs.
-      (* TODO: from here, proof with noDup is trivial *)
-      (* noDup property is needed to satisfy one-to-one correspondence in global region *)
-      Admitted.
+      destruct (nth_error _) eqn: T1 in H0; clarify.
+      destruct (nth_error _) eqn: T2 in H1; clarify. 
+      clear H0 H1.
+      destruct (SkEnv.blk2id _ _) eqn: H0 in H.
+      2:{ unfold Sk.load_skenv in *. ss. uo. des_ifs. }
+      destruct (SkEnv.blk2id _ _) eqn: H1 in H.
+      2:{ unfold Sk.load_skenv in *. ss. uo. des_ifs. }
+      clear T1 T2. 
+      apply Sk.load_skenv_wf in WFSK. red in WFSK. unfold SkEnv.wf in WFSK. 
+      apply WFSK in H0. apply WFSK in H1.
+      rewrite <- (string_of_ident_of_string s) in H0.
+      rewrite <- (string_of_ident_of_string s0) in H1.
+      dup H0. dup H1.
+      apply MGE0 in H2. apply MGE0 in H3. des_ifs; clarify.
+      destruct (Pos.eq_dec (ident_of_string s) (ident_of_string s0)); cycle 1.
+      + hexploit Genv.global_addresses_distinct; et. clarify.
+      + apply ident_of_string_injective in e. subst.
+        set (Some _) as t1 in H0.
+        set (Some _) as t2 in H1.
+        assert (t1 = t2) by now rewrite <- H0; et.
+        unfold t1, t2 in H. clearbody t1 t2. clarify.
+        nia.
+  Qed.
+
+
 
 (* 
 
@@ -161,7 +182,7 @@ Section MEM.
       hexploit map_blk_after_init.
       { eauto. }
       { instantiate (1:= S (Mem.nb m)). lia. }
-      i. rewrite H1. rewrite H0. lia.
+      i. rewrite H1. rewrite H. lia.
     - rename H into SMEM. pose (NPeano.Nat.eq_dec (Mem.nb m) blk) as BLK. destruct BLK.
       + clarify; ss. unfold update in SMEM. des_ifs. clear e. des. clarify. ss. rewrite <- NBLK.
         rewrite andb_true_iff in Heq. des. rewrite Z.leb_le in Heq. rewrite Z.ltb_lt in Heq0.
@@ -215,14 +236,19 @@ Section MEM.
 *)
 
   Local Transparent Mem.free.
+  Local Transparent Mem.load.
+  Local Transparent Mem.store.
+  Local Transparent Mem.loadbytes.
+  Local Transparent Mem.storebytes.
 
-  Lemma match_mem_free m tm b lo hi m'
+  Lemma match_mem_free m tm b lo hi m' sk tge
         (SMEM: Mem.free m b lo hi = Some m')
-        (MM_PRE: match_mem defs m tm)
+        (MGE: match_ge sk tge)
+        (MM_PRE: match_mem sk tge m tm)
     :
     exists tm',
-        (<<TMEM: Mem.free tm (map_blk defs b) lo hi = Some tm'>>) /\
-        (<<MM_POST: match_mem defs m' tm'>>).
+        (<<TMEM: Mem.free tm (map_blk sk tge b) lo hi = Some tm'>>) /\
+        (<<MM_POST: match_mem sk tge m' tm'>>).
   Proof.
     inv MM_PRE. unfold Mem.free in *. eexists. split. 
     - des_ifs. exfalso. apply n. unfold Mem.range_perm, Mem.perm in *.
@@ -231,23 +257,183 @@ Section MEM.
       ss. i. set (Pos.eq_dec b b0) as x. destruct x.
       + subst. repeat rewrite PMap.gss. repeat rewrite MEM_PERM. et.
       + rewrite PMap.gso by et.
-        assert (map_blk defs b <> map_blk defs b0).
+        assert (map_blk sk tge b <> map_blk sk tge b0).
         { red. i. apply n. apply map_blk_inj in H; et. }
         rewrite PMap.gso; et.
   Qed.
 
-  Lemma match_mem_free_list m tm l m'
+  Lemma match_mem_free_list m tm l m' sk tge
         (SMEM: Mem.free_list m l = Some m')
-        (MM_PRE: match_mem defs m tm)
+        (MGE: match_ge sk tge)
+        (MM_PRE: match_mem sk tge m tm)
     :
     exists tm',
-        (<<TMEM: Mem.free_list tm (map (fun '(b, lo, hi) => (map_blk defs b, lo, hi)) l) = Some tm'>>) /\
-        (<<MM_POST: match_mem defs m' tm'>>).
+        (<<TMEM: Mem.free_list tm (map (fun '(b, lo, hi) => (map_blk sk tge b, lo, hi)) l) = Some tm'>>) /\
+        (<<MM_POST: match_mem sk tge m' tm'>>).
   Proof.
     depgen m. revert m' tm. induction l; i; ss; clarify.
     - eexists; et.
     - des_ifs_safe. hexploit match_mem_free; et. i. des. rewrite TMEM.
       hexploit IHl; et.
+  Qed.
+
+  Lemma match_mem_getN f (c d: ZMap.t memval) n p
+      (MM: forall i mv, c !! i = mv -> d !! i = f mv)
+    :
+      Mem.getN n p d = map f (Mem.getN n p c).
+  Proof.
+    revert p. induction n; i; ss.
+    rewrite IHn. f_equal. erewrite <- MM; try reflexivity.  
+  Qed.
+
+  Lemma match_proj_bytes sk tge l : proj_bytes (map (map_memval sk tge) l) = proj_bytes l. 
+  Proof. induction l; ss. rewrite IHl. destruct a; ss. Qed.
+  
+  Lemma match_check_value n q v sk tge l 
+        (MGE: match_ge sk tge)
+    : check_value n (map_val sk tge v) q (map (map_memval sk tge) l) = check_value n v q l.
+  Proof.
+    revert q v l. induction n; i.
+    - ss. des_ifs.
+    - ss. des_ifs. ss. clarify. rewrite IHn. repeat f_equal.
+      destruct v; destruct v1; ss.
+      destruct (Val.eq (Vptr b i) (Vptr b0 i0));
+        destruct (Val.eq _ _); ss; clarify.
+      apply map_blk_inj in H1; et. subst. clarify.
+  Qed.
+
+  Lemma decode_map_comm sk tge chunk l
+        (MGE: match_ge sk tge)
+    : 
+      decode_val chunk (map (map_memval sk tge) l) = map_val sk tge (decode_val chunk l).
+  Proof.
+    induction l.
+    - ss. unfold decode_val. des_ifs.
+    - ss. unfold decode_val. destruct a.
+      + ss. des_ifs.
+      + ss. rewrite match_proj_bytes. des_ifs.
+      + rewrite <- match_proj_bytes with (sk := sk) (l := Fragment v q n :: l) (tge := tge). des_ifs.
+        * unfold proj_value. rewrite <- match_check_value with (sk := sk) at 1; et.
+          des_ifs; ss; clarify. destruct v; et.
+        * unfold proj_value. rewrite <- match_check_value with (sk := sk) at 1; et.
+          des_ifs; ss; clarify. destruct v; et.
+        * unfold proj_value. rewrite <- match_check_value with (sk := sk) at 1; et.
+          des_ifs; ss; clarify. 
+  Qed.
+
+  Lemma match_mem_load m tm chunk addr v sk tge
+        (SMEM: Mem.loadv chunk m addr = Some v)
+        (MGE: match_ge sk tge)
+        (MM: match_mem sk tge m tm)
+    :
+        Mem.loadv chunk tm (map_val sk tge addr) = Some (map_val sk tge v).
+  Proof.
+    inv MM. unfold Mem.loadv in *. des_ifs_safe. ss. clarify. unfold Mem.load in *.
+    des_ifs.
+    - f_equal. erewrite match_mem_getN; et. apply decode_map_comm; et.
+    - exfalso. apply n. unfold Mem.valid_access in *. des. split; et. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
+      rewrite <- MEM_PERM. et.
+  Qed.
+
+  Lemma zindex_surj p : exists z, p = ZIndexed.index z.
+  Proof. 
+    destruct p.
+    - exists (Zneg p). et.
+    - exists (Zpos p). et.
+    - exists 0%Z. et.
+  Qed.
+
+  Lemma encode_match_comm chunk sk tge v : encode_val chunk (map_val sk tge v) = map (map_memval sk tge) (encode_val chunk v).
+  Proof. destruct v; ss; des_ifs. Qed.
+
+  Lemma setN_inside x l i c
+      (IN_RANGE: (i <= x)%Z /\ (x < i + Z.of_nat (length l))%Z)
+    :
+      exists entry, nth_error l (Z.to_nat (x - i)%Z) = Some entry /\ ZMap.get x (Mem.setN l i c) = entry.
+  Proof.
+    assert (Z.to_nat (x - i)%Z < length l)%nat by nia.
+    apply nth_error_Some in H. destruct (nth_error _ _) eqn: E in H; clarify.
+    eexists; split; et. clear H. depgen x. revert i c m. induction l; i; ss; try nia.
+    destruct (Nat.eq_dec (Z.to_nat (x - i)) 0).
+    - rewrite e in *. ss. clarify. assert (x = i) by nia. rewrite H in *.
+      rewrite Mem.setN_outside; try nia. apply ZMap.gss. 
+    - change (a :: l) with ([a] ++ l) in E. rewrite nth_error_app2 in E; ss; try nia.
+      replace (Z.to_nat (x - i) - 1)%nat with (Z.to_nat (x - (i + 1))) in E by nia.
+      eapply IHl; et. nia.
+  Qed.
+
+  Lemma match_mem_store m tm m' chunk addr v sk tge
+        (SMEM: Mem.storev chunk m addr v = Some m')
+        (MGE: match_ge sk tge)
+        (MM_PRE: match_mem sk tge m tm)
+    :
+      exists tm',
+        <<TMEM: Mem.storev chunk tm (map_val sk tge addr) (map_val sk tge v) = Some tm'>> /\
+        <<MM_POST: match_mem sk tge m' tm'>>.
+  Proof.
+    inv MM_PRE. unfold Mem.storev in *. des_ifs_safe. ss. clarify. unfold Mem.store in *.
+    des_ifs.
+    - eexists; split; et. econs; ss. i. destruct (zindex_surj ofs). rewrite encode_match_comm.
+      destruct (Pos.eq_dec b b0); 
+        destruct ((x <? Ptrofs.unsigned i0) || (x >=? Ptrofs.unsigned i0 + Z.of_nat (length (encode_val chunk v))))%Z eqn: e1.
+      + rewrite e in *. rewrite PMap.gss in *.  
+        rewrite H0 in *. pose proof Mem.setN_outside. unfold ZMap.get in *. 
+        rewrite H1 in H; try nia. rewrite H1; et. rewrite map_length. nia.
+      + rewrite e in *. rewrite PMap.gss in *. rewrite H0 in *. 
+        edestruct setN_inside;[|des; unfold ZMap.get in *; rewrite H2 in H]; try nia. rewrite H in *. 
+        edestruct setN_inside;[|des; unfold ZMap.get in *; rewrite H4]; try (rewrite map_length; nia).
+        clear -H1 H3. rewrite nth_error_map in H3. rewrite H1 in H3. ss. clarify.
+      + assert (map_blk sk tge b <> map_blk sk tge b0).
+        { red. i. apply n. erewrite map_blk_inj; et. }
+        rewrite PMap.gso; et. rewrite PMap.gso in H; et.
+      + assert (map_blk sk tge b <> map_blk sk tge b0).
+        { red. i. apply n. erewrite map_blk_inj; et. }
+        rewrite PMap.gso; et. rewrite PMap.gso in H; et.
+    - exfalso. apply n. unfold Mem.valid_access in *. des. split; et. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
+      rewrite <- MEM_PERM. et.
+  Qed.
+
+  Lemma match_mem_loadbytes m tm blk ofs n l sk tge
+        (SMEM: Mem.loadbytes m blk ofs n = Some l)
+        (MM: match_mem sk tge m tm)
+    :
+        Mem.loadbytes tm (map_blk sk tge blk) ofs n = Some (map (map_memval sk tge) l).
+  Proof.
+    inv MM. unfold Mem.loadbytes in *. des_ifs_safe. ss. clarify. 
+    des_ifs.
+    - f_equal. erewrite match_mem_getN; et.
+    - exfalso. apply n0. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
+      rewrite <- MEM_PERM. et.
+  Qed.
+
+  Lemma match_mem_storebytes m tm m' blk ofs l sk tge
+        (SMEM: Mem.storebytes m blk ofs l = Some m')
+        (MGE: match_ge sk tge)
+        (MM_PRE: match_mem sk tge m tm)
+    :
+      exists tm',
+        <<TMEM: Mem.storebytes tm (map_blk sk tge blk) ofs (map (map_memval sk tge) l) = Some tm'>> /\
+        <<MM_POST: match_mem sk tge m' tm'>>.
+  Proof.
+    inv MM_PRE. unfold Mem.storebytes in *. des_ifs.
+    - eexists; split; et. econs; ss. i. destruct (zindex_surj ofs0). rewrite H0 in *.
+      destruct (Pos.eq_dec blk b); 
+        destruct ((x <? ofs) || (x >=? ofs + Z.of_nat (length l)))%Z eqn: e1.
+      + rewrite e in *. rewrite PMap.gss in *.  
+        pose proof Mem.setN_outside. unfold ZMap.get in *. 
+        rewrite H1 in H; try nia. rewrite H1; et. rewrite map_length. nia.
+      + rewrite e in *. rewrite PMap.gss in *.
+        edestruct setN_inside;[|des; unfold ZMap.get in *; rewrite H2 in H]; try nia. rewrite H in *. 
+        edestruct setN_inside;[|des; unfold ZMap.get in *; rewrite H4]; try (rewrite map_length; nia).
+        clear -H1 H3. rewrite nth_error_map in H3. rewrite H1 in H3. ss. clarify.
+      + assert (map_blk sk tge blk <> map_blk sk tge b).
+        { red. i. apply n. erewrite map_blk_inj; et. }
+        rewrite PMap.gso; et. rewrite PMap.gso in H; et.
+      + assert (map_blk sk tge blk <> map_blk sk tge b).
+        { red. i. apply n. erewrite map_blk_inj; et. }
+        rewrite PMap.gso; et. rewrite PMap.gso in H; et.
+    - exfalso. apply n. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
+      rewrite <- MEM_PERM. eapply r. rewrite map_length in H. nia.
   Qed.
 
 (*
@@ -268,10 +454,10 @@ Section MEM.
         erewrite Mem.load_store_same; eauto. unfold map_val. ss. des_ifs.
       + bsimpl. des.
         * apply sumbool_to_bool_false in Heq0. hexploit Mem.load_store_other; eauto.
-          { left. instantiate (1:= map_blk src blk0). ii. apply map_blk_inj in H0; eauto. }
-          i. erewrite H0. apply MMEM in H. des. eauto.
+          { left. instantiate (1:= map_blk src blk0). ii. apply map_blk_inj in H; eauto. }
+          i. erewrite H. apply MMEM in H. des. eauto.
         * apply sumbool_to_bool_false in Heq0. hexploit Mem.load_store_other; eauto.
-          2:{ i. erewrite H0. apply MMEM in H. des. eauto. }
+          2:{ i. erewrite H. apply MMEM in H. des. eauto. }
           right. ss. unfold map_ofs in *. lia.
     - des_ifs.
       + des; clarify; ss. bsimpl. des. apply sumbool_to_bool_true in Heq0. apply sumbool_to_bool_true in Heq1. clarify.
@@ -319,9 +505,9 @@ Section MEM.
       if (tf) then Some (Values.Vtrue) else Some (Values.Vfalse).
   Proof.
     destruct a eqn:DESA; destruct b eqn:DESB; destruct tf; clarify; unfold vcmp in SRCCMP; des_ifs.
-    - apply sumbool_to_bool_true in H0. clarify; ss.
+    - apply sumbool_to_bool_true in H. clarify; ss.
       unfold Values.Val.cmplu. ss. unfold Values.Val.of_bool. rewrite Int64.eq_true. ss.
-    - apply sumbool_to_bool_false in H0. clarify; ss.
+    - apply sumbool_to_bool_false in H. clarify; ss.
       unfold Values.Val.cmplu. ss. unfold Values.Val.of_bool. rewrite Int64.signed_eq.
       unfold_intrange_64. bsimpl. des.
       apply sumbool_to_bool_true in WFA.
@@ -335,17 +521,17 @@ Section MEM.
       unfold Values.Val.cmplu. ss. des_ifs. bsimpl. des. exfalso. eapply valid_ptr_contra; eauto.
     - clear SRCCMP. bsimpl. des. apply sumbool_to_bool_true in Heq0. clarify.
       unfold Values.Val.cmplu. ss. des_ifs. bsimpl. des. exfalso. eapply valid_ptr_contra; eauto.
-    - bsimpl. des. apply sumbool_to_bool_true in H0; clarify. apply sumbool_to_bool_true in H1; clarify; clarify.
+    - bsimpl. des. apply sumbool_to_bool_true in H; clarify. apply sumbool_to_bool_true in H1; clarify; clarify.
       clear Heq. unfold Values.Val.cmplu. ss. des_ifs; bsimpl; des.
       all: try (rewrite Ptrofs.eq_true; ss).
       all: exfalso; eapply valid_ptr_contra; eauto.
     - bsimpl; des.
-      + apply sumbool_to_bool_false in H0. rename H0 into BLK. unfold Values.Val.cmplu. ss. des_ifs.
+      + apply sumbool_to_bool_false in H. rename H into BLK. unfold Values.Val.cmplu. ss. des_ifs.
         1,2: apply map_blk_inj in e; clarify.
         bsimpl. des.
         { pose (valid_ptr_contra _ _ WFA Heq Heq2). clarify. }
         { pose (valid_ptr_contra _ _ WFB Heq0 Heq2). clarify. }
-      + apply sumbool_to_bool_false in H0. rename H0 into OFS. unfold Values.Val.cmplu. ss. des_ifs.
+      + apply sumbool_to_bool_false in H. rename H into OFS. unfold Values.Val.cmplu. ss. des_ifs.
         { apply map_blk_inj in e; clarify. ss.
           unfold Ptrofs.eq. hexploit (valid_ptr_wf_ofs _ _ Heq); i. hexploit (valid_ptr_wf_ofs _ _ Heq0); i.
           unfold map_ofs in *. rewrite! unwrap_Ptrofs_repr_z; try nia; eauto. erewrite Coqlib.zeq_false; try lia. ss. }

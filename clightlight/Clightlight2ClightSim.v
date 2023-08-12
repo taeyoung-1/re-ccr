@@ -14,7 +14,6 @@ From Ordinal Require Import Ordinal Arithmetic.
 
 Require Import Clightlight2ClightMatch.
 Require Import Clightlight2ClightArith.
-Require Import Clightlight2ClightGenv.
 Require Import Clightlight2ClightLenv.
 Require Import Clightlight2ClightMem.
 
@@ -65,7 +64,6 @@ Section PROOF.
 
   Ltac sim_red := try red; Red.prw ltac:(_red_gen) 2 0.
   Ltac sim_tau := (try sim_red); pfold; econs 3; ss; clarify; eexists; exists (step_tau _); left.
-  (* Ltac sim_ord := guclo _ordC_spec; econs. *)
 
   Definition arrow (A B: Prop): Prop := A -> B.
   Opaque arrow.
@@ -107,25 +105,1153 @@ Section PROOF.
 
   Ltac wrap_up := pfold; econs 7; et; right.
 
+  Ltac remove_UBcase := des_ifs; try sim_red; try sim_triggerUB.
+
   Ltac dtm H H0 := eapply angelic_step in H; eapply angelic_step in H0; des; rewrite H; rewrite H0; ss.
 
-  Lemma _step_eval pstate ge ce f_table modl cprog defs sk le tle e te m tm
+  Local Opaque Pos.of_nat.
+
+  Local Opaque Pos.of_succ_nat.
+
+  Lemma step_load pstate f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: ce = ge.(genv_cenv)) 
-    (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose))
-    (MGE: match_ge defs sk ge)
-    (ME: match_e defs e te)
-    (MLE: match_le defs le tle)
-    (MM: match_mem defs m tm)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    chunk addr
+    tf tcode tcont ktr b r mn
+    (NEXT: forall v,
+            Mem.loadv chunk tm (map_val sk tge addr) = Some (map_val sk tge v) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, v))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: p_state * val <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (ccallU "load" (chunk, addr))) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold loadF. repeat (sim_red; sim_tau). sim_red.
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. sim_tau. sim_red. rewrite Any.upcast_downcast.
+    sim_red. eapply NEXT. hexploit match_mem_load; et.
+  Qed.
+    
+
+  Lemma step_store pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    chunk addr v
+    tf tcode tcont ktr b r mn
+    (NEXT: forall tm' m',
+            Mem.storev chunk tm (map_val sk tge addr) (map_val sk tge v) = Some tm' ->
+            match_mem sk tge m' tm' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, ()))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: p_state * () <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (ccallU "store" (chunk, addr, v))) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold storeF. sim_red. repeat (sim_tau; sim_red).
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
+    sim_red. hexploit match_mem_store; et. i. des. eapply NEXT; et. 
+  Qed.
+
+  Lemma step_loadbytes pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    blk ofs n
+    tf tcode tcont ktr b r mn
+    (NEXT: forall l,
+            Mem.loadbytes tm (map_blk sk tge blk) (Ptrofs.unsigned ofs) n = Some (List.map (map_memval sk tge) l) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, l))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: p_state * list memval <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (ccallU "loadbytes" (Vptr blk ofs, n))) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold loadbytesF. repeat (sim_red; sim_tau). sim_red.
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. sim_tau. sim_red. rewrite Any.upcast_downcast.
+    sim_red. eapply NEXT. hexploit match_mem_loadbytes; et.
+  Qed.
+
+  Lemma step_storebytes pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    blk ofs l
+    tf tcode tcont ktr b r mn
+    (NEXT: forall tm' m',
+            Mem.storebytes tm (map_blk sk tge blk) (Ptrofs.unsigned ofs) (List.map (map_memval sk tge) l) = Some tm' ->
+            match_mem sk tge m' tm' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, ()))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: p_state * () <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (ccallU "storebytes" (Vptr blk ofs, l))) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold storebytesF. sim_red. repeat (sim_tau; sim_red).
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
+    sim_red. hexploit match_mem_storebytes; et. i. des. eapply NEXT; et.
+  Qed.
+
+  Lemma step_load_bitfield pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    ty sz sg pos width addr
+    tf tcode tcont ktr b r mn
+    (NEXT: forall v,
+            Cop.load_bitfield ty sz sg pos width tm (map_val sk tge addr) (map_val sk tge v)->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, v))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (load_bitfield_c ty sz sg pos width addr)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold load_bitfield_c.
+    remove_UBcase; eapply step_load; et;
+      i; remove_UBcase; eapply NEXT; econs; try nia; try des_ifs.
+  Qed.
+
+  Lemma step_store_bitfield pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    ty sz sg pos width addr v
+    tf tcode tcont ktr b r mn
+    (NEXT: forall tm' m' v',
+            match_mem sk tge m' tm' ->
+            Cop.store_bitfield ty sz sg pos width tm (map_val sk tge addr) (map_val sk tge v) tm' (map_val sk tge v')->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, v'))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (store_bitfield_c ty sz sg pos width addr v)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold store_bitfield_c. remove_UBcase;
+      eapply step_load; et; i; remove_UBcase; 
+        eapply step_store; et; i; sim_red;
+          eapply NEXT; et; econs; et; try nia; des_ifs.
+  Qed.
+
+  Lemma step_weak_valid_pointer pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    blk ofs
+    tf tcode tcont ktr bflag r mn
+    (NEXT: forall b,
+            (Mem.weak_valid_pointer tm (map_blk sk tge blk) ofs = b) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true bflag
+              (ktr (pstate, b))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true bflag
+      (`r0: (p_state * bool) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (weak_valid_pointer_c blk ofs)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold weak_valid_pointer_c, ccallU. sim_red. sim_tau. ss. unfold valid_pointerF. sim_red. 
+    repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+    unfold valid_pointerF. sim_red. repeat (sim_tau; sim_red). rewrite PSTATE.
+    sim_red. repeat (sim_tau; sim_red). eapply NEXT; et.
+    unfold Mem.weak_valid_pointer, Mem.valid_pointer. inv MM.
+    repeat (match goal with | |- context ctx [ Mem.perm_dec ?x ] => destruct (Mem.perm_dec x) end); et;
+      ss; unfold Mem.perm in *; rewrite <- MEM_PERM in *; contradiction.
+  Qed.
+
+  Lemma step_sem_cast pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    v ty1 ty2
+    tf tcode tcont ktr b r mn
+    (NEXT: forall optv,
+            (optv = None -> Cop.sem_cast (map_val sk tge v) ty1 ty2 tm = None) ->
+            (forall v', optv = Some v' -> Cop.sem_cast (map_val sk tge v) ty1 ty2 tm = Some (map_val sk tge v')) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, optv))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * option val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (sem_cast_c v ty1 ty2)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold sem_cast_c. des_ifs_safe. des_ifs.
+    all: try solve [sim_red; eapply NEXT; i; clarify; ss; unfold Cop.sem_cast; des_ifs].
+    sim_red. eapply step_weak_valid_pointer; et. i. 
+      des_ifs; sim_red; eapply NEXT; et; ss; i; clarify;
+       unfold Cop.sem_cast; rewrite Heq1; des_ifs_safe. 
+  Qed.
+
+  Lemma divide_c_divides a b : (a > 0)%Z -> (divide_c a b = true <-> (a | b)).
+  Proof.
+    split; i; unfold divide_c in *.
+    - rewrite Z.eqb_eq in H0. econs; et.
+    - inv H0. rewrite Z_div_mult; try nia.
+  Qed.
+
+  Lemma step_assign_loc pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    ty blk ofs bf v
+    tf tcode tcont ktr b r mn ce
+    (NEXT: forall tm' m',
+            match_mem sk tge m' tm' ->
+            assign_loc ce ty tm (map_blk sk tge blk) ofs bf (map_val sk tge v) tm' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, ()))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * ())<- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (assign_loc_c ce ty blk ofs bf v)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold assign_loc_c. des_ifs; try sim_red; try sim_triggerUB.
+    2,3,6,7 : eapply step_store_bitfield; et; i; sim_red; eapply NEXT; et; econs; et.
+    - eapply step_store; et. i. des. eapply NEXT; et. econs; et. 
+    - eapply step_loadbytes; et. i. eapply step_storebytes; et. i.
+      eapply NEXT; et. destruct (_ && _) eqn: E in Heq0; clarify.
+      apply andb_true_iff in E. des. econs 2; et; i.
+      1,2: rewrite <- divide_c_divides; et; pose proof alignof_blockcopy_pos; et.
+      destruct (_||_) eqn: E1 in Heq1 ; clarify. repeat rewrite orb_true_iff in E1.  
+      des; try nia. left. destruct (b0 =? blk)%positive eqn:E2 in E1; clarify.
+      apply Pos.eqb_neq in E2. red. i. apply E2. eapply map_blk_inj; et; admit "".
+    - eapply step_loadbytes; et. i. eapply step_storebytes; et. i.
+      eapply NEXT; et. econs 2; et; i; try nia.
+  Qed.
+
+  Lemma step_deref_loc pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    ty blk ofs bf
+    tf tcode tcont ktr b r mn
+    (NEXT: forall v,
+            deref_loc ty tm (map_blk sk tge blk) ofs bf (map_val sk tge v) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, v))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (deref_loc_c ty blk ofs bf)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold deref_loc_c. destruct bf.
+    - remove_UBcase.
+      + eapply step_load; et. i. eapply NEXT; ss; econs; et.
+      + eapply NEXT; ss; econs 2; et.
+      + eapply NEXT; ss; econs 3; et.
+    - des_ifs; eapply step_load_bitfield; et; i; eapply NEXT; econs; ss.
+  Qed.
+
+  (* Lemma sk_In sk s n : SkEnv.id2blk (Sk.load_skenv sk) s = Some n -> In s (List.map fst sk).
+  Proof.
+    Transparent Sk.load_skenv. ss. uo. des_ifs. i. clarify. Opaque Sk.load_skenv.
+    unfold find_idx in Heq0. set 0 as i in Heq0. clearbody i.
+    depgen i. revert s p0 n. induction sk; i; clarify.
+    ss. destruct a. destruct p0. ss. destruct (string_dec s s0); et.
+    right. ss. eapply IHsk; et.
+  Qed.   *)
+
+  Lemma step_unary_op pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    uop v ty 
+    tf tcode tcont ktr b r mn
+    (NEXT: forall optv,
+            (optv = None -> Cop.sem_unary_operation uop (map_val sk tge v) ty tm = None) ->
+            (forall v', optv = Some v' -> Cop.sem_unary_operation uop (map_val sk tge v) ty tm = Some (map_val sk tge v')) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, optv))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * option val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (unary_op_c uop v ty)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold unary_op_c. des_ifs; sim_red.
+    - unfold bool_val_c. des_ifs.
+      all: try (sim_red; eapply NEXT; i; clarify; ss; unfold Cop.sem_unary_operation; des_ifs; 
+                unfold Cop.sem_notbool, Cop.bool_val; des_ifs).
+      all: try (unfold Values.Val.of_bool; ss; des_ifs).
+      sim_red. eapply step_weak_valid_pointer; et. i. 
+      destruct b1; sim_red; eapply NEXT; et; i; clarify;
+        unfold Cop.sem_notbool, Cop.bool_val; des_ifs.
+    - eapply NEXT; i;
+        unfold Cop.sem_unary_operation, Cop.sem_notint in *; des_ifs; ss; clarify.
+    - eapply NEXT; i;
+        unfold Cop.sem_unary_operation, Cop.sem_neg in *; des_ifs; ss; clarify.
+    - eapply NEXT; i;
+        unfold Cop.sem_unary_operation, Cop.sem_absfloat in *; des_ifs; ss; clarify.
+  Qed.
+
+  Lemma step_binary_op pstate f_table modl cprog sk tge ce le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    biop v1 ty1 v2 ty2
+    tf tcode tcont ktr b r mn
+    (NEXT: forall optv,
+            (optv = None -> Cop.sem_binary_operation ce biop (map_val sk tge v1) ty1 (map_val sk tge v2) ty2 tm = None) ->
+            (forall retv, optv = Some retv -> Cop.sem_binary_operation ce biop (map_val sk tge v1) ty1 (map_val sk tge v2) ty2 tm = Some (map_val sk tge retv)) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, optv))
+              (State tf tcode tcont te tle tm))
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * option val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (binary_op_c ce biop v1 ty1 v2 ty2)) 
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm).
+  Proof.
+    unfold binary_op_c. des_ifs; unfold sem_add_c, sem_sub_c, sem_mul_c, sem_div_c, sem_mod_c, sem_and_c, sem_or_c, sem_xor_c, Cop.sem_shl, Cop.sem_shr, sem_cmp_c; try sim_red.
+    - des_ifs; try sim_red;
+        try (eapply NEXT; i; ss;
+            unfold Cop.sem_add; rewrite Heq; unfold Cop.sem_add_ptr_int, Cop.sem_add_ptr_long in *; 
+            des_ifs; ss; clarify).
+      unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_add; rewrite Heq; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_add; rewrite Heq; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_add; rewrite Heq; unfold Cop.sem_binarith; 
+          rewrite Heq0 in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+    - des_ifs; try sim_red;
+        try (eapply NEXT; i; ss; unfold Cop.sem_sub; rewrite Heq; des_ifs; ss; clarify).
+      + eapply map_blk_inj in e0; et. contradiction.
+      + 
+      unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_sub; rewrite Heq; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_sub; rewrite Heq; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_sub; rewrite Heq; unfold Cop.sem_binarith; 
+          rewrite Heq0 in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mul; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mul; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mul; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_div; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_div; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_div; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss;
+            rewrite Heq0; ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mod; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mod; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_mod; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss;
+            rewrite Heq0; ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_and; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_and; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_and; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss;
+            rewrite Heq0; ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_or; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_or; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_or; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss;
+            rewrite Heq0; ss.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_xor; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_xor; unfold Cop.sem_binarith;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_xor; unfold Cop.sem_binarith; 
+          rewrite Heq in *; try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss;
+            rewrite Heq0; ss.
+    - eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_shl; unfold Cop.sem_binarith; 
+        unfold Cop.sem_shift in *; des_ifs; ss; clarify.
+    - eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_shr; unfold Cop.sem_binarith; 
+        unfold Cop.sem_shift in *; des_ifs; ss; clarify.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          try solve [repeat (destruct (Mem.perm_dec _) in Heq3); inv MM; unfold Mem.perm in *; ss;
+                      rewrite <- MEM_PERM in *; try contradiction].
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+    - des_ifs; unfold cmp_ptr_c; try sim_red; des_ifs_safe; 
+        try solve [unfold cmplu_bool_c; des_ifs; try sim_red; try eapply NEXT; i; ss; clarify; 
+                    unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2,3: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply NEXT; i; ss; clarify. unfold Cop.sem_cmp. rewrite Heq. unfold Cop.cmp_ptr. des_ifs_safe. ss.
+          unfold Val.of_bool. des_ifs.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          eapply NEXT; i; ss; clarify;
+            unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *; des_ifs_safe.
+          unfold Val.of_bool; ss. des_ifs.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+          1: eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe.
+          2: eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+          all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+      + unfold cmplu_bool_c; des_ifs; try sim_red;
+          try solve [eapply NEXT; i; ss; clarify; unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; des_ifs_safe].
+        * eapply step_weak_valid_pointer; et; i; des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+                unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; 
+                  unfold Mem.weak_valid_pointer in *; clarify.
+        * eapply step_weak_valid_pointer; et. i. sim_red. eapply step_weak_valid_pointer; et. i.
+          des_ifs; sim_red; eapply NEXT; i; ss; clarify;
+          unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; des_ifs_safe; unfold Mem.weak_valid_pointer in *; clarify;
+          unfold Val.of_bool; des_ifs. 
+        * unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          unfold valid_pointerF. sim_red.
+          repeat (sim_tau; sim_red). rewrite PSTATE. sim_red. repeat (sim_tau; sim_red).
+          repeat match goal with | |- context [Mem.perm_dec ?x ?y ?z ?w ?a] => destruct (Mem.perm_dec x y z w a) end; sim_red;
+            eapply NEXT; i; ss; clarify;
+              unfold Cop.sem_cmp; rewrite Heq; unfold Cop.cmp_ptr; ss; unfold Mem.valid_pointer in *;
+                destruct (eq_block _); des_ifs_safe;
+          try solve [eapply map_blk_inj in e0; et; try contradiction];
+          repeat (destruct (Mem.perm_dec _)); inv MM; unfold Mem.perm in *; ss.
+    + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. destruct optv; sim_red;
+        try solve [ eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      eapply step_sem_cast; et. i. destruct optv; try sim_red;
+        try solve [eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; rewrite Heq;
+                  try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss].
+      des_ifs; sim_red; 
+        eapply NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_cmp; unfold Cop.sem_binarith; 
+          rewrite Heq in *; rewrite Heq0 in *;
+            try (erewrite H by et); try (erewrite H0 by et); try (erewrite H1 by et); try (erewrite H2 by et); ss.
+      all: unfold Val.of_bool; unfold Val.cmplu_bool; des_ifs; unfold Int64.cmpu; rewrite Heq1; ss.
+  Qed.
+
+  Lemma _step_eval pstate ge ce f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv))
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
  r b tcode tf tcont mn a
  :
   (forall ktr1,
-    (forall blk blk' ofs bf, 
-      eval_lvalue ge te tle tm a blk ofs bf ->
-      blk = map_blk defs blk' ->
+    (forall blk ofs bf, 
+      eval_lvalue ge te tle tm a (map_blk sk tge blk) ofs bf ->
       paco4
         (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-        (ktr1 (pstate, (blk', (ofs, bf))))
+        (ktr1 (pstate, (blk, (ofs, bf))))
         (State tf tcode tcont te tle tm)) 
     ->
     paco4
@@ -138,12 +1264,11 @@ Section PROOF.
       (State tf tcode tcont te tle tm)) 
   /\
   (forall ktr2,
-    (forall v v', 
-      eval_expr ge te tle tm a v ->
-      v = map_val defs v' ->
+    (forall v, 
+      eval_expr ge te tle tm a (map_val sk tge v) ->
       paco4
         (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-        (ktr2 (pstate, v'))
+        (ktr2 (pstate, v))
         (State tf tcode tcont te tle tm)) 
     ->
     paco4
@@ -156,129 +1281,50 @@ Section PROOF.
       (State tf tcode tcont te tle tm)). 
   Proof.
     induction a.
-    - split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; try econs.
-    - split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; try econs.
-    - split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; try econs.
-    - split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; try econs.
-    - split; i.
-      + ss.  admit "stubborn case".
-        (* des_ifs; sim_red; try solve [sim_triggerUB].
-        * eapply H; et. econs. inv ME. apply ME0. et.
-        * eapply H; et. econs 2. inv ME.
-          { destruct (Maps.PTree.get i te) eqn:E; et. 
-            (* TODO: find appropriate env property *)
-            admit "stack block has 1:1 property". }
-          inv MGE. unfold Genv.find_symbol. eapply S2B_MATCH in Heq0.
-          (* TODO: FILL THE BLANK *)
-          admit "Heq0 is equal to conclusion". *)
-      + ss. des_ifs; sim_red; try solve [sim_triggerUB].
-        * unfold deref_loc_c. des_ifs.
-          2:{ sim_red. eapply H; et. { econs. { econs. inv ME. apply ME0. et. } { econs 2; et. } } }
-          2:{ sim_red. eapply H; et. { econs. { econs. inv ME. apply ME0. et. } { econs 3; et. } } }
-          2:{ sim_red. sim_triggerUB. }
-          unfold ccallU. sim_red. ss. sim_tau. unfold loadF. sim_red. sim_tau.
-          sim_red. sim_tau. sim_red. sim_tau. sim_red. rewrite PSTATE.
-          rewrite Any.upcast_downcast. sim_red. unfold unwrapU.
-          des_ifs; try sim_red; try solve [sim_triggerUB]. sim_tau. sim_red.
-          rewrite Any.upcast_downcast. sim_red. eapply H; et. econs.
-          { econs. inv ME. apply ME0. et. }
-          { econs; et. 
-            (* TODO: make match_load lemma *)
-           admit "need_match_load lemma". }
-        * unfold deref_loc_c. des_ifs.
-          2:{ sim_red. eapply H; et. { admit "same probelm with stubborn case". } }
-          2:{ sim_red. eapply H; et. { admit "same probelm with stubborn case". } }
-          2:{ sim_red. sim_triggerUB. }
-          unfold ccallU. sim_red. ss. sim_tau. unfold loadF. sim_red. sim_tau.
-          sim_red. sim_tau. sim_red. sim_tau. sim_red. rewrite PSTATE.
-          rewrite Any.upcast_downcast. sim_red. unfold unwrapU.
-          des_ifs; try sim_red; try solve [sim_triggerUB]. sim_tau. sim_red.
-          rewrite Any.upcast_downcast. sim_red. eapply H; et. 
-          admit "same probelm with stubborn case".
-        * unfold deref_loc_c. destruct (access_mode t0).
-          2:{ sim_red. eapply H; et. { admit "same probelm with stubborn case". } }
-          2:{ sim_red. eapply H; et. { admit "same probelm with stubborn case". } }
-          2:{ sim_red. sim_triggerUB. }
-          unfold ccallU. sim_red. ss. sim_tau. unfold loadF. sim_red. sim_tau.
-          sim_red. sim_tau. sim_red. sim_tau. sim_red. rewrite PSTATE.
-          rewrite Any.upcast_downcast. sim_red. unfold unwrapU.
-          destruct (Mem.load _ _ _ _); try sim_red; try solve [sim_triggerUB]. sim_tau. sim_red.
-          rewrite Any.upcast_downcast. sim_red. eapply H; et. 
-          admit "same probelm with stubborn case".
-    - split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
-      eapply H; et. econs. inv MLE. eapply ML. et.
-    - des. split; i.
-      + ss. sim_red. eapply IHa0. i. destruct v'; try sim_red; try sim_triggerUB.
-        eapply H; et. econs. subst. et.
-      + ss. sim_red. eapply IHa0. i. destruct v'; try sim_red; try sim_triggerUB.
-        subst. unfold deref_loc_c. destruct (access_mode t0) eqn : E.
-        2:{ sim_red. eapply H; et. econs. { econs. ss. et. } { econs 2. et. } } 
-        2:{ sim_red. eapply H; et. econs. { econs. ss. et. } { econs 3. et. } }
-        2:{ sim_red. sim_triggerUB. }
-        unfold ccallU. sim_red. ss. sim_tau. unfold loadF. sim_red. sim_tau.
-        sim_red. sim_tau. sim_red. sim_tau. sim_red. rewrite PSTATE.
-        rewrite Any.upcast_downcast. sim_red. unfold unwrapU.
-        destruct (Mem.load _ _ _ _) eqn: E1; try sim_red; try solve [sim_triggerUB]. sim_tau. sim_red.
-        rewrite Any.upcast_downcast. sim_red. eapply H; et. 
-        econs. { econs. et. } 
-        { econs; et. ss. admit "memory load match". }
-    - des. split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply IHa. i. subst. destruct bf; try sim_red; try sim_triggerUB.
-      eapply H; et. { econs. et. }
-    - des. split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply IHa0. i. subst. sim_red.
-      admit "have to make unary op lemma".
-    - des. split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply IHa3. i. subst. sim_red.
-      eapply IHa0. i. subst. sim_red.
-      admit "have to make binary op lemma".
-    - des. split; i; try solve [ss; try sim_red; sim_triggerUB].
-      ss. sim_red. eapply IHa0.
-      admit "have to make sem_cast lemma".
-    - des. split; i.
-      + ss. sim_red. eapply IHa0. i. subst. des_ifs; try sim_red; try sim_triggerUB.
-        { unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
-          des_ifs; try sim_red; try sim_triggerUB. eapply H; et. 
-          econs; et. }
-        { unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
-          des_ifs; try sim_red; try sim_triggerUB. eapply H; et.
-          econs 5; et. }
-      + ss. sim_red. eapply IHa0. i. subst. des_ifs; try sim_red; try sim_triggerUB.
-        { unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
-          des_ifs; try sim_red; try sim_triggerUB.
-          admit "deref_loc lemma needed". }
-        { unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
-          des_ifs; try sim_red; try sim_triggerUB.
-          admit "deref_loc lemma needed". }
-    - des. split; i; try solve [ss; sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; et. unfold Vptrofs. des_ifs_safe. simpl.
-      econs.
-    - des. split; i; try solve [ss; sim_red; sim_triggerUB].
-      ss. sim_red. eapply H; et. unfold Vptrofs. des_ifs_safe. simpl.
-      econs.
+    1,2,3,4 : split; i; remove_UBcase; eapply H; try econs.
+    9,10 : des; split; i; remove_UBcase; ss; unfold Vptrofs; 
+          eapply H; et; des_ifs_safe; econs.
+    2,4,5,6,7 : des; split; i; remove_UBcase; ss.
+    - split; i; ss.
+      + remove_UBcase; eapply H; et. 
+        * econs. eapply env_match_some in ME; et.
+        * econs 2; try solve [eapply env_match_none; et]. inv MGE. eapply MGE0; et.
+      + remove_UBcase; eapply step_deref_loc; et; i; sim_red; eapply H; et; econs; et.
+        * econs. hexploit env_match_some; et.
+        * econs 2; try solve [eapply env_match_none; et]. inv MGE. eapply MGE0; et.
+    - unfold unwrapU. remove_UBcase. eapply H; et. econs. inv MLE. eapply ML. et.
+    - eapply IHa. i. subst. destruct bf; try sim_red; try sim_triggerUB. eapply H; et. econs; et.
+    - eapply IHa0. i. sim_red. eapply step_unary_op; et. i. sim_red.
+      destruct optv; try sim_triggerUB. sim_red. eapply H; et. econs; et.
+    - eapply IHa3. i. sim_red. eapply IHa0. i. sim_red. eapply step_binary_op; et.
+      i. sim_red. destruct optv; try sim_triggerUB. sim_red. eapply H; et. econs; et.
+    - eapply IHa0. i. sim_red. eapply step_sem_cast; et. i.
+      sim_red. unfold unwrapU. remove_UBcase. eapply H; et. econs; et. 
+    - des; split; i; ss; remove_UBcase; eapply IHa0; i; remove_UBcase.
+      + eapply H. econs; et.
+      + eapply step_deref_loc; et. i. sim_red. eapply H. econs; et. econs;et.
+    - des. split; i; ss; sim_red; eapply IHa0; i; subst. 
+      + remove_UBcase; unfold unwrapU; remove_UBcase; remove_UBcase; eapply H; et; [econs|econs 5]; et.
+      + remove_UBcase; unfold unwrapU; remove_UBcase; remove_UBcase; 
+        eapply step_deref_loc; et; i; sim_red; eapply H; et; econs; et; [econs|econs 5]; et.
   Qed.
     
 
-  Lemma step_eval_lvalue pstate ge ce f_table modl cprog defs sk le tle e te m tm
+  Lemma step_eval_lvalue pstate ge ce f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: ce = ge.(genv_cenv)) 
-    (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose))
-    (MGE: match_ge defs sk ge)
-    (ME: match_e defs e te)
-    (MLE: match_le defs le tle)
-    (MM: match_mem defs m tm)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
  r b tcode tf tcont mn a ktr
-    (NEXT: forall blk blk' ofs bf, 
-            eval_lvalue ge te tle tm a blk ofs bf ->
-            blk = map_blk defs blk' ->
+    (NEXT: forall blk ofs bf, 
+            eval_lvalue ge te tle tm a (map_blk sk tge blk) ofs bf ->
             paco4
               (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-              (ktr (pstate, (blk', (ofs, bf))))
+              (ktr (pstate, (blk, (ofs, bf))))
               (State tf tcode tcont te tle tm))
   :
     paco4
@@ -291,18 +1337,19 @@ Section PROOF.
       (State tf tcode tcont te tle tm).
   Proof. hexploit _step_eval; et. i. des. et. Qed.
 
-  Lemma step_eval_expr pstate ge ce f_table modl cprog defs sk le tle e te m tm
+  Lemma step_eval_expr pstate ge ce f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: ce = ge.(genv_cenv)) 
-    (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose))
-    (MGE: match_ge defs sk ge)
-    (ME: match_e defs e te)
-    (MLE: match_le defs le tle)
-    (MM: match_mem defs m tm)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
  r b tcode tf tcont mn a ktr
     (NEXT: forall v v', 
             eval_expr ge te tle tm a v ->
-            v = map_val defs v' ->
+            v = map_val sk tge v' ->
             paco4
               (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v'))
@@ -319,233 +1366,4 @@ Section PROOF.
   Proof. hexploit _step_eval; et. i. des. et. Qed.
           
 
-
-  (**** At the moment, it suffices to support integer IO in our scenario,
-        and we simplify all the other aspects.
-        e.g., the system calls that we are aware of
-        (1) behaves irrelevant from Senv.t,
-        (2) does not allow arguments/return values other than integers,
-        (3) produces exactly one event (already in CompCert; see: ec_trace_length),
-        (4) does not change memory,
-        (5) always returns without stuck,
-        and (6) we also assume that it refines our notion of system call.
-   ****)
-  Axiom syscall_exists: forall fn sg se args_tgt m0, exists tr ret_tgt m1,
-        <<TGT: external_functions_sem fn sg se args_tgt m0 tr ret_tgt m1>>
-  .
-  Axiom syscall_refines:
-    forall fn sg args_tgt ret_tgt
-           se m0 tr m1
-           (TGT: external_functions_sem fn sg se args_tgt m0 tr ret_tgt m1)
-    ,
-      exists args_int ret_int ev,
-        (<<ARGS: args_tgt = (List.map Values.Vlong args_int)>>) /\
-        (<<RET: ret_tgt = (Values.Vlong ret_int)>>) /\
-        let args_src := List.map Int64.signed args_int in
-        let ret_src := Int64.signed ret_int in
-        (<<EV: tr = [ev] /\ decompile_event ev = Some (event_sys fn args_src↑ ret_src↑)>>)
-        /\ (<<SRC: syscall_sem (event_sys fn args_src↑ ret_src↑)>>)
-        /\ (<<MEM: m0 = m1>>)
-  .
-
-  Lemma step_freeing_stack cprog f_table modl r b1 b2 ktr tstate ge ce e pstate mn (PSTATE: exists m: mem, pstate "Mem"%string = m↑) (EQ: ce = ge.(genv_cenv)) (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose)) :
-  paco4
-    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r (match (blocks_of_env ge e) with [] => b1 | _ => true end) b2
-    (m <- (pstate "Mem")↓?;; m <- (Mem.free_list m (blocks_of_env ge e))?;; ktr (update pstate "Mem" m↑, ()))
-    tstate
-  ->
-  paco4
-    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r b1 b2
-    (`r0: (p_state * ()) <- 
-      (EventsL.interp_Es (prog f_table)
-        (transl_all mn (free_list_aux (ConvC2ITree.blocks_of_env ce e))) 
-        pstate)
-      ;; ktr r0) 
-    tstate.
-  Proof.
-    rewrite EQ. rewrite EQ2. clear EQ ce EQ2 f_table. des. replace (ConvC2ITree.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
-    set (blocks_of_env _ _) as l. clearbody l. depgen m. depgen pstate. depgen b1. depgen b2. induction l.
-    - i. rewrite PSTATE in H. rewrite Any.upcast_downcast in H. ss. sim_red. sim_redH H.
-      replace (update pstate _ _) with pstate in H; et.
-      apply func_ext. i. s. unfold update. des_ifs.
-    - i. rewrite PSTATE in H. sim_redH H. des_ifs_safe. unfold ccallU. sim_tau.
-      des_ifs_safe. unfold sfreeF. repeat sim_tau. rewrite PSTATE. sim_red. 
-      destruct (Mem.free _) eqn: E1 in H; try (unfold unwrapU in *; des_ifs_safe; sim_triggerUB; fail).
-      rewrite E1. sim_red. repeat sim_tau. sim_red. eapply IHl; ss.
-      unfold update at 1. ss. sim_red. destruct (Mem.free_list _) eqn: E2.
-      { sim_red. sim_redH H. des_ifs; replace (update (update _ _ _) _ _) with (update pstate "Mem" (Any.upcast m1)); et.
-        all : apply func_ext; i; unfold update; des_ifs. }
-      unfold unwrapU. unfold triggerUB. sim_red. sim_triggerUB.
-  Qed.
-
-
-  Arguments Es_to_eventE /.
-  Arguments itree_of_code /. 
-  Arguments sloop_iter_body_two /. 
-  Arguments ktree_of_cont_itree /. 
-
-  Theorem match_states_sim
-          types defs WF_TYPES mn
-          (modl: ModL.t) ms sk
-          clight_prog ist cst
-          (* WFDEF may not needed *)
-          (WFDEF: NoDup (List.map (fun '(id, _) => id) defs))
-          (WFDEF2: forall p gd , In (p, gd) defs -> exists s, ident_of_string s = p)
-          (MODL: modl = ModL.add (Mod.lift Mem) (Mod.lift (get_mod types defs WF_TYPES mn)))
-          (MODSEML: ms = modl.(ModL.enclose))
-          (SK: sk = Sk.sort modl.(ModL.sk))
-          (TGT: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
-          (MGENV: match_ge defs sk (Genv.globalenv clight_prog))
-          (MS: match_states sk (Ctypes.prog_comp_env clight_prog) ms defs ist cst)
-  :
-      <<SIM: sim (@ModL.compile _ EMSConfigC modl) (Clight.semantics2 clight_prog) false false ist cst>>.
-  Proof.
-    red. red.
-    depgen ist. depgen cst. pcofix CIH. i.
-    inv MS. unfold mkprogram in *. des_ifs_safe.
-    set (Genv.globalenv _) as ge in MGENV. set {| genv_genv := ge; genv_cenv := x|} as gh.
-    destruct tcode.
-    - ss. sim_red. sim_tau. sim_red.
-      destruct tcont; inv MCONT; ss; clarify.
-      { sim_red. sim_triggerUB. }
-      { sim_red. tgt_step; [econs|]. wrap_up. apply CIH. econs; et. }
-      { sim_red. tgt_step; [econs; et|]. wrap_up. apply CIH. econs; et. { econs; et. } sim_redE.
-        erewrite bind_extk; et. i. des_ifs_safe. repeat (des_ifs; sim_redE; try reflexivity). }
-      { sim_red. tgt_step; [econs; et|]. wrap_up. apply CIH. econs; et. }
-      { sim_red. eapply step_freeing_stack; et. 
-        { instantiate (1 := gh). et. }
-        rewrite PSTATE. sim_red. unfold unwrapU in *.
-        destruct (Mem.free_list m (blocks_of_env gh e)) eqn: STACK_FREE; try sim_triggerUB.
-        inv ME. hexploit match_mem_free_list; et. i. des. 
-        sim_red. tgt_step. 
-        { econs; unfold is_call_cont; et. unfold semantics2, globalenv. ss.
-          replace (Build_genv _ _) with gh; et. 
-          replace (List.map _ _) with (blocks_of_env gh te) in TMEM; et.
-          clear - ME0. unfold blocks_of_env, block_of_binding.
-          set (fun id_b_ty : _ * (_ * _) => _) as f.
-          set (fun _ => _) as g. 
-          rewrite List.map_map. 
-          set ((fun '(id, (b, ty)) => (id, (map_blk defs b, ty))) : ident * (Values.block * type) -> ident * (Values.block * type)) as h.
-          replace (g ∘ f) with (f ∘ h); cycle 1.
-          { unfold f, g, h. apply func_ext. i. des_ifs_safe. destruct p. inv Heq0. inv Heq. et. }
-          rewrite <- (List.map_map h f). f_equal. clear -ME0.
-          (* TODO: there's no property about PTree *)
-          admit "property of Maps.PTree.elements". }
-        tgt_step; [econs|]. pfold. econs 7;[|des_ifs|];et. right. eapply CIH.
-        econs. 4: apply MM_POST. all: et.
-        { change Values.Vundef with (map_val defs Values.Vundef). eapply match_update_le; et. }
-        { instantiate (1 := update pstate "Mem" (Any.upcast m0)). ss. }
-        { ss. sim_redE. f_equal. f_equal. sim_redE. et. } }
-    - ss. unfold _sassign_c. sim_red. sim_tau. sim_red. eapply step_eval_lvalue; et.
-      1,2 : admit "fuck you". i. subst. sim_red. eapply step_eval_expr; et.
-      1,2 : admit "fuck you". i. subst. sim_red. 
-
-  Admitted.
-
-  Ltac rewriter :=
-    try match goal with
-        | H: _ = _ |- _ => rewrite H in *; clarify
-        end.
-
-  Lemma Csharpminor_eval_expr_determ a
-    :
-      forall v0 v1 ge e le m
-             (EXPR0: eval_expr ge e le m a v0)
-             (EXPR1: eval_expr ge e le m a v1),
-        v0 = v1.
-  Proof.
-    induction a; i; inv EXPR0; inv EXPR1; rewriter.
-    { inv H0; inv H1; rewriter. }
-    { exploit (IHa v2 v3); et. i. subst. rewriter. }
-    { exploit (IHa1 v2 v4); et. i. subst.
-      exploit (IHa2 v3 v5); et. i. subst. rewriter. }
-    { exploit (IHa v2 v3); et. i. subst. rewriter. }
-  Qed.
-
-  Lemma Csharpminor_eval_exprlist_determ a
-    :
-      forall v0 v1 ge e le m
-             (EXPR0: eval_exprlist ge e le m a v0)
-             (EXPR1: eval_exprlist ge e le m a v1),
-        v0 = v1.
-  Proof.
-    induction a; ss.
-    { i. inv EXPR0. inv EXPR1. auto. }
-    { i. inv EXPR0. inv EXPR1.
-      hexploit (@Csharpminor_eval_expr_determ a v2 v0); et. i.
-      hexploit (IHa vl vl0); et. i. clarify. }
-  Qed.
-
-  Lemma alloc_variables_determ vars
-    :
-      forall e0 e1 ee m m0 m1
-             (ALLOC0: alloc_variables ee m vars e0 m0)
-             (ALLOC1: alloc_variables ee m vars e1 m1),
-        e0 = e1 /\ m0 = m1.
-  Proof.
-    induction vars; et.
-    { i. inv ALLOC0; inv ALLOC1; auto. }
-    { i. inv ALLOC0; inv ALLOC1; auto. rewriter.
-      eapply IHvars; et. }
-  Qed.
-
-  Lemma Csharpminor_wf_semantics prog
-    :
-      wf_semantics (Csharpminor.semantics prog).
-  Proof.
-    econs.
-    { i. inv STEP0; inv STEP1; ss; rewriter.
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ addr vaddr vaddr0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ a vf vf0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter.
-        hexploit external_call_determ; [eapply H0|eapply H12|..]. i. des.
-        inv H1. hexploit H2; et. i. des. clarify. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; auto. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; et. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@alloc_variables_determ (fn_vars f) e e0); et. i. des; clarify. }
-      { hexploit external_call_determ; [eapply H|eapply H6|..]. i. des.
-        inv H0. hexploit H1; et. i. des. clarify. }
-    }
-    { i. inv FINAL. inv STEP. }
-    { i. inv FINAL0. inv FINAL1. ss. }
-  Qed.
-
 End PROOF.
-
-  Ltac rewriter :=
-    try match goal with
-        | H: _ = _ |- _ => rewrite H in *; clarify
-        end.
-
-  Lemma Clight_wf_semantics types defs WF_TYPES
-    :
-      wf_semantics (semantics2 (mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)).
-  Proof.
-    econs.
-    { i. inv STEP0; inv STEP1; ss; rewriter.
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ addr vaddr vaddr0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ a vf vf0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter.
-        hexploit external_call_determ; [eapply H0|eapply H12|..]. i. des.
-        inv H1. hexploit H2; et. i. des. clarify. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; auto. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; et. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@alloc_variables_determ (fn_vars f) e e0); et. i. des; clarify. }
-      { hexploit external_call_determ; [eapply H|eapply H6|..]. i. des.
-        inv H0. hexploit H1; et. i. des. clarify. }
-    }
-    { i. inv FINAL. inv STEP. }
-    { i. inv FINAL0. inv FINAL1. ss. }
-  Qed.
