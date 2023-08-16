@@ -562,125 +562,24 @@ Section PROOF.
           sim_red. 
           replace (match blocks_of_env ge e with [] | _ => true end) with true by des_ifs.
           remove_UBcase.  
-        * ss. 
-
-       depgen tcont. 
-        induction tcont; i; inv MCONT; ss; clarify.
-        * eapply step_freeing_stack with (ge := ge); et.
-          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
-      + destruct o; cycle 1.
-        * sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et.
-          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
-        * sim_red. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et.
-          i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
-          remove_UBcase. eapply step_freeing_stack with (ge := ge); et.
-          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
-          1:{ remove_UBcase. tgt_step. 
-              { econs; et. eapply match_mem_free_list in Heq1; et. des.
-                inv ME. unfold blocks_of_env, block_of_binding in *.
-                apply map_eq_nil in Heq0. rewrite Heq0 in ME0. ss.
-                rewrite ME0. ss. }
-              ss. pfold. econs 1.
-              2:{ econs. }
-              ss. unfold state_sort. ss.
-              rewrite Any.upcast_downcast. et. }
-          eapply match_mem_free_list in Heq1; et. des.
-          remove_UBcase. tgt_step.
-          { econs; et. 
+          eapply match_mem_free_list in E; et. des.
+          tgt_step. 
+          { econs; et.
             inv ME. unfold blocks_of_env, block_of_binding in *.
-            rewrite ME0. set (fun _ => _) as f. 
-            rewrite List.map_map. 
+            rewrite ME0. set (fun _ => _) as f'.
+            rewrite List.map_map.
             set (fun _ => _) as g in TMEM.
-            replace (f ∘ _) with (g ∘ f).
-            2:{ unfold g, f, map_env_entry. eapply func_ext. i.
+            replace (f' ∘ _) with (g ∘ f').
+            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
                 des_ifs. }
-            rewrite <- List.map_map. rewrite <- Heq0 in TMEM.
-            unfold f. ss. eapply TMEM. }
-          pfold. econs 1. 2:{ econs. }
-          ss. unfold state_sort. ss. rewrite Any.upcast_downcast.
-          et.
-      + destruct o; cycle 1.
-        * sim_tau. sim_red. 
-          
-
-         tgt_step. { econs.  } 
-
-        
-        
-
-  Admitted.
-
-
-  (* Ltac rewriter :=
-    try match goal with
-        | H: _ = _ |- _ => rewrite H in *; clarify
-        end.
-
-  Lemma Csharpminor_eval_expr_determ a
-    :
-      forall v0 v1 ge e le m
-             (EXPR0: eval_expr ge e le m a v0)
-             (EXPR1: eval_expr ge e le m a v1),
-        v0 = v1.
-  Proof.
-    induction a; i; inv EXPR0; inv EXPR1; rewriter.
-    { inv H0; inv H1; rewriter. }
-    { exploit (IHa v2 v3); et. i. subst. rewriter. }
-    { exploit (IHa1 v2 v4); et. i. subst.
-      exploit (IHa2 v3 v5); et. i. subst. rewriter. }
-    { exploit (IHa v2 v3); et. i. subst. rewriter. }
+            rewrite <- List.map_map.
+            unfold f'. ss. eapply TMEM. }
+          pfold. econs 1.
+          2:{ ss. rewrite <- H6. econs. }
+          ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et.
+    - ss. sim_triggerUB.
+    - ss. sim_triggerUB.
+    - ss. sim_triggerUB.
   Qed.
 
-  Lemma Csharpminor_eval_exprlist_determ a
-    :
-      forall v0 v1 ge e le m
-             (EXPR0: eval_exprlist ge e le m a v0)
-             (EXPR1: eval_exprlist ge e le m a v1),
-        v0 = v1.
-  Proof.
-    induction a; ss.
-    { i. inv EXPR0. inv EXPR1. auto. }
-    { i. inv EXPR0. inv EXPR1.
-      hexploit (@Csharpminor_eval_expr_determ a v2 v0); et. i.
-      hexploit (IHa vl vl0); et. i. clarify. }
-  Qed.
-
-  Lemma alloc_variables_determ vars
-    :
-      forall e0 e1 ee m m0 m1
-             (ALLOC0: alloc_variables ee m vars e0 m0)
-             (ALLOC1: alloc_variables ee m vars e1 m1),
-        e0 = e1 /\ m0 = m1.
-  Proof.
-    induction vars; et.
-    { i. inv ALLOC0; inv ALLOC1; auto. }
-    { i. inv ALLOC0; inv ALLOC1; auto. rewriter.
-      eapply IHvars; et. }
-  Qed.
-
-  Lemma Csharpminor_wf_semantics prog
-    :
-      wf_semantics (Csharpminor.semantics prog).
-  Proof.
-    econs.
-    { i. inv STEP0; inv STEP1; ss; rewriter.
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ addr vaddr vaddr0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_expr_determ a vf vf0); et. i. rewriter.
-        hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter. }
-      { hexploit (@Csharpminor_eval_exprlist_determ bl vargs vargs0); et. i. rewriter.
-        hexploit external_call_determ; [eapply H0|eapply H12|..]. i. des.
-        inv H1. hexploit H2; et. i. des. clarify. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; auto. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter.
-        inv H0; inv H12; et. }
-      { hexploit (@Csharpminor_eval_expr_determ a v v0); et. i. rewriter. }
-      { hexploit (@alloc_variables_determ (fn_vars f) e e0); et. i. des; clarify. }
-      { hexploit external_call_determ; [eapply H|eapply H6|..]. i. des.
-        inv H0. hexploit H1; et. i. des. clarify. }
-    }
-    { i. inv FINAL. inv STEP. }
-    { i. inv FINAL0. inv FINAL1. ss. }
-  Qed. *)
+End Proof.
