@@ -14,6 +14,7 @@ Require Import IRed.
 From Ordinal Require Import Ordinal Arithmetic.
 
 Require Import Clightlight2ClightMatch.
+Require Import Clightlight2ClightMatchStmt.
 Require Import Clightlight2ClightArith.
 Require Import Clightlight2ClightGenv.
 Require Import Clightlight2ClightLenv.
@@ -82,8 +83,7 @@ Section PROOF.
   Local Opaque Pos.of_succ_nat.
 
 
-
-  (**** At the moment, it suffices to support integer IO in our scenario,
+  (* (**** At the moment, it suffices to support integer IO in our scenario,
         and we simplify all the other aspects.
         e.g., the system calls that we are aware of
         (1) behaves irrelevant from Senv.t,
@@ -109,7 +109,7 @@ Section PROOF.
         (<<EV: tr = [ev] /\ decompile_event ev = Some (event_sys fn args_src↑ ret_src↑)>>)
         /\ (<<SRC: syscall_sem (event_sys fn args_src↑ ret_src↑)>>)
         /\ (<<MEM: m0 = m1>>)
-  .
+  . *)
 
   Lemma step_freeing_stack cprog f_table modl r b1 b2 ktr tstate ge ce e pstate mn (PSTATE: exists m: mem, pstate "Mem"%string = m↑) (EQ: ce = ge.(genv_cenv)) (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose)) :
   paco4
@@ -121,12 +121,12 @@ Section PROOF.
     (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r b1 b2
     (`r0: (p_state * ()) <- 
       (EventsL.interp_Es (prog f_table)
-        (transl_all mn (free_list_aux (ConvC2ITree.blocks_of_env ce e))) 
+        (transl_all mn (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e))) 
         pstate)
       ;; ktr r0) 
     tstate.
   Proof.
-    rewrite EQ. rewrite EQ2. clear EQ ce EQ2 f_table. des. replace (ConvC2ITree.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
+    rewrite EQ. rewrite EQ2. clear EQ ce EQ2 f_table. des. replace (ConvC2ITreeStmt.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
     set (blocks_of_env _ _) as l. clearbody l. depgen m. depgen pstate. depgen b1. depgen b2. induction l.
     - i. rewrite PSTATE in H. rewrite Any.upcast_downcast in H. ss. sim_red. sim_redH H.
       replace (update pstate _ _) with pstate in H; et.
@@ -141,18 +141,152 @@ Section PROOF.
       unfold unwrapU. unfold triggerUB. sim_red. sim_triggerUB.
   Qed.
 
+  Lemma step_eval_exprlist pstate ge ce f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    al tyl
+ r b tcode tf tcont mn ktr
+    (NEXT: forall vl, 
+            eval_exprlist ge te tle tm al tyl (List.map (map_val sk tge) vl) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, vl))
+              (State tf tcode tcont te tle tm))
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * list Values.val) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (eval_exprlist_c sk ce e le al tyl))
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm). 
+  Proof.
+    depgen tyl. revert ktr. induction al; i.
+    - ss. remove_UBcase. eapply NEXT. econs.
+    - ss. remove_UBcase. eapply step_eval_expr with (ge:=ge); et. i. sim_red. eapply IHal. i.
+      sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapply NEXT. econs; et.
+  Qed.
+
+  Lemma step_function_entry pstate ge ce f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    f vl
+ r b o tf tcont mn ktr dvl df
+    (NEXT: forall e' le' te' tle' m' tm', 
+            function_entry2 ge f (List.map (map_val sk tge) vl) tm te' tle' tm' ->
+            match_mem sk tge m' tm' ->
+            match_e sk tge e' te' ->
+            match_le sk tge le' tle' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, (e', le')))
+              (Callstate df dvl (Kcall o tf te tle tcont) tm))
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * (env * temp_env)) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (function_entry_c ce f vl))
+          pstate);; ktr r0)
+      (Callstate df dvl (Kcall o tf te tle tcont) tm). 
+  Proof.
+  Admitted.
+
+  Lemma step_external_call pstate ge ce f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    i extfun targs tres cc vl
+ r b o tf tcont (mn: string) ktr 
+    (NEXT: forall tr m' tm' vres, 
+            external_call extfun ge (List.map (map_val sk tge) vl) tm tr (map_val sk tge vres) tm' ->
+            match_mem sk tge m' tm' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true true
+              (ktr (update pstate "Mem" m'↑, vres↑))
+              (Returnstate (map_val sk tge vres) (Kcall o tf te tle tcont) tm'))
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * Any.t) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (i (Some mn, vl↑))
+          pstate);; ktr r0)
+      (Callstate (External extfun targs tres cc) (List.map (map_val sk tge) vl) (Kcall o tf te tle tcont) tm). 
+  Proof.
+  Admitted.
+  (* axiom *)
+
+  Lemma step_bool_val pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    v ty
+ r b tcode tf tcont mn ktr
+    (NEXT: forall optb, 
+            Cop.bool_val (map_val sk tge v) ty tm = optb ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (pstate, optb))
+              (State tf tcode tcont te tle tm))
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * option bool) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (bool_val_c v ty))
+          pstate);; ktr r0)
+      (State tf tcode tcont te tle tm). 
+  Proof.
+  Admitted.
 
   Arguments Es_to_eventE /.
   Arguments itree_of_code /. 
   Arguments sloop_iter_body_two /. 
   Arguments ktree_of_cont_itree /. 
+  Opaque MemSem.
+
+  Lemma unfold_itree_iter A B eff (f : A -> itree eff (A + B)) (x: A)  :
+          ITree.iter f x = `lr : A + B <- f x;;
+                           match lr with
+                            | inl l => tau;; ITree.iter f l
+                            | inr r => Ret r
+                           end.
+  Proof.
+    eapply bisim_is_eq. apply unfold_iter.
+  Qed.
 
   Theorem match_states_sim
-          types sk defs WF_TYPES mn
-          (modl: ModL.t) ms
+          types sk defs WF_TYPES
+          (modl internal_modl external_modl: ModL.t) ms
           clight_prog ist cst
-          (MODL: modl = ModL.add (Mod.lift Mem) (Mod.lift (get_mod types defs WF_TYPES mn)))
+          (MODL: modl = ModL.add (Mod.lift Mem) (ModL.add external_modl internal_modl))
           (MODSEML: ms = modl.(ModL.enclose))
+          (SK: sk = modl.(ModL.sk))
           (TGT: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
           (MS: match_states sk (Genv.globalenv clight_prog) (Ctypes.prog_comp_env clight_prog) ms ist cst)
   :
@@ -161,16 +295,21 @@ Section PROOF.
     red. red.
     depgen ist. depgen cst. pcofix CIH. i.
     inv MS. unfold mkprogram in *. des_ifs_safe.
-    set (Genv.globalenv _) as tge in MGE. set {| genv_genv := tge; genv_cenv := x|} as ge.
+    set (Genv.globalenv _) as tge in *.
+    set (ModL.sk _) as sk in *.
+    set (ModL.add _ _) as modl in *.
+    set {| genv_genv := tge; genv_cenv := x|} as ge.
     destruct tcode.
-    - ss. sim_red. sim_tau. sim_red.
+    - ss. sim_red. 
       destruct tcont; inv MCONT; ss; clarify.
       { sim_red. sim_triggerUB. }
-      { sim_red. tgt_step; [econs|]. wrap_up. apply CIH. econs; et. }
-      { sim_red. tgt_step; [econs; et|]. wrap_up. apply CIH. econs; et. { econs; et. } sim_redE.
-        erewrite bind_extk; et. i. des_ifs_safe. repeat (des_ifs; sim_redE; try reflexivity). }
-      { sim_red. tgt_step; [econs; et|]. wrap_up. apply CIH. econs; et. }
-      { sim_red. eapply step_freeing_stack with (ge := ge); et. 
+      { sim_red. tgt_step; [econs|]. sim_tau. wrap_up. apply CIH. econs; et. }
+      { sim_red. tgt_step; [econs; et|]. sim_tau. wrap_up. apply CIH. econs; et. { econs; et. }
+        sim_redE. apply bind_extk. i. des_ifs_safe.
+        repeat (des_ifs; sim_redE; try reflexivity). }
+      { sim_red. tgt_step; [econs; et|]. sim_tau. sim_red. sim_tau. wrap_up. apply CIH.
+        econs; et. }
+      { sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et. 
         rewrite PSTATE. sim_red. unfold unwrapU in *.
         destruct (Mem.free_list m _) eqn: STACK_FREE; try sim_triggerUB.
         inv ME. hexploit match_mem_free_list; et. i. des. 
@@ -185,11 +324,12 @@ Section PROOF.
           rewrite List.map_map with (f := f).
           replace (g ∘ f) with (f ∘ h); try rewrite List.map_map; et.
           unfold f, g, h. apply func_ext. i. des_ifs_safe. ss. clarify. }
+        sim_tau.
         tgt_step; [econs|]. pfold. econs 7;[|des_ifs|];et. right. eapply CIH.
         econs. 5: apply MM_POST. all: et. 
         { hexploit match_update_le; et. instantiate (2 := Vundef). ss. et. }  
         { instantiate (1 := update pstate "Mem" (Any.upcast m0)). ss. }
-        { et. ss. sim_redE. f_equal. f_equal. sim_redE. et. } }
+        { et. ss. sim_redE. et. } }
     - ss. unfold _sassign_c. sim_red. sim_tau. sim_red.
       eapply step_eval_lvalue with (ge := ge); et. i. subst. sim_red. 
       eapply step_eval_expr with (ge := ge); et. i. subst. sim_red. 
@@ -198,8 +338,136 @@ Section PROOF.
       eapply step_assign_loc; et. i. sim_red.
       tgt_step. { econs; et. } wrap_up. eapply CIH. 
       econs. 4:{ instantiate (2 := update pstate "Mem" m'↑). unfold update. ss. } 
-      all: et. ss. sim_redE. f_equal.
-    -
+      all: et. ss. sim_redE. et. 
+    - ss. sim_red. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. subst. sim_red. 
+      tgt_step. { econs; et. } wrap_up. eapply CIH. econs; et.
+      { change (Maps.PTree.set i _ _) with (set_opttemp (Some i) (map_val sk ge v') tle). eapply match_update_le; et. }
+      ss. sim_redE. et. 
+    - ss. unfold _scall_c. remove_UBcase. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. sim_red.
+      eapply step_eval_exprlist with (ge := ge); et. i. remove_UBcase. destruct (nth_error _) eqn: E; remove_UBcase.
+      destruct p. destruct (Any.downcast _) eqn: E1; remove_UBcase. remove_UBcase. remove_UBcase.
+      unfold ccallU. sim_red. repeat (sim_tau; sim_red).
+      (* rewrite app_assoc. rewrite alist_find_app_o. *)
+      assert (SkEnv.blk2id (Sk.load_skenv sk) (pred (Pos.to_nat b)) = Some s).
+      { Transparent Sk.load_skenv. unfold Sk.load_skenv. ss. rewrite E. ss. }
+      inv MGE. apply Sk.load_skenv_wf in WFSK. apply WFSK in H0. rewrite <- (string_of_ident_of_string s) in H0.
+      apply MGE0 in H0. unfold unwrapU. remove_UBcase.
+      tgt_step.
+      { econs; ss; et; admit "". }
+      destruct f.
+      + assert (exists mn, i0 = fun '(optmn, a) => transl_all mn (cfunU (decomp_func (eff := Es) sk x f) (optmn, a))).
+        { admit "". }
+        des. rewrite H2. ss. sim_red.
+        unfold decomp_func. sim_red. eapply step_function_entry with (ge := ge); et.
+        { admit "". }
+        i. sim_red. 
+        tgt_step.
+        { econs; et. }
+        wrap_up. eapply CIH. econs. 5: apply H4. all: et.
+        { admit "". }
+        { instantiate (1 := update pstate "Mem" m'↑). et. }
+        { econs; et. }
+        sim_redE.
+        set (prog _) as t1.
+        instantiate (1:= mn0).
+        apply bind_extk. i. des_ifs_safe. unfold itree_of_cont_pop. sim_redE.
+        destruct o0.
+        { sim_redE. apply bind_extk. i. des_ifs_safe. sim_redE. f_equal. f_equal.
+          sim_redE. rewrite Any.upcast_downcast. sim_redE. et. }
+        destruct o1.
+        { apply bind_extk. i. des_ifs_safe. sim_redE.
+          apply bind_extk. i. sim_redE. f_equal. f_equal. sim_redE. 
+          rewrite Any.upcast_downcast. sim_redE. et. }
+        sim_redE. f_equal. f_equal. apply bind_extk. i. des_ifs_safe. sim_redE.
+        apply bind_extk. i. sim_redE. f_equal. f_equal.
+        sim_redE. rewrite Any.upcast_downcast. sim_redE. et.
+      + ss. clarify.
+        eapply step_external_call with (ge := ge); et.
+        { admit "". }
+        i. sim_red. 
+        tgt_step.
+        { econs. } 
+        sim_tau.
+        wrap_up. eapply CIH. econs. 5: eapply H3. all: et.
+        { admit "". }
+        { apply match_update_le; et. }
+        { instantiate (1 := update pstate "Mem" m'↑). et. }
+        ss. sim_redE. rewrite Any.upcast_downcast. sim_redE. et.
+    - (* undefined *)
+      sim_triggerUB.
+    - ss. sim_red. sim_tau. tgt_step.
+      { econs. }
+      wrap_up. eapply CIH. econs; et.
+      { econs; et. }
+      ss. sim_redE. apply bind_extk. i. des_ifs_safe.
+      unfold itree_of_cont_pop.
+      destruct o0.
+      { sim_redE. et. }
+      destruct o.
+      { sim_redE. et. }
+      sim_redE. et.
+    - ss. sim_red. unfold _site_c. sim_red. sim_tau.
+      sim_red. eapply step_eval_expr with (ge := ge); et.
+      i. sim_red. eapply step_bool_val; et. i. unfold unwrapU. remove_UBcase.
+      tgt_step.
+      { econs; et. }
+      wrap_up. eapply CIH. econs; et.
+      destruct b; sim_redE; et.
+    - ss. unfold _sloop_itree. rewrite unfold_itree_iter.
+      ss. unfold sloop_iter_body_one. sim_red. sim_tau.
+      tgt_step. { econs. } 
+      wrap_up. eapply CIH. econs; et.
+      { econs; et. }
+      unfold _sloop_itree.
+      sim_redE. apply bind_extk. i. 
+      unfold itree_of_cont_pop. des_ifs_safe.
+      destruct o.
+      { sim_redE. et. }
+      destruct o0.
+      { destruct b. 
+        { sim_redE. do 2 f_equal. sim_redE. et. }
+        sim_redE. do 2 f_equal. sim_redE. apply bind_extk. i. des_ifs_safe.
+        sim_redE. destruct o; sim_redE; et.
+        destruct o0. 
+        { destruct b.
+          { sim_redE. do 2 f_equal. sim_redE. et. }
+          apply bind_extk. i. 
+          des_ifs_safe. destruct o; sim_redE; et.
+          do 2 f_equal. sim_redE. et. }
+        sim_redE. do 2 f_equal. sim_redE. do 2 f_equal. sim_redE. et. }
+      sim_redE. do 2 f_equal. sim_redE. apply bind_extk. i. des_ifs_safe.
+      destruct o.
+      { sim_redE; et. }
+      destruct o0.
+      { apply bind_extk. i. des_ifs_safe. destruct o; sim_redE; et.
+        do 2 f_equal. sim_redE. et. }
+      sim_redE. do 2 f_equal. sim_redE. do 2 f_equal. sim_redE. et.
+    - ss. destruct tcont; inv MCONT; ss; clarify.
+      + sim_red. sim_triggerUB.
+      + sim_red. sim_tau. sim_red. tgt_step. { econs. }
+        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
+      + sim_tau. sim_red. tgt_step. { eapply step_break_loop1. }  
+        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
+      + tgt_step. { eapply step_break_loop2. }  
+        sim_red. sim_tau. sim_red. wrap_up. eapply CIH. econs; et.
+        ss. sim_redE. et. 
+      + sim_red. sim_triggerUB.
+    - ss. destruct tcont; inv MCONT; ss; clarify.
+      + sim_red. sim_triggerUB.
+      + sim_red. sim_tau. sim_red. tgt_step. { econs. }
+        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
+      + sim_red. sim_tau. sim_red. tgt_step. { econs. et. }  
+        wrap_up. eapply CIH. econs; et. { econs; et. } 
+        ss. apply bind_extk. i. sim_redE. des_ifs_safe.
+        repeat (des_ifs; sim_redE; try reflexivity).
+      + sim_red. sim_triggerUB. 
+      + sim_red. sim_triggerUB.
+    - 
+
+
+        
+        
+
   Admitted.
 
 

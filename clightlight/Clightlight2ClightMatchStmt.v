@@ -142,9 +142,9 @@ Section MATCH.
                         (fun '(e, le, optb, optv) => 
                           (itree_of_cont_pop
                             (Ret (e, le, None, optv)) 
-                            (Ret (e, le, optb, None)) 
-                            (Ret (e, le, optb, None)) 
-                            (decomp_stmt sk ce retty code e le)) optb optv))
+                            (tau;;Ret (e, le, optb, None)) 
+                            (tau;;Ret (e, le, optb, None)) 
+                            (tau;;decomp_stmt sk ce retty code e le)) optb optv))
       (NEXT: match_cont retty mn next cont)
     :
       match_cont retty mn (fun x => y <- cont_itree x;; next y) (Kseq code cont)
@@ -153,16 +153,20 @@ Section MATCH.
                         (fun '(e, le, optb, optv) => 
                           (itree_of_cont_pop
                             (Ret (e, le, None, optv)) 
-                            (Ret (e, le, None, None)) 
-                            ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
+                            (tau;;Ret (e, le, None, None)) 
+                            (* this is for break *)
+                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
                               match ov2 with
                               | Some v2 => Ret (e2, le2, None, v2)
-                              | None => _sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                              | None => tau;;_sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                                      (* this is for loop unfold tau *)
                               end)
-                            ('(e2, le2, ov2) <- sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
+                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
+                                                (* this is for skip *)
                               match ov2 with
                               | Some v2 => Ret (e2, le2, None, v2)
-                              | None => _sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                              | None => tau;;_sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                                        (* this is for loop unfold tau *)
                               end)) optb optv))
       (NEXT: match_cont retty mn next cont) 
     :
@@ -174,14 +178,14 @@ Section MATCH.
                             (match optv with 
                             | Some v => Ret (e, le, Some (Some v)) 
                             | None => match optb with 
-                                      | Some true => Ret (e, le, Some None)
+                                      | Some true => tau;;Ret (e, le, Some None)
                                       | Some false => triggerUB
-                                      | None => Ret (e, le, None)
+                                      | None => tau;;Ret (e, le, None)
                                       end
                             end);;
                           match ov2 with
                           | Some v2 => Ret (e, le, None, v2)
-                          | None => _sloop_itree e le (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                          | None => tau;;_sloop_itree e le (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
                           end))
       (NEXT: match_cont retty mn next cont) 
     :
@@ -195,11 +199,12 @@ Section MATCH.
                         (fun '(e, le, optb, optv) => 
                           '(_, _, _, optv') <-
                             (itree_of_cont_pop
-                              (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; tau;; Ret (e, le, None, optv)) 
-                              triggerUB 
-                              triggerUB 
-                              (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; tau;; Ret (e, le, None, Some Vundef))) optb optv;;
-                          v <- optv'?;; Ret (e', set_opttemp optid v le', None, None))) 
+                              (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, optv)) 
+                              triggerUB
+                              triggerUB
+                              (tau;;free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
+                          v <- optv'?;; tau;; Ret (e', set_opttemp optid v le', None, None))) 
+                                      (* this is for modsem *)
       (CONT_ENV_MATCH: match_e sk tge e' te')
       (CONT_LENV_MATCH: match_le sk tge le' tle')
       (NEXT: match_cont f.(fn_return) mn_caller next cont) 

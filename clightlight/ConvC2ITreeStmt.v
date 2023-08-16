@@ -108,17 +108,17 @@ Section DECOMP.
       (* return *)
       Ret (e', le', Some (Some retv))
     | None =>
-      if (* is_break *)
         match obc with
-        | None => false
-        | Some bc => bc
-        end
-      then
+        | None => 
+        (* skip *)
+        tau;;Ret (e', le', None)
+        | Some true => 
         (* break, not return *)
-        Ret (e', le', Some None)
-      else
+        tau;;Ret (e', le', Some None)
+        | Some false => 
         (* continue *)
-        Ret (e', le', None)
+        tau;;Ret (e', le', None)
+        end
     end.
 
   Definition sloop_iter_body_two
@@ -131,9 +131,10 @@ Section DECOMP.
       Ret (e', le', Some (Some retv))
     | None =>
       match obc with
-      | Some true => Ret (e', le', Some None)
+      | Some true => tau;;Ret (e', le', Some None)
       | Some false => triggerUB
-      | None => Ret (e', le', None)
+      | None => tau;;Ret (e', le', None)
+                (* this is for skip *)
       end
     end.
 
@@ -145,7 +146,7 @@ Section DECOMP.
              env * temp_env * option val) :=
     let '(e, le) := i in
     (* '(e1, le1, m1, obc1, v1) <- itr1 e le m ;; *)
-    '(e1, le1, ov1) <- sloop_iter_body_one (itr1 e le) ;;
+    '(e1, le1, ov1) <- tau;;sloop_iter_body_one (itr1 e le) ;;
     match ov1 with
     | Some v1 =>
       (* break or return *)
@@ -204,30 +205,33 @@ Section DECOMP.
     : itr_t :=
     match stmt with
     | Sskip =>
-      tau;;Ret (e, le, None, None)
+      Ret (e, le, None, None)
     | Sassign a1 a2 =>
-      _sassign_c e le a1 a2;;; tau;;
+      _sassign_c e le a1 a2;;;
       Ret (e, le, None, None)
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;;
       let le' := PTree.set id v le in
-      tau;; Ret (e, le', None, None)
+      Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
         Ret (e, (set_opttemp optid v le), None, None)
     | Sbuiltin optid ef targs el => triggerUB
     | Ssequence s1 s2 =>
-      '(e', le', bc, v) <- decomp_stmt retty s1 e le;;
+      '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
+                        (* this is for steps *)
       match v with
       | Some retval =>
         Ret (e', le', None, v)
       | None =>
         match bc with
         | None =>
-          decomp_stmt retty s2 e' le'
-        | Some _ =>
-          Ret (e', le', bc, None)
+          tau;;decomp_stmt retty s2 e' le'
+        | Some true =>
+          tau;;Ret (e', le', bc, None)
+        | Some false =>
+          tau;;Ret (e', le', bc, None)
         end
       end
     | Sifthenelse a s1 s2 =>
@@ -255,42 +259,47 @@ Section DECOMP.
            (vargs: list val)
     : itree eff val :=
     '(e, le) <- function_entry_c ce f vargs;;
-    '(e', _, c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; c?;;;
-    free_list_aux (blocks_of_env ce e');;;
-    match ov with
-    | None => Ret Vundef
-    | Some v => Ret v
-    end.
+    '(e', le', c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; 
+    '(_, _, _, v) <- (match ov with
+    | Some v => free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some v)
+    | None => match c with
+              | Some b0 => if b0 then triggerUB else triggerUB
+              | None => tau;;free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some Vundef)
+              end
+    end);; v <- v?;;
+    Ret v.
 
     Lemma unfold_decomp_stmt :
     decomp_stmt =
   fun retty stmt e le =>
     match stmt with
     | Sskip =>
-      tau;;Ret (e, le, None, None)
+      Ret (e, le, None, None)
     | Sassign a1 a2 =>
-      _sassign_c e le a1 a2;;; tau;;
+      _sassign_c e le a1 a2;;;
       Ret (e, le, None, None)
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;; 
       let le' := PTree.set id v le in
-      tau;; Ret (e, le', None, None)
+      Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
         Ret (e, (set_opttemp optid v le), None, None)
     | Sbuiltin optid ef targs el => triggerUB
     | Ssequence s1 s2 =>
-      '(e', le', bc, v) <- decomp_stmt retty s1 e le;;
+      '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
       match v with
       | Some retval =>
         Ret (e', le', None, v)
       | None =>
         match bc with
         | None =>
-          decomp_stmt retty s2 e' le'
-        | Some _ =>
-          Ret (e', le', bc, None)
+          tau;;decomp_stmt retty s2 e' le'
+        | Some true =>
+          tau;;Ret (e', le', bc, None)
+        | Some false => 
+          tau;;Ret (e', le', bc, None)
         end
       end
     | Sifthenelse a s1 s2 =>
