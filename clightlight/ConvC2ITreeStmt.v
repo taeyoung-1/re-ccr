@@ -190,7 +190,7 @@ Section DECOMP.
              (oa: option expr)
     : itree eff val :=
     match oa with
-    | None => Ret Vundef
+    | None => tau;;Ret Vundef
     | Some a =>
       tau;;
       v <- eval_expr_c sk ce e le a;;

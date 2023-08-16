@@ -280,6 +280,45 @@ Section PROOF.
     eapply bisim_is_eq. apply unfold_iter.
   Qed.
 
+  Lemma return_cont pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    itr_cont v
+    r b tstate tcont ty mn ms ce
+    (MCONT: match_cont sk tge ce ms ty mn itr_cont tcont)
+    (NEXT: forall itr_cont'' itr_cont',
+            match_cont sk tge ce ms ty mn itr_cont' (call_cont tcont) ->
+            itr_cont'' = 
+              (`r0: (p_state * val) <- itr_cont' (pstate, (e, le, None, Some v));;
+                let (_, retv) := r0 in Ret retv↑) ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              itr_cont''
+              tstate)
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * val) <- itr_cont (pstate, (e, le, None, Some v));;
+        let (_, retv) := r0 in Ret retv↑)
+      tstate.
+  Proof.
+    depgen v. induction MCONT; i.
+    - rewrite ITR. ss. sim_red. eapply IHMCONT; et. 
+    - rewrite ITR. ss. sim_red. eapply IHMCONT; et.
+    - rewrite ITR. ss. sim_red. eapply IHMCONT; et.
+    - ss. eapply NEXT; et. econs; et. 
+    - rewrite ITR. ss. sim_red. eapply NEXT.
+      { econs; et. }
+      sim_redE. et. 
+  Qed.
+
+  Lemma call_cont_is_call_cont tcont : is_call_cont (call_cont tcont).
+  Proof. induction tcont; et; ss. Qed.
+
   Theorem match_states_sim
           types sk defs WF_TYPES
           (modl internal_modl external_modl: ModL.t) ms
@@ -462,8 +501,109 @@ Section PROOF.
         repeat (des_ifs; sim_redE; try reflexivity).
       + sim_red. sim_triggerUB. 
       + sim_red. sim_triggerUB.
-    - 
+    - ss. unfold _sreturn_c. destruct o; cycle 1.
+      + sim_tau. sim_red. eapply return_cont; et. i.
+        rewrite H0. clear H0. remember (call_cont tcont) as tcont'. 
+        inv H; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H3; clarify].
+        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
+          rewrite PSTATE. sim_red. unfold unwrapU. 
+          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
+        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
+          rewrite PSTATE. sim_red. unfold unwrapU. 
+          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
+          sim_red. sim_tau. sim_red.
+          eapply match_mem_free_list in E; et. des.
+          tgt_step. 
+          { econs. 
+            inv ME. unfold blocks_of_env, block_of_binding in *.
+            rewrite ME0. set (fun _ => _) as f'.
+            rewrite List.map_map.
+            set (fun _ => _) as g in TMEM.
+            replace (f' ∘ _) with (g ∘ f').
+            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
+                des_ifs. }
+            rewrite <- List.map_map.
+            unfold f'. ss. eapply TMEM. }
+          tgt_step. 
+          { rewrite <- H3. econs. }
+          wrap_up. eapply CIH. econs. 5: eapply MM_POST. all: et.
+          { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+          { instantiate (1 := update pstate "Mem" m0↑). et. }
+          ss. sim_redE. et. 
+      + sim_tau. sim_red. eapply step_eval_expr with (ge:=ge); et.
+        i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
+        remove_UBcase. eapply return_cont; et. i.
+        rewrite H3. clear H3 itr_cont''. remember (call_cont tcont) as tcont'. 
+        inv H0; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify]; cycle 1.
+        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
+          rewrite PSTATE. sim_red. unfold unwrapU. 
+          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
+          sim_red. sim_tau. sim_red.
+          eapply match_mem_free_list in E; et. des.
+          tgt_step. 
+          { econs; et.
+            inv ME. unfold blocks_of_env, block_of_binding in *.
+            rewrite ME0. set (fun _ => _) as f'.
+            rewrite List.map_map.
+            set (fun _ => _) as g in TMEM.
+            replace (f' ∘ _) with (g ∘ f').
+            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
+                des_ifs. }
+            rewrite <- List.map_map.
+            unfold f'. ss. eapply TMEM. }
+          tgt_step. { rewrite <- H6. econs. }
+          wrap_up. eapply CIH. econs. 5: eapply MM_POST. all: et.
+          { eapply match_update_le; et. }
+          { instantiate (1 := update pstate "Mem" m0↑). et. }
+          ss. sim_redE. et.
+        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
+          rewrite PSTATE. sim_red. unfold unwrapU. 
+          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
+          sim_red. 
+          replace (match blocks_of_env ge e with [] | _ => true end) with true by des_ifs.
+          remove_UBcase.  
+        * ss. 
 
+       depgen tcont. 
+        induction tcont; i; inv MCONT; ss; clarify.
+        * eapply step_freeing_stack with (ge := ge); et.
+          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
+      + destruct o; cycle 1.
+        * sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et.
+          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
+        * sim_red. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et.
+          i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
+          remove_UBcase. eapply step_freeing_stack with (ge := ge); et.
+          rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase.
+          1:{ remove_UBcase. tgt_step. 
+              { econs; et. eapply match_mem_free_list in Heq1; et. des.
+                inv ME. unfold blocks_of_env, block_of_binding in *.
+                apply map_eq_nil in Heq0. rewrite Heq0 in ME0. ss.
+                rewrite ME0. ss. }
+              ss. pfold. econs 1.
+              2:{ econs. }
+              ss. unfold state_sort. ss.
+              rewrite Any.upcast_downcast. et. }
+          eapply match_mem_free_list in Heq1; et. des.
+          remove_UBcase. tgt_step.
+          { econs; et. 
+            inv ME. unfold blocks_of_env, block_of_binding in *.
+            rewrite ME0. set (fun _ => _) as f. 
+            rewrite List.map_map. 
+            set (fun _ => _) as g in TMEM.
+            replace (f ∘ _) with (g ∘ f).
+            2:{ unfold g, f, map_env_entry. eapply func_ext. i.
+                des_ifs. }
+            rewrite <- List.map_map. rewrite <- Heq0 in TMEM.
+            unfold f. ss. eapply TMEM. }
+          pfold. econs 1. 2:{ econs. }
+          ss. unfold state_sort. ss. rewrite Any.upcast_downcast.
+          et.
+      + destruct o; cycle 1.
+        * sim_tau. sim_red. 
+          
+
+         tgt_step. { econs.  } 
 
         
         
