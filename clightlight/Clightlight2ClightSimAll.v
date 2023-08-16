@@ -582,4 +582,4 @@ Section PROOF.
     - ss. sim_triggerUB.
   Qed.
 
-End Proof.
+End PROOF.
