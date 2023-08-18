@@ -140,7 +140,7 @@ Section PROOF.
   Proof.
     unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold loadF. repeat (sim_red; sim_tau). sim_red.
     rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. sim_tau. sim_red. rewrite Any.upcast_downcast.
-    sim_red. eapply NEXT. hexploit match_mem_load; et.
+    sim_red. eapply NEXT. unfold Mem.loadv in *. des_ifs_safe. ss. clarify. hexploit match_mem_load; et.
   Qed.
     
 
@@ -172,7 +172,7 @@ Section PROOF.
   Proof.
     unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold storeF. sim_red. repeat (sim_tau; sim_red).
     rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
-    sim_red. hexploit match_mem_store; et. i. des. eapply NEXT; et. 
+    sim_red. unfold Mem.storev in Heq. des_ifs_safe. hexploit match_mem_store; et. i. des. eapply NEXT; et. 
   Qed.
 
   Lemma step_loadbytes pstate f_table modl cprog sk tge le tle e te m tm

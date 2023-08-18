@@ -210,7 +210,12 @@ Section MATCH.
       (NEXT: match_cont f.(fn_return) mn_caller next cont) 
     :
       match_cont retty mn_callee (fun x => y <- cont_itree x;; next y) (Kcall optid f te' tle' cont).
-  
+
+  Definition fnsem_has_internal := 
+    forall s f, In (s, (Gfun (Internal f) (V:=type))↑) sk ->
+    exists mn,
+    alist_find s ms.(ModSemL.fnsems)
+       = Some (fun '(optmn, a) => transl_all mn (cfunU (decomp_func (eff := Es) sk ce f) (optmn, a))).
 
   Variant match_states : itree eventE Any.t -> Clight.state -> Prop :=
   | match_states_intro
@@ -220,6 +225,7 @@ Section MATCH.
       (ML: match_le sk tge le tle)
       (PSTATE: pstate "Mem"%string = m↑)
       (MM: match_mem sk tge m tm)
+      (WFMS: fnsem_has_internal)
       (MCODE: itr_code = itree_of_code mn tf.(fn_return) tcode e le pstate)
       (MCONT: match_cont tf.(fn_return) mn itr_cont tcont)
       (MENTIRE: itr = x <- itr_code;; '(_, v) <- itr_cont x;; Ret v↑)

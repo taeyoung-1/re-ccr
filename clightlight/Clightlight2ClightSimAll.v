@@ -82,43 +82,19 @@ Section PROOF.
 
   Local Opaque Pos.of_succ_nat.
 
-
-  (* (**** At the moment, it suffices to support integer IO in our scenario,
-        and we simplify all the other aspects.
-        e.g., the system calls that we are aware of
-        (1) behaves irrelevant from Senv.t,
-        (2) does not allow arguments/return values other than integers,
-        (3) produces exactly one event (already in CompCert; see: ec_trace_length),
-        (4) does not change memory,
-        (5) always returns without stuck,
-        and (6) we also assume that it refines our notion of system call.
-   ****)
-  Axiom syscall_exists: forall fn sg se args_tgt m0, exists tr ret_tgt m1,
-        <<TGT: external_functions_sem fn sg se args_tgt m0 tr ret_tgt m1>>
-  .
-  Axiom syscall_refines:
-    forall fn sg args_tgt ret_tgt
-           se m0 tr m1
-           (TGT: external_functions_sem fn sg se args_tgt m0 tr ret_tgt m1)
-    ,
-      exists args_int ret_int ev,
-        (<<ARGS: args_tgt = (List.map Values.Vlong args_int)>>) /\
-        (<<RET: ret_tgt = (Values.Vlong ret_int)>>) /\
-        let args_src := List.map Int64.signed args_int in
-        let ret_src := Int64.signed ret_int in
-        (<<EV: tr = [ev] /\ decompile_event ev = Some (event_sys fn args_src↑ ret_src↑)>>)
-        /\ (<<SRC: syscall_sem (event_sys fn args_src↑ ret_src↑)>>)
-        /\ (<<MEM: m0 = m1>>)
-  . *)
-
-  Lemma step_freeing_stack cprog f_table modl r b1 b2 ktr tstate ge ce e pstate mn (PSTATE: exists m: mem, pstate "Mem"%string = m↑) (EQ: ce = ge.(genv_cenv)) (EQ2: f_table = (ModL.add Mem modl).(ModL.enclose)) :
+  Lemma _step_freeing_stack cprog f_table modl r b ktr tstate ge ce e pstate mn m
+  (EQ1: ce = ge.(genv_cenv)) 
+  (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+  (PSTATE: pstate "Mem"%string = m↑) 
+  (NEXT: forall m', 
+    Mem.free_list m (blocks_of_env ge e) = Some m' ->
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (ktr (update pstate "Mem" m'↑, ()))
+      tstate)
+  :
   paco4
-    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r (match (blocks_of_env ge e) with [] => b1 | _ => true end) b2
-    (m <- (pstate "Mem")↓?;; m <- (Mem.free_list m (blocks_of_env ge e))?;; ktr (update pstate "Mem" m↑, ()))
-    tstate
-  ->
-  paco4
-    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r b1 b2
+    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
     (`r0: (p_state * ()) <- 
       (EventsL.interp_Es (prog f_table)
         (transl_all mn (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e))) 
@@ -126,19 +102,52 @@ Section PROOF.
       ;; ktr r0) 
     tstate.
   Proof.
-    rewrite EQ. rewrite EQ2. clear EQ ce EQ2 f_table. des. replace (ConvC2ITreeStmt.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
-    set (blocks_of_env _ _) as l. clearbody l. depgen m. depgen pstate. depgen b1. depgen b2. induction l.
-    - i. rewrite PSTATE in H. rewrite Any.upcast_downcast in H. ss. sim_red. sim_redH H.
-      replace (update pstate _ _) with pstate in H; et.
-      apply func_ext. i. s. unfold update. des_ifs.
-    - i. rewrite PSTATE in H. sim_redH H. des_ifs_safe. unfold ccallU. sim_tau.
-      des_ifs_safe. unfold sfreeF. repeat sim_tau. rewrite PSTATE. sim_red. 
-      destruct (Mem.free _) eqn: E1 in H; try (unfold unwrapU in *; des_ifs_safe; sim_triggerUB; fail).
-      rewrite E1. sim_red. repeat sim_tau. sim_red. eapply IHl; ss.
-      unfold update at 1. ss. sim_red. destruct (Mem.free_list _) eqn: E2.
-      { sim_red. sim_redH H. des_ifs; replace (update (update _ _ _) _ _) with (update pstate "Mem" (Any.upcast m1)); et.
-        all : apply func_ext; i; unfold update; des_ifs. }
-      unfold unwrapU. unfold triggerUB. sim_red. sim_triggerUB.
+    subst. 
+    replace (ConvC2ITreeStmt.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
+    set (blocks_of_env ge e) as l in *. clearbody l.
+    depgen m. depgen pstate. induction l; i; ss.
+    - sim_red. replace pstate with (update pstate "Mem" m↑).
+      2:{ rewrite <- PSTATE. unfold update. apply func_ext. i. des_ifs. }
+      eapply NEXT; et. 
+    - des_ifs_safe. unfold ccallU. sim_red. ss. sim_tau. sim_red. unfold sfreeF.
+      sim_red. rewrite PSTATE. repeat (sim_tau; sim_red). unfold unwrapU.
+      remove_UBcase. repeat (sim_tau; sim_red). remove_UBcase.
+      eapply IHl. et. { unfold update. ss. } i.
+      replace (update (update _ _ _) _ _) with (update pstate "Mem" m'↑); et.
+      unfold update. apply func_ext. i. des_ifs.
+  Qed.
+
+  Lemma step_freeing_stack cprog f_table modl r b ktr tstate ge sk tge ce e te pstate mn m tm
+  (EQ1: ce = ge.(genv_cenv)) 
+  (EQ2: tge = ge.(genv_genv)) 
+  (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+  (PSTATE: pstate "Mem"%string = m↑) 
+  (MGE: match_ge sk tge)
+  (ME: match_e sk tge e te)
+  (MM: match_mem sk tge m tm)
+  (NEXT: forall m' tm', 
+    Mem.free_list tm (blocks_of_env ge te) = Some tm' ->
+    match_mem sk tge m' tm' ->
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (ktr (update pstate "Mem" m'↑, ()))
+      tstate)
+  :
+  paco4
+    (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+    (`r0: (p_state * ()) <- 
+      (EventsL.interp_Es (prog f_table)
+        (transl_all mn (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e))) 
+        pstate)
+      ;; ktr r0) 
+    tstate.
+  Proof.
+    eapply _step_freeing_stack; et. i. eapply match_mem_free_list in H; et.
+    des. eapply NEXT; et. unfold blocks_of_env, block_of_binding in *.
+    apply match_env_same in ME. rewrite ME. set (fun _ => _) as f. rewrite List.map_map.
+    set (fun _ => _) as g in TMEM. 
+    replace (f ∘ _) with (g ∘ f); try rewrite <- List.map_map; et.
+    unfold g, f, map_env_entry. eapply func_ext. i. des_ifs.
   Qed.
 
   Lemma step_eval_exprlist pstate ge ce f_table modl cprog sk tge le tle e te m tm
@@ -174,6 +183,137 @@ Section PROOF.
       sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapply NEXT. econs; et.
   Qed.
 
+  Lemma step_alloc pstate f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    lo hi
+    tstate ktr b r mn
+    (NEXT: forall tm' m' blk,
+            Mem.alloc tm lo hi = (tm', map_blk sk tge blk) ->
+            match_mem sk tge m' tm' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, Vptr blk Ptrofs.zero))
+              tstate)
+:
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: p_state * val <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (ccallU "salloc" (lo, hi))) 
+          pstate);; ktr r0)
+      tstate.
+  Proof.
+    unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold sallocF. sim_red. repeat (sim_tau; sim_red).
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
+    sim_red. hexploit match_mem_alloc; et. i. des. eapply NEXT; et. 
+  Qed.
+
+  Lemma match_update_e sk tge e te i blk t
+        (MLE: match_e sk tge e te)
+    :
+      match_e sk tge (Maps.PTree.set i (blk, t) e) (Maps.PTree.set i (map_blk sk tge blk, t) te).
+  Proof.
+    econs. inv MLE. split; i.
+    - destruct a. apply Maps.PTree.elements_complete in H.
+      rewrite in_map_iff. destruct (Pos.eq_dec p i).
+      + subst. rewrite Maps.PTree.gss in H. clarify. 
+        exists (i, (blk, t)). split; et. apply Maps.PTree.elements_correct.
+        rewrite Maps.PTree.gss. et.
+      + rewrite Maps.PTree.gso in H; et. apply Maps.PTree.elements_correct in H.
+        apply ME in H. apply in_map_iff in H. des. eexists; split; et.
+        destruct x. destruct p1. ss. clarify.
+        apply Maps.PTree.elements_complete in H0.
+        apply Maps.PTree.elements_correct. rewrite Maps.PTree.gso; et.
+    - destruct a. rewrite in_map_iff in H. des. destruct x. destruct p1.
+      ss. clarify. apply Maps.PTree.elements_complete in H0.
+      apply Maps.PTree.elements_correct.
+      destruct (Pos.eq_dec p i).
+      + subst. rewrite Maps.PTree.gss in *. clarify.
+      + rewrite Maps.PTree.gso in H0; et. rewrite Maps.PTree.gso; et.
+        apply Maps.PTree.elements_complete.
+        apply Maps.PTree.elements_correct in H0. rewrite ME.
+        change ((_, (_,_))) with (map_env_entry sk tge (p, (b, t0))). 
+        apply in_map. et.
+  Qed.
+
+  Lemma update_shadow V pstate (x: string) (v v': V) : update (update pstate x v) x v' = update pstate x v'.
+  Proof. unfold update. apply func_ext. i. des_ifs. Qed.
+
+  Lemma step_alloc_variables pstate ge ce f_table modl cprog sk tge le tle e te m tm
+    (PSTATE: pstate "Mem"%string = m↑)
+    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ2: tge = ge.(genv_genv)) 
+    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (MGE: match_ge sk tge)
+    (ME: match_e sk tge e te)
+    (MLE: match_le sk tge le tle)
+    (MM: match_mem sk tge m tm)
+    l
+ r b tstate mn ktr 
+    (NEXT: forall e' te' m' tm', 
+            alloc_variables ge te tm l te' tm' ->
+            match_mem sk tge m' tm' ->
+            match_e sk tge e' te' ->
+            paco4
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (ktr (update pstate "Mem" m'↑, e'))
+              tstate)
+  :
+    paco4
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (`r0: (p_state * env) <- 
+        (EventsL.interp_Es
+          (prog f_table)
+          (transl_all mn (alloc_variables_c ce e l))
+          pstate);; ktr r0)
+      tstate.
+  Proof.
+    depgen e. depgen te. depgen pstate. depgen m. revert tm. depgen l. induction l; i.
+    - ss. sim_red. 
+      replace pstate with (update pstate "Mem" m↑) 
+        by now unfold update; apply func_ext; i; des_ifs.
+      eapply NEXT; et. econs; et.
+    - ss. remove_UBcase. eapply step_alloc; et. i. eapply IHl; et. 
+      2:{ eapply match_update_e; et. }
+      i. rewrite update_shadow. eapply NEXT; et. econs; et.
+  Qed.
+
+  
+  Lemma match_bind_parameter_temps
+        sk tge params sle rvs sbase tbase
+        (BIND_SRC: bind_parameter_temps params rvs sbase = Some sle)
+        (MLE: match_le sk tge sbase tbase)
+    :
+      exists tle, (<<BIND_TGT: bind_parameter_temps params (List.map (map_val sk tge) rvs) tbase
+                      = Some tle>>)
+                  /\ (<<MLE: match_le sk tge sle tle>>).
+  Proof.
+    hexploit (bind_parameter_temps_exists_if_same_length params (List.map (map_val sk tge) rvs) tbase).
+    - rewrite ! map_length. clear -BIND_SRC. depgen sbase.
+      revert sle. depgen rvs. depgen params.
+      induction params; i; ss; des_ifs.
+      ss. f_equal. eapply IHparams; eauto.
+    - i. des. eexists; split; et. red. depgen sbase. depgen sle. depgen rvs. revert tbase tle. depgen params.
+      induction params; i; ss; des_ifs.
+      eapply (match_update_le (Some i) v) in MLE. ss. inv Heq. eapply IHparams; et.
+  Qed.
+
+  Lemma norepet l : id_list_norepet_c l = true -> Coqlib.list_norepet l.
+  Proof. induction l; i; econs; try eapply IHl; unfold id_list_norepet_c in *; des_ifs; inv l0; et. Qed.
+
+  Lemma disjoint l l' : id_list_disjoint_c l l' = true -> Coqlib.list_disjoint l l'.
+  Proof. 
+    revert l'. induction l; i; ss.
+    unfold Coqlib.list_disjoint. i. unfold id_list_disjoint_c in *. des_ifs.
+    unfold Coqlib.list_disjoint in *. eapply l0; et. 
+  Qed.
+
   Lemma step_function_entry pstate ge ce f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: ce = ge.(genv_cenv)) 
@@ -204,38 +344,18 @@ Section PROOF.
           pstate);; ktr r0)
       (Callstate df dvl (Kcall o tf te tle tcont) tm). 
   Proof.
-  Admitted.
-
-  Lemma step_external_call pstate ge ce f_table modl cprog sk tge le tle e te m tm
-    (PSTATE: pstate "Mem"%string = m↑)
-    (EQ1: ce = ge.(genv_cenv)) 
-    (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
-    (MGE: match_ge sk tge)
-    (ME: match_e sk tge e te)
-    (MLE: match_le sk tge le tle)
-    (MM: match_mem sk tge m tm)
-    i extfun targs tres cc vl
- r b o tf tcont (mn: string) ktr 
-    (NEXT: forall tr m' tm' vres, 
-            external_call extfun ge (List.map (map_val sk tge) vl) tm tr (map_val sk tge vres) tm' ->
-            match_mem sk tge m' tm' ->
-            paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true true
-              (ktr (update pstate "Mem" m'↑, vres↑))
-              (Returnstate (map_val sk tge vres) (Kcall o tf te tle tcont) tm'))
-  :
-    paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-      (`r0: (p_state * Any.t) <- 
-        (EventsL.interp_Es
-          (prog f_table)
-          (i (Some mn, vl↑))
-          pstate);; ktr r0)
-      (Callstate (External extfun targs tres cc) (List.map (map_val sk tge) vl) (Kcall o tf te tle tcont) tm). 
-  Proof.
-  Admitted.
-  (* axiom *)
+    unfold function_entry_c. remove_UBcase.
+    eapply step_alloc_variables with (te := empty_env); et.
+    { econs. i. ss. }
+    i. sim_red. unfold unwrapU. remove_UBcase. hexploit (match_bind_parameter_temps sk ge); et.
+    { instantiate (1:=create_undef_temps (fn_temps f)). econs. i. clear -H2. set (fn_temps f) as l in *. clearbody l.
+      induction l; ss. destruct a. destruct (Pos.eq_dec id i); try solve [subst; rewrite Maps.PTree.gss in *; clarify].
+      rewrite Maps.PTree.gso; et.
+      rewrite Maps.PTree.gso in H2; et. }
+    i. des. eapply NEXT; et. bsimpl. des.  
+    econs; et. { apply norepet; et. } { apply norepet; et. }
+    apply disjoint; et.
+  Qed.
 
   Lemma step_bool_val pstate f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
@@ -262,7 +382,12 @@ Section PROOF.
           pstate);; ktr r0)
       (State tf tcode tcont te tle tm). 
   Proof.
-  Admitted.
+    unfold bool_val_c. 
+    remove_UBcase; try solve [eapply NEXT; unfold Cop.bool_val; rewrite Heq; et].
+    eapply step_weak_valid_pointer; et. i.
+    destruct b1; sim_red;
+      eapply NEXT; unfold Cop.bool_val; rewrite Heq; ss; des_ifs.
+  Qed.
 
   Arguments Es_to_eventE /.
   Arguments itree_of_code /. 
@@ -318,12 +443,14 @@ Section PROOF.
 
   Lemma call_cont_is_call_cont tcont : is_call_cont (call_cont tcont).
   Proof. induction tcont; et; ss. Qed.
+  
 
   Theorem match_states_sim
           types sk defs WF_TYPES
-          (modl internal_modl external_modl: ModL.t) ms
+          (modl internal_modl: ModL.t) ms
           clight_prog ist cst
-          (MODL: modl = ModL.add (Mod.lift Mem) (ModL.add external_modl internal_modl))
+          (MODL: modl = ModL.add (Mod.lift Mem) internal_modl)
+          (INTERNAL: forall s fd, In (s, (Gfun fd (V := type))↑) internal_modl.(ModL.sk) -> exists f : Clight.function, fd = Internal f)
           (MODSEML: ms = modl.(ModL.enclose))
           (SK: sk = modl.(ModL.sk))
           (TGT: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
@@ -335,75 +462,115 @@ Section PROOF.
     depgen ist. depgen cst. pcofix CIH. i.
     inv MS. unfold mkprogram in *. des_ifs_safe.
     set (Genv.globalenv _) as tge in *.
-    set (ModL.sk _) as sk in *.
+    set (ModL.sk (ModL.add _ _)) as sk in *.
     set (ModL.add _ _) as modl in *.
     set {| genv_genv := tge; genv_cenv := x|} as ge.
     destruct tcode.
     - ss. sim_red. 
       destruct tcont; inv MCONT; ss; clarify.
-      { sim_red. sim_triggerUB. }
-      { sim_red. tgt_step; [econs|]. sim_tau. wrap_up. apply CIH. econs; et. }
-      { sim_red. tgt_step; [econs; et|]. sim_tau. wrap_up. apply CIH. econs; et. { econs; et. }
+      + sim_red. sim_triggerUB.
+      + sim_red. tgt_step; [econs|].
+        sim_tau. wrap_up. apply CIH. econs; et.
+      + sim_red. tgt_step; [econs; et|].
+        sim_tau. wrap_up. apply CIH. econs; et. 
+        { econs; et. }
         sim_redE. apply bind_extk. i. des_ifs_safe.
-        repeat (des_ifs; sim_redE; try reflexivity). }
-      { sim_red. tgt_step; [econs; et|]. sim_tau. sim_red. sim_tau. wrap_up. apply CIH.
-        econs; et. }
-      { sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et. 
-        rewrite PSTATE. sim_red. unfold unwrapU in *.
-        destruct (Mem.free_list m _) eqn: STACK_FREE; try sim_triggerUB.
-        inv ME. hexploit match_mem_free_list; et. i. des. 
-        sim_red. tgt_step. 
-        { econs; unfold is_call_cont; et. unfold semantics2, globalenv. ss.
-          rewrite <- TMEM. f_equal. replace _ with ge by et. 
-          set (fun _ => _) as g. clear - ME0.  
-          unfold blocks_of_env, block_of_binding.
-          rewrite ME0.
-          set (fun id_b_ty : _ * (_ * _) => _) as f.
-          set (map_env_entry _ _) as h.
-          rewrite List.map_map with (f := f).
-          replace (g ∘ f) with (f ∘ h); try rewrite List.map_map; et.
-          unfold f, g, h. apply func_ext. i. des_ifs_safe. ss. clarify. }
-        sim_tau.
-        tgt_step; [econs|]. pfold. econs 7;[|des_ifs|];et. right. eapply CIH.
-        econs. 5: apply MM_POST. all: et. 
-        { hexploit match_update_le; et. instantiate (2 := Vundef). ss. et. }  
-        { instantiate (1 := update pstate "Mem" (Any.upcast m0)). ss. }
-        { et. ss. sim_redE. et. } }
+        repeat (des_ifs; sim_redE; try reflexivity).
+      + sim_red. tgt_step; [econs; et|]. 
+        sim_tau. sim_red. sim_tau. wrap_up. apply CIH.
+        econs; et.
+      + sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et. 
+        i. sim_red. tgt_step. { econs; unfold is_call_cont; et. }
+        sim_tau. tgt_step; [econs|].
+        pfold. econs 7;[|des_ifs|];et. right. eapply CIH.
+        clear PSTATE. econs; et.
+        { hexploit match_update_le; et. instantiate (2 := Vundef). ss. et. }
+        { instantiate (1 := update pstate "Mem" (Any.upcast m')). ss. }
+        ss. sim_redE. et.
     - ss. unfold _sassign_c. sim_red. sim_tau. sim_red.
-      eapply step_eval_lvalue with (ge := ge); et. i. subst. sim_red. 
-      eapply step_eval_expr with (ge := ge); et. i. subst. sim_red. 
+      eapply step_eval_lvalue with (ge := ge); et. i. subst. sim_red.
+      eapply step_eval_expr with (ge := ge); et. i. subst. sim_red.
       eapply step_sem_cast; et. i.
       unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
       eapply step_assign_loc; et. i. sim_red.
-      tgt_step. { econs; et. } wrap_up. eapply CIH. 
-      econs. 4:{ instantiate (2 := update pstate "Mem" m'↑). unfold update. ss. } 
-      all: et. ss. sim_redE. et. 
+      tgt_step. { econs; et. }
+      wrap_up. eapply CIH. clear PSTATE.
+      econs; et.
+      { instantiate (1 := update pstate "Mem" m'↑). unfold update. ss. } 
+      ss. sim_redE. et.
     - ss. sim_red. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. subst. sim_red. 
-      tgt_step. { econs; et. } wrap_up. eapply CIH. econs; et.
+      tgt_step. { econs; et. }
+      wrap_up. eapply CIH. econs; et.
       { change (Maps.PTree.set i _ _) with (set_opttemp (Some i) (map_val sk ge v') tle). eapply match_update_le; et. }
       ss. sim_redE. et. 
     - ss. unfold _scall_c. remove_UBcase. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. sim_red.
       eapply step_eval_exprlist with (ge := ge); et. i. remove_UBcase. destruct (nth_error _) eqn: E; remove_UBcase.
       destruct p. destruct (Any.downcast _) eqn: E1; remove_UBcase. remove_UBcase. remove_UBcase.
       unfold ccallU. sim_red. repeat (sim_tau; sim_red).
-      (* rewrite app_assoc. rewrite alist_find_app_o. *)
-      assert (SkEnv.blk2id (Sk.load_skenv sk) (pred (Pos.to_nat b)) = Some s).
-      { Transparent Sk.load_skenv. unfold Sk.load_skenv. ss. rewrite E. ss. }
-      inv MGE. apply Sk.load_skenv_wf in WFSK. apply WFSK in H0. rewrite <- (string_of_ident_of_string s) in H0.
-      apply MGE0 in H0. unfold unwrapU. remove_UBcase.
-      tgt_step.
-      { econs; ss; et; admit "". }
-      destruct f.
-      + assert (exists mn, i0 = fun '(optmn, a) => transl_all mn (cfunU (decomp_func (eff := Es) sk x f) (optmn, a))).
-        { admit "". }
-        des. rewrite H2. ss. sim_red.
+      assert (E2: t0 = (@Gfun _ type f)↑).
+      { apply Any.downcast_upcast in E1. et. }
+      rewrite E2 in *. tgt_step.
+      { econs; ss; et. ss. des_ifs. unfold Genv.find_funct_ptr. 
+        change (Genv.globalenv _) with tge.
+        inv MGE. replace b with (Pos.of_succ_nat (pred (Pos.to_nat b))) by nia.
+        erewrite ELEM; et. et. }
+      apply nth_error_In in E. dup E. unfold sk in E0. simpl in E0. 
+      des.
+      + clarify. Transparent MemSem. ss. unfold mallocF. sim_red. repeat (sim_tau; sim_red).
+        rewrite PSTATE. sim_red. remove_UBcase. des_ifs_safe. sim_red. unfold unwrapU. remove_UBcase.
+        repeat (sim_tau; sim_red). rewrite Any.upcast_downcast. sim_red.
+        apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
+        do 2 rewrite Any.upcast_downcast in H2. clarify.
+        destruct i. ss.
+        eapply match_mem_alloc in Heq2; et. clear E. destruct Heq2 as [? [? ?]].
+        eapply match_mem_store in Heq3; et. destruct Heq3 as [? [? ?]].
+        assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
+        set {| Ptrofs.intval := intval; Ptrofs.intrange := H5|} as i.
+        replace (Vlong _) with (Vptrofs i) in *.
+        2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold i. ss.
+            change intval with (Int64.unsigned (Int64.mkint intval intrange)).
+            rewrite Int64.repr_unsigned. ss. }
+        tgt_step. { eapply step_external_function. ss. econs; et. }
+        tgt_step. { econs. }
+        wrap_up. eapply CIH. clear PSTATE. econs; et.
+        { change (Vptr _ _) with (map_val sk tge (Vptr b0 Ptrofs.zero)). eapply match_update_le; et. }
+        { instantiate (1:=update pstate "Mem" m1↑). et. }
+        ss. sim_redE. et.
+      + clarify. ss. 
+        apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
+        do 2 rewrite Any.upcast_downcast in H2. clarify. clear E.
+        unfold freeF. sim_red. repeat (sim_tau; sim_red).
+        rewrite PSTATE. sim_red. remove_UBcase.
+        * repeat (sim_tau; sim_red). tgt_step. 
+          { econs. ss. replace (Vlong _) with Vnullptr; try econs; et. unfold Vnullptr. des_ifs_safe. f_equal.
+            rewrite <- Int64.repr_unsigned with (i := Int64.mkint _ _). et. }
+          tgt_step. { econs. }
+          wrap_up. eapply CIH. econs; et.
+          { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+          ss. sim_redE. et.
+        * unfold unwrapU. remove_UBcase. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
+          eapply match_mem_load in Heq2; et. 
+          eapply match_mem_free in Heq4; et. destruct Heq4 as [? [? ?]].
+          destruct i0. ss.
+          assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
+          set {| Ptrofs.intval := intval; Ptrofs.intrange := H3|} as ofs.
+          replace (Vlong _) with (Vptrofs ofs) in Heq2.
+          2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold ofs. ss.
+              change intval with (Int64.unsigned (Int64.mkint intval intrange)).
+              rewrite Int64.repr_unsigned. ss. }
+          sim_red. tgt_step. { econs. ss. econs; et. ss. nia. }
+          tgt_step. { econs. }
+          wrap_up. eapply CIH. clear PSTATE. econs; et.
+          { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+          { instantiate (1:=update pstate "Mem" m0↑). et. }
+          ss. sim_redE. et.
+      + apply INTERNAL in E0. des. subst. unfold fnsem_has_internal in WFMS.
+        apply WFMS in E. des. ss. rewrite E. sim_red.
         unfold decomp_func. sim_red. eapply step_function_entry with (ge := ge); et.
-        { admit "". }
         i. sim_red. 
         tgt_step.
         { econs; et. }
-        wrap_up. eapply CIH. econs. 5: apply H4. all: et.
-        { admit "". }
+        wrap_up. eapply CIH. clear PSTATE. econs; et.
         { instantiate (1 := update pstate "Mem" m'↑). et. }
         { econs; et. }
         sim_redE.
@@ -412,46 +579,27 @@ Section PROOF.
         apply bind_extk. i. des_ifs_safe. unfold itree_of_cont_pop. sim_redE.
         destruct o0.
         { sim_redE. apply bind_extk. i. des_ifs_safe. sim_redE. f_equal. f_equal.
-          sim_redE. rewrite Any.upcast_downcast. sim_redE. et. }
+          sim_redE. et. }
         destruct o1.
         { apply bind_extk. i. des_ifs_safe. sim_redE.
-          apply bind_extk. i. sim_redE. f_equal. f_equal. sim_redE. 
-          rewrite Any.upcast_downcast. sim_redE. et. }
+          apply bind_extk. i. sim_redE. f_equal. f_equal. sim_redE. et. }
         sim_redE. f_equal. f_equal. apply bind_extk. i. des_ifs_safe. sim_redE.
         apply bind_extk. i. sim_redE. f_equal. f_equal.
-        sim_redE. rewrite Any.upcast_downcast. sim_redE. et.
-      + ss. clarify.
-        eapply step_external_call with (ge := ge); et.
-        { admit "". }
-        i. sim_red. 
-        tgt_step.
-        { econs. } 
-        sim_tau.
-        wrap_up. eapply CIH. econs. 5: eapply H3. all: et.
-        { admit "". }
-        { apply match_update_le; et. }
-        { instantiate (1 := update pstate "Mem" m'↑). et. }
-        ss. sim_redE. rewrite Any.upcast_downcast. sim_redE. et.
-    - (* undefined *)
+        sim_redE. et. 
+    - (* builtin is undefined *)
       sim_triggerUB.
-    - ss. sim_red. sim_tau. tgt_step.
-      { econs. }
+    - ss. sim_red. sim_tau. tgt_step. { econs. }
       wrap_up. eapply CIH. econs; et.
       { econs; et. }
       ss. sim_redE. apply bind_extk. i. des_ifs_safe.
       unfold itree_of_cont_pop.
-      destruct o0.
-      { sim_redE. et. }
-      destruct o.
-      { sim_redE. et. }
-      sim_redE. et.
+      repeat (des_ifs; sim_redE; try reflexivity).
     - ss. sim_red. unfold _site_c. sim_red. sim_tau.
       sim_red. eapply step_eval_expr with (ge := ge); et.
       i. sim_red. eapply step_bool_val; et. i. unfold unwrapU. remove_UBcase.
-      tgt_step.
-      { econs; et. }
+      tgt_step. { econs; et. }
       wrap_up. eapply CIH. econs; et.
-      destruct b; sim_redE; et.
+      repeat (des_ifs; sim_redE; try reflexivity).
     - ss. unfold _sloop_itree. rewrite unfold_itree_iter.
       ss. unfold sloop_iter_body_one. sim_red. sim_tau.
       tgt_step. { econs. } 
@@ -459,28 +607,8 @@ Section PROOF.
       { econs; et. }
       unfold _sloop_itree.
       sim_redE. apply bind_extk. i. 
-      unfold itree_of_cont_pop. des_ifs_safe.
-      destruct o.
-      { sim_redE. et. }
-      destruct o0.
-      { destruct b. 
-        { sim_redE. do 2 f_equal. sim_redE. et. }
-        sim_redE. do 2 f_equal. sim_redE. apply bind_extk. i. des_ifs_safe.
-        sim_redE. destruct o; sim_redE; et.
-        destruct o0. 
-        { destruct b.
-          { sim_redE. do 2 f_equal. sim_redE. et. }
-          apply bind_extk. i. 
-          des_ifs_safe. destruct o; sim_redE; et.
-          do 2 f_equal. sim_redE. et. }
-        sim_redE. do 2 f_equal. sim_redE. do 2 f_equal. sim_redE. et. }
-      sim_redE. do 2 f_equal. sim_redE. apply bind_extk. i. des_ifs_safe.
-      destruct o.
-      { sim_redE; et. }
-      destruct o0.
-      { apply bind_extk. i. des_ifs_safe. destruct o; sim_redE; et.
-        do 2 f_equal. sim_redE. et. }
-      sim_redE. do 2 f_equal. sim_redE. do 2 f_equal. sim_redE. et.
+      unfold itree_of_cont_pop.
+      repeat (des_ifs; progress (sim_redE; grind)).
     - ss. destruct tcont; inv MCONT; ss; clarify.
       + sim_red. sim_triggerUB.
       + sim_red. sim_tau. sim_red. tgt_step. { econs. }
@@ -506,77 +634,32 @@ Section PROOF.
         rewrite H0. clear H0. remember (call_cont tcont) as tcont'. 
         inv H; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H3; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          rewrite PSTATE. sim_red. unfold unwrapU. 
-          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
+          sim_red. sim_triggerUB.
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          rewrite PSTATE. sim_red. unfold unwrapU. 
-          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
-          sim_red. sim_tau. sim_red.
-          eapply match_mem_free_list in E; et. des.
-          tgt_step. 
-          { econs. 
-            inv ME. unfold blocks_of_env, block_of_binding in *.
-            rewrite ME0. set (fun _ => _) as f'.
-            rewrite List.map_map.
-            set (fun _ => _) as g in TMEM.
-            replace (f' ∘ _) with (g ∘ f').
-            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
-                des_ifs. }
-            rewrite <- List.map_map.
-            unfold f'. ss. eapply TMEM. }
-          tgt_step. 
-          { rewrite <- H3. econs. }
-          wrap_up. eapply CIH. econs. 5: eapply MM_POST. all: et.
+          sim_red. sim_tau. sim_red. tgt_step. { econs; et. }
+          tgt_step. { rewrite <- H3. econs. }
+          wrap_up. eapply CIH. clear PSTATE. econs; et. 
           { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
-          { instantiate (1 := update pstate "Mem" m0↑). et. }
+          { instantiate (1 := update pstate "Mem" m'↑). et. }
           ss. sim_redE. et. 
       + sim_tau. sim_red. eapply step_eval_expr with (ge:=ge); et.
         i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
         remove_UBcase. eapply return_cont; et. i.
         rewrite H3. clear H3 itr_cont''. remember (call_cont tcont) as tcont'. 
-        inv H0; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify]; cycle 1.
+        inv H0; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          rewrite PSTATE. sim_red. unfold unwrapU. 
-          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
-          sim_red. sim_tau. sim_red.
-          eapply match_mem_free_list in E; et. des.
-          tgt_step. 
-          { econs; et.
-            inv ME. unfold blocks_of_env, block_of_binding in *.
-            rewrite ME0. set (fun _ => _) as f'.
-            rewrite List.map_map.
-            set (fun _ => _) as g in TMEM.
-            replace (f' ∘ _) with (g ∘ f').
-            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
-                des_ifs. }
-            rewrite <- List.map_map.
-            unfold f'. ss. eapply TMEM. }
-          tgt_step. { rewrite <- H6. econs. }
-          wrap_up. eapply CIH. econs. 5: eapply MM_POST. all: et.
-          { eapply match_update_le; et. }
-          { instantiate (1 := update pstate "Mem" m0↑). et. }
-          ss. sim_redE. et.
-        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          rewrite PSTATE. sim_red. unfold unwrapU. 
-          destruct (Mem.free_list _) eqn: E; try solve [sim_triggerUB].
-          sim_red. 
-          replace (match blocks_of_env ge e with [] | _ => true end) with true by des_ifs.
-          remove_UBcase.  
-          eapply match_mem_free_list in E; et. des.
-          tgt_step. 
-          { econs; et.
-            inv ME. unfold blocks_of_env, block_of_binding in *.
-            rewrite ME0. set (fun _ => _) as f'.
-            rewrite List.map_map.
-            set (fun _ => _) as g in TMEM.
-            replace (f' ∘ _) with (g ∘ f').
-            2:{ unfold g, f', map_env_entry. eapply func_ext. i.
-                des_ifs. }
-            rewrite <- List.map_map.
-            unfold f'. ss. eapply TMEM. }
+          sim_red. remove_UBcase. tgt_step. { econs; et. }
           pfold. econs 1.
           2:{ ss. rewrite <- H6. econs. }
           ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et.
+        * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
+          sim_red. sim_tau. sim_red. tgt_step. { econs; et. }
+          tgt_step. { rewrite <- H6. econs. }
+          wrap_up. eapply CIH. clear PSTATE. econs; et.
+          { eapply match_update_le; et. }
+          { instantiate (1 := update pstate "Mem" m'↑). et. }
+          ss. sim_redE. et.
+    (* switch, label, goto is undefined *)
     - ss. sim_triggerUB.
     - ss. sim_triggerUB.
     - ss. sim_triggerUB.

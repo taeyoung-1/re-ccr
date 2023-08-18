@@ -79,12 +79,15 @@ Section DECOMP.
       vargs <- eval_exprlist_c sk ce e le al tyargs;;
       match vf with
       | Vptr b ofs =>
-          '(gsym, skentry) <- (nth_error sk (pred (Pos.to_nat b)))?;;
-          `gd : globdef _ type <- (skentry↓)?;;
-          fd <- (match gd with Gfun fd => Some fd | _ => None end)?;;
-          if type_eq (type_of_fundef fd)
-               (Tfunction tyargs tyres cconv)
-          then ccallU gsym vargs
+          if Ptrofs.eq_dec ofs Ptrofs.zero
+          then
+            '(gsym, skentry) <- (nth_error sk (pred (Pos.to_nat b)))?;;
+            `gd : globdef _ type <- (skentry↓)?;;
+            fd <- (match gd with Gfun fd => Some fd | _ => None end)?;;
+            if type_eq (type_of_fundef fd)
+                (Tfunction tyargs tyres cconv)
+            then ccallU gsym vargs
+            else triggerUB
           else triggerUB
       | _ => triggerUB (* unreachable b*)
       end

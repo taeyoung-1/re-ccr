@@ -268,33 +268,11 @@ Section PROOF.
   
 End PROOF.
 
-Definition size_t := if Archi.ptr64 then tulong else tuint.
-
-Definition malloc_def := 
-  {|
-    fn_return := tptr tvoid;
-    fn_callconv := cc_default;
-    fn_params := [(ident_of_string "size", size_t)];
-    fn_vars := nil;
-    fn_temps := nil;
-    fn_body := Sskip;
-  |}.
-
-Definition free_def := 
-  {|
-    fn_return := tvoid;
-    fn_callconv := cc_default;
-    fn_params := [(ident_of_string "ptr", tptr tvoid)];
-    fn_vars := nil;
-    fn_temps := nil;
-    fn_body := Sskip;
-  |}.
-
 Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
-    Mod.sk := [("malloc", (@Gfun _ type (Internal malloc_def))↑);
-               ("free", (@Gfun _ type (Internal free_def))↑)]
+    Mod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
+               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
 (*                ("realloc", (Cgfun (Tfunction (Tcons (tptr tvoid) (Tcons size_t Tnil)) (tptr tvoid) cc_default))↑)] *)
   |}
 .
