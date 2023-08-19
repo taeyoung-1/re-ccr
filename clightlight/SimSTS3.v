@@ -4,7 +4,6 @@ Require Import Coqlib.
 Require Import Any.
 Require Import STS.
 Require Import Behavior.
-From Ordinal Require Import Ordinal.
 
 Set Implicit Arguments.
 
@@ -679,12 +678,11 @@ Section SIM.
 
   Local Open Scope smallstep_scope.
 
-  Variant _sim sim (f_src f_tgt: bool) (st_src0: L0.(STS.state)) (st_tgt0: L1.(Smallstep.state)): Prop :=
+  Inductive _sim sim (f_src f_tgt: bool) (st_src0: L0.(STS.state)) (st_tgt0: L1.(Smallstep.state)): Prop :=
   | sim_fin
       retv
       (SRT: _.(state_sort) st_src0 = final retv↑)
       (SRT: _.(Smallstep.final_state) st_tgt0 retv)
-      (* (DTM: True) (*** TODO: copy-paste sd_final_determ in Smallstep.v ***) *)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
 
@@ -705,25 +703,14 @@ Section SIM.
       (SIM: exists st_src1
           (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: sim true f_tgt st_src1 st_tgt0>>)
+          <<SIM: _sim sim true f_tgt st_src1 st_tgt0>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
   | sim_demonic_tgt_dtm
-      (*** WRONG DEF, Note: UB in tgt ***)
-      (* (SIM: forall st_tgt1 *)
-      (*     (STEP: Step L1 st_tgt0 E0 st_tgt1) *)
-      (*   , *)
-      (*     exists i1, <<ORD: ord i1 i0>> /\ <<SIM: sim i1 st_src0 st_tgt1>>) *)
       (SIM: exists st_tgt1
           (STEP: Step L1 st_tgt0 E0 st_tgt1)
         ,
-          <<SIM: sim f_src true st_src0 st_tgt1>>)
-      (*** equivalent def ***)
-      (* st_tgt1 *)
-      (* (STEP: Step L1 st_tgt0 E0 st_tgt1) *)
-      (* i1 *)
-      (* (ORD: ord i1 i0) *)
-      (* (SIM: sim i1 st_src0 st_tgt1) *)
+          <<SIM: _sim sim f_src true st_src0 st_tgt1>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
   | sim_angelic_src
@@ -732,7 +719,7 @@ Section SIM.
       (SIM: forall st_src1
           (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: sim true f_tgt st_src1 st_tgt0>>)
+          <<SIM: _sim sim true f_tgt st_src1 st_tgt0>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
 
@@ -754,17 +741,76 @@ Section SIM.
       _sim sim f_src f_tgt st_src0 st_tgt0
   .
 
+  Lemma _sim_ind2 
+    (r : bool -> bool -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop)
+    (P : bool -> bool -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop)
+    (RET: forall retv f_src f_tgt st_src0 st_tgt0
+            (SRT: _.(state_sort) st_src0 = final retv↑)
+            (SRT: _.(Smallstep.final_state) st_tgt0 retv),
+            P f_src f_tgt st_src0 st_tgt0 )
+    (VIS: forall f_src f_tgt st_src0 st_tgt0
+            (SRT: _.(state_sort) st_src0 = vis)
+            (TSAFE: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+            (SIM: forall ev_tgt st_tgt1 (STEP: Step L1 st_tgt0 ev_tgt st_tgt1),
+                    exists st_src1 ev_src (STEP: _.(step) st_src0 (Some ev_src) st_src1),
+                      (<<MATCH: Forall2 match_event ev_tgt [ev_src]>>) /\
+                      (<<SIM: r true true st_src1 st_tgt1>>)),
+            P f_src f_tgt st_src0 st_tgt0)
+    (DSRC_STL: forall f_src f_tgt st_src0 st_tgt0
+                (SRT: _.(state_sort) st_src0 = demonic)
+                (SIM: exists st_src1 (STEP: _.(step) st_src0 None st_src1),
+                        <<SIM: _sim r true f_tgt st_src1 st_tgt0>> /\
+                        P true f_tgt st_src1 st_tgt0),
+                P f_src f_tgt st_src0 st_tgt0)
+    (DTGT_STL: forall f_src f_tgt st_src0 st_tgt0
+                (SIM: exists st_tgt1 (STEP: Step L1 st_tgt0 E0 st_tgt1),
+                        <<SIM: _sim r f_src true st_src0 st_tgt1>> /\
+                        P f_src true st_src0 st_tgt1),
+                P f_src f_tgt st_src0 st_tgt0)
+    (ASRC_STL: forall f_src f_tgt st_src0 st_tgt0
+                (SRT: _.(state_sort) st_src0 = angelic)
+                (DTM: forall st1 st2 (DTM1: _.(step) st_src0 None st1) 
+                        (DTM2: _.(step) st_src0 None st2), st1 = st2)
+                (SIM: forall st_src1 (STEP: _.(step) st_src0 None st_src1),
+                        <<SIM: _sim r true f_tgt st_src1 st_tgt0>> /\
+                        P true f_tgt st_src1 st_tgt0),
+                P f_src f_tgt st_src0 st_tgt0)
+    (D_PROG: forall f_src f_tgt st_src0 st_tgt0
+                  (SRT: _.(state_sort) st_src0 = demonic)
+                  (SIM: exists st_tgt1 (STEP: Step L1 st_tgt0 E0 st_tgt1),
+                        exists st_src1 (STEP: _.(step) st_src0 None st_src1),
+                          <<SIM: r true true st_src1 st_tgt1>>),
+                P f_src f_tgt st_src0 st_tgt0)
+    (PROG: forall f_src f_tgt st_src0 st_tgt0
+            (SRC: f_src = true)
+            (TGT: f_tgt = true)
+            (SIM: r false false st_src0 st_tgt0),
+            P f_src f_tgt st_src0 st_tgt0)
+:
+    forall f_src f_tgt st_src st_tgt
+           (SIM: _sim r f_src f_tgt st_src st_tgt),
+      P f_src f_tgt st_src st_tgt.
+  Proof.
+    fix IH 5. i. inv SIM.
+    { eapply RET; et. }
+    { eapply VIS; et. }
+    { eapply DSRC_STL; et. des. et. }
+    { eapply DTGT_STL; et. des. et. }
+    { eapply ASRC_STL; et. i. exploit SIM0; et. }
+    { eapply D_PROG; et. }
+    { eapply PROG; et. }
+  Qed.
+
   Definition sim: _ -> _ -> _ -> _ -> Prop := paco4 _sim bot4.
 
   Lemma sim_mon: monotone4 _sim.
   Proof.
-    ii. inv IN.
-
+    ii. induction IN using _sim_ind2.
     - econs 1; et.
     - econs 2; et. i. exploit SIM; et. i; des. esplits; et.
     - econs 3; et. des. esplits; et.
     - econs 4; et. des. esplits; et.
-    - econs 5; et. i. exploit SIM; et.
+    - econs 5; et. i. exploit SIM; et. i. des. et.
     - econs 6; et. des. esplits; et.
     - econs 7; et.
   Qed.
@@ -772,47 +818,6 @@ Section SIM.
   Hint Constructors _sim.
   Hint Unfold sim.
   Hint Resolve sim_mon: paco.
-
-
-  (* Variant ordC (r: idx -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop):
-    idx -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop :=
-  | ordC_intro
-      o0 o1 st_src st_tgt
-      (ORD: Ord.le o0 o1)
-      (SIM: r o0 st_src st_tgt)
-    :
-      ordC r o1 st_src st_tgt
-  .
-
-  Lemma ordC_mon
-        r1 r2
-        (LE: r1 <3= r2)
-    :
-      ordC r1 <3= ordC r2
-  .
-  Proof. ii. destruct PR; econs; et. Qed.
-
-  Hint Resolve ordC_mon: paco.
-
-  Lemma ordC_compatible: compatible3 (_sim) ordC.
-  Proof.
-    econs; eauto with paco.
-    ii. inv PR. rename x0 into o1. rename x1 into st_src. rename x2 into st_tgt. inv SIM.
-    - econs 1; eauto.
-    - econs 2; eauto. i. hexploit SIM0; et. i. des. esplits; et. econs; [|et]. refl.
-    - econs 3; eauto. des. esplits; et. { eapply Ord.lt_le_lt; et. } econs; et. refl.
-    - econs 4; eauto. des. esplits; et. { eapply Ord.lt_le_lt; et. } econs; et. refl.
-    - econs 5; eauto. i. hexploit SIM0; et. i. des. esplits; et.
-      { eapply Ord.lt_le_lt; et. } econs; et. refl.
-    - econs 6; eauto. des. esplits; et. econs; [|et]. refl.
-  Qed.
-
-  Lemma ordC_spec: ordC <4= gupaco3 (_sim) (cpn3 _sim).
-  Proof.
-    intros. gclo. econs.
-    { eapply ordC_compatible. }
-    eapply ordC_mon; [|et]. i. gbase. auto.
-  Qed. *)
 
   Record simulation: Prop := mk_simulation {
     sim_init: forall st_tgt0 (INITT: L1.(Smallstep.initial_state) st_tgt0),
@@ -956,30 +961,25 @@ Section SIM.
 
   (* Hypothesis WFSRC: wf L0. *)
 
-  (* 
-  TODO : update adequacy 
-   *)
-
-  (* Lemma simulation_star
-        i0 st_src0 tr_tgt st_tgt1 st_tgt0
+(*
+  Lemma simulation_star
+        st_src0 tr_tgt st_tgt1 st_tgt0
         (* (MATCH: Forall2 match_event tr_tgt tr_src) *)
         (STEP: Star L1 st_tgt0 tr_tgt st_tgt1)
-        (SIM: sim i0 st_src0 st_tgt0)
+        (SIM: sim false false st_src0 st_tgt0)
         (SAFE: safe_along_events st_src0 tr_tgt)
     :
-      exists i1 st_src1 tr_src,
+      exists st_src1 tr_src,
         (<<MB: squeeze (List.map decompile_event tr_tgt) = (tr_src, true)>>) /\
         (<<STEP: star L0 st_src0 tr_src st_src1>>) /\
-        (<<SIM: sim i1 st_src1 st_tgt1>>)
+        (<<SIM: sim false false st_src1 st_tgt1>>)
   .
   Proof.
-    revert SAFE. revert SIM. depgen st_src0. revert i0.
+    revert SAFE. revert SIM. depgen st_src0.
     induction STEP; ii; ss.
     { esplits; et. econs; ss. }
     subst. rename s1 into st_tgt0. rename s2 into st_tgt1. rename s3 into st_tgt2.
     rename t1 into tr_tgt0. rename t2 into tr_tgt1.
-
-    revert_until i0. pattern i0. eapply well_founded_ind; et. clear i0. intros i0 IH. i.
 
     punfold SIM. inv SIM.
     - (* fin *)
@@ -1097,8 +1097,8 @@ Section SIM.
   Qed.
 
   Lemma adequacy
-        i0 st_src0 st_tgt0
-        (SIM: sim i0 st_src0 st_tgt0)
+        st_src0 st_tgt0
+        (SIM: sim false false st_src0 st_tgt0)
     :
       <<IMPR: improves2 st_src0 st_tgt0>>
   .

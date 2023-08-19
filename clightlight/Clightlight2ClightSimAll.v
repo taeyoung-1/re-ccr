@@ -34,7 +34,7 @@ Section PROOF.
   Hint Resolve _sim_mon: paco.
 
   Ltac sim_red := try red; Red.prw ltac:(_red_gen) 2 0.
-  Ltac sim_tau := (try sim_red); pfold; econs 3; ss; clarify; eexists; exists (step_tau _); left.
+  Ltac sim_tau := (try sim_red); try pfold; econs 3; ss; clarify; eexists; exists (step_tau _).
 
   Opaque arrow.
 
@@ -67,16 +67,20 @@ Section PROOF.
 
   Ltac solve_ub := des; irw in H; dependent destruction H; clarify.
   Ltac sim_triggerUB := 
-    (try rename H into HH); ss; unfold triggerUB; try sim_red; pfold; econs 5; i; ss; auto;
+    (try rename H into HH); ss; unfold triggerUB; try sim_red; try pfold; econs 5; i; ss; auto;
                         [solve_ub | irw in  STEP; dependent destruction STEP; clarify].
 
-  Ltac tgt_step := pfold; econs 4; eexists; eexists; [|left].
+  Ltac tgt_step := try pfold; econs 4; eexists; eexists.
 
-  Ltac wrap_up := pfold; econs 7; et; right.
+  Ltac wrap_up := try pfold; econs 7; et; right.
 
   Ltac remove_UBcase := des_ifs; try sim_red; try sim_triggerUB.
 
   Ltac dtm H H0 := eapply angelic_step in H; eapply angelic_step in H0; des; rewrite H; rewrite H0; ss.
+
+  Ltac eapplyf NEXT := let X := fresh "X" in hexploit NEXT;[..|intro X; punfold X; eapply X].
+
+  Ltac eapplyfarg NEXT ge := eapplyf NEXT; et; [instantiate (1:=ge)|..]; et. 
 
   Local Opaque Pos.of_nat.
 
@@ -112,7 +116,7 @@ Section PROOF.
     - des_ifs_safe. unfold ccallU. sim_red. ss. sim_tau. sim_red. unfold sfreeF.
       sim_red. rewrite PSTATE. repeat (sim_tau; sim_red). unfold unwrapU.
       remove_UBcase. repeat (sim_tau; sim_red). remove_UBcase.
-      eapply IHl. et. { unfold update. ss. } i.
+      eapplyf IHl. et. { unfold update. ss. } i.
       replace (update (update _ _ _) _ _) with (update pstate "Mem" m'↑); et.
       unfold update. apply func_ext. i. des_ifs.
   Qed.
@@ -143,7 +147,7 @@ Section PROOF.
     tstate.
   Proof.
     eapply _step_freeing_stack; et. i. eapply match_mem_free_list in H; et.
-    des. eapply NEXT; et. unfold blocks_of_env, block_of_binding in *.
+    des. eapplyf NEXT; et. unfold blocks_of_env, block_of_binding in *.
     apply match_env_same in ME. rewrite ME. set (fun _ => _) as f. rewrite List.map_map.
     set (fun _ => _) as g in TMEM. 
     replace (f ∘ _) with (g ∘ f); try rewrite <- List.map_map; et.
@@ -178,9 +182,9 @@ Section PROOF.
       (State tf tcode tcont te tle tm). 
   Proof.
     depgen tyl. revert ktr. induction al; i.
-    - ss. remove_UBcase. eapply NEXT. econs.
+    - ss. remove_UBcase. eapplyf NEXT. econs.
     - ss. remove_UBcase. eapply step_eval_expr with (ge:=ge); et. i. sim_red. eapply IHal. i.
-      sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapply NEXT. econs; et.
+      sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapplyf NEXT. econs; et.
   Qed.
 
   Lemma step_alloc pstate f_table modl cprog sk tge le tle e te m tm
@@ -211,7 +215,7 @@ Section PROOF.
   Proof.
     unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold sallocF. sim_red. repeat (sim_tau; sim_red).
     rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
-    sim_red. hexploit match_mem_alloc; et. i. des. eapply NEXT; et. 
+    sim_red. hexploit match_mem_alloc; et. i. des. eapplyf NEXT; et. 
   Qed.
 
   Lemma match_update_e sk tge e te i blk t
@@ -442,7 +446,6 @@ Section PROOF.
 
   Lemma call_cont_is_call_cont tcont : is_call_cont (call_cont tcont).
   Proof. induction tcont; et; ss. Qed.
-  
 
   Theorem match_states_sim
           types sk defs WF_TYPES
@@ -478,16 +481,16 @@ Section PROOF.
       + sim_red. tgt_step; [econs; et|]. 
         sim_tau. sim_red. sim_tau. wrap_up. apply CIH.
         econs; et.
-      + sim_red. sim_tau. sim_red. eapply step_freeing_stack with (ge := ge); et. 
+      + sim_red. sim_tau. sim_red. eapplyfarg step_freeing_stack ge.
         i. sim_red. tgt_step. { econs; unfold is_call_cont; et. }
         sim_tau. tgt_step; [econs|].
-        pfold. econs 7;[|des_ifs|];et. right. eapply CIH.
+        econs 7;[|des_ifs|];et. right. eapply CIH.
         clear PSTATE. econs; et.
         { hexploit match_update_le; et. instantiate (2 := Vundef). ss. et. }
         { instantiate (1 := update pstate "Mem" (Any.upcast m')). ss. }
         ss. sim_redE. et.
     - ss. unfold _sassign_c. sim_red. sim_tau. sim_red.
-      eapply step_eval_lvalue with (ge := ge); et. i. subst. sim_red.
+      eapplyfarg step_eval_lvalue ge. i. subst. sim_red.
       eapply step_eval_expr with (ge := ge); et. i. subst. sim_red.
       eapply step_sem_cast; et. i.
       unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
@@ -497,12 +500,12 @@ Section PROOF.
       econs; et.
       { instantiate (1 := update pstate "Mem" m'↑). unfold update. ss. } 
       ss. sim_redE. et.
-    - ss. sim_red. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. subst. sim_red. 
+    - ss. sim_red. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. subst. sim_red. 
       tgt_step. { econs; et. }
       wrap_up. eapply CIH. econs; et.
       { change (Maps.PTree.set i _ _) with (set_opttemp (Some i) (map_val sk ge v') tle). eapply match_update_le; et. }
       ss. sim_redE. et. 
-    - ss. unfold _scall_c. remove_UBcase. sim_tau. sim_red. eapply step_eval_expr with (ge := ge); et. i. sim_red.
+    - ss. unfold _scall_c. remove_UBcase. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. sim_red.
       eapply step_eval_exprlist with (ge := ge); et. i. remove_UBcase. destruct (nth_error _) eqn: E; remove_UBcase.
       destruct p. destruct (Any.downcast _) eqn: E1; remove_UBcase. remove_UBcase. remove_UBcase.
       unfold ccallU. sim_red. repeat (sim_tau; sim_red).
@@ -565,7 +568,7 @@ Section PROOF.
           ss. sim_redE. et.
       + apply INTERNAL in E0. des. subst. unfold fnsem_has_internal in WFMS.
         apply WFMS in E. des. ss. rewrite E. sim_red.
-        unfold decomp_func. sim_red. eapply step_function_entry with (ge := ge); et.
+        unfold decomp_func. sim_red. eapplyfarg step_function_entry ge.
         i. sim_red. 
         tgt_step.
         { econs; et. }
@@ -594,7 +597,7 @@ Section PROOF.
       unfold itree_of_cont_pop.
       repeat (des_ifs; sim_redE; try reflexivity).
     - ss. sim_red. unfold _site_c. sim_red. sim_tau.
-      sim_red. eapply step_eval_expr with (ge := ge); et.
+      sim_red. eapplyfarg step_eval_expr ge.
       i. sim_red. eapply step_bool_val; et. i. unfold unwrapU. remove_UBcase.
       tgt_step. { econs; et. }
       wrap_up. eapply CIH. econs; et.
@@ -629,7 +632,7 @@ Section PROOF.
       + sim_red. sim_triggerUB. 
       + sim_red. sim_triggerUB.
     - ss. unfold _sreturn_c. destruct o; cycle 1.
-      + sim_tau. sim_red. eapply return_cont; et. i.
+      + sim_tau. sim_red. eapplyf return_cont; et. i.
         rewrite H0. clear H0. remember (call_cont tcont) as tcont'. 
         inv H; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H3; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
@@ -641,14 +644,14 @@ Section PROOF.
           { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
           { instantiate (1 := update pstate "Mem" m'↑). et. }
           ss. sim_redE. et. 
-      + sim_tau. sim_red. eapply step_eval_expr with (ge:=ge); et.
+      + sim_tau. sim_red. eapplyfarg step_eval_expr ge.
         i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
         remove_UBcase. eapply return_cont; et. i.
         rewrite H3. clear H3 itr_cont''. remember (call_cont tcont) as tcont'. 
         inv H0; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
           sim_red. remove_UBcase. tgt_step. { econs; et. }
-          pfold. econs 1.
+          econs 1.
           2:{ ss. rewrite <- H6. econs. }
           ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et.
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
