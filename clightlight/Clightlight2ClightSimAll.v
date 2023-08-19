@@ -393,7 +393,6 @@ Section PROOF.
   Arguments itree_of_code /. 
   Arguments sloop_iter_body_two /. 
   Arguments ktree_of_cont_itree /. 
-  Opaque MemSem.
 
   Lemma unfold_itree_iter A B eff (f : A -> itree eff (A + B)) (x: A)  :
           ITree.iter f x = `lr : A + B <- f x;;
@@ -516,7 +515,7 @@ Section PROOF.
         erewrite ELEM; et. et. }
       apply nth_error_In in E. dup E. unfold sk in E0. simpl in E0. 
       des.
-      + clarify. Transparent MemSem. ss. unfold mallocF. sim_red. repeat (sim_tau; sim_red).
+      + clarify. ss. unfold mallocF. sim_red. repeat (sim_tau; sim_red).
         rewrite PSTATE. sim_red. remove_UBcase. des_ifs_safe. sim_red. unfold unwrapU. remove_UBcase.
         repeat (sim_tau; sim_red). rewrite Any.upcast_downcast. sim_red.
         apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
