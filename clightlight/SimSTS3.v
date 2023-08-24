@@ -30,7 +30,7 @@ Section Beh.
       tr mtr r
       (MT : Forall2 match_event tr mtr)
       (TB : tgtb = Terminates tr r)
-      (SB : srcb = Tr.app mtr (Tr.done r.(Int.intval)↑))
+      (SB : srcb = Tr.app mtr (Tr.done r↑))
     :
       _match_beh match_beh tgtb srcb
   | match_beh_Diverges
@@ -531,7 +531,7 @@ Definition transl_beh (p: program_behavior): Tr.t :=
   match p with
   | Terminates tr i =>
     let '(es, succ) := squeeze (List.map decompile_event tr) in
-    Tr.app es (if succ then (Tr.done (Int.unsigned i)↑) else Tr.ub)
+    Tr.app es (if succ then (Tr.done i↑) else Tr.ub)
   | Diverges tr =>
     let '(es, succ) := squeeze (List.map decompile_event tr) in
     Tr.app es (if succ then (Tr.spin) else Tr.ub)
@@ -960,11 +960,6 @@ Section SIM.
     }
   Qed.
 
-  Inductive bprog : bool -> bool -> Prop :=
-  | f2t : bprog false true
-  | t2t : bprog true true
-  .
-
   Lemma simulation_star b1 b2
         st_src0 tr_tgt st_tgt1 st_tgt0
         (* (MATCH: Forall2 match_event tr_tgt tr_src) *)
@@ -1092,34 +1087,46 @@ Section SIM.
       unfold wf. i. rewrite ANG in SRT. ss.
     + clarify.
   Qed.
-(*
+
   Lemma sim_forever_silent
-        i st_src st_tgt
-        (SIM: sim i st_src st_tgt)
+        b1 b2 st_src st_tgt
+        (SIM: sim b1 b2 st_src st_tgt)
         (SILENT: Forever_silent L1 st_tgt)
     :
       Beh.state_spin L0 st_src.
   Proof.
-    revert i st_src st_tgt SIM SILENT. pcofix CIH.
-    intros i. induction (WF i). rename x into i. rename H0 into IH. clear H.
-    i. inv SILENT. punfold SIM. inv SIM.
+    revert b1 b2 st_src st_tgt SIM SILENT. pcofix CIH.
+    i. inv SILENT. punfold SIM. depgen s2. induction SIM using _sim_ind2; i.
     { exploit wf_at_final; [apply WFSEM|..]; et. ss. }
-    { des. hexploit wf_at_determ; [apply WFSEM|apply H|apply SRT0|]. i. des. clarify. }
-    { des. inv SIM; ss. pfold. econs 2; et. esplits; et. right.
-      eapply CIH; et. econs; et. }
-    { des. inv SIM; ss. eapply IH; et.
-      hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply H|apply TSAFE|]. i. des. clarify. }
+    { des. hexploit SIM1; et. i. pfold. econs 2; et. esplits; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
+      inv H0. eapply SIM1; et. }
     { pfold. econs 1; et. i.
       hexploit wf_angelic; et. i. subst.
-      hexploit SIM0; et. i. des. inv SIM; ss. right. eapply CIH; et. econs; et. }
-    { pfold. des. inv SIM; ss.
-      hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
-      econs 2; et. esplits; et. }
+      hexploit SIM; et. i. des. left. eapply H2; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
+      pclearbot. pfold. econs 2; et. esplits; et. }
+    { pclearbot. clear SRC TGT f_src f_tgt.
+      remember false as b1 in SIM at 1. set false as b2 in SIM. clearbody b2.
+      punfold SIM. depgen s2. induction SIM using _sim_ind2; i.
+    { exploit wf_at_final; [apply WFSEM|..]; et. ss. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply H|apply TSAFE|]. i. des. clarify. }
+    { des. i. pfold. econs 2; et. esplits; et. right. eapply CIH; et. econs; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
+      inv H0. eapply SIM1; et. }
+    { pfold. econs 1; et. i.
+      hexploit wf_angelic; et. i. subst.
+      hexploit SIM; et. i. des. right. eapply CIH; et. econs; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
+      pclearbot. pfold. econs 2; et. esplits; et. }
+    clarify. }
   Qed.
 
+
   Lemma sim_goes_wrong
-        i st_src st_tgt
-        (SIM: sim i st_src st_tgt)
+        b1 b2 st_src st_tgt
+        (SIM: sim b1 b2 st_src st_tgt)
         (NOSTEP: Nostep L1 st_tgt)
         (NOFINAL: forall r, ~ L1.(Smallstep.final_state) st_tgt r)
     :
@@ -1127,34 +1134,41 @@ Section SIM.
   Proof.
     ginit.
     { eapply cpn2_wcompat. eapply Beh.of_state_mon. }
-    revert st_src st_tgt SIM NOSTEP NOFINAL.
-    induction (WF i). rename x into i. rename H0 into IH. clear H.
-    i. punfold SIM. inv SIM; ss.
+    i. punfold SIM. induction SIM using _sim_ind2; ss.
     { exfalso. eapply NOFINAL; et. }
     { des. exfalso. eapply NOSTEP; et. }
-    { des. inv SIM; ss.
-      guclo starC_spec. econs.
-      { instantiate (1:=st_src1).
-        change ([]: list event) with (None ++ []: list event). econs; et.
-        unfold wf; i. rewrite ANG in SRT; ss.
-      }
-      { eapply IH; et. }
-    }
+    { des. hexploit SIM1; ss. i.
+      guclo starC_spec. econs; et.
+      change ([]: list event) with (None ++ []: list event). econs; et.
+      unfold wf; i. rewrite ANG in SRT; ss. }
     { des. exfalso. eapply NOSTEP; et. }
-    { destruct (classic (exists ev st_src1, step L0 st_src ev st_src1)).
-      { des. exploit wf_angelic; et. i; subst. exploit SIM0; et. i; des. inv SIM; ss.
-      guclo starC_spec. econs.
-      { instantiate (1:=st_src1).
-        change ([]: list event) with (None ++ []: list event). econs; et.
-        unfold wf; i. eapply DTM; eauto.
-      }
-      { eapply IH; et. }
-      }
-      { gstep. econs 6; et. ii. exfalso. eapply H. et. }
-    }
+    { gstep. econs 6; et. unfold Beh.inter. i.
+      hexploit wf_angelic; et. i. subst. split; et. 
+      hexploit SIM; et. i. des. red. apply gpaco2_unfold_bot.
+      { apply Beh.of_state_mon. }
+      { eapply cpn2_wcompat. eapply Beh.of_state_mon. }
+      et. }
     { des. exfalso. eapply NOSTEP; et. }
+    { pclearbot. clear SRC TGT f_src f_tgt.
+      remember false as b2 in SIM at 2. set false as b1 in SIM. clearbody b1.
+      punfold SIM. induction SIM using _sim_ind2; i.
+    { exfalso. eapply NOFINAL; et. }
+    { des. exfalso. eapply NOSTEP; et. }
+    { des. hexploit SIM1; ss. i.
+      guclo starC_spec. econs; et.
+      change ([]: list event) with (None ++ []: list event). econs; et.
+      unfold wf; i. rewrite ANG in SRT; ss. }
+    { des. exfalso. eapply NOSTEP; et. }
+    { gstep. econs 6; et. unfold Beh.inter. i.
+      hexploit wf_angelic; et. i. subst. split; et. 
+      hexploit SIM; et. i. des. red. apply gpaco2_unfold_bot.
+      { apply Beh.of_state_mon. }
+      { eapply cpn2_wcompat. eapply Beh.of_state_mon. }
+      et. }
+    { des. exfalso. eapply NOSTEP; et. }
+    clarify. }
   Qed.
-*)
+
   Lemma adequacy
         st_src0 st_tgt0
         (SIM: sim false false st_src0 st_tgt0)
@@ -1181,7 +1195,7 @@ Section SIM.
           (*** 1. Lemma: star + Beh.of_state -> Beh.of_state app ***)
           (*** 2. wf induction on i1 ***)
           eapply beh_of_state_star; ss; et.
-          cut (Beh.of_state L0 st_src1 (Tr.done (Int.unsigned r)↑)); ss.
+          cut (Beh.of_state L0 st_src1 (Tr.done r↑)); ss.
           (* assert(SAFE0: safe_along_trace st_src1 (Terminates tr r)). *)
           assert(SAFE0: safe_along_events st_src1 []).
           { clear - SAFE STEP MB.
@@ -1191,32 +1205,42 @@ Section SIM.
             eapply safe_along_events_star; et.
             rewrite List.app_nil_r. ss.
           }
-          clear - SAFE0 FIN WF SIM0 WFSEM.
-          revert_until i1. pattern i1. eapply well_founded_ind; et. clear i1. intros i0 IH.
-          i. punfold SIM0. inv SIM0.
+          clear - SAFE0 FIN SIM0 WFSEM.
+          i. punfold SIM0. induction SIM0 using _sim_ind2; ss.
           * pfold. econs; ss; et.
             exploit wf_at_final_determ; [eapply WFSEM|eapply SRT0|eapply FIN|].
             i. des. clarify.
-            rewrite SRT. rewrite Int.unsigned_repr; auto.
           * des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
-          * des. pclearbot.
-            exploit IH; et.
-            { eapply safe_along_events_step_none; et. unfold wf; i. rewrite ANG in SRT; ss. }
-            intro U.
-            eapply Beh.beh_dstep; ss; et.
+          * des. eapply Beh.beh_dstep; ss; et.
+            eapply SIM1; et.
+            eapply safe_along_events_step_none; et. unfold wf; i. 
+            rewrite ANG in SRT; ss.
           * des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
-          * destruct (classic (exists ev st_src2, step L0 st_src1 ev st_src2)).
-            { des. exploit wf_angelic; et. i; subst. exploit SIM; et. i; des.
-              pclearbot.
-              exploit IH; et.
-              { eapply safe_along_events_step_none; et. unfold wf; i. eapply DTM; eauto. }
-              i; des.
-              eapply _beh_astep_rev; ss; et. unfold wf; i. eapply DTM; eauto. }
-            contradict H. eapply SAFE0; et.
-            { econs; ss; et. }
-            { instantiate (1:=[]). ss. }
-            { esplits; ss. }
+          * pfold. econs 6; et. red. i. 
+            hexploit wf_angelic; et. i. subst. split; et. 
+            hexploit SIM; et. i. des. red. pfold_reverse.
+            eapply H0; et. 
+            eapply safe_along_events_step_none; et. unfold wf; i. eapply DTM; eauto.
           * des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          * pclearbot. clear SRC TGT f_src f_tgt.
+            remember false as b2 in SIM at 2. set false as b1 in SIM. clearbody b1.
+            punfold SIM. induction SIM using _sim_ind2; i.
+          ** pfold. econs; ss; et.
+            exploit wf_at_final_determ; [eapply WFSEM|eapply SRT0|eapply FIN|].
+            i. des. clarify.
+          ** des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          ** des. eapply Beh.beh_dstep; ss; et.
+            eapply SIM1; et.
+            eapply safe_along_events_step_none; et. unfold wf; i. 
+            rewrite ANG in SRT; ss.
+          ** des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          ** pfold. econs 6; et. red. i. 
+            hexploit wf_angelic; et. i. subst. split; et. 
+            hexploit SIM; et. i. des. red. pfold_reverse.
+            eapply H0; et. 
+            eapply safe_along_events_step_none; et. unfold wf; i. eapply DTM; eauto.
+          ** des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          ** clarify.
         + ss. clear.
           induction tr; ii; ss.
           { pfold. econs; ss; et. }
@@ -1259,7 +1283,10 @@ Section SIM.
         (rename T into tr).
         esplits; et.
         + rename H into BEH. ss.
-          ginit. { eapply cpn2_wcompat; eauto with paco. } revert_until WFSEM. gcofix CIH. i.
+          ginit. { eapply cpn2_wcompat; eauto with paco. } 
+          set false as b1 in SIM at 1. set false as b2 in SIM.
+          clearbody b1 b2.
+          revert_until WFSEM. gcofix CIH. i.
           (* revert_until WFSRC. pcofix CIH. i. *)
           inv BEH.
           rename s2 into st_tgt1. rename t into tr_tgt. rename H into STAR.
@@ -1350,7 +1377,7 @@ Section SIM.
         eapply match_event_iff in Heq.
         eapply match_beh_cons; ss; et. rewrite <- behavior_app_assoc. ss.
     }
-  Qed. *)
+  Qed.
 
 End SIM.
 Hint Constructors _sim.
