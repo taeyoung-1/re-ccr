@@ -667,4 +667,167 @@ Section PROOF.
     - ss. sim_triggerUB.
   Qed.
 
+
+  Ltac rewriter :=
+    try match goal with
+        | H: _ = _ |- _ => rewrite H in *
+        end; clarify.
+  Ltac determ LEMMA P :=
+    repeat match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => revert H
+              end
+            end;
+    let X1 := fresh "X" in
+    let X2 := fresh "X" in
+    intros X1 X2;
+    hexploit LEMMA; [eapply X1|eapply X2|]; i; des; repeat rewriter.
+
+  (* Ltac determ LEMMA P :=
+    repeat match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => revert H
+              end
+            end;
+    let X1 := fresh "X" in
+    let X2 := fresh "X" in
+    intros X1 X2;
+    hexploit LEMMA;
+    let n0 := numgoals in
+    try eapply X1;
+    let n := numgoals in
+    guard n0<n;
+    let n0 := numgoals in
+    try eapply X2;
+    let n := numgoals in
+    guard n0<n;
+    let n0 := numgoals in
+    try eapply X3;
+    let n := numgoals in
+    guard n0<n;
+    let n0 := numgoals in
+    try eapply X4;
+    let n := numgoals in
+    guard n0<n. *)
+
+  Ltac inv_pred P :=
+    repeat match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => inv H
+              end
+            end; repeat rewriter.
+
+  Ltac inv_pred_safe P :=
+    solve [match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => inv H
+              end
+            end; repeat rewriter].
+
+  Lemma Clight_eval_determ a ge e le m
+    :
+      (forall v0 v1
+             (EXPR0: eval_expr ge e le m a v0)
+             (EXPR1: eval_expr ge e le m a v1),
+        v0 = v1) /\
+      (forall loc0 loc1 ofs0 ofs1 bf0 bf1
+             (EXPR0: eval_lvalue ge e le m a loc0 ofs0 bf0)
+             (EXPR1: eval_lvalue ge e le m a loc1 ofs1 bf1),
+        loc0 = loc1 /\ ofs0 = ofs1 /\ bf0 = bf1).
+  Proof.
+    revert_until a.
+    induction a; split; i;
+      inv EXPR0; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
+        inv EXPR1; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
+         try split; rewriter; et; repeat spc IHa; des; try determ IHa eval_expr.
+    { inv_pred eval_lvalue; inv_pred deref_loc. }
+    { inv_pred eval_lvalue; determ IHa eval_expr; inv_pred deref_loc. }
+    { determ IHa0 eval_lvalue. }
+    { repeat spc IHa1. repeat spc IHa2. des. exploit (IHa1 v2 v4); et. i. subst.
+      exploit (IHa2 v3 v5); et. i. subst. rewriter. }
+    { inv_pred eval_lvalue; determ IHa eval_expr;
+      inv_pred deref_loc; inv_pred Cop.load_bitfield. }
+  Qed.
+
+  Lemma Clight_eval_expr_determ a ge e le m
+    :
+      forall v0 v1
+             (EXPR0: eval_expr ge e le m a v0)
+             (EXPR1: eval_expr ge e le m a v1),
+        v0 = v1.
+  Proof. edestruct Clight_eval_determ; et. Qed.
+
+  Lemma Clight_eval_lvalue_determ a ge e le m
+    :
+      forall loc0 loc1 ofs0 ofs1 bf0 bf1
+             (EXPR0: eval_lvalue ge e le m a loc0 ofs0 bf0)
+             (EXPR1: eval_lvalue ge e le m a loc1 ofs1 bf1),
+        loc0 = loc1 /\ ofs0 = ofs1 /\ bf0 = bf1.
+  Proof. edestruct Clight_eval_determ; et. Qed.
+
+  Lemma Clight_eval_exprlist_determ a
+    :
+      forall v0 v1 ge e le m ty
+             (EXPR0: eval_exprlist ge e le m a ty v0)
+             (EXPR1: eval_exprlist ge e le m a ty v1),
+        v0 = v1.
+  Proof.
+
+    induction a; ss.
+    { i. inv EXPR0. inv EXPR1. auto. }
+    { i. inv EXPR0. inv EXPR1.
+      determ Clight_eval_expr_determ eval_expr.
+      determ IHa eval_exprlist. }
+  Qed.
+
+  Lemma alloc_variables_determ vars
+    :
+      forall e0 e1 ge ee m m0 m1
+             (ALLOC0: alloc_variables ge ee m vars e0 m0)
+             (ALLOC1: alloc_variables ge ee m vars e1 m1),
+        e0 = e1 /\ m0 = m1.
+  Proof.
+    induction vars; et.
+    { i. inv ALLOC0; inv ALLOC1; auto. }
+    { i. inv ALLOC0; inv ALLOC1; auto. rewriter.
+      eapply IHvars; et. }
+  Qed.
+
+  Lemma Csharpminor_wf_semantics prog
+    :
+      wf_semantics (Clight.semantics2 prog).
+  Proof.
+    econs.
+    { i. inv STEP0; inv STEP1; ss; rewriter;
+      try split; et;
+        inv_pred assign_loc; 
+        try determ Clight_eval_expr_determ eval_expr; 
+        try determ Clight_eval_lvalue_determ eval_lvalue;
+        des; clarify.
+      { inv_pred Cop.store_bitfield. }
+      { determ Clight_eval_exprlist_determ eval_exprlist. }
+      { determ Clight_eval_exprlist_determ eval_exprlist. 
+        hexploit external_call_determ; [eapply H0|eapply H13|]. i. des.
+        inv H. hexploit H1; et. i. des. clarify. }
+      { determ Clight_eval_exprlist_determ eval_exprlist. 
+        hexploit external_call_determ; [eapply H0|eapply H13|]. i. des.
+        inv H. hexploit H1; et. }
+      { inv_pred function_entry2. determ alloc_variables_determ alloc_variables. }
+      { hexploit external_call_determ; [eapply H|eapply H9|]. i. des.
+        inv H0. hexploit H1; et. i. des. clarify. }
+      { hexploit external_call_determ; [eapply H|eapply H9|]. i. des.
+        inv H0. hexploit H1; et. } }
+    { i. inv FINAL. inv STEP. }
+    { i. inv FINAL0. inv FINAL1. ss. }
+  Qed.
+
 End PROOF.
+
