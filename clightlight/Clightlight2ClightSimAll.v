@@ -187,12 +187,10 @@ Section PROOF.
       sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapplyf NEXT. econs; et.
   Qed.
 
-  Lemma step_alloc pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_alloc pstate f_table modl cprog sk tge m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
-    (ME: match_e sk tge e te)
-    (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
     lo hi
     tstate ktr b r mn
@@ -249,14 +247,13 @@ Section PROOF.
   Lemma update_shadow V pstate (x: string) (v v': V) : update (update pstate x v) x v' = update pstate x v'.
   Proof. unfold update. apply func_ext. i. des_ifs. Qed.
 
-  Lemma step_alloc_variables pstate ge ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_alloc_variables pstate ge ce f_table modl cprog sk tge e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: ce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
     (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
-    (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
     l
  r b tstate mn ktr 
@@ -318,17 +315,15 @@ Section PROOF.
     unfold Coqlib.list_disjoint in *. eapply l0; et. 
   Qed.
 
-  Lemma step_function_entry pstate ge ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_function_entry pstate ge ce f_table modl cprog sk tge m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: ce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
     (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
-    (ME: match_e sk tge e te)
-    (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
     f vl
- r b o tf tcont mn ktr dvl df
+ r b tstate mn ktr
     (NEXT: forall e' le' te' tle' m' tm', 
             function_entry2 ge f (List.map (map_val sk tge) vl) tm te' tle' tm' ->
             match_mem sk tge m' tm' ->
@@ -337,7 +332,7 @@ Section PROOF.
             paco4
               (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, (e', le')))
-              (Callstate df dvl (Kcall o tf te tle tcont) tm))
+              tstate)
   :
     paco4
       (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
@@ -346,7 +341,7 @@ Section PROOF.
           (prog f_table)
           (transl_all mn (function_entry_c ce f vl))
           pstate);; ktr r0)
-      (Callstate df dvl (Kcall o tf te tle tcont) tm). 
+      tstate.
   Proof.
     unfold function_entry_c. remove_UBcase.
     eapply step_alloc_variables with (te := empty_env); et.
