@@ -443,29 +443,30 @@ Section PROOF.
   Proof. induction tcont; et; ss. Qed.
 
   Theorem match_states_sim
-          types sk defs WF_TYPES
+          sk
           (modl internal_modl: ModL.t) ms
-          clight_prog ist cst
+          (clight_prog : program) ist cst
           (MODL: modl = ModL.add (Mod.lift Mem) internal_modl)
           (INTERNAL: forall s fd, In (s, (Gfun fd (V := type))↑) internal_modl.(ModL.sk) -> exists f : Clight.function, fd = Internal f)
           (MODSEML: ms = modl.(ModL.enclose))
-          (SK: sk = modl.(ModL.sk))
-          (TGT: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
+          (SK: sk = Sk.sort modl.(ModL.sk))
           (MS: match_states sk (Genv.globalenv clight_prog) (Ctypes.prog_comp_env clight_prog) ms ist cst)
   :
       <<SIM: sim (@ModL.compile _ EMSConfigC modl) (Clight.semantics2 clight_prog) false false ist cst>>.
   Proof.
     red. red.
     depgen ist. depgen cst. pcofix CIH. i.
-    inv MS. unfold mkprogram in *. des_ifs_safe.
+    inv MS. des_ifs_safe.
     set (Genv.globalenv _) as tge in *.
-    set (ModL.sk (ModL.add _ _)) as sk in *.
+    set (Ctypes.prog_comp_env _) as ce in *.
+    set (Sk.sort (ModL.sk (ModL.add Mem internal_modl))) as sk in *.
     set (ModL.add _ _) as modl in *.
-    set {| genv_genv := tge; genv_cenv := x|} as ge.
+    set {| genv_genv := tge; genv_cenv := ce |} as ge.
     destruct tcode.
     - ss. sim_red. 
       destruct tcont; inv MCONT; ss; clarify.
-      + sim_red. sim_triggerUB.
+      + sim_red. sim_tau. sim_red. eapplyfarg step_freeing_stack ge.
+        i. sim_red. sim_triggerUB. 
       + sim_red. tgt_step; [econs|].
         sim_tau. wrap_up. apply CIH. econs; et.
       + sim_red. tgt_step; [econs; et|].
@@ -511,7 +512,8 @@ Section PROOF.
         change (Genv.globalenv _) with tge.
         inv MGE. replace b with (Pos.of_succ_nat (pred (Pos.to_nat b))) by nia.
         erewrite ELEM; et. et. }
-      apply nth_error_In in E. dup E. unfold sk in E0. simpl in E0. 
+      apply nth_error_In in E. dup E. unfold sk in E0. 
+      apply Sk.sort_incl_rev in E0. simpl in E0.
       des.
       + clarify. ss. unfold mallocF. sim_red. repeat (sim_tau; sim_red).
         rewrite PSTATE. sim_red. remove_UBcase. des_ifs_safe. sim_red. unfold unwrapU. remove_UBcase.
@@ -519,8 +521,8 @@ Section PROOF.
         apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
         do 2 rewrite Any.upcast_downcast in H2. clarify.
         destruct i. ss.
-        eapply match_mem_alloc in Heq2; et. clear E. destruct Heq2 as [? [? ?]].
-        eapply match_mem_store in Heq3; et. destruct Heq3 as [? [? ?]].
+        eapply match_mem_alloc in Heq1; et. clear E. destruct Heq1 as [? [? ?]].
+        eapply match_mem_store in Heq2; et. destruct Heq2 as [? [? ?]].
         assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
         set {| Ptrofs.intval := intval; Ptrofs.intrange := H5|} as i.
         replace (Vlong _) with (Vptrofs i) in *.
@@ -546,12 +548,12 @@ Section PROOF.
           { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
           ss. sim_redE. et.
         * unfold unwrapU. remove_UBcase. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
-          eapply match_mem_load in Heq2; et. 
-          eapply match_mem_free in Heq4; et. destruct Heq4 as [? [? ?]].
+          eapply match_mem_load in Heq1; et. 
+          eapply match_mem_free in Heq3; et. destruct Heq3 as [? [? ?]].
           destruct i0. ss.
           assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
           set {| Ptrofs.intval := intval; Ptrofs.intrange := H3|} as ofs.
-          replace (Vlong _) with (Vptrofs ofs) in Heq2.
+          replace (Vlong _) with (Vptrofs ofs) in Heq1.
           2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold ofs. ss.
               change intval with (Int64.unsigned (Int64.mkint intval intrange)).
               rewrite Int64.repr_unsigned. ss. }

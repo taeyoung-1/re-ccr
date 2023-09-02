@@ -24,6 +24,7 @@ Section GENV.
 
   Variable types : list composite_definition.
   Variable defs : list (ident * globdef fundef type).
+  Variable public : list ident.
   Variable WF_TYPES : wf_composites types.
   Variable sge : alist string Any.t.
   Let ce := let (ce, _) := build_composite_env' types WF_TYPES in ce.
@@ -67,7 +68,7 @@ Section GENV.
   
   Lemma in_def_gdefs a clight_prog
         (INDEFS_FUN: In a defs)
-        (RIGHT_COMP: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
+        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
     :
         In a clight_prog.(prog_defs).
   Proof.
@@ -77,7 +78,7 @@ Section GENV.
   Lemma tgt_genv_match_symb_def
         clight_prog name b gd1 gd2
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
+        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
         (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string name) = Some b)
         (GFDEF: Genv.find_def (Genv.globalenv clight_prog) b = Some gd1)
         (INTGT: In (ident_of_string name, gd2) (prog_defs clight_prog))
@@ -97,7 +98,7 @@ Section GENV.
   Lemma tgt_genv_find_def_by_blk
         clight_prog name b gd 
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs (List.map (fun '(gn, _) => gn) defs) (ident_of_string "main") WF_TYPES)
+        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
         (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string name) = Some b)
         (INTGT: In (ident_of_string name, gd) (prog_defs clight_prog))
     :

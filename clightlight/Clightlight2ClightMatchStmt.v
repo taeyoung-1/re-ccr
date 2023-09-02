@@ -71,7 +71,8 @@ Section MATCH.
                               (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, optv)) 
                               triggerUB 
                               triggerUB 
-                              triggerUB) optb optv;; 
+                              (tau;;free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, Some Vundef)))
+                              optb optv;; 
       v <- optv'?;; (match v with | Vint _ => Ret v | _ => triggerUB end).
 
   Definition itree_stop (mn: string) := fun '(pstate, ncr) => Es_to_eventE ms mn (kstop_itree ncr) pstate.
