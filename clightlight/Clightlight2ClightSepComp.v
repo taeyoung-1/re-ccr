@@ -120,29 +120,46 @@ Section PROOFSINGLE.
     
     rewrite alist_find_find_some in FOUNDMAIN. rewrite find_map in FOUNDMAIN.
     rewrite find_map in FOUNDMAIN. uo; des_ifs; ss. inv H0. clear H1. 
-    hexploit found_itree_clight_function; eauto. i. des. subst. rewrite string_of_ident_of_string.
-    clear Heq0. rename H0 into FIND_ITREE.
+    unfold ModL.wf in WF. des. inv WF0. clear wf_initial_mrs.
+    apply found_itree_clight_function in Heq0. des. rename Heq1 into FIND_ITREE.
     hexploit decomp_fundefs_decomp_func; eauto. i. des. rename H0 into FIND_TFUNC.
+    assert (WF_IDENT: NoDup (List.map string_of_ident (List.map fst defs))).
+    { admit "". }
+    hexploit Globalenvs.Genv.find_symbol_inversion; et. i.
+    replace (prog_defs_names _) with (List.map fst defs) in H0.
+    2:{ unfold mkprogram. des_ifs. }
     replace (prog_main _) with (ident_of_string "main") in * by now solve_mkprogram.
+    assert (In p (List.map fst defs)).
+    { eapply in_map with (f := fst) in FIND_TFUNC. et. }
+    assert (p = ident_of_string "main").
+    { clear -H0 H1 WF_IDENT Heq0. rewrite <- string_of_ident_of_string in Heq0.
+      revert_until defs. generalize (List.map fst defs).
+      induction l; i; ss; et. des; subst; et; inv WF_IDENT.
+      { rewrite Heq0 in H2.
+        eapply in_map with (f:=string_of_ident) in H0. contradiction. }
+      { rewrite <- Heq0 in H2.
+        eapply in_map with (f:=string_of_ident) in H1. contradiction. }
+      eapply IHl; et. }
+    subst.
     hexploit tgt_genv_match_symb_def; et.
     { rewrite NoDup_norepeat. et. }
-    { unfold Globalenvs.Genv.find_funct_ptr in *. des_ifs. et. }
-    { unfold mkprogram. des_ifs. et. }
+    { unfold Globalenvs.Genv.find_funct_ptr in *. des_ifs; et. }
+    { unfold mkprogram. des_ifs; et. }
       
     i. clarify. rename f into tmain. 
     unfold cfunU. sim_red. unfold decomp_func. sim_red.
-    pfold_reverse. unfold ModL.wf in WF. des. inv WF0. clear wf_initial_mrs.
+    pfold_reverse. 
     eapply step_function_entry with (ge := ge) (sk := sge_init); et; ss.
     { unfold sge_init, tge, mkprogram, Globalenvs.Genv.globalenv. des_ifs_safe. ss.
       clear -WFDEF_NODUP WFDEF_EXT SK wf_fnsems.
       admit "This can be proved from these hypothesis". }
     { instantiate (1 := m0). clear -INIT_TMEM. admit "This can be proved from these hypothesis". }
     i. tgt_step.
-    { econs. unfold ge in H. unfold tge in H. ss. unfold mkprogram in *. des_ifs. et. }
+    { econs. unfold ge in H. unfold tge in H. ss. unfold mkprogram in *. des_ifs; et. }
     econs 7; et. left. 
 
     eapply match_states_sim; eauto.
-    { i. ss. clear - H3. depgen s. revert fd. induction defs; i; ss.
+    { i. ss. clear - H5. depgen s. revert fd. induction defs; i; ss.
       des_ifs; et.
       { ss. des; et. clarify. apply Any.upcast_inj in H0. des.
         apply JMeq_eq in EQ0. clarify. et. }
@@ -151,9 +168,9 @@ Section PROOFSINGLE.
     { set (update _ _ _) as init_pstate. econs; et. 
       { admit "global proof". }
       { instantiate (1:= init_pstate). unfold init_pstate. unfold update. ss. }
-      { unfold fnsem_has_internal. i. apply Sk.sort_incl_rev in H3. ss. des; clarify.
-        { apply Any.upcast_inj in H3. des. apply JMeq_eq in EQ0. clarify. }
-        { apply Any.upcast_inj in H3. des. apply JMeq_eq in EQ0. clarify. }
+      { unfold fnsem_has_internal. i. apply Sk.sort_incl_rev in H5. ss. des; clarify.
+        { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
+        { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
         exists mn.
         admit "relation between decomp_fundef and get_sk". }
       { econs; et. }
@@ -164,9 +181,12 @@ Section PROOFSINGLE.
       set (EventsL.interp_Es _ _ _) as s'.
       assert (s = s').
       { unfold s, s'. sim_redE. unfold prog_comp_env, mkprogram. des_ifs. } 
-      rewrite H3. apply bind_extk. i. sim_redE. des_ifs_safe. sim_redE.
+      rewrite H5. apply bind_extk. i. sim_redE. des_ifs_safe. sim_redE.
+      clear FIND_ITREE.
       destruct o.
-      { sim_redE. unfold mkprogram. des_ifs. ss. apply bind_extk. i. des_ifs_safe. sim_redE.
+      { sim_redE. unfold mkprogram.  des_ifs_safe. ss. apply bind_extk. i. des_ifs_safe. sim_redE.
+
+
         apply bind_extk. i. des_ifs_safe. sim_redE. et. }
       { destruct o0.
         { des_ifs_safe. sim_redE. apply bind_extk. i. des_ifs_safe. sim_redE. apply bind_extk.

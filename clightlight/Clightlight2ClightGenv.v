@@ -25,6 +25,7 @@ Section GENV.
   Variable types : list composite_definition.
   Variable defs : list (ident * globdef fundef type).
   Variable public : list ident.
+  Variable _main : ident.
   Variable WF_TYPES : wf_composites types.
   Variable sge : alist string Any.t.
   Let ce := let (ce, _) := build_composite_env' types WF_TYPES in ce.
@@ -41,11 +42,12 @@ Section GENV.
                     (decomp_fundefs types WF_TYPES sge defs) = 
                  Some (p, i))
     :
-      (ident_of_string fn = p) /\ (In (p, i) (decomp_fundefs types WF_TYPES sge defs)).
+      string_of_ident p = fn /\ In (p, i) (decomp_fundefs types WF_TYPES sge defs).
   Proof.
-    apply find_some in FOUND. des. split; auto.
-    unfold compose in FOUND0. simpl in FOUND0. rewrite eq_rel_dec_correct in FOUND0. des_ifs.
-  Admitted.
+    apply find_some in FOUND. des. split; et.
+    unfold "<*>" in FOUND0. ss. rewrite eq_rel_dec_correct in FOUND0.
+    des_ifs.
+  Qed.
 
   Lemma decomp_fundefs_decomp_func i p
         (INLEFT: In (p, i) (decomp_fundefs types WF_TYPES sge defs)) 
@@ -75,13 +77,14 @@ Section GENV.
     unfold mkprogram, build_composite_env' in *. des_ifs.
   Qed.
 
+
   Lemma tgt_genv_match_symb_def
-        clight_prog name b gd1 gd2
+        clight_prog ident b gd1 gd2
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
-        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string name) = Some b)
+        (RIGHT_COMP: clight_prog = mkprogram types defs public _main WF_TYPES)
+        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) ident = Some b)
         (GFDEF: Genv.find_def (Genv.globalenv clight_prog) b = Some gd1)
-        (INTGT: In (ident_of_string name, gd2) (prog_defs clight_prog))
+        (INTGT: In (ident, gd2) (prog_defs clight_prog))
     :
       gd1 = gd2.
   Proof.
@@ -96,11 +99,11 @@ Section GENV.
   Qed.
 
   Lemma tgt_genv_find_def_by_blk
-        clight_prog name b gd 
+        clight_prog ident b gd 
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
-        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string name) = Some b)
-        (INTGT: In (ident_of_string name, gd) (prog_defs clight_prog))
+        (RIGHT_COMP: clight_prog = mkprogram types defs public _main WF_TYPES)
+        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) ident = Some b)
+        (INTGT: In (ident, gd) (prog_defs clight_prog))
     :
       Genv.find_def (Genv.globalenv clight_prog) b = Some gd.
   Proof.
