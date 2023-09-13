@@ -198,7 +198,7 @@ Section PROOFSINGLE.
           i. des_ifs_safe. sim_redE. et. } } }
   Qed.
 
-  (* Theorem single_compile_program_improves
+  Theorem single_compile_program_improves
           (src: Imp.programL) (tgt: Csharpminor.program)
           (WFPROG: incl (name1 src.(defsL)) ((name1 src.(prog_varsL)) ++ (name2 src.(prog_funsL))))
           (WFPROG3: forall blk name,
@@ -267,7 +267,7 @@ Section PROOFSINGLE.
     apply NOINIT.
     econs; ss; eauto.
     unfold Genv.find_funct_ptr. rewrite TGTGFIND. ss.
-  Qed. *)
+  Qed.
 
 End PROOFSINGLE.
 
