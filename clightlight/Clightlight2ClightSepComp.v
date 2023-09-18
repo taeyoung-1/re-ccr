@@ -1,4 +1,5 @@
-From compcert Require Import Coqlib Integers Floats AST Ctypes Cop Clight Clightdefs.
+From compcert Require Import Coqlib Behaviors Integers Floats AST Globalenvs Ctypes Cop Clight Clightdefs.
+
 Require Import Coqlib.
 Require Import ITreelib.
 Require Import Skeleton.
@@ -21,6 +22,7 @@ Require Import Clightlight2ClightLink.
 Require Import Clightlight2ClightSim. 
 Require Import Clightlight2ClightMatchStmt.
 Require Import Clightlight2ClightSimAll. 
+
 
 Section PROOFSINGLE.
 
@@ -70,7 +72,7 @@ Section PROOFSINGLE.
 
   Definition clightligt_sem types defs WF_COMP mn := compile_val (ModL.add (Mod.lift Mem) (Mod.lift (get_mod types defs WF_COMP mn))).
 
-  Definition clightlight_initial_state types defs WF_COMP mn := (clightligt_sem types defs WF_COMP mn).(initial_state).
+  Definition clightlight_initial_state types defs WF_COMP mn := (clightligt_sem types defs WF_COMP mn).(STS.initial_state).
   Opaque ident_of_string.
   
   Lemma NoDup_norepeat :
@@ -199,27 +201,29 @@ Section PROOFSINGLE.
   Qed.
 
   Theorem single_compile_program_improves
-          (src: Imp.programL) (tgt: Csharpminor.program)
-          (WFPROG: incl (name1 src.(defsL)) ((name1 src.(prog_varsL)) ++ (name2 src.(prog_funsL))))
-          (WFPROG3: forall blk name,
-              let modl := ModL.add (Mod.lift (Mem (fun _ => false))) (ImpMod.get_modL src) in
-              let ge := (Sk.load_skenv (Sk.sort modl.(ModL.sk))) in
-              (ge.(SkEnv.blk2id) blk = Some name) -> call_ban name = false)
-          (WFPROG2 : forall gn gv, In (gn, Sk.Gvar gv) (Sk.sort (defsL src)) -> In (gn, gv) (prog_varsL src))
-          (COMP: Imp2Csharpminor.compile src = OK tgt)
+          (types: list Ctypes.composite_definition)
+          (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))
+          (public: list AST.ident)
+          (WF_TYPES: Clightdefs.wf_composites types)
+          mn clight_prog
+          (WFDEF_NODUP: NoDup (List.map fst defs))
+          (WFDEF_EXT: forall a, In a Mem.(Mod.sk) -> In a (List.map (fun '(p, gd) => (string_of_ident p, gd↑)) defs))
+          (COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
     :
-      <<IMPROVES: improves2_program (imp_sem src) (Csharpminor.semantics tgt)>>.
+      <<IMPROVES: improves2_program (clightligt_sem types defs WF_TYPES mn) (Clight.semantics2 clight_prog)>>.
   Proof.
     red. unfold improves2_program. i. inv BEH.
-    { eapply single_compile_behavior_improves; eauto. }
+    { hexploit single_compile_behavior_improves.
+      1,2,3: et. 1: refl. 1: ss; et. unfold improves2, clightlight_initial_state. i.
+      eapply H1; et. }
     (* initiall wrong case, for us only when main is not found *)
     exists (Tr.ub). split; red; eauto.
     2:{ pfold. econs 4; eauto.
         - ss.
-        - unfold behavior_prefix. exists (Goes_wrong E0). ss.
+        - unfold Behaviors.behavior_prefix. exists (Behaviors.Goes_wrong Events.E0). ss.
     }
-    rename H into NOINIT.
-    unfold imp_sem in *. ss. unfold ModSemL.initial_itr.
+    Print Clight.initial_state.
+    ss. unfold ModSemL.initial_itr.
     pfold. econs 6; ss; eauto.
     unfold Beh.inter. ss. unfold assume. grind.
     apply ModSemL.step_trigger_take_iff in STEP. des. clarify. split; eauto.
@@ -235,38 +239,31 @@ Section PROOFSINGLE.
     match goal with
     | [ FSEM: o_map (?a) _ = _ |- _ ] => destruct a eqn:FOUND; ss; clarify
     end.
-    destruct p as [mn [fn ff]]; ss; clarify.
-    rewrite Sk.add_unit_l in FOUND.
-    eapply found_imp_function in FOUND. des; clarify.
-    hexploit in_tgt_prog_defs_ifuns; eauto. i.
-    des. rename H into COMPF. clear FOUND.
-    assert (COMPF2: In (compile_iFun (mn, ("main", ff))) (prog_defs tgt)); auto.
-    eapply Globalenvs.Genv.find_symbol_exists in COMPF.
-    destruct COMPF as [b TGTFG].
-    assert (TGTGFIND: Globalenvs.Genv.find_def (Globalenvs.Genv.globalenv tgt) b = Some (snd (compile_iFun (mn, ("main", ff))))).
-    { hexploit tgt_genv_find_def_by_blk; eauto. }
-
-    unfold compile in COMP. des_ifs.
-    match goal with [ H: Genv.find_symbol (Genv.globalenv ?_tgt) _ = _ |- _ ] => set (tgt:=_tgt) in * end.
-    hexploit (Genv.init_mem_exists tgt); eauto.
-    { i. subst tgt; ss. hexploit perm_elements_PTree_norepeat_in_in; eauto.
-      i. apply H0 in H. clear H0. apply decomp_gdefs in H. des; ss; clarify; eauto.
-      { unfold bts in BTS1. apply Coqlib.list_in_map_inv in BTS1. des. destruct fd; ss; clarify. destruct x0; ss; clarify. }
-      { destruct fd. unfold compile_eFun in SYS; ss; clarify. }
-      { destruct fd. unfold compile_eFun in EFS; ss; clarify. }
-      { depgen EVS. clear. i. unfold compile_eVar in EVS. ss; clarify. }
-      { depgen IFS. clear. i. destruct fd as [mn [fn ff]]. unfold compile_iFun in IFS; ss; clarify. }
-      { depgen IVS. clear. i. unfold compile_iVar in IVS. destruct vd; ss; clarify. split; ss; eauto.
-        - split; eauto. apply Z.divide_0_r.
-        - i. des; eauto; clarify. }
-    }
-    i. des. unfold compile_iFun in *; ss; clarify.
-    match goal with
-    | [ H: Genv.find_def _ _ = Some (Gfun ?_fdef) |- _ ] => set (fdef:=_fdef) in * end.
-    specialize NOINIT with (Callstate fdef [] Kstop m).
-    apply NOINIT.
+    destruct p as [? ?]; ss; clarify. rewrite find_map in FOUND.
+    uo. des_ifs_safe.
+    eapply found_itree_clight_function in Heq. des; clarify.
+    assert (exists f, In (p0, Gfun (Internal f)) defs).
+    { clear -Heq0 Heq. set (Sk.sort _) as sk in *. clearbody sk.
+      revert_until defs. induction defs; et.
+      i. ss. destruct a. destruct g.
+      - destruct f.
+        + ss. destruct Heq0.
+          * clarify. et. 
+          * eapply IHdefs in H; et. des. et.
+        + eapply IHdefs in Heq0; et. des. et.
+      - eapply IHdefs in Heq0; et. des. et. }
+    des. replace defs with (mkprogram types defs public (ident_of_string "main") WF_TYPES).(AST.prog_defs) in H0 by solve_mkprogram.
+    hexploit Globalenvs.Genv.find_symbol_exists; et. i. des.
+    hexploit tgt_genv_find_def_by_blk; eauto. 1:{ admit "provable". }
+    i. assert (exists m, Genv.init_mem (mkprogram types defs public (ident_of_string "main") WF_TYPES) = Some m) by admit "hypothesis".
+    des. 
+    specialize H with (Callstate (Internal f) [] Kstop m).
+    eapply H.
     econs; ss; eauto.
-    unfold Genv.find_funct_ptr. rewrite TGTGFIND. ss.
+    { solve_mkprogram. ss. replace (ident_of_string "main") with p0 by admit "provable". et. }
+    { unfold Genv.find_funct_ptr. rewrite H3. et. }
+    admit "hypothesis".
+    Unshelve. inv Heq0.
   Qed.
 
 End PROOFSINGLE.
