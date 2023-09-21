@@ -352,8 +352,6 @@ End RA.
 
 
 
-
-
 Local Obligation Tactic := i; unseal "ra"; ss; des_ifs_safe.
 
 (*** PCM == Unital RA ***)
@@ -952,10 +950,135 @@ Proof. ur in WF. des; ss. Qed.
 End AUTH.
 End Auth.
 
+Section Qnn.
+  From stdpp Require Import numbers.
+
+  Local Open Scope Qp.
+
+  Inductive Qnn : Type :=  Q0 | QP (q: Qp).
+
+  Definition Qnn_add := 
+    fun q1 q2 =>
+      match q1, q2 with
+      | Q0, _ => q2 | _, Q0 => q1
+      | QP q1', QP q2' => QP (q1' + q2')
+      end.
+
+  Definition Qnn_le := 
+    fun q1 q2 =>
+      match q1, q2 with
+      | Q0, _ => True | QP _, Q0 => False
+      | QP q1', QP q2' => q1' ≤ q2'
+      end.
+
+
+End Qnn.
+
+Declare Scope Qnn_scope.
+Delimit Scope Qnn_scope with Qnn.
+Bind Scope Qnn_scope with Qnn.
+
+Notation " 0 " := Q0 : Qnn_scope.
+Notation " 1 " := (QP 1) : Qnn_scope.
+Notation "q1 + q2" := (Qnn_add q1 q2) : Qnn_scope.
+Notation "q1 ≤ q2" := (Qnn_le q1 q2) : Qnn_scope.
+Notation "q1 ≤ q2 ≤ q3" := (q1 ≤ q2 /\ q2 ≤ q3) : Qnn_scope.
+
+Module Consent.
+Section CONSENT.
+
+Local Obligation Tactic := i; unseal "ra"; ss; des_ifs_safe.
+
+Local Arguments Qnn_add /.
+Local Arguments Qnn_le /.
+
+Local Open Scope Qnn.
+
+Context {X: Type}.
+
+Inductive car: Type :=
+| just (q: Qnn) (x: X)
+| unit
+| boom
+.
+
+Let _add := fun x y => 
+              match x, y with
+              | _, unit => x | unit, _ => y 
+              | just q0 x0, just q1 x1 => 
+                if (excluded_middle_informative (x0 = x1)) then just (q0 + q1) x0
+                else boom
+              | _, _ => boom end.
+
+Let _wf := fun a => 
+              match a with
+              | unit => True
+              | just q x => q ≤ 1
+              | boom => False
+              end.
+
+Program Instance t: URA.t := {
+  URA.car := car;
+  URA._add := _add;
+  URA._wf := _wf;
+  URA.unit := unit;
+  URA.core := fun _ => unit;
+}
+.
+
+Next Obligation. unfold _wf, _add in *. des_ifs. rewrite Qp_add_comm. et. Qed.
+Next Obligation. unfold _wf, _add in *. des_ifs. rewrite Qp_add_assoc. et. Qed.
+Next Obligation. unfold _wf, _add in *. des_ifs. Qed.
+Next Obligation. unfold _wf, _add in *. des_ifs. des. transitivity (q0 + q2)%Qp; et. eapply Qp_le_add_l. Qed.
+Next Obligation. des_ifs. Qed.
+Next Obligation. exists unit. auto. Qed.
+
+Theorem updatable
+        q1 q2 a
+        (LE: q2 ≤ q1)
+  :
+    <<UPD: URA.updatable (just q1 a) (just q2 a)>>
+.
+Proof.
+  rr. unfold URA.wf, URA.add in *. unseal "ra". ss. ii. des_ifs; ss; etrans; et.
+  - etrans; [|et]. apply Qp_le_add_r.
+  - etrans; [|et]. apply Qp_add_le_mono_r. et.
+Qed.
+
+Theorem extends
+        q1 x a
+        (WF: URA.wf a)
+        (EXT: URA.extends (just q1 x) a)
+  :
+    <<EQ: exists q2, q1 ≤ q2 /\ a = just q2 x>>
+.
+Proof.
+  rr. rr in EXT. des; subst. unfold URA.wf, URA.add in *. unseal "ra". ss. des_ifs; ss; et.
+  - esplits;[|et]. ss.
+  - esplits;[|et]. apply Qp_le_add_l.
+  - esplits;[|et]. ss.
+Qed.
+
+(* Theorem wf
+        a0 a1
+        (WF: URA.wf (URA.add (just a0) a1))
+  :
+    <<EQ: a1 = unit>>
+.
+Proof. rr. unfold URA.wf, URA.add in *. unseal "ra". ss. des_ifs; ss. Qed. *)
+
+
+End CONSENT.
+End Consent.
+
+Arguments Consent.t: clear implicits.
+
+
 (**********************************************************************************)
 (*** For backward compatibility, I put below definitions "outside" Auth module. ***)
 (*** TODO: put it inside ***)
 
+Local Obligation Tactic := i; unseal "ra"; ss; des_ifs_safe.
 
 
 

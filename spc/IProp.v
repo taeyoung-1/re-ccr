@@ -6,6 +6,7 @@ Require Import Any.
 Set Implicit Arguments.
 Set Typeclasses Depth 5.
 
+Global Obligation Tactic := program_simpl.
 
 Create HintDb iprop.
 Ltac uipropall :=

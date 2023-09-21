@@ -10,7 +10,7 @@ Require Import Permutation.
 
 Set Implicit Arguments.
 
-
+Global Obligation Tactic := program_simpl.
 
 Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
 
