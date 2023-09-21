@@ -36,7 +36,7 @@ Fixpoint alloc_variables_c (ce: composite_env) (e: env)
   match vars with
   | [] => Ret e
   | (id, ty) :: vars' =>
-    v <- ccallU "salloc" (0%Z, sizeof ce ty);;
+    v <- ccallU "salloc" (sizeof ce ty);;
     match v with
     | Vptr b ofs => alloc_variables_c ce (PTree.set id (b, ty) e) vars'
     | _ => triggerUB (* dummy *)
@@ -173,16 +173,16 @@ Section DECOMP.
     ITree.iter (sloop_iter_body itr1 itr2) (e, le) ;;
     Ret (e', le', None, v).
 
-  Fixpoint free_list_aux (l: list (block * Z * Z)): itree eff unit :=
+  Fixpoint free_list_aux (l: list (block * Z)): itree eff unit :=
     match l with
     | nil => Ret tt
-    | (b, lo, hi):: l' =>
-      `_ : () <- ccallU "sfree" (b, lo, hi);;
+    | (b, sz):: l' =>
+      `_ : () <- ccallU "sfree" (b, sz);;
       free_list_aux l'
     end.
 
   Definition block_of_binding (ce: composite_env) (id_b_ty: ident * (block * type)) :=
-    let (_, p) := id_b_ty in let (b, ty) := p in (b, 0%Z, sizeof ce ty).
+    let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
 
   Definition blocks_of_env (ce: composite_env) :=
     List.map (block_of_binding ce) ∘ PTree.elements.
@@ -267,7 +267,7 @@ Section DECOMP.
     | Some v => free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some v)
     | None => match c with
               | Some b0 => if b0 then triggerUB else triggerUB
-              | None => tau;;free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some Vundef)
+              | None => tau;; free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some Vundef)
               end
     end);; v <- v?;;
     Ret v.

@@ -23,22 +23,21 @@ Section PROOF.
     Context `{has_eventE: eventE -< Es}.
     Context {has_callE: callE -< Es}.
 
-    (* low level allocation of memory *)
-    Definition sallocF: Z * Z -> itree Es val :=
+    (* stack allocation of memory *)
+    Definition sallocF: Z -> itree Es val :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        let (lo, hi) := varg in
-        let (m1, blk) := Mem.alloc m0 lo hi in
+        let (m1, blk) := Mem.alloc m0 0%Z varg in
         trigger (PPut m1↑);;;
-        Ret (Vptr blk (Ptrofs.repr 0)).
+        Ret (Vptr blk Ptrofs.zero).
 
-    Definition sfreeF: block * Z * Z -> itree Es unit :=
+    Definition sfreeF: block * Z -> itree Es unit :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        let '(b, lo, hi) := varg in
-        m1 <- (Mem.free m0 b lo hi)?;;
+        let '(b, sz) := varg in
+        m1 <- (Mem.free m0 b 0%Z sz)?;;
         trigger (PPut m1↑);;;
         Ret tt
     .
@@ -217,7 +216,7 @@ Section PROOF.
   
   Definition alloc_global (m : mem) (entry : string * Any.t) :=
     let (_, agd) := entry in
-    match @Any.downcast (globdef Clight.fundef type) agd with
+    match Any.downcast agd : option (globdef Clight.fundef type) with
     | Some g => 
       match g with
       | Gfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
