@@ -8,7 +8,7 @@ Require Import PCM.
 Require Import HoareDef STB.
 Require Import ProofMode.
 Require Import Any.
-From compcert Require Import Ctypes Floats Integers Values Memory AST Clight.
+From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
 
 Set Implicit Arguments.
 
@@ -416,6 +416,67 @@ Section PROOF.
     ("mfree",   mk_specbody mfree_spec (fun _ => trigger (Choose _)))
     ]
   .
+
+  Variable sk: Sk.t.
+  Let skenv: SkEnv.t := Sk.load_skenv sk.
+
+  (* have to make predicate *)
+  Definition store_init_data (res : Σ) (b : block) (p : Z) (q: Qnn) (id : init_data) :=
+    match id with
+    | Init_int8 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint8unsigned (Vint n)))) ⋅ res )
+    | Init_int16 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint16unsigned (Vint n)))) ⋅ res )
+    | Init_int32 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vint n)))) ⋅ res)
+    | Init_int64 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vlong n)))) ⋅ res)
+    | Init_float32 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat32 (Vsingle n)))) ⋅ res)
+    | Init_float64 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat64 (Vfloat n)))) ⋅ res)
+    | Init_space _ => Some res
+    | Init_addrof symb ofs =>
+        match SkEnv.id2blk skenv (string_of_ident symb) with
+        | Some b' => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs)))) ⋅ res)
+        | None => None
+        end
+    end.
+
+  Fixpoint store_init_data_list (res : Σ) (b : block) (p : Z) (q: Qnn) (idl : list init_data) {struct idl} : Σ :=
+    match idl with
+    | [] => res
+    | id :: idl' =>
+        match store_init_data res b p q id with
+        | Some res' => store_init_data_list res' b (p + init_data_size id)%Z q idl'
+        | None => GRA.embed (Auth.black _memcntRA.(URA.unit))
+        end
+    end.
+  
+  Definition alloc_global (res : Σ) (b: block) (entry : string * Any.t) :=
+    let (_, agd) := entry in
+    match Any.downcast agd : option (globdef Clight.fundef type) with
+    | Some g => 
+      match g with
+      | Gfun _ => Auth.black (__points_to b 0 0 [Undef]) ⋅ res
+      | Gvar v =>
+        let init := gvar_init v in
+        let q : Qnn := match Globalenvs.Genv.perm_globvar v with
+                      | Freeable | Writable => 1
+                      | Readable => 1
+                      | Nonempty => 0
+                      end
+        in
+        store_init_data_list res b 0 q init
+      end
+    | None => GRA.embed (Auth.black _memcntRA.(URA.unit))
+    end.
+
+  Fixpoint alloc_globals (res: Σ) (sk: list (string * Any.t)) : Σ :=
+  match sk with
+  | nil => Some m
+  | g :: gl' => alloc_globals (alloc_global m g) gl'
+  end.
+
+  Definition load_mem :=
+    match alloc_globals Mem.empty sk with
+    | Some m => m
+    | None => Mem.empty (* dummy *)
+    end.
 
   Definition initial_memcnt (sk: Sk.t): _memcntRA :=
      fun blk ofs =>
