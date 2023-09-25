@@ -447,18 +447,28 @@ Section PROOF.
         end
     end.
   
+
+  Program Definition qread : Qp := 
+    {| Qp_to_Qc := {|Qcanon.this := {| QArith_base.Qnum := 1; QArith_base.Qden := 10 |}|}|}.
+  Next Obligation. ss. Qed.
+
+  Theorem qread_less: (qread < 1)%Qp.
+  Proof. ss. Qed.
+
+  Global Opaque qread. 
+
   Definition alloc_global (res : Σ) (b: block) (entry : string * Any.t) :=
     let (_, agd) := entry in
     match Any.downcast agd : option (globdef Clight.fundef type) with
     | Some g => 
       match g with
-      | Gfun _ => Auth.black (__points_to b 0 0 [Undef]) ⋅ res
+      | Gfun _ => GRA.embed (Auth.black (__points_to b 0 0 [Undef])) ⋅ res
       | Gvar v =>
         let init := gvar_init v in
         let q : Qnn := match Globalenvs.Genv.perm_globvar v with
-                      | Freeable | Writable => 1
-                      | Readable => 1
-                      | Nonempty => 0
+                      | Freeable | Writable => 1%Qnn
+                      | Readable => QP qread
+                      | Nonempty => 0%Qnn
                       end
         in
         store_init_data_list res b 0 q init
@@ -466,33 +476,18 @@ Section PROOF.
     | None => GRA.embed (Auth.black _memcntRA.(URA.unit))
     end.
 
-  Fixpoint alloc_globals (res: Σ) (sk: list (string * Any.t)) : Σ :=
+  Fixpoint alloc_globals (res: Σ) (b: block) (sk: list (string * Any.t)) : Σ :=
   match sk with
-  | nil => Some m
-  | g :: gl' => alloc_globals (alloc_global m g) gl'
+  | nil => res
+  | g :: gl' => alloc_globals (alloc_global res b g) (Pos.succ b) gl'
   end.
 
-  Definition load_mem :=
-    match alloc_globals Mem.empty sk with
-    | Some m => m
-    | None => Mem.empty (* dummy *)
-    end.
-
-  Definition initial_memcnt (sk: Sk.t): _memcntRA :=
-     fun blk ofs =>
-       match List.nth_error sk (pred (Pos.to_nat blk)) with
-       | Some (_, a) =>
-          match Any.downcast a : option (globdef Clight.fundef type) with
-          | Some (Gvar gv) => if (dec ofs 0%Z) then Some (Vint (Int.repr gv)) else ε 
-          | _ => ε
-          end
-       | _ => ε
-       end.
+  Definition load_mem := alloc_globals (GRA.embed (Auth.black _memcntRA.(URA.unit))) xH sk.
 
   Definition SMemSem (sk: Sk.t): SModSem.t := {|
     SModSem.fnsems := MemSbtb;
     SModSem.mn := "Mem";
-    SModSem.initial_mr := (GRA.embed (Auth.black (initial_mem_mr csl sk))) ⋅ (GRA.embed (Auth.black _memszRA.(URA.unit)));
+    SModSem.initial_mr := load_mem ⋅ (GRA.embed (Auth.black _memszRA.(URA.unit)));
     SModSem.initial_st := tt↑;
   |}
   .
@@ -509,4 +504,4 @@ End PROOF.
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.
-Global Opaque _relates_to.
+Global Opaque _sz_of.
