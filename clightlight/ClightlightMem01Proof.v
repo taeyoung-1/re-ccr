@@ -1,4 +1,4 @@
-Require Import Clight_Mem0 Clight_Mem1 HoareDef STB SimModSem.
+Require Import ClightlightMem0 ClightlightMem1 HoareDef STB SimModSem.
 Require Import Coqlib.
 Require Import Skeleton.
 Require Import PCM.

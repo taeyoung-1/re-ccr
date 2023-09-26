@@ -12,7 +12,6 @@ From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Cli
 
 Set Implicit Arguments.
 
-
 Let _memcntRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
 Let _memszRA: URA.t := (block ==> (Excl.t Z))%ra.
 
@@ -420,19 +419,33 @@ Section PROOF.
   Variable sk: Sk.t.
   Let skenv: SkEnv.t := Sk.load_skenv sk.
 
-  (* have to make predicate *)
+  (* have to make predicate, need to restrict alignment. *)
   Definition store_init_data (res : Σ) (b : block) (p : Z) (q: Qnn) (id : init_data) :=
     match id with
-    | Init_int8 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint8unsigned (Vint n)))) ⋅ res )
-    | Init_int16 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint16unsigned (Vint n)))) ⋅ res )
-    | Init_int32 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vint n)))) ⋅ res)
-    | Init_int64 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vlong n)))) ⋅ res)
-    | Init_float32 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat32 (Vsingle n)))) ⋅ res)
-    | Init_float64 n => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat64 (Vfloat n)))) ⋅ res)
+    | Init_int8 n => 
+      if Zdivide_dec 1 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint8unsigned (Vint n)))) ⋅ res )
+      else None
+    | Init_int16 n =>
+      if Zdivide_dec 2 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint16unsigned (Vint n)))) ⋅ res )
+      else None
+    | Init_int32 n =>
+      if Zdivide_dec 4 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vint n)))) ⋅ res)
+      else None
+    | Init_int64 n =>
+      if Zdivide_dec 8 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vlong n)))) ⋅ res)
+      else None
+    | Init_float32 n =>
+      if Zdivide_dec 4 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat32 (Vsingle n)))) ⋅ res)
+      else None
+    | Init_float64 n =>
+      if Zdivide_dec 8 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat64 (Vfloat n)))) ⋅ res)
+      else None
     | Init_space _ => Some res
     | Init_addrof symb ofs =>
         match SkEnv.id2blk skenv (string_of_ident symb) with
-        | Some b' => Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs)))) ⋅ res)
+        | Some b' =>
+          if Zdivide_dec (if Archi.ptr64 then 8 else 4) p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs)))) ⋅ res)
+          else None
         | None => None
         end
     end.
