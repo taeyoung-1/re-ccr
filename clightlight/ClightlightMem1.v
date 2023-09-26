@@ -306,7 +306,7 @@ Definition modrange_64 : Z -> bool := fun z => (Z_le_gt_dec 0 z) && (Z_lt_ge_dec
 Ltac unfold_intrange_64 := unfold intrange_64, min_64, max_64 in *; unfold modulus_64_half, modulus_64, wordsize_64 in *.
 Ltac unfold_modrange_64 := unfold modrange_64, modulus_64, wordsize_64 in *.
 
-Section PROOF.
+Section SPEC.
 
   Context `{@GRA.inG memcntRA Σ}.
   Context `{@GRA.inG memszRA Σ}.
@@ -415,7 +415,14 @@ Section PROOF.
     ("mfree",   mk_specbody mfree_spec (fun _ => trigger (Choose _)))
     ]
   .
+End SPEC.
 
+Section MOD.
+
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memszRA Σ}.
+
+  Section MODSEM.
   Variable sk: Sk.t.
   Let skenv: SkEnv.t := Sk.load_skenv sk.
 
@@ -497,13 +504,14 @@ Section PROOF.
 
   Definition load_mem := alloc_globals (GRA.embed (Auth.black _memcntRA.(URA.unit))) xH sk.
 
-  Definition SMemSem (sk: Sk.t): SModSem.t := {|
+  Definition SMemSem : SModSem.t := {|
     SModSem.fnsems := MemSbtb;
     SModSem.mn := "Mem";
     SModSem.initial_mr := load_mem ⋅ (GRA.embed (Auth.black _memszRA.(URA.unit)));
     SModSem.initial_st := tt↑;
   |}
   .
+  End MODSEM.
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
@@ -513,7 +521,8 @@ Section PROOF.
 
   Definition Mem: Mod.t := (SMod.to_tgt (fun _ => to_stb [])) SMem.
 
-End PROOF.
+End MOD.
+
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.

@@ -1,27 +1,16 @@
-Require Import ClightlightMem0 ClightlightMem1 HoareDef STB SimModSem.
-Require Import Coqlib.
+Require Import Coqlib Any.
 Require Import Skeleton.
+Require Import ModSem Behavior SimModSem.
 Require Import PCM.
-Require Import ModSem Behavior.
-Require Import Relation_Definitions.
-
-(*** TODO: export these in Coqlib or Universe ***)
-Require Import Relation_Operators.
-Require Import RelationPairs.
-From ITree Require Import
-     Events.MapDefault.
-From ExtLib Require Import
-     Core.RelDec
-     Structures.Maps
-     Data.Map.FMapAList.
+Require Import HoareDef STB.
+Require Import ClightlightMem0 ClightlightMem1.
 Require Import HTactics ProofMode.
+From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
+
 
 Set Implicit Arguments.
 
-Local Open Scope nat_scope.
-
-
-
+(* 
 (*** black + delta --> new_black ***)
 Definition add_delta_to_black `{M: URA.t} (b: Auth.t M) (w: Auth.t _): Auth.t _ :=
   match b, w with
@@ -29,7 +18,6 @@ Definition add_delta_to_black `{M: URA.t} (b: Auth.t M) (w: Auth.t _): Auth.t _ 
   | _, _ => Auth.boom
   end
 .
-(* 
 
 
 (*** TODO: move to Coqlib ***)
@@ -102,48 +90,44 @@ Proof. ii. subst. unfold dec. destruct H; ss. Qed.
 (*   r. ii. des. subst. esplits; et. *)
 (*   - *)
 (* Qed. *)
-
+*)
 
 Section SIMMODSEM.
 
-  Context `{Σ: GRA.t}.
-  Context `{@GRA.inG Mem1.memRA Σ}.
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memszRA Σ}.
 
-  (* Eval compute in (@RA.car (RA.excl Mem.t)). *)
-  Eval compute in (@URA.car Mem1._memRA).
-  Inductive sim_loc: URA.car (t:=(Excl.t _)) -> option val -> Prop :=
-  | sim_loc_present v: sim_loc (Some v) (Some v)
-  | sim_loc_absent: sim_loc ε None
-  .
-  Hint Constructors sim_loc: core.
-
-  Let W: Type := Any.t * Any.t.
-  (* Let wf: W -> Prop := *)
-  (*   @mk_wf *)
-  (*     _ *)
-  (*     Mem.t *)
-  (*     (fun mem_tgt _ mp_tgt => (∃ mem_src, (OwnM ((Auth.black mem_src): URA.car (t:=Mem1.memRA))) *)
-  (*                                            ** *)
-  (*                                            (⌜forall b ofs, sim_loc ((mem_tgt.(Mem.cnts)) b ofs) (mem_src b ofs)⌝) *)
-  (*                                            ** *)
-  (*                                            (⌜mp_tgt = mem_tgt↑ /\ forall b ofs v, mem_tgt.(Mem.cnts) b ofs = Some v -> <<NB: b < mem_tgt.(Mem.nb)>>⌝) *)
-  (*                              )%I) *)
-  (*     top4 *)
-  (* . *)
-
-  Definition mem_wf (m0: Mem.t): Prop :=
-    forall b ofs v, m0.(Mem.cnts) b ofs = Some v -> <<NB: b < m0.(Mem.nb)>>
+  Inductive sim_cnt: URA.car (t:=(Consent.t _)) -> memval -> option permission -> Prop :=
+  | sim_freeable mv: sim_cnt (Consent.just 1 mv) mv (Some Freeable)
+  | sim_writable mv: sim_cnt (Consent.just 1 mv) mv (Some Writable)
+  | sim_readable q mv (LESS: (q < 1)%Qnn): sim_cnt (Consent.just q mv) mv (Some Readable)
+  | sim_nonempty mv : sim_cnt (Consent.just 0 mv) mv (Some Nonempty)
+  | sim_empty mv : sim_cnt ε mv None
   .
 
-  Let wf: _ -> W -> Prop :=
-    @mk_wf
-      _ unit
+  Inductive sim_header: URA.car (t:=(Excl.t _)) -> Maps.ZMap.t memval -> (Z -> perm_kind -> option permission) -> Prop :=
+  | sim_header_malloced cnt perm sz 
+      (CNT: Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt =  inj_bytes (encode_int (size_chunk_nat Mptr) sz))
+      (PERM: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = Some Freeable)
+      : sim_header (Some sz) cnt perm
+  | sim_header_not cnt perm (PERM: forall ofs, perm ofs Cur = None) : sim_header ε cnt perm
+  .
+
+  Hint Constructors sim_cnt: core.
+  Hint Constructors sim_header: core.
+
+  Let world := unit.
+
+  (* iprop -> (if rsc is wf, iprop rsc) *)
+  Let wf: world -> Any.t * Any.t -> Prop :=
+    mk_wf
       (fun _ _ _mem_tgt0 =>
-         (∃ (mem_tgt0: Mem.t) (memk_src0: URA.car (t:=Mem1._memRA)),
-             (⌜(<<TGT: _mem_tgt0 = mem_tgt0↑>>) /\
-              (<<SIM: forall b ofs, sim_loc (memk_src0 b ofs) (mem_tgt0.(Mem.cnts) b ofs)>>) /\
-              (<<WFTGT: mem_wf mem_tgt0>>)⌝) ∧ (*** TODO: put it inside Mem.t? ***)
-             (OwnM ((Auth.black memk_src0): URA.car (t:=Mem1.memRA)))
+         (∃ (mem_tgt0: Mem.mem) (memcnt_src0: URA.car (t:=ClightlightMem1._memcntRA)) (memsz_src0: URA.car (t:=ClightlightMem1._memszRA)),
+             ⌜(<<TGT: _mem_tgt0 = mem_tgt0↑>>) /\
+              (<<SIM_CNT: forall b ofs, 0 <= ofs -> sim_cnt (memcnt_src0 b ofs) (Maps.ZMap.get ofs (Maps.PMap.get b mem_tgt0.(Mem.mem_contents))) ((Maps.PMap.get b mem_tgt0.(Mem.mem_access)) ofs Cur)>>) /\
+              (<<SIM_HD: forall b, sim_header (memsz_src0 b) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)) (Maps.PMap.get b mem_tgt0.(Mem.mem_access))>>)⌝
+             ** OwnM ((Auth.black memcnt_src0): URA.car (t:=memcntRA))
+             ** OwnM ((Auth.black memsz_src0): URA.car (t:=memszRA))
          )%I)
   .
 
@@ -151,7 +135,7 @@ Section SIMMODSEM.
 
   Opaque URA.unit.
 
-  Ltac renamer :=
+  (* Ltac renamer :=
     let tmp := fresh "_tmp_" in
 
     match goal with
@@ -171,11 +155,22 @@ Section SIMMODSEM.
                end
              end
     end
-  .
+  . *)
+
+End SIMMODSEM.
+
+Section PROOF.
+
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memszRA Σ}.
 
   Variable csl: gname -> bool.
 
-  Theorem correct_modsem: forall sk, ModSemPair.sim (SModSem.to_tgt (to_stb [])
+  Theorem correct_mod: ModPair.sim ClightlightMem1.Mem ClightlightMem0.Mem.
+  Proof.
+  Admitted.
+
+  (* Theorem correct_modsem: forall sk, ModSemPair.sim (SModSem.to_tgt (to_stb [])
                                            (Mem1.SMemSem (negb ∘ csl) sk)) (Mem0.MemSem csl sk).
   Proof.
    econstructor 1 with (wf:=wf) (le:=top2); et; swap 2 3.
@@ -456,11 +451,11 @@ Section SIMMODSEM.
     }
   Unshelve.
     all: ss. all: try exact 0.
-  Qed.
+  Qed. *)
 
-  Theorem correct: refines2 [Mem0.Mem csl] [Mem1.Mem (negb ∘ csl)].
+  Theorem correct: refines2 [ClightlightMem0.Mem] [ClightlightMem1.Mem].
   Proof.
-    eapply adequacy_local2. econs; ss; et. i. eapply correct_modsem.
+    eapply adequacy_local2. eapply correct_mod.
   Qed.
 
-End SIMMODSEM. *)
+End PROOF.

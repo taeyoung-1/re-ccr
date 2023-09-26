@@ -971,6 +971,13 @@ Section Qnn.
       | QP q1', QP q2' => q1' ≤ q2'
       end.
 
+  Definition Qnn_lt := 
+    fun q1 q2 =>
+      match q1, q2 with
+      | Q0, _ => True | QP _, Q0 => False
+      | QP q1', QP q2' => q1' < q2'
+      end.
+
 
 End Qnn.
 
@@ -982,6 +989,7 @@ Notation " 0 " := Q0 : Qnn_scope.
 Notation " 1 " := (QP 1) : Qnn_scope.
 Notation "q1 + q2" := (Qnn_add q1 q2) : Qnn_scope.
 Notation "q1 ≤ q2" := (Qnn_le q1 q2) : Qnn_scope.
+Notation "q1 < q2" := (Qnn_lt q1 q2) : Qnn_scope.
 Notation "q1 ≤ q2 ≤ q3" := (q1 ≤ q2 /\ q2 ≤ q3) : Qnn_scope.
 
 Module Consent.
@@ -991,6 +999,7 @@ Local Obligation Tactic := i; unseal "ra"; ss; des_ifs_safe.
 
 Local Arguments Qnn_add /.
 Local Arguments Qnn_le /.
+Local Arguments Qnn_lt /.
 
 Local Open Scope Qnn.
 
