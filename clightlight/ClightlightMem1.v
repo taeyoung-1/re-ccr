@@ -8,11 +8,11 @@ Require Import PCM.
 Require Import HoareDef STB.
 Require Import ProofMode.
 Require Import Any.
-From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
+From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.
 
-Let _memcntRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
+Let _memcntRA: URA.t := (block ==> Z ==> (Excl.t (permission * permission * memval)))%ra.
 Let _memszRA: URA.t := (block ==> (Excl.t Z))%ra.
 
 Compute (URA.car (t:=_memcntRA)).
@@ -26,11 +26,11 @@ Section POINTSTO.
 
   Local Open Scope Z.
 
-  Definition __points_to (b: block) (ofs: Z) (q: Qnn) (mvs: list memval): _memcntRA :=
-    (fun _b _ofs => if (dec _b b) && ((ofs <=? _ofs) && (_ofs <? (ofs + Z.of_nat (List.length mvs))))
+  Definition __points_to (b: block) (ofs: Z) (p_cur: permission) (p_max: permission) (mvs: list memval): _memcntRA :=
+    (fun _b _ofs => if (dec _b b) && ((Coqlib.zle ofs _ofs) && (Coqlib.zlt _ofs (ofs + Z.of_nat (List.length mvs))))
                     then 
                       match List.nth_error mvs (Z.to_nat (_ofs - ofs)) with
-                      | Some mv => Consent.just q mv
+                      | Some mv => Some (p_cur, p_max, mv)
                       | None => ε
                       end
                     else ε)
@@ -44,12 +44,12 @@ Section POINTSTO.
   .
   Proof. refl. Qed. *)
 
-  Definition _points_to (b: block) (ofs: Z) (q: Qnn) (mvs: list memval): memcntRA := Auth.white (__points_to b ofs q mvs).
+  Definition _points_to (b: block) (ofs: Z) (p_cur: permission) (p_max: permission) (mvs: list memval): memcntRA := Auth.white (__points_to b ofs p_cur p_max mvs).
 
   Lemma _points_to_split_aux
-        blk ofs hd tl q
+        blk ofs hd tl p_cur p_max
     :
-      (_points_to blk ofs q (hd :: tl)) = (_points_to blk ofs q [hd]) ⋅ (_points_to blk (ofs + 1)%Z q tl)
+      (_points_to blk ofs p_cur p_max (hd :: tl)) = (_points_to blk ofs p_cur p_max [hd]) ⋅ (_points_to blk (ofs + 1)%Z p_cur p_max tl)
   .
   Proof.
     ss. unfold _points_to, Auth.white. repeat (rewrite URA.unfold_add; ss).
@@ -79,21 +79,20 @@ Section POINTSTO.
       rewrite Z.sub_add_distr in *. rewrite Z2Nat.inj_sub in Heq4; ss. rewrite T in *. ss. rewrite Nat.sub_0_r in *. ss. clarify.
   Qed.
 
-  Lemma __points_to_nil : forall blk ofs q _b _ofs, __points_to blk ofs q [] _b _ofs = ε.
+  Lemma __points_to_nil : forall blk ofs p_cur p_max _b _ofs, __points_to blk ofs p_cur p_max [] _b _ofs = ε.
   Proof.
-    intros. unfold __points_to. ss. destruct ((ofs <=? _ofs) && (_ofs <? ofs + 0)) eqn : E; try nia.
-    bsimpl. auto.
+    intros. unfold __points_to. ss. des_ifs. destruct (Z.to_nat _) in Heq0; ss. 
   Qed.
 
-  Lemma points_to_nil : forall blk ofs q, _points_to blk ofs q [] = ε.
+  Lemma points_to_nil : forall blk ofs p_cur p_max, _points_to blk ofs p_cur p_max [] = ε.
   Proof.
     intros. ss. unfold _points_to, Auth.white.
     change (memcntRA.(URA.unit)) with (Auth.frag (_memcntRA.(URA.unit))). f_equal. ss.
     repeat (apply func_ext; i). apply __points_to_nil.
   Qed.
 
-  Lemma _points_to_app l l' q blk ofs:
-    (_points_to blk ofs q (l++l')) = (_points_to blk ofs q l) ⋅ (_points_to blk (ofs + length l) q l').
+  Lemma _points_to_app l l' p_cur p_max blk ofs:
+    (_points_to blk ofs p_cur p_max (l++l')) = (_points_to blk ofs p_cur p_max l) ⋅ (_points_to blk (ofs + length l) p_cur p_max l').
   Proof.
     revert l' blk ofs. induction l;i;ss.
     - rewrite points_to_nil. rewrite URA.unit_idl. rewrite Z.add_0_r. auto.
@@ -104,9 +103,9 @@ Section POINTSTO.
   Qed.
 
   Lemma _points_to_split :
-    forall (blk : Values.block) (ofs : Z) (q: Qnn) (n : nat) (l : list memval),
-      _points_to blk ofs q l =
-        _points_to blk ofs q (firstn n l) ⋅ _points_to blk (ofs + (length (firstn n l))) q (skipn n l).
+    forall (blk : Values.block) (ofs : Z) (p_cur: permission) (p_max: permission) (n : nat) (l : list memval),
+      _points_to blk ofs p_cur p_max l =
+        _points_to blk ofs p_cur p_max (firstn n l) ⋅ _points_to blk (ofs + (length (firstn n l))) p_cur p_max (skipn n l).
   Proof.
     intros. set l as k at 2 3 4. rewrite <- (firstn_skipn n l). unfold k. clear k.
     rewrite _points_to_app. auto.
@@ -148,13 +147,13 @@ Section PROP.
     else 8
   .
 
-  Definition points_to addr q mvs : iProp :=
+  Definition points_to addr p_cur p_max mvs : iProp :=
     match addr with
     | Vptr b ofs =>
           let ofs' := Ptrofs.unsigned ofs in
           let align := size_rule (Z.to_nat (length mvs)) in
-          OwnM (_points_to b ofs' q mvs)
-          ** ⌜(align | ofs')⌝
+          OwnM (_points_to b ofs' p_cur p_max mvs)
+          ** ⌜(align | ofs') /\ perm_order p_cur p_max⌝
     | _ => ⌜False⌝%I 
     end.
 
@@ -163,7 +162,7 @@ Section PROP.
     | Vptr b ofs =>
           let ofs' := Ptrofs.unsigned ofs in
           let align := size_rule (Z.to_nat sz) in
-          OwnM (_points_to b ofs' 1 mvs) ** OwnM (_sz_of b sz)
+          OwnM (_points_to b ofs' Freeable Freeable mvs) ** OwnM (_sz_of b sz)
           ** ⌜(align | ofs')⌝
     | _ => ⌜False⌝%I 
     end.
@@ -221,7 +220,7 @@ Section PROP.
 
 End PROP.
 
-Notation "addr ↦ ( q , mvs )" := (points_to addr q mvs) (at level 20).
+Notation "addr ↦ ( p_cur , p_max , mvs )" := (points_to addr p_cur p_max mvs) (at level 20).
 Notation "addr #↦ vs ⋯ sz" := (mpoints_to addr sz vs) (at level 10).
 
 Section AUX.
@@ -291,32 +290,25 @@ Section AUX.
         ⌜ll = Vptr b ofs⌝ ** (b, Ptrofs.intval ofs) |-> (encode_list chunk xs))%I. *)
 End AUX.
 
-Definition wordsize_64 := 64%nat.
-Definition modulus_64 := two_power_nat wordsize_64.
-Definition modulus_64_half := (modulus_64 / 2)%Z.
-Definition max_64 := (modulus_64_half - 1)%Z.
-Definition min_64 := (- modulus_64_half)%Z.
-
-(* Definition intrange_64 : Z -> Prop := fun z => (min_64 <= z <= max_64)%Z. *)
-(* Definition modrange_64 : Z -> Prop := fun z => (- 1 < z < modulus_64)%Z. *)
-Definition intrange_64 : Z -> bool := fun z => (Z_le_gt_dec min_64 z) && (Z_le_gt_dec z max_64).
-Definition modrange_64 : Z -> bool := fun z => (Z_le_gt_dec 0 z) && (Z_lt_ge_dec z modulus_64).
-
-
-Ltac unfold_intrange_64 := unfold intrange_64, min_64, max_64 in *; unfold modulus_64_half, modulus_64, wordsize_64 in *.
-Ltac unfold_modrange_64 := unfold modrange_64, modulus_64, wordsize_64 in *.
-
-Section SPEC.
+Section SMODSEM.
 
   Context `{@GRA.inG memcntRA Σ}.
   Context `{@GRA.inG memszRA Σ}.
+
+  Variable sk: Sk.t.
+  Let skenv: SkEnv.t := Sk.load_skenv sk.
+
+Section SPECBODY.
+
+Section SPEC.
+
   
   Definition salloc_spec: fspec :=
     (mk_simple (fun sz => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = sz↑⌝),
                     (fun vret => ∃ b addr, ⌜vret = b↑⌝
-                                 ** addr ↦ (1, List.repeat Undef (Z.to_nat sz))
+                                 ** addr ↦ (Freeable, Freeable, List.repeat Undef (Z.to_nat sz))
                                  ** has_addr addr b 0)
     )))%I.
 
@@ -324,42 +316,44 @@ Section SPEC.
     (mk_simple (fun '() => (
                    (ord_pure 0%nat),
                    (fun varg => ∃ mvl addr b sz, ⌜varg = (b, sz)↑ /\ Z.of_nat (List.length mvl) = sz⌝
-                                ** addr ↦ (1, mvl)
+                                ** addr ↦ (Freeable, Freeable, mvl)
                                 ** has_addr addr b 0),
                    (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
   Definition load_spec: fspec :=
-    (mk_simple (fun '(chunk, addr, q, l) => (
+    (mk_simple (fun '(chunk, addr, p_cur, p_max, l) => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = (chunk, addr)↑ /\ (0 ≤ q)%Qnn ⌝ ** addr ↦ (q, l)),
-                    (fun vret => ∃ v, ⌜vret = v↑ /\ decode_val chunk l = v⌝ ** addr ↦ (q, l))
+                    (fun varg => ⌜varg = (chunk, addr)↑ /\ perm_order Readable p_cur⌝ ** addr ↦ (p_cur, p_max, l)),
+                    (fun vret => ∃ v, ⌜vret = v↑ /\ decode_val chunk l = v⌝ ** addr ↦ (p_cur, p_max, l))
     )))%I.
 
   Definition loadbytes_spec: fspec :=
-    (mk_simple (fun '(addr, q, n, l) => (
+    (mk_simple (fun '(addr, p_cur, p_max, n, l) => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = (addr, n)↑ /\ Z.of_nat (List.length l) = n /\ (0 ≤ q)%Qnn⌝ ** addr ↦ (q, l)),
-                    (fun vret => ⌜vret = l↑⌝ ** addr ↦ (q, l))
+                    (fun varg => ⌜varg = (addr, n)↑ /\ Z.of_nat (List.length l) = n /\ perm_order Readable p_cur⌝ 
+                                 ** addr ↦ (p_cur, p_max, l)),
+                    (fun vret => ⌜vret = l↑⌝ ** addr ↦ (p_cur, p_max, l))
     ))).
 
   Definition store_spec: fspec :=
     (mk_simple
-       (fun '(chunk, addr, v_new) => (
+       (fun '(chunk, addr, p_cur, p_max, v_new) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ l_old, ⌜varg = (chunk, addr, v_new)↑ /\ List.length l_old = size_chunk_nat chunk⌝
-                         ** addr ↦ (1, l_old)),
+            (fun varg => ∃ l_old, ⌜varg = (chunk, addr, v_new)↑ /\ List.length l_old = size_chunk_nat chunk 
+                         /\ perm_order Writable p_cur⌝
+                         ** addr ↦ (p_cur, p_max, l_old)),
             (fun vret => ∃ l_new, ⌜vret = tt↑ /\ encode_val chunk v_new = l_new⌝
-                         ** addr ↦ (1, l_new))
+                         ** addr ↦ (p_cur, p_max, l_new))
     )))%I.
 
   Definition storebytes_spec: fspec :=
     (mk_simple
-       (fun '(addr, l_new) => (
+       (fun '(addr, p_cur, p_max, l_new) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ l_old, ⌜varg = (addr, l_new)↑ /\ List.length l_old = List.length l_new⌝
-                         ** addr ↦ (1, l_old)),
-            (fun vret => ⌜vret = tt↑⌝ ** addr ↦ (1, l_new))
+            (fun varg => ∃ l_old, ⌜varg = (addr, l_new)↑ /\ List.length l_old = List.length l_new /\ perm_order p_cur Writable⌝
+                         ** addr ↦ (p_cur, p_max, l_old)),
+            (fun vret => ⌜vret = tt↑⌝ ** addr ↦ (p_cur, p_max, l_new))
     )))%I.
 
   Definition valid_pointer_spec: fspec :=
@@ -367,8 +361,8 @@ Section SPEC.
        (fun '(result, iprop) => (
             (ord_pure 0%nat),
             (fun varg =>
-            ((∃ addr q mvl, ⌜varg = addr↑ /\ iprop = (addr ↦ (q, mvl)) /\ result = true⌝) ∨
-                (∃ addr q mvl, ⌜varg = addr↑ /\ iprop <> (addr ↦ (q, mvl)) /\ result = false⌝))
+            ((∃ addr p_cur p_max mvl, ⌜varg = addr↑ /\ iprop = (addr ↦ (p_cur, p_max, mvl)) /\ result = true⌝) ∨
+                (∃ addr p_cur p_max mvl, ⌜varg = addr↑ /\ iprop <> (addr ↦ (p_cur, p_max, mvl)) /\ result = false⌝))
                 ** iprop),
             (fun vret => ⌜vret = result↑⌝ ** iprop)%I
     )))%I.
@@ -392,7 +386,7 @@ Section SPEC.
                     (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
-  
+  (* sealed *)
   Definition MemStb: list (gname * fspec).
     eapply (Seal.sealing "stb").
     apply [("salloc", salloc_spec); ("sfree", sfree_spec); 
@@ -402,6 +396,11 @@ Section SPEC.
            ("malloc", malloc_spec); ("mfree", mfree_spec)
            ].
     Defined.
+
+End SPEC.
+
+Section BODY.
+End BODY.
 
   Definition MemSbtb: list (gname * fspecbody) :=
     [("salloc", mk_specbody salloc_spec (fun _ => trigger (Choose _)));
@@ -415,107 +414,95 @@ Section SPEC.
     ("mfree",   mk_specbody mfree_spec (fun _ => trigger (Choose _)))
     ]
   .
-End SPEC.
 
-Section MOD.
+End SPECBODY.
 
-  Context `{@GRA.inG memcntRA Σ}.
-  Context `{@GRA.inG memszRA Σ}.
-
-  Section MODSEM.
-  Variable sk: Sk.t.
-  Let skenv: SkEnv.t := Sk.load_skenv sk.
+Section MRS.
 
   (* have to make predicate, need to restrict alignment. *)
-  Definition store_init_data (res : Σ) (b : block) (p : Z) (q: Qnn) (id : init_data) :=
+  Definition store_init_data (res : _memcntRA) (b : block) (p : Z) (perm : permission) (id : init_data) :=
     match id with
     | Init_int8 n => 
-      if Zdivide_dec 1 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint8unsigned (Vint n)))) ⋅ res )
+      if Zdivide_dec 1 p then Some (__points_to b p perm perm (encode_val Mint8unsigned (Vint n)) ⋅ res)
       else None
     | Init_int16 n =>
-      if Zdivide_dec 2 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint16unsigned (Vint n)))) ⋅ res )
+      if Zdivide_dec 2 p then Some (__points_to b p perm perm (encode_val Mint16unsigned (Vint n)) ⋅ res )
       else None
     | Init_int32 n =>
-      if Zdivide_dec 4 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vint n)))) ⋅ res)
+      if Zdivide_dec 4 p then Some (__points_to b p perm perm (encode_val Mint32 (Vint n)) ⋅ res)
       else None
     | Init_int64 n =>
-      if Zdivide_dec 8 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mint32 (Vlong n)))) ⋅ res)
+      if Zdivide_dec 8 p then Some (__points_to b p perm perm (encode_val Mint64 (Vlong n)) ⋅ res)
       else None
     | Init_float32 n =>
-      if Zdivide_dec 4 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat32 (Vsingle n)))) ⋅ res)
+      if Zdivide_dec 4 p then Some (__points_to b p perm perm (encode_val Mfloat32 (Vsingle n)) ⋅ res)
       else None
     | Init_float64 n =>
-      if Zdivide_dec 8 p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mfloat64 (Vfloat n)))) ⋅ res)
+      if Zdivide_dec 8 p then Some (__points_to b p perm perm (encode_val Mfloat64 (Vfloat n)) ⋅ res)
       else None
-    | Init_space _ => Some res
+    | Init_space z => Some (__points_to b p perm perm (repeat (Byte Byte.zero) (Z.to_nat z))  ⋅ res)
     | Init_addrof symb ofs =>
         match SkEnv.id2blk skenv (string_of_ident symb) with
         | Some b' =>
-          if Zdivide_dec (if Archi.ptr64 then 8 else 4) p then Some (GRA.embed (Auth.black (__points_to b p q (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs)))) ⋅ res)
+          if Zdivide_dec (if Archi.ptr64 then 8 else 4) p then Some (__points_to b p perm perm (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs)) ⋅ res)
           else None
         | None => None
         end
     end.
 
-  Fixpoint store_init_data_list (res : Σ) (b : block) (p : Z) (q: Qnn) (idl : list init_data) {struct idl} : Σ :=
+  Fixpoint store_init_data_list (res : _memcntRA) (b : block) (p : Z) (perm: permission) (idl : list init_data) {struct idl} : option _memcntRA :=
     match idl with
-    | [] => res
+    | [] => Some res
     | id :: idl' =>
-        match store_init_data res b p q id with
-        | Some res' => store_init_data_list res' b (p + init_data_size id)%Z q idl'
-        | None => GRA.embed (Auth.black _memcntRA.(URA.unit))
+        match store_init_data res b p perm id with
+        | Some res' => store_init_data_list res' b (p + init_data_size id)%Z perm idl'
+        | None => None
         end
     end.
   
 
-  Program Definition qread : Qp := 
-    {| Qp_to_Qc := {|Qcanon.this := {| QArith_base.Qnum := 1; QArith_base.Qden := 10 |}|}|}.
-  Next Obligation. ss. Qed.
-
-  Theorem qread_less: (qread < 1)%Qp.
-  Proof. ss. Qed.
-
-  Global Opaque qread. 
-
-  Definition alloc_global (res : Σ) (b: block) (entry : string * Any.t) :=
+  Definition alloc_global (res : _memcntRA) (b: block) (entry : string * Any.t) :=
     let (_, agd) := entry in
     match Any.downcast agd : option (globdef Clight.fundef type) with
     | Some g => 
       match g with
-      | Gfun _ => GRA.embed (Auth.black (__points_to b 0 0 [Undef])) ⋅ res
-      | Gvar v =>
-        let init := gvar_init v in
-        let q : Qnn := match Globalenvs.Genv.perm_globvar v with
-                      | Freeable | Writable => 1%Qnn
-                      | Readable => QP qread
-                      | Nonempty => 0%Qnn
-                      end
-        in
-        store_init_data_list res b 0 q init
+      | Gfun _ => Some (__points_to b 0 Nonempty Nonempty [Undef] ⋅ res)
+      | Gvar v => store_init_data_list res b 0 (Globalenvs.Genv.perm_globvar v) (gvar_init v)
       end
-    | None => GRA.embed (Auth.black _memcntRA.(URA.unit))
+    | None => None
     end.
 
-  Fixpoint alloc_globals (res: Σ) (b: block) (sk: list (string * Any.t)) : Σ :=
+  Fixpoint alloc_globals (res: _memcntRA) (b: block) (sk: list (string * Any.t)) : _memcntRA :=
   match sk with
   | nil => res
-  | g :: gl' => alloc_globals (alloc_global res b g) (Pos.succ b) gl'
+  | g :: gl' => 
+    match alloc_global res b g with
+    | Some res' => alloc_globals res' (Pos.succ b) gl'
+    | None => ε
+    end
   end.
 
-  Definition load_mem := alloc_globals (GRA.embed (Auth.black _memcntRA.(URA.unit))) xH sk.
+  Definition load_mem := alloc_globals ε xH sk.
+
+  End MRS.
 
   Definition SMemSem : SModSem.t := {|
     SModSem.fnsems := MemSbtb;
     SModSem.mn := "Mem";
-    SModSem.initial_mr := load_mem ⋅ (GRA.embed (Auth.black _memszRA.(URA.unit)));
+    SModSem.initial_mr := GRA.embed (Auth.black load_mem) ⋅ GRA.embed (Auth.black _memszRA.(URA.unit));
     SModSem.initial_st := tt↑;
   |}
   .
-  End MODSEM.
+  End SMODSEM.
+
+Section MOD.
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memszRA Σ}.
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
-    SMod.sk := Sk.unit;
+    SMod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
+               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
   |}
   .
 

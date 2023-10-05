@@ -15,13 +15,15 @@ From compcert Require Import
 
 Set Implicit Arguments.
 
-Section PROOF.
+
+Section MODSEM.
+  Variable sk: Sk.t.
+  Let skenv: SkEnv.t := Sk.load_skenv sk.
 
   Section BODY.
-    Context {Es: Type -> Type}.
     Context `{has_pE: pE -< Es}.
     Context `{has_eventE: eventE -< Es}.
-    Context {has_callE: callE -< Es}.
+    Context `{has_callE: callE -< Es}.
 
     (* stack allocation of memory *)
     Definition sallocF: Z -> itree Es val :=
@@ -184,8 +186,7 @@ Section PROOF.
     
   End BODY.
 
-  Variable sk: Sk.t.
-  Let skenv: SkEnv.t := Sk.load_skenv sk.
+  Section STATE.
 
   Definition store_init_data (m : mem) (b : block) (p : Z) (id : init_data) :=
     match id with
@@ -236,42 +237,39 @@ Section PROOF.
     | None => None
     end.
 
-  Fixpoint alloc_globals (m: mem) (sk: list (string * Any.t)) : option mem :=
+  Fixpoint alloc_globals (m: mem) (sk: list (string * Any.t)) : mem :=
   match sk with
-  | nil => Some m
+  | nil => m
   | g :: gl' =>
       match alloc_global m g with
-      | None => None
+      | None => Mem.empty
       | Some m' => alloc_globals m' gl'
       end
   end.
 
-  Definition load_mem :=
-    match alloc_globals Mem.empty sk with
-    | Some m => m
-    | None => Mem.empty (* dummy *)
-    end.
+  Definition load_mem := alloc_globals Mem.empty sk.
   
+  End STATE.
+
   Definition MemSem : ModSem.t :=
     {|
       ModSem.fnsems := [("salloc", cfunU sallocF); ("sfree", cfunU sfreeF);
                         ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
                         ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
-                        ("malloc", cfunU mallocF); ("free", cfunU freeF); 
-                       (*  ("realloc", cfunU reallocF); *)
-                        ("valid_pointer", cfunU valid_pointerF)];
+                        ("valid_pointer", cfunU valid_pointerF);
+                        ("malloc", cfunU mallocF); ("free", cfunU freeF)];
       ModSem.mn := "Mem";
       ModSem.initial_st := (load_mem)↑;
     |}
   .
-  
-End PROOF.
+
+End MODSEM.
 
 Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
     Mod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
                ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
-(*                ("realloc", (Cgfun (Tfunction (Tcons (tptr tvoid) (Tcons size_t Tnil)) (tptr tvoid) cc_default))↑)] *)
   |}
 .
+
