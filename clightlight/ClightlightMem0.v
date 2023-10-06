@@ -257,7 +257,7 @@ Section MODSEM.
                         ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
                         ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
                         ("valid_pointer", cfunU valid_pointerF);
-                        ("malloc", cfunU mallocF); ("free", cfunU freeF)];
+                        ("malloc", cfunU mallocF); ("mfree", cfunU freeF)];
       ModSem.mn := "Mem";
       ModSem.initial_st := (load_mem)↑;
     |}
