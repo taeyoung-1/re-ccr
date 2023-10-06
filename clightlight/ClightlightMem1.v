@@ -438,7 +438,7 @@ Section MRS.
       if Zdivide_dec 4 p then Some (__points_to b p perm perm (encode_val Mfloat32 (Vsingle n)) ⋅ res)
       else None
     | Init_float64 n =>
-      if Zdivide_dec 8 p then Some (__points_to b p perm perm (encode_val Mfloat64 (Vfloat n)) ⋅ res)
+      if Zdivide_dec 4 p then Some (__points_to b p perm perm (encode_val Mfloat64 (Vfloat n)) ⋅ res)
       else None
     | Init_space z => Some (__points_to b p perm perm (repeat (Byte Byte.zero) (Z.to_nat z))  ⋅ res)
     | Init_addrof symb ofs =>
