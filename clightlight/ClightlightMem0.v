@@ -115,7 +115,7 @@ Section MODSEM.
         Ret (Vptr b Ptrofs.zero)
     .
 
-    Definition freeF: list val -> itree Es val :=
+    Definition mfreeF: list val -> itree Es val :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
@@ -257,7 +257,7 @@ Section MODSEM.
                         ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
                         ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
                         ("valid_pointer", cfunU valid_pointerF);
-                        ("malloc", cfunU mallocF); ("mfree", cfunU freeF)];
+                        ("malloc", cfunU mallocF); ("mfree", cfunU mfreeF)];
       ModSem.mn := "Mem";
       ModSem.initial_st := (load_mem)↑;
     |}
