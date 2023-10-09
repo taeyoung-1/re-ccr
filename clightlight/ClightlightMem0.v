@@ -26,13 +26,13 @@ Section MODSEM.
     Context `{has_callE: callE -< Es}.
 
     (* stack allocation of memory *)
-    Definition sallocF: Z -> itree Es val :=
+    Definition sallocF: Z -> itree Es block :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
         let (m1, blk) := Mem.alloc m0 0%Z varg in
         trigger (PPut m1↑);;;
-        Ret (Vptr blk Ptrofs.zero).
+        Ret blk.
 
     Definition sfreeF: block * Z -> itree Es unit :=
       fun varg =>
