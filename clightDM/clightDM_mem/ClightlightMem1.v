@@ -351,7 +351,7 @@ Section SPEC.
             (fun vret => ⌜vret = tt↑⌝ ** vaddr |_1#> mvs_new)
     )))%I.
 
-  Definition cmp_ptr_spec: fspec :=
+  (* Definition cmp_ptr_spec: fspec :=
     (mk_simple
        (fun '(b, ofs, resource, sz) => (
             (ord_pure 0%nat),
@@ -360,7 +360,7 @@ Section SPEC.
                          ** OwnM (Auth.white resource)),
             (fun vret => ⌜vret = (is_valid sz ofs)↑⌝ 
                          ** OwnM (Auth.white resource))%I
-    )))%I.
+    )))%I. *)
   
   Definition sub_ptr_spec: fspec :=
     (mk_simple
@@ -378,12 +378,13 @@ Section SPEC.
 
   Definition weak_valid_pointer_spec: fspec :=
     (mk_simple
-       (fun '(b, ofs, resource, sz) => (
+       (fun '(ofs, resource, sz) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr blk, ⌜varg = vaddr↑ /\ resource b = Excl.just (sz, blk)⌝
+            (fun varg => ∃ vaddr b bk, ⌜varg = vaddr↑⌝
                          ** has_ofs vaddr b ofs
-                         ** OwnM (Auth.white resource)),
-            (fun vret => ⌜vret = (is_valid sz ofs)↑⌝ 
+                         ** OwnM (Auth.white resource)
+                         ** ⌜resource b = Excl.just (sz, bk)⌝),
+            (fun vret => ⌜vret = (is_weak_valid sz ofs)↑⌝ 
                          ** OwnM (Auth.white resource))%I
     )))%I.
 
