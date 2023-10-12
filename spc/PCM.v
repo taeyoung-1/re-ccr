@@ -950,63 +950,21 @@ Proof. ur in WF. des; ss. Qed.
 End AUTH.
 End Auth.
 
-Section Qnn.
-  From stdpp Require Import numbers.
-
-  Local Open Scope Qp.
-
-  Inductive Qnn : Type :=  Q0 | QP (q: Qp).
-
-  Definition Qnn_add := 
-    fun q1 q2 =>
-      match q1, q2 with
-      | Q0, _ => q2 | _, Q0 => q1
-      | QP q1', QP q2' => QP (q1' + q2')
-      end.
-
-  Definition Qnn_le := 
-    fun q1 q2 =>
-      match q1, q2 with
-      | Q0, _ => True | QP _, Q0 => False
-      | QP q1', QP q2' => q1' ≤ q2'
-      end.
-
-  Definition Qnn_lt := 
-    fun q1 q2 =>
-      match q1, q2 with
-      | Q0, _ => True | QP _, Q0 => False
-      | QP q1', QP q2' => q1' < q2'
-      end.
-
-
-End Qnn.
-
-Declare Scope Qnn_scope.
-Delimit Scope Qnn_scope with Qnn.
-Bind Scope Qnn_scope with Qnn.
-
-Notation " 0 " := Q0 : Qnn_scope.
-Notation " 1 " := (QP 1) : Qnn_scope.
-Notation "q1 + q2" := (Qnn_add q1 q2) : Qnn_scope.
-Notation "q1 ≤ q2" := (Qnn_le q1 q2) : Qnn_scope.
-Notation "q1 < q2" := (Qnn_lt q1 q2) : Qnn_scope.
-Notation "q1 ≤ q2 ≤ q3" := (q1 ≤ q2 /\ q2 ≤ q3) : Qnn_scope.
+From stdpp Require numbers.
 
 Module Consent.
+Import numbers.
+
 Section CONSENT.
 
 Local Obligation Tactic := i; unseal "ra"; ss; des_ifs_safe.
 
-Local Arguments Qnn_add /.
-Local Arguments Qnn_le /.
-Local Arguments Qnn_lt /.
-
-Local Open Scope Qnn.
-
 Context {X: Type}.
 
+Local Open Scope Qp.
+
 Inductive car: Type :=
-| just (q: Qnn) (x: X)
+| just (q: Qp) (x: X)
 | unit
 | boom
 .
@@ -1038,7 +996,7 @@ Program Instance t: URA.t := {
 Next Obligation. unfold _wf, _add in *. des_ifs. rewrite Qp_add_comm. et. Qed.
 Next Obligation. unfold _wf, _add in *. des_ifs. rewrite Qp_add_assoc. et. Qed.
 Next Obligation. unfold _wf, _add in *. des_ifs. Qed.
-Next Obligation. unfold _wf, _add in *. des_ifs. des. transitivity (q0 + q2)%Qp; et. eapply Qp_le_add_l. Qed.
+Next Obligation. unfold _wf, _add in *. des_ifs. transitivity (q + q1); et. eapply Qp_le_add_l. Qed.
 Next Obligation. des_ifs. Qed.
 Next Obligation. exists unit. auto. Qed.
 
@@ -1050,8 +1008,7 @@ Theorem updatable
 .
 Proof.
   rr. unfold URA.wf, URA.add in *. unseal "ra". ss. ii. des_ifs; ss; etrans; et.
-  - etrans; [|et]. apply Qp_le_add_r.
-  - etrans; [|et]. apply Qp_add_le_mono_r. et.
+  etrans; [|et]. apply Qp_add_le_mono_r. et.
 Qed.
 
 Theorem extends
@@ -1063,9 +1020,7 @@ Theorem extends
 .
 Proof.
   rr. rr in EXT. des; subst. unfold URA.wf, URA.add in *. unseal "ra". ss. des_ifs; ss; et.
-  - esplits;[|et]. ss.
-  - esplits;[|et]. apply Qp_le_add_l.
-  - esplits;[|et]. ss.
+  esplits;[|et]. apply Qp_le_add_l.
 Qed.
 
 (* Theorem wf
