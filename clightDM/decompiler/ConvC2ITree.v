@@ -205,11 +205,6 @@ Section EVAL_EXPR_COMP.
 
   End EVAL_LVALUE.
 
-  Definition weak_valid_pointer_c (b: block) (ofs: Z): itree eff bool:=
-    b1 <- ccallU "valid_pointer" (b, ofs);;
-    b2 <- ccallU "valid_pointer" (b, (ofs - 1)%Z);;
-    Ret (b1 || b2).
-  
   Definition bool_val_c v ty: itree eff (option bool) :=
     match Cop.classify_bool ty with
     | Cop.bool_case_i =>
@@ -219,7 +214,7 @@ Section EVAL_EXPR_COMP.
         if Archi.ptr64
         then Ret None
         else
-          ret <- weak_valid_pointer_c b (Ptrofs.unsigned ofs);;
+          ret <- ccallU "weak_valid_pointer" v;;
           if (ret: bool)
           then Ret (Some true)
           else Ret None
@@ -232,7 +227,7 @@ Section EVAL_EXPR_COMP.
         if negb Archi.ptr64
         then Ret None
         else
-          ret <- weak_valid_pointer_c b (Ptrofs.unsigned ofs);;
+          ret <- ccallU "weak_valid_pointer" v;;
           if (ret: bool)
           then Ret (Some true)
           else Ret None
@@ -375,7 +370,7 @@ Section EVAL_EXPR_COMP.
         if Archi.ptr64
         then Ret None
         else
-          ret <- weak_valid_pointer_c b (Ptrofs.unsigned ofs);;
+          ret <- ccallU "weak_valid_pointer" v;;
           if (ret: bool)
           then Ret (Some Vone)
           else Ret None
@@ -389,7 +384,7 @@ Section EVAL_EXPR_COMP.
         if negb Archi.ptr64
         then Ret None
         else
-          ret <- weak_valid_pointer_c b (Ptrofs.unsigned ofs);;
+          ret <- ccallU "weak_valid_pointer" v;;
           if (ret: bool)
           then Ret (Some Vone)
           else Ret None
@@ -532,27 +527,8 @@ Section EVAL_EXPR_COMP.
         end
       | _ => Ret None
       end
-    | Cop.sub_case_pp ty =>
-      match v1 with
-      | Vptr b1 ofs1 =>
-        match v2 with
-        | Vptr b2 ofs2 =>
-          if eq_block b1 b2
-          then
-            let sz := sizeof cenv ty in
-            if
-              Coqlib.proj_sumbool (Coqlib.zlt 0 sz) &&
-              Coqlib.proj_sumbool (Coqlib.zle sz Ptrofs.max_signed)
-            then
-              Ret (Some
-                     (Vptrofs
-                        (Ptrofs.divs (Ptrofs.sub ofs1 ofs2) (Ptrofs.repr sz))))
-            else Ret None
-          else Ret None
-        | _ => Ret None
-        end
-      | _ => Ret None
-      end
+    | Cop.sub_case_pp ty => 
+      let sz := sizeof cenv ty in ccallU "sub_ptr" (sz, v1, v2)
     | Cop.sub_case_pl ty =>
       match v1 with
       | Vint n1 =>
@@ -686,145 +662,37 @@ Section EVAL_EXPR_COMP.
       (fun _ _ : Floats.float => None) (fun _ _ : Floats.float32 => None)
       v1 t1 v2 t2.
 
-  Definition cmplu_bool_c c v1 v2 : itree eff (option bool) :=
-    match v1 with
-    | Vlong n1 =>
-      match v2 with
-      | Vlong n2 => Ret (Some (Int64.cmpu c n1 n2))
-      | Vptr b2 ofs2 =>
-        if negb Archi.ptr64
-        then Ret None
-        else
-          ret <- weak_valid_pointer_c b2 (Ptrofs.unsigned ofs2);;
-          if
-            Int64.eq n1 Int64.zero && ret
-          then Ret (Val.cmp_different_blocks c)
-          else Ret None
-      | _ => Ret None
-      end
-    | Vptr b1 ofs1 =>
-      match v2 with
-      | Vlong n2 =>
-        if negb Archi.ptr64
-        then Ret None
-        else
-          ret <- weak_valid_pointer_c b1 (Ptrofs.unsigned ofs1);;
-          if
-            Int64.eq n2 Int64.zero && ret
-          then Ret (Val.cmp_different_blocks c)
-          else Ret None
-      | Vptr b2 ofs2 =>
-        if negb Archi.ptr64
-        then Ret None
-        else
-          if eq_block b1 b2
-          then
-            ret1 <- weak_valid_pointer_c b1 (Ptrofs.unsigned ofs1);;
-            ret2 <- weak_valid_pointer_c b2 (Ptrofs.unsigned ofs2);;
-            if
-              ret1 && ret2
-            then Ret (Some (Ptrofs.cmpu c ofs1 ofs2))
-            else Ret None
-          else
-            ret1 <- ccallU "valid_pointer" (b1, Ptrofs.unsigned ofs1);;
-            ret2 <- ccallU "valid_pointer" (b2, Ptrofs.unsigned ofs2);;
-            if
-              ret1 && ret2
-            then Ret (Val.cmp_different_blocks c)
-            else Ret None
-      | _ => Ret None
-      end
-    | _ => Ret None
-    end.
-
-  Definition cmpu_bool_c c v1 v2 : itree eff (option bool) :=
-    match v1 with
-    | Vint n1 =>
-      match v2 with
-      | Vint n2 => Ret (Some (Int.cmpu c n1 n2))
-      | Vptr b2 ofs2 =>
-        if negb Archi.ptr64
-        then Ret None
-        else
-          ret <- weak_valid_pointer_c b2 (Ptrofs.unsigned ofs2);;
-          if
-            Int.eq n1 Int.zero && ret
-          then Ret (Val.cmp_different_blocks c)
-          else Ret None
-      | _ => Ret None
-      end
-    | Vptr b1 ofs1 =>
-      match v2 with
-      | Vint n2 =>
-        if negb Archi.ptr64
-        then Ret None
-        else
-          ret <- weak_valid_pointer_c b1 (Ptrofs.unsigned ofs1);;
-          if
-            Int.eq n2 Int.zero && ret
-          then Ret (Val.cmp_different_blocks c)
-          else Ret None
-      | Vptr b2 ofs2 =>
-        if Archi.ptr64
-        then Ret None
-        else
-          if eq_block b1 b2
-          then
-            ret1 <- weak_valid_pointer_c b1 (Ptrofs.unsigned ofs1);;
-            ret2 <- weak_valid_pointer_c b2 (Ptrofs.unsigned ofs2);;
-            if
-              ret1 && ret2
-            then Ret (Some (Ptrofs.cmpu c ofs1 ofs2))
-            else Ret None
-          else
-            ret1 <- ccallU "valid_pointer" (b1, ofs1);;
-            ret2 <- ccallU "valid_pointer" (b2, ofs2);;
-            if
-              ret1 && ret2
-            then Ret (Val.cmp_different_blocks c)
-            else Ret None
-      | _ => Ret None
-      end
-    | _ => Ret None
-    end.
-
-  Definition cmp_ptr_c c v1 v2: itree eff (option val) :=
-    ret <- (if Archi.ptr64
-            then cmplu_bool_c c v1 v2
-            else cmpu_bool_c c v1 v2);;
-    Ret (Coqlib.option_map Val.of_bool ret).
-  
   Definition sem_cmp_c c v1 t1 v2 t2: itree eff (option val) :=
     match Cop.classify_cmp t1 t2 with
-    | Cop.cmp_case_pp => cmp_ptr_c c v1 v2
+    | Cop.cmp_case_pp => ccallU "cmp_ptr" (c, v1, v2)
     | Cop.cmp_case_pi si =>
       match v2 with
       | Vint n2 =>
         let v2' := Vptrofs (Cop.ptrofs_of_int si n2) in
-        cmp_ptr_c c v1 v2'
-      | Vptr _ _ => if Archi.ptr64 then Ret None else cmp_ptr_c  c v1 v2
+        ccallU "cmp_ptr" (c, v1, v2')
+      | Vptr _ _ => if Archi.ptr64 then Ret None else ccallU "cmp_ptr" (c, v1, v2)
       | _ => Ret None
       end
     | Cop.cmp_case_ip si =>
       match v1 with
       | Vint n1 =>
         let v1' := Vptrofs (Cop.ptrofs_of_int si n1) in
-        cmp_ptr_c c v1' v2
-      | Vptr _ _ => if Archi.ptr64 then Ret None else cmp_ptr_c c v1 v2
+        ccallU "cmp_ptr" (c, v1', v2)
+      | Vptr _ _ => if Archi.ptr64 then Ret None else ccallU "cmp_ptr" (c, v1, v2)
       | _ => Ret None
       end
     | Cop.cmp_case_pl =>
       match v2 with
       | Vlong n2 =>
-        let v2' := Vptrofs (Ptrofs.of_int64 n2) in cmp_ptr_c c v1 v2'
-      | Vptr _ _ => if Archi.ptr64 then cmp_ptr_c c v1 v2 else Ret None
+        let v2' := Vptrofs (Ptrofs.of_int64 n2) in ccallU "cmp_ptr" (c, v1, v2')
+      | Vptr _ _ => if Archi.ptr64 then ccallU "cmp_ptr" (c, v1, v2) else Ret None
       | _ => Ret None
       end
     | Cop.cmp_case_lp =>
       match v1 with
       | Vlong n1 =>
-        let v1' := Vptrofs (Ptrofs.of_int64 n1) in cmp_ptr_c c v1' v2
-      | Vptr _ _ => if Archi.ptr64 then cmp_ptr_c c v1 v2 else Ret None
+        let v1' := Vptrofs (Ptrofs.of_int64 n1) in ccallU "cmp_ptr" (c, v1', v2)
+      | Vptr _ _ => if Archi.ptr64 then ccallU "cmp_ptr" (c, v1, v2) else Ret None
       | _ => Ret None
       end
     | Cop.cmp_default =>

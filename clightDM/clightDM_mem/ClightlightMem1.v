@@ -350,21 +350,40 @@ Section SPEC.
                                     ** vaddr |_1#> mvs_old),
             (fun vret => ⌜vret = tt↑⌝ ** vaddr |_1#> mvs_new)
     )))%I.
-  
-  Definition is_valid (res: Excl.t (Z * block_kind)) (ofs: Z) : bool :=
-    match res with
-    | Excl.just (sz, _) => Coqlib.zle 0 ofs && Coqlib.zlt ofs sz
-    | _ => false
-    end.
 
-  Definition valid_pointer_spec: fspec :=
+  Definition cmp_ptr_spec: fspec :=
     (mk_simple
-       (fun '(b, ofs, resource) => (
+       (fun '(b, ofs, resource, sz) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr, ⌜varg = vaddr↑⌝
+            (fun varg => ∃ vaddr blk, ⌜varg = vaddr↑ /\ resource b = Excl.just (sz, blk)⌝
                          ** has_ofs vaddr b ofs
                          ** OwnM (Auth.white resource)),
-            (fun vret => ⌜vret = (is_valid (resource b) ofs)↑⌝ 
+            (fun vret => ⌜vret = (is_valid sz ofs)↑⌝ 
+                         ** OwnM (Auth.white resource))%I
+    )))%I.
+  
+  Definition sub_ptr_spec: fspec :=
+    (mk_simple
+       (fun '(ofs0, ofs1, sz) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr0 vaddr1 b,
+                         ⌜varg = (sz, vaddr0, vaddr1)↑ /\ 0 < sz ≤ Ptrofs.max_signed⌝
+                         ** has_ofs vaddr0 b ofs0
+                         ** has_ofs vaddr1 b ofs1),
+            (fun vret => ⌜vret = (Z.div (ofs0 - ofs1) sz)↑⌝)
+    )))%I.
+  
+  Definition is_weak_valid (sz: Z) (ofs: Z) : bool :=
+    Coqlib.zle 0 ofs && Coqlib.zle ofs sz.
+
+  Definition weak_valid_pointer_spec: fspec :=
+    (mk_simple
+       (fun '(b, ofs, resource, sz) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr blk, ⌜varg = vaddr↑ /\ resource b = Excl.just (sz, blk)⌝
+                         ** has_ofs vaddr b ofs
+                         ** OwnM (Auth.white resource)),
+            (fun vret => ⌜vret = (is_valid sz ofs)↑⌝ 
                          ** OwnM (Auth.white resource))%I
     )))%I.
 
@@ -396,7 +415,8 @@ Section SPEC.
     apply [("salloc", salloc_spec); ("sfree", sfree_spec); 
            ("load", load_spec); ("loadbytes", loadbytes_spec); 
            ("store", store_spec); ("storebytes", storebytes_spec);
-           ("valid_pointer", valid_pointer_spec);
+           ("sub_ptr", cfunU sub_ptr_spec); ("cmp_ptr", cfunU cmp_ptr_spec);
+           ("valid_pointer", weak_valid_pointer_spec);
            ("malloc", malloc_spec); ("mfree", mfree_spec)
            ].
     Defined.
@@ -413,7 +433,9 @@ End BODY.
     ("loadbytes",   mk_specbody loadbytes_spec (fun _ => trigger (Choose _)));
     ("store",  mk_specbody store_spec (fun _ => trigger (Choose _)));
     ("storebytes",   mk_specbody storebytes_spec (fun _ => trigger (Choose _)));
-    ("valid_pointer",   mk_specbody valid_pointer_spec (fun _ => trigger (Choose _)));
+    ("sub_ptr", mk_specbody sub_ptr_spec (fun _ => trigger (Choose _)));
+    ("cmp_ptr", mk_specbody cmp_ptr_spec (fun _ => trigger (Choose _)));
+    ("valid_pointer",   mk_specbody weak_valid_pointer_spec (fun _ => trigger (Choose _)));
     ("malloc",   mk_specbody malloc_spec (fun _ => trigger (Choose _)));
     ("mfree",   mk_specbody mfree_spec (fun _ => trigger (Choose _)))
     ]
