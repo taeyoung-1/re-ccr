@@ -1,4 +1,4 @@
-Require Import Coqlib.
+(* Require Import Coqlib.
 Require Import ITreelib.
 Require Import Any.
 Require Import String.
@@ -1744,3 +1744,4 @@ Section WEAKEN.
   Qed.
 
 End WEAKEN.
+ *)

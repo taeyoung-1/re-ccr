@@ -5,7 +5,7 @@ Require Import ModSem.
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
-Require Import HoareDef OpenDef STB SimModSem.
+Require Import HoareDef STB SimModSem.
 
 Require Import Relation_Definitions.
 Require Import Relation_Operators.

@@ -1,4 +1,4 @@
-Require Import Coqlib.
+(* Require Import Coqlib.
 Require Import ITreelib.
 Require Import Any.
 Require Import STS.
@@ -426,3 +426,4 @@ End KMOD.
 End KMod.
 
 Arguments in_dec: simpl never.
+ *)

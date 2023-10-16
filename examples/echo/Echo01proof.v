@@ -17,7 +17,8 @@ From ExtLib Require Import
      Structures.Maps
      Data.Map.FMapAList.
 Require Import HTactics ProofMode IPM.
-Require Import OpenDef STB.
+Require Import STB.
+(* Require Import OpenDef *)
 
 Set Implicit Arguments.
 

@@ -1,4 +1,4 @@
-Require Import Mem0 Mem1 MemOpen HoareDef SimModSem.
+(* Require Import Mem0 Mem1 MemOpen HoareDef SimModSem.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -136,3 +136,4 @@ Section SIMMODSEM.
   Qed.
 
 End SIMMODSEM.
+ *)

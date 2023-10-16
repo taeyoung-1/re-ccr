@@ -5,7 +5,7 @@ Require Import ModSem.
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
-Require Import HoareDef OpenDef STB SimModSem.
+Require Import HoareDef STB SimModSem.
 
 Require Import Relation_Definitions.
 Require Import Relation_Operators.
@@ -1640,7 +1640,6 @@ End TRIVIAL.
 #[export] Hint Resolve world_le_trivial_PreOrder: core.
 
 
-Require Import OpenDef.
 
 Section ADEQUACY.
   Context `{Σ: GRA.t}.
@@ -1702,7 +1701,7 @@ Section ADEQUACY.
     ii. eapply isim_fun_to_tgt_aux; eauto.
   Qed.
 
-  Lemma isim_fun_to_tgt_open
+(*   Lemma isim_fun_to_tgt_open
         A wf (le: A -> A -> Prop) `{PreOrder _ le} mn stb
         (ksp: kspecbody) f
         (FRIEND: forall w (x: ksp.(meta)) mn_caller arg_src arg_tgt st_src st_tgt,
@@ -1759,5 +1758,5 @@ Section ADEQUACY.
   Proof.
     eapply isim_fun_to_tgt_open; ss; auto. i.
     iIntros "[H0 %]". subst. iApply CONTEXT. iApply "H0".
-  Qed.
-End ADEQUACY.
+  Qed.*)
+  End ADEQUACY.

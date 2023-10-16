@@ -1,4 +1,4 @@
-Require Import Coqlib.
+(* Require Import Coqlib.
 Require Import ITreelib.
 Require Import ImpPrelude.
 Require Import STS.
@@ -141,3 +141,4 @@ End PROOF.
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.
+ *)
