@@ -64,11 +64,11 @@ Section DECOMP.
 
   Definition _sassign_c e le a1 a2 :=
     tau;;
-    '(loc, (ofs, bf)) <- eval_lvalue_c sk ce e le a1;;
+    '(vp, bf) <- eval_lvalue_c sk ce e le a1;;
      v <- eval_expr_c sk ce e le a2;; 
      v' <- sem_cast_c v (typeof a2) (typeof a1);;
      v' <- v'?;;
-     assign_loc_c ce (typeof a1) loc ofs bf v'.
+     assign_loc_c ce (typeof a1) vp bf v'.
 
   Definition _scall_c e le a al
     : itree eff val :=

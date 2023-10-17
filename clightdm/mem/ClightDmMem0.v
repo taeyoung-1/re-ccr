@@ -91,17 +91,16 @@ Section MODSEM.
         end
     .
 
-    Definition cmp_ptrF : comparison * val * val -> itree Es (option val) :=
+    Definition cmp_ptrF : comparison * val * val -> itree Es bool :=
       fun varg =>
         mp <- trigger (PGet);;
         m <- mp↓?;;
         let '(c, v1, v2) := varg in
-        ret <- (if Archi.ptr64
-                then cmplu_bool_c m c v1 v2
-                else cmpu_bool_c m c v1 v2);;
-        Ret (option_map Val.of_bool ret).
+        if Archi.ptr64
+        then (cmplu_bool_c m c v1 v2)?
+        else (cmpu_bool_c m c v1 v2)?.
 
-    Definition sub_ptrF : Z * val * val -> itree Es (option val) :=
+    Definition sub_ptrF : Z * val * val -> itree Es val :=
       fun varg =>
         let '(sz, v1, v2) := varg in
         match v1, v2 with
@@ -111,19 +110,19 @@ Section MODSEM.
             Coqlib.proj_sumbool (Coqlib.zlt 0 sz) &&
             Coqlib.proj_sumbool (Coqlib.zle sz Ptrofs.max_signed)
           then
-            Ret (Some
-                  (Vptrofs
-                    (Ptrofs.divs (Ptrofs.sub ofs1 ofs2) (Ptrofs.repr sz))))
-          else Ret None
-        | _, _ => Ret None
+            Ret (Vptrofs (Ptrofs.divs (Ptrofs.sub ofs1 ofs2) (Ptrofs.repr sz)))
+          else triggerUB
+        | _, _ => triggerUB
         end.
 
-    Definition weak_valid_pointerF: val -> itree Es bool :=
+    Definition non_nullF: val -> itree Es bool :=
       fun varg =>
         mp <- trigger (PGet);;
         m <- mp↓?;;
         match varg with
-        | Vptr b ofs => Ret (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs))
+        | Vptr b ofs =>
+          if (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)) then Ret true
+          else triggerUB
         | _ => triggerUB
         end
     .
@@ -287,7 +286,7 @@ Section MODSEM.
                         ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
                         ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
                         ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
-                        ("weak_valid_pointer", cfunU weak_valid_pointerF);
+                        ("non_null?", cfunU non_nullF);
                         ("malloc", cfunU mallocF); ("mfree", cfunU mfreeF)];
       ModSem.mn := "Mem";
       ModSem.initial_st := (load_mem)↑;

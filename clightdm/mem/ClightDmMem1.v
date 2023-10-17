@@ -18,7 +18,7 @@ Inductive block_kind :=
 | Unfreeable.
 
 Let _memcntRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
-Let _memhdRA: URA.t := (block ==> (Excl.t (Z * block_kind)))%ra.
+Let _memhdRA: URA.t := (block ==> (Consent.t (Z * block_kind)))%ra.
 
 Compute (URA.car (t:=_memcntRA)).
 Compute (URA.car (t:=_memhdRA)).
@@ -112,13 +112,13 @@ End POINTSTO.
 
 Section ALLOCEDWITH.
 
-  Definition __alloced_with (b: block) (sz: Z) (bk: block_kind) : _memhdRA :=
+  Definition __allocated_with (b: block) (sz: Z) (bk: block_kind) (q: Qp) : _memhdRA :=
     (fun _b => if dec _b b
-               then Excl.just (sz, bk)
+               then Consent.just q (sz, bk)
                else ε)
   .
 
-  Definition _alloced_with (b: block) (sz: Z) (bk: block_kind) : memhdRA := Auth.white (__alloced_with b sz bk).
+  Definition _allocated_with (b: block) (sz: Z) (bk: block_kind) (q: Qp) : memhdRA := Auth.white (__allocated_with b sz bk q).
 
 End ALLOCEDWITH.
 
@@ -155,10 +155,10 @@ Section PROP.
     | _ => ⌜False⌝%I 
     end.
   
-  Definition alloced_with b sz bk : iProp :=
-    OwnM (_alloced_with b sz bk).
+  Definition allocated_with b sz bk q : iProp :=
+    OwnM (_allocated_with b sz bk q) ** ⌜bk = Dynamic -> sz > 0⌝.
 
-  Definition has_ofs v b ofs : iProp :=
+  Definition repr_to v b ofs : iProp :=
     match v with
     | Vptr b' ofs' => ⌜b' = b /\ Ptrofs.unsigned ofs' = ofs⌝%I
     | _ => ⌜False⌝%I 
@@ -209,8 +209,9 @@ Section PROP.
 
 End PROP.
 
-Notation "addr |_ q #> mvs" := (points_to addr mvs q) (at level 20).
-Notation "b #≔ ( sz , bk )" := (alloced_with b sz bk) (at level 10).
+Notation "addr |- q #> mvs" := (points_to addr mvs q) (at level 20).
+Notation "b # q ≔ ( sz , bk )" := (allocated_with b sz bk q) (at level 10).
+Notation "addr ⊸ ( b , ofs ) " := (repr_to addr b ofs) (at level 10).
 
 Section AUX.
 
@@ -291,15 +292,15 @@ Section SPECBODY.
 
 Section SPEC.
 
-  
+
   Definition salloc_spec: fspec :=
     (mk_simple (fun sz => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = sz↑⌝),
                     (fun vret => ∃ b vaddr, ⌜vret = b↑⌝
-                                 ** vaddr |_1#> List.repeat Undef (Z.to_nat sz)
-                                 ** b #≔ (sz, Local)
-                                 ** has_ofs vaddr b 0)
+                                 ** vaddr |-1#> List.repeat Undef (Z.to_nat sz)
+                                 ** b #1≔ (sz, Local)
+                                 ** vaddr ⊸ (b, 0))
     )))%I.
 
   Definition sfree_spec: fspec :=
@@ -307,9 +308,9 @@ Section SPEC.
                    (ord_pure 0%nat),
                    (fun varg => ∃ mvl vaddr b sz,
                                 ⌜varg = (b, sz)↑ /\ Z.of_nat (List.length mvl) = sz⌝
-                                ** vaddr |_1#> mvl
-                                ** b #≔ (sz, Local)
-                                ** has_ofs vaddr b 0),
+                                ** vaddr |-1#> mvl
+                                ** b #1≔ (sz, Local)
+                                ** vaddr ⊸ (b, 0)),
                    (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
@@ -317,17 +318,17 @@ Section SPEC.
     (mk_simple (fun '(chunk, vaddr, q, mvs) => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (chunk, vaddr)↑⌝
-                                 ** vaddr |_q#> mvs),
+                                 ** vaddr |-q#> mvs),
                     (fun vret => ∃ v, ⌜vret = v↑ /\ decode_val chunk mvs = v⌝
-                                 ** vaddr |_q#> mvs)
+                                 ** vaddr |-q#> mvs)
     )))%I.
 
   Definition loadbytes_spec: fspec :=
     (mk_simple (fun '(vaddr, sz, q, mvs) => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (vaddr, sz)↑ /\ Z.of_nat (List.length mvs) = sz⌝ 
-                                 ** vaddr |_q#> mvs),
-                    (fun vret => ⌜vret = mvs↑⌝ ** vaddr |_q#> mvs)
+                                 ** vaddr |-q#> mvs),
+                    (fun vret => ⌜vret = mvs↑⌝ ** vaddr |-q#> mvs)
     ))).
 
   Definition store_spec: fspec :=
@@ -336,9 +337,9 @@ Section SPEC.
             (ord_pure 0%nat),
             (fun varg => ∃ mvs_old, ⌜varg = (chunk, vaddr, v_new)↑
                                     /\ List.length mvs_old = size_chunk_nat chunk⌝
-                                    ** vaddr |_1#> mvs_old),
+                                    ** vaddr |-1#> mvs_old),
             (fun vret => ∃ mvs_new, ⌜vret = tt↑ /\ encode_val chunk v_new = mvs_new⌝
-                                    ** vaddr |_1#> mvs_new)
+                                    ** vaddr |-1#> mvs_new)
     )))%I.
 
   Definition storebytes_spec: fspec :=
@@ -347,45 +348,91 @@ Section SPEC.
             (ord_pure 0%nat),
             (fun varg => ∃ mvs_old, ⌜varg = (vaddr, mvs_new)↑
                                     /\ List.length mvs_old = List.length mvs_new⌝
-                                    ** vaddr |_1#> mvs_old),
-            (fun vret => ⌜vret = tt↑⌝ ** vaddr |_1#> mvs_new)
+                                    ** vaddr |-1#> mvs_old),
+            (fun vret => ⌜vret = tt↑⌝ ** vaddr |-1#> mvs_new)
     )))%I.
 
-  (* Definition cmp_ptr_spec: fspec :=
+  Definition cmp_ptr_case (pre inv: iProp) (c: comparison) (vaddr0 vaddr1: val) (result: bool) : Prop :=
+    if Val.eq vaddr0 Vnullptr
+    then if Val.eq vaddr1 Vnullptr
+         then match c with
+              | Ceq => result = true
+              | _ => result = false
+              end
+         else exists b ofs,
+              pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz bk, inv = (b #q≔ (sz, bk))
+              /\
+              match c with
+              | Ceq => result = false
+              | Cne => result = true
+              | _ => False
+              end
+    else if Val.eq vaddr1 Vnullptr
+         then exists b ofs,
+              pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz bk, inv = (b #q≔ (sz, bk))
+              /\
+              match c with
+              | Ceq => result = false
+              | Cne => result = true
+              | _ => False
+              end
+         else exists b0 ofs0 b1 ofs1,
+              pre = (vaddr0 ⊸ (b0, ofs0) ** (vaddr1 ⊸ (b1, ofs1)))
+              /\
+              if dec b0 b1
+              then exists q sz bk,
+                   inv = b0 #q≔ (sz, bk)
+                   /\
+                   if Coqlib.zle 0 ofs0 && Coqlib.zle ofs0 sz && Coqlib.zle 0 ofs1 && Coqlib.zle ofs1 sz 
+                   then match c with
+                        | Ceq => result = (Coqlib.zeq ofs0 ofs1)
+                        | Cne => result = negb (Coqlib.zeq ofs0 ofs1)
+                        | Clt => result = (Coqlib.zlt ofs0 ofs1)
+                        | Cle => result = (Coqlib.zle ofs0 ofs1)
+                        | Cgt => result = negb (Coqlib.zle ofs0 ofs1)
+                        | Cge => result = negb (Coqlib.zlt ofs0 ofs1)
+                        end
+                   else False
+              else exists q0 sz0 bk0 q1 sz1 bk1,
+                   inv = (b0 #q0≔ (sz0, bk0) ** b1 #q1≔ (sz1, bk1))
+                   /\
+                   if Coqlib.zle 0 ofs0 && Coqlib.zlt ofs0 sz0 && Coqlib.zle 0 ofs1 && Coqlib.zlt ofs1 sz1
+                   then match c with
+                        | Ceq => result = false
+                        | Cne => result = true
+                        | _ => False
+                        end
+                   else False.
+
+  Definition cmp_ptr_spec: fspec :=
     (mk_simple
-       (fun '(b, ofs, resource, sz) => (
+       (fun '(pre, inv, result) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr blk, ⌜varg = vaddr↑ /\ resource b = Excl.just (sz, blk)⌝
-                         ** has_ofs vaddr b ofs
-                         ** OwnM (Auth.white resource)),
-            (fun vret => ⌜vret = (is_valid sz ofs)↑⌝ 
-                         ** OwnM (Auth.white resource))%I
-    )))%I. *)
-  
+            (fun varg => ⌜exists c v1 v2, varg = (c, v1, v2)↑ /\ cmp_ptr_case pre inv c v1 v2 result ⌝
+                         ** pre ** inv),
+            (fun vret => inv ** ⌜vret = result↑⌝)%I
+    )))%I.
+
   Definition sub_ptr_spec: fspec :=
     (mk_simple
        (fun '(ofs0, ofs1, sz) => (
             (ord_pure 0%nat),
             (fun varg => ∃ vaddr0 vaddr1 b,
                          ⌜varg = (sz, vaddr0, vaddr1)↑ /\ 0 < sz ≤ Ptrofs.max_signed⌝
-                         ** has_ofs vaddr0 b ofs0
-                         ** has_ofs vaddr1 b ofs1),
-            (fun vret => ⌜vret = (Z.div (ofs0 - ofs1) sz)↑⌝)
+                         ** vaddr0 ⊸ (b, ofs0)
+                         ** vaddr1 ⊸ (b, ofs1)),
+            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (ofs0 - ofs1) sz)))↑⌝)
     )))%I.
-  
-  Definition is_weak_valid (sz: Z) (ofs: Z) : bool :=
-    Coqlib.zle 0 ofs && Coqlib.zle ofs sz.
 
-  Definition weak_valid_pointer_spec: fspec :=
+  Definition non_null_spec: fspec :=
     (mk_simple
-       (fun '(ofs, resource, sz) => (
+       (fun '(b, q, sz, bk) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr b bk, ⌜varg = vaddr↑⌝
-                         ** has_ofs vaddr b ofs
-                         ** OwnM (Auth.white resource)
-                         ** ⌜resource b = Excl.just (sz, bk)⌝),
-            (fun vret => ⌜vret = (is_weak_valid sz ofs)↑⌝ 
-                         ** OwnM (Auth.white resource))%I
+            (fun varg => ∃ vaddr ofs, ⌜varg = vaddr↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr ⊸ (b, ofs)
+                         ** b #q≔ (sz, bk)),
+            (fun vret => ⌜vret = true↑⌝ 
+                         ** b #q≔ (sz, bk))
     )))%I.
 
   (* heap malloc free *)
@@ -394,9 +441,9 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (Vptrofs sz)↑⌝),
                     (fun vret => ∃ vaddr b, ⌜vret = vaddr↑⌝
-                                 ** vaddr |_1#> List.repeat Undef (Z.to_nat (Ptrofs.unsigned sz))
-                                 ** b #≔ (Ptrofs.unsigned sz, Dynamic)
-                                 ** has_ofs vaddr b 0) 
+                                 ** vaddr |-1#> List.repeat Undef (Z.to_nat (Ptrofs.unsigned sz))
+                                 ** b #1≔ (Ptrofs.unsigned sz, Dynamic)
+                                 ** vaddr ⊸ (b, 0)) 
     )))%I.
 
   Definition mfree_spec: fspec :=
@@ -404,9 +451,9 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ∃ mvs vaddr b sz,
                                  ⌜varg = vaddr↑ /\ Z.of_nat (List.length mvs) = sz⌝
-                                 ** vaddr |_1#> mvs
-                                 ** b #≔ (sz, Dynamic)
-                                 ** has_ofs vaddr b 0),
+                                 ** vaddr |-1#> mvs
+                                 ** b #1≔ (sz, Dynamic)
+                                 ** vaddr ⊸ (b, 0)),
                     (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
@@ -416,8 +463,8 @@ Section SPEC.
     apply [("salloc", salloc_spec); ("sfree", sfree_spec); 
            ("load", load_spec); ("loadbytes", loadbytes_spec); 
            ("store", store_spec); ("storebytes", storebytes_spec);
-           ("sub_ptr", cfunU sub_ptr_spec); ("cmp_ptr", cfunU cmp_ptr_spec);
-           ("valid_pointer", weak_valid_pointer_spec);
+           ("sub_ptr", sub_ptr_spec); ("cmp_ptr", cmp_ptr_spec);
+           ("non_null?", non_null_spec);
            ("malloc", malloc_spec); ("mfree", mfree_spec)
            ].
     Defined.
@@ -428,17 +475,17 @@ Section BODY.
 End BODY.
 
   Definition MemSbtb: list (gname * fspecbody) :=
-    [("salloc", mk_specbody salloc_spec (fun _ => trigger (Choose _)));
-    ("sfree",   mk_specbody sfree_spec (fun _ => trigger (Choose _)));
-    ("load",   mk_specbody load_spec (fun _ => trigger (Choose _)));
-    ("loadbytes",   mk_specbody loadbytes_spec (fun _ => trigger (Choose _)));
-    ("store",  mk_specbody store_spec (fun _ => trigger (Choose _)));
-    ("storebytes",   mk_specbody storebytes_spec (fun _ => trigger (Choose _)));
-    ("sub_ptr", mk_specbody sub_ptr_spec (fun _ => trigger (Choose _)));
-    ("cmp_ptr", mk_specbody cmp_ptr_spec (fun _ => trigger (Choose _)));
-    ("valid_pointer",   mk_specbody weak_valid_pointer_spec (fun _ => trigger (Choose _)));
-    ("malloc",   mk_specbody malloc_spec (fun _ => trigger (Choose _)));
-    ("mfree",   mk_specbody mfree_spec (fun _ => trigger (Choose _)))
+    [("salloc", mk_pure salloc_spec);
+    ("sfree",   mk_pure sfree_spec);
+    ("load",   mk_pure load_spec);
+    ("loadbytes",   mk_pure loadbytes_spec);
+    ("store",  mk_pure store_spec);
+    ("storebytes",   mk_pure storebytes_spec);
+    ("sub_ptr", mk_pure sub_ptr_spec);
+    ("cmp_ptr", mk_pure cmp_ptr_spec);
+    ("non_null?",   mk_pure non_null_spec);
+    ("malloc",   mk_pure malloc_spec);
+    ("mfree",   mk_pure mfree_spec)
     ]
   .
 
@@ -530,7 +577,7 @@ Section MRS.
     match Any.downcast agd : option (globdef Clight.fundef type) with
     | Some g => 
       match g with
-      | Gfun _ => Some (GRA.embed (Auth.black (__alloced_with b 1 Unfreeable)) ⋅ res)
+      | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b 1 Unfreeable (1/2)%Qp)) ⋅ res)
       | Gvar v =>
         let optq := match Globalenvs.Genv.perm_globvar v with
                     | Freeable | Writable => Some 1%Qp
@@ -539,7 +586,7 @@ Section MRS.
                     end
         in
         match store_init_data_list ε b 0 optq (gvar_init v) with
-        | Some res' => Some (GRA.embed (Auth.black (__alloced_with b (init_data_list_size (gvar_init v)) Unfreeable))
+        | Some res' => Some (GRA.embed (Auth.black (__allocated_with b (init_data_list_size (gvar_init v)) Unfreeable (1/2)%Qp))
                              ⋅ GRA.embed (Auth.black res') ⋅ res)
         | None => None
         end
@@ -589,4 +636,4 @@ End MOD.
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.
-Global Opaque _alloced_with.
+Global Opaque _allocated_with.
