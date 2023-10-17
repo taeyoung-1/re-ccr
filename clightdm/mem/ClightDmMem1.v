@@ -362,20 +362,24 @@ Section SPEC.
          else exists b ofs,
               pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz bk, inv = (b #q≔ (sz, bk))
               /\
-              match c with
-              | Ceq => result = false
-              | Cne => result = true
-              | _ => False
-              end
+              if Coqlib.zle 0 ofs && Coqlib.zle ofs sz
+              then match c with
+                   | Ceq => result = false
+                   | Cne => result = true
+                   | _ => False
+                   end
+              else False
     else if Val.eq vaddr1 Vnullptr
          then exists b ofs,
               pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz bk, inv = (b #q≔ (sz, bk))
               /\
-              match c with
-              | Ceq => result = false
-              | Cne => result = true
-              | _ => False
-              end
+              if Coqlib.zle 0 ofs && Coqlib.zle ofs sz
+              then match c with
+                   | Ceq => result = false
+                   | Cne => result = true
+                   | _ => False
+                   end
+              else False
          else exists b0 ofs0 b1 ofs1,
               pre = (vaddr0 ⊸ (b0, ofs0) ** (vaddr1 ⊸ (b1, ofs1)))
               /\
@@ -396,7 +400,7 @@ Section SPEC.
               else exists q0 sz0 bk0 q1 sz1 bk1,
                    inv = (b0 #q0≔ (sz0, bk0) ** b1 #q1≔ (sz1, bk1))
                    /\
-                   if Coqlib.zle 0 ofs0 && Coqlib.zlt ofs0 sz0 && Coqlib.zle 0 ofs1 && Coqlib.zlt ofs1 sz1
+                   if Coqlib.zle 0 ofs0 && Coqlib.zle (ofs0 + 1) sz0 && Coqlib.zle 0 ofs1 && Coqlib.zle (ofs1 + 1) sz1
                    then match c with
                         | Ceq => result = false
                         | Cne => result = true
