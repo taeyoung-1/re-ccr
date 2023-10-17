@@ -264,6 +264,9 @@ Section CANCEL.
              (fun _ x z a => (((snd ∘ DPQ) x a: iProp) ∧ ⌜z = a⌝)%I)
   .
 
+  (* specbody with dummy function body used in pure spec *)
+  Definition mk_pure (fsb: fspec) := mk_specbody fsb (fun arg => Ret arg.2).
+
   Section INTERP.
   (* Variable stb: gname -> option fspec. *)
   (*** TODO: I wanted to use above definiton, but doing so makes defining ms_src hard ***)
