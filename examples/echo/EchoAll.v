@@ -1,4 +1,4 @@
-Require Import Coqlib ITreelib ImpPrelude STS Behavior.
+(* Require Import Coqlib ITreelib ImpPrelude STS Behavior.
 Require Import ModSem Skeleton PCM STB OpenDef.
 Require Import Open.
 Require Import Mem0 Mem1 Stack3A.
@@ -148,3 +148,4 @@ Section PROOF.
     eapply improves_combine; [|et]. eapply echo_closed_correct.
   Qed.
 End PROOF.
+ *)

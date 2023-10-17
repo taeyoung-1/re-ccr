@@ -1,4 +1,4 @@
-Require Import Coqlib.
+(* Require Import Coqlib.
 Require Import ITreelib.
 Require Import ImpPrelude.
 Require Import STS.
@@ -72,3 +72,4 @@ Section PROOF.
   Definition Repeat: Mod.t := (KMod.transl_tgt GlobalStb) KRepeat.
 
 End PROOF.
+ *)

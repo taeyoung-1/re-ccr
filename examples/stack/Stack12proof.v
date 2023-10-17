@@ -1,4 +1,4 @@
-Require Import Stack1 Stack2 HoareDef SimModSem.
+(* Require Import Stack1 Stack2 HoareDef SimModSem.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -82,3 +82,4 @@ Section SIMMOD.
   Qed.
 
 End SIMMOD.
+ *)

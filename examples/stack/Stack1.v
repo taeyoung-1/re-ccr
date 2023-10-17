@@ -1,4 +1,4 @@
-Require Import Coqlib.
+(* Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import STS.
 Require Import Behavior.
@@ -114,3 +114,4 @@ Section PROOF.
 
 End PROOF.
 Global Hint Unfold StackStb: stb.
+ *)

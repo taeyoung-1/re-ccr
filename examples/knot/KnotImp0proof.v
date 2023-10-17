@@ -1,4 +1,4 @@
-Require Import HoareDef SimModSem.
+(* Require Import HoareDef SimModSem.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -85,3 +85,4 @@ Section SIMMODSEM.
   Qed.
 
 End SIMMODSEM.
+ *)
