@@ -303,8 +303,8 @@ Lemma interp_interp:
     interp g (interp f t) = interp (fun (T : Type) (e : (fun H : Type => E H) T) => interp g (f T e)) t.
 Proof. i. f. apply interp_interp. Qed.
 
-Lemma subst_bind: forall E T U (k: T -> itree E U) i, ITree.subst k i = ITree.bind i k.
-Proof. i. refl. Qed.
+(* Lemma subst_bind: forall E T U (k: T -> itree E U) i, ITree.subst k i = ITree.bind i k.
+Proof. i. refl. Qed. *)
 
 Ltac iby3 TAC :=
   first [
@@ -332,7 +332,8 @@ Ltac iby1 TAC :=
 
 (* Ltac grind :=  f; repeat (f_equiv; ii; des_ifs_safe); f. *)
 
-Ltac ired := repeat (try rewrite subst_bind;
+Ltac ired := repeat (
+  (* try rewrite subst_bind; *)
                      try rewrite bind_bind; try rewrite bind_ret_l; try rewrite bind_ret_r; try rewrite bind_tau;
                      (* try rewrite interp_vis; *)
                      try rewrite interp_ret;

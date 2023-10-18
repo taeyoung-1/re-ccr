@@ -338,7 +338,7 @@ Section CANCEL.
       unfold ms_mid, ms_tgt.
       unfold mds_mid, mds_tgt, SMod.to_mid, SMod.to_tgt. ss.
       rewrite ! SMod.transl_initial_mrs.
-      change (alist string Sk.gdef) with Sk.t.
+      change (alist string Any.t) with Sk.t.
       generalize (Sk.sort (fold_right Sk.add Sk.unit (map SMod.sk mds))).
       intros sk0. i. red. extensionality mn.
       unfold SMod.load_initial_mrs.

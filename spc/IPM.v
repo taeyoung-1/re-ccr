@@ -143,7 +143,7 @@ Section IPM.
     - exact Persistently_mono.
     - exact Persistently_idem.
     - exact Persistently_emp.
-    - exact Persistently_and2.
+    - ii. uipropall. ii. specialize (H x). uipropall.
     - exact Persistently_ex.
     - exact Persistently_sep.
     - exact Persistently_and.

@@ -1265,7 +1265,7 @@ Section ADQ.
       rewrite stb2_eq. unfold stb2.
       unfold SMod.get_sk in FIND. setoid_rewrite FIND. auto. }
     { i. unfold SMod.get_sk in FIND. rewrite stb2_eq. right.
-      unfold stb2. change (alist string Sk.gdef) with Sk.t in *.
+      unfold stb2. change (alist string Any.t) with Sk.t in *.
       rewrite FIND. esplits; et.
       i. ss. destruct x; des; auto.
     }
@@ -1283,7 +1283,7 @@ Section ADQ.
         end.
         f_equal. unfold KMod.get_initial_mrs.
         rewrite map_map. ss. unfold SMod.get_sk.
-        change (alist string Sk.gdef) with Sk.t.
+        change (alist string Any.t) with Sk.t.
         generalize (Sk.sort
                       (foldr Sk.add Sk.unit
                              (map SMod.sk (kmds ++ map (massage_md true) umds)))).
@@ -1361,7 +1361,7 @@ Section ADQ.
     eapply adequacy_open_aux1'; auto.
     { i. ss. des; ss. eapply in_map_iff in MIN0. des. clarify.
       inv H. inv H0. unfold ModL.enclose in wf_initial_mrs.
-      change (alist string Sk.gdef) with Sk.t in wf_initial_mrs.
+      change (alist string Any.t) with Sk.t in wf_initial_mrs.
       replace (Sk.canon
                  (ModL.sk
                     (Mod.add_list
