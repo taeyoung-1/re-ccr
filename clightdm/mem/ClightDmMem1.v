@@ -8,7 +8,7 @@ Require Import PCM.
 Require Import HoareDef STB.
 Require Import ProofMode.
 Require Import Any.
-From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
+From compcertip Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.
 
@@ -23,6 +23,7 @@ Let _memhdRA: URA.t := (block ==> (Consent.t (Z * block_kind)))%ra.
 Compute (URA.car (t:=_memcntRA)).
 Compute (URA.car (t:=_memhdRA)).
 Instance memcntRA: URA.t := Auth.t _memcntRA.
+Instance memphyRA: URA.t := (block ==> (OneShot.t Z))%ra.
 Instance memhdRA: URA.t := Auth.t _memhdRA.
 
 Section RA.
@@ -43,7 +44,7 @@ Section POINTSTO.
 
   Definition _points_to (b: block) (ofs: Z) (mvs: list memval) (q: Qp): memcntRA := Auth.white (__points_to b ofs mvs q).
 
-  Lemma _points_to_split_aux
+  (* Lemma _points_to_split_aux
         blk ofs hd tl q
     :
       (_points_to blk ofs (hd :: tl) q) = (_points_to blk ofs [hd] q) ⋅ (_points_to blk (ofs + 1)%Z tl q)
@@ -106,9 +107,19 @@ Section POINTSTO.
   Proof.
     intros. set l as k at 2 3 4. rewrite <- (firstn_skipn n l). unfold k. clear k.
     rewrite _points_to_app. auto.
-  Qed.
+  Qed. *)
 
 End POINTSTO.
+
+Section RELATESTO.
+
+  Definition _relates_to (b: block) (bID: Z) : memphyRA :=
+    (fun _b => if dec _b b
+               then OneShot.white bID
+               else ε)
+  .
+
+End RELATESTO.
 
 Section ALLOCEDWITH.
 
@@ -127,6 +138,7 @@ End RA.
 Section PROP.
 
   Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
   Context `{@GRA.inG memhdRA Σ}.
 
   (* Definition updblk [A: Type] (i f: nat) (l l': list A) : list A := firstn i l ++ l' ++ skipn f l.
@@ -139,9 +151,9 @@ Section PROP.
   Qed. *)
 
   Definition size_rule (sz: nat) : Z :=
-    if sz <? 2 then 1
-    else if sz <? 4 then 2
-    else if sz <? 8 then 4
+    if lt_dec sz 2 then 1
+    else if le_dec sz 4 then 2
+    else if lt_dec sz 8 then 4
     else 8
   .
 
@@ -152,6 +164,20 @@ Section PROP.
           let align := size_rule (Z.to_nat (length mvs)) in
           OwnM (_points_to b ofs' mvs q)
           ** ⌜(align | ofs')⌝
+    | Vint i =>
+        if Archi.ptr64 then ⌜False⌝%I
+        else 
+          let i' := Int.unsigned i in
+          let align := size_rule (Z.to_nat (length mvs)) in
+          (∃ b ofs, OwnM (_points_to b ofs mvs q) ** OwnM (_relates_to b (i' - ofs))
+                    ** ⌜(align | ofs)⌝ ** ⌜(align | (i' - ofs))⌝)%I
+    | Vlong i =>
+        if negb Archi.ptr64 then ⌜False⌝%I
+        else 
+          let i' := Int64.unsigned i in
+          let align := size_rule (Z.to_nat (length mvs)) in
+          (∃ b ofs, OwnM (_points_to b ofs mvs q) ** OwnM (_relates_to b (i' - ofs))
+                    ** ⌜(align | ofs)⌝ ** ⌜(align | (i' - ofs))⌝)%I
     | _ => ⌜False⌝%I 
     end.
   
@@ -161,6 +187,14 @@ Section PROP.
   Definition repr_to v b ofs : iProp :=
     match v with
     | Vptr b' ofs' => ⌜b' = b /\ Ptrofs.unsigned ofs' = ofs⌝%I
+    | Vint i =>
+        if Archi.ptr64 then ⌜False⌝%I
+        else let i' := Int.unsigned i in
+             (OwnM (_relates_to b (i' - ofs)))%I
+    | Vlong i =>
+        if negb Archi.ptr64 then ⌜False⌝%I
+        else let i' := Int64.unsigned i in
+             (OwnM (_relates_to b (i' - ofs)))%I
     | _ => ⌜False⌝%I 
     end.
 
@@ -283,6 +317,7 @@ End AUX.
 Section SMODSEM.
 
   Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
   Context `{@GRA.inG memhdRA Σ}.
 
   Variable sk: Sk.t.
@@ -443,7 +478,7 @@ Section SPEC.
   Definition malloc_spec: fspec :=
     (mk_simple (fun sz => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = (Vptrofs sz)↑⌝),
+                    (fun varg => ⌜varg = [Vptrofs sz]↑⌝),
                     (fun vret => ∃ vaddr b, ⌜vret = vaddr↑⌝
                                  ** vaddr |-1#> List.repeat Undef (Z.to_nat (Ptrofs.unsigned sz))
                                  ** b #1≔ (Ptrofs.unsigned sz, Dynamic)
@@ -454,11 +489,47 @@ Section SPEC.
     (mk_simple (fun '() => (
                     (ord_pure 0%nat),
                     (fun varg => ∃ mvs vaddr b sz,
-                                 ⌜varg = vaddr↑ /\ Z.of_nat (List.length mvs) = sz⌝
+                                 ⌜varg = [vaddr]↑ /\ Z.of_nat (List.length mvs) = sz⌝
                                  ** vaddr |-1#> mvs
                                  ** b #1≔ (sz, Dynamic)
                                  ** vaddr ⊸ (b, 0)),
-                    (fun vret => ⌜vret = tt↑⌝)
+                    (fun vret => ⌜vret = Vundef↑⌝)
+    )))%I.
+
+  Definition memcpy_resource (vaddr vaddr': val) (mvs_src mvs_dst: list memval) : iProp :=
+    if Val.eq vaddr' vaddr then vaddr |-1#> mvs_dst
+    else vaddr' |-1#> mvs_src ** vaddr |-1#> mvs_dst.
+
+  Definition memcpy_spec: fspec :=
+    (mk_simple
+       (fun '(vaddr, vaddr', mvs_dst) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ al sz mvs_src,
+                         ⌜varg = (al, sz, [vaddr; vaddr'])↑
+                         /\ List.length mvs_src = List.length mvs_dst
+                         /\ List.length mvs_dst = sz
+                         /\ (al | sz)⌝
+                         ** memcpy_resource vaddr vaddr' mvs_src mvs_dst),
+            (fun vret => ⌜vret = Vundef↑⌝ ** memcpy_resource vaddr vaddr' mvs_dst mvs_dst)
+    )))%I.
+  
+  (* Inductive is_pretty : iProp -> Prop :=
+  | is_points_to vaddr q mv : is_pretty (vaddr |-q#> mv)
+  | is_relates_to vaddr b ofs : is_pretty (vaddr ⊸ (b, ofs))
+  | is_conj ip1 ip2 (I1: is_pretty ip1) (I2: is_pretty ip2) : is_pretty (ip1 ** ip2)
+  | is_wand ip1 ip2 (IC: is_pretty ip2) : is_pretty (ip1 -* ip2)
+  .
+
+  Definition capture_resource vaddr ret :=
+    match vaddr with
+    | Vptr b ofs => 
+
+  Definition capture_spec: fspec :=
+    (mk_simple
+       (fun '(vaddr, ret) => (
+            (ord_pure 0%nat),
+            (fun varg => ⌜varg = [vaddr]↑ ),
+            (fun vret => ⌜vret = ret↑⌝ ** )
     )))%I.
 
   (* sealed *)
@@ -470,6 +541,8 @@ Section SPEC.
            ("sub_ptr", sub_ptr_spec); ("cmp_ptr", cmp_ptr_spec);
            ("non_null?", non_null_spec);
            ("malloc", malloc_spec); ("mfree", mfree_spec)
+           (* ("memcpy", memcpy_spec);
+           ("capture", capture_spec) *)
            ].
     Defined.
 
@@ -490,6 +563,8 @@ End BODY.
     ("non_null?",   mk_pure non_null_spec);
     ("malloc",   mk_pure malloc_spec);
     ("mfree",   mk_pure mfree_spec)
+    (* ("memcpy", mk_pure memcpy_spec);
+    ("capture", mk_pure capture_spec); *)
     ]
   .
 
@@ -615,7 +690,7 @@ Section MRS.
   Definition SMemSem : SModSem.t := {|
     SModSem.fnsems := MemSbtb;
     SModSem.mn := "Mem";
-    SModSem.initial_mr := load_resource;
+    SModSem.initial_mr := load_resource ⋅ GRA.embed ((fun _ => OneShot.black) : memphyRA);
     SModSem.initial_st := tt↑;
   |}
   .
@@ -624,12 +699,15 @@ Section MRS.
 
 Section MOD.
   Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
   Context `{@GRA.inG memhdRA Σ}.
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
     SMod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
-               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
+                ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑);
+                ("memcpy", (@Gfun Clight.fundef type (External (EF_memcpy 1 1) (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑);
+                ("capture", (@Gfun Clight.fundef type (External EF_capture (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑)]
   |}
   .
 
@@ -640,4 +718,5 @@ End MOD.
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.
+Global Opaque _relates_to.
 Global Opaque _allocated_with.

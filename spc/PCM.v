@@ -950,6 +950,81 @@ Proof. ur in WF. des; ss. Qed.
 End AUTH.
 End Auth.
 
+Module OneShot.
+Section ONESHOT.
+
+Context {X: Type}.
+Inductive car: Type :=
+| white (x: X)
+| black
+| unit
+| boom
+.
+
+Let _add := fun x y => match x, y with
+                    | white a0, white a1 => if excluded_middle_informative (a0 = a1) then white a0 else boom
+                    | _, unit => x
+                    | unit, _ => y
+                    | black, _ => boom
+                    | _, black => boom
+                    | _, _ => boom end.
+
+Let _wf := fun a => a <> boom.
+Let _core := fun a => match a with
+                      | boom => boom
+                      | white a => white a
+                      | _ => unit
+                      end.
+
+Program Instance t: URA.t := {
+  URA.car := car;
+  URA._add := _add;
+  URA._wf := _wf;
+  URA.unit := unit;
+  URA.core := _core;
+}
+.
+Next Obligation. subst _add. ss. des_ifs; et. Qed.
+Next Obligation. subst _add. ss. des_ifs. Qed.
+Next Obligation. subst _add. ss. des_ifs. Qed.
+Next Obligation. subst _add. unfold _wf in *. des_ifs. Qed.
+Next Obligation. subst _core _add. unfold _wf in *. des_ifs. Qed.
+Next Obligation. subst _core. unfold _wf in *. des_ifs. Qed.
+Next Obligation.
+  subst _core _add. ss.
+  des_ifs;
+    try solve [exists unit; ss];
+      try solve [exists boom; ss].
+  eexists (white _). et.
+Qed.
+  
+Theorem oneshot_white_unupdatable
+          a0 a1
+          (NOTUNIT: a1 <> unit)
+  :
+      <<UPD:  URA.updatable (t:=t) (white a0) a1 -> a1 = white a0>>
+.
+Proof.
+  rr. unfold URA.updatable, URA.wf, URA.add in *. unseal "ra". ss. ii.
+  subst _add.  unfold _wf in *.
+  specialize (H (white a0)). ss. des_ifs; clear_tac; ss.
+  all: (exfalso; eapply H; ss).
+Qed.
+
+Theorem oneshot_black_updatable
+          a
+  :
+      <<UPD: URA.updatable black (white a)>>
+.
+Proof.
+  rr. unfold URA.updatable, URA.wf, URA.add in *. unseal "ra". ss. ii. des_ifs.
+Qed.
+
+End ONESHOT.
+End OneShot.
+
+Arguments OneShot.t: clear implicits.
+
 From stdpp Require numbers.
 
 Module Consent.

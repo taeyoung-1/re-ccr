@@ -9,9 +9,9 @@ Require Import Any.
 Require Import ModSem.
 Require Import AList.
 
-From compcert Require Import
+From compcertip Require Import
      AST Maps Globalenvs Memory Values Linking Integers.
-From compcert Require Import
+From compcertip Require Import
      Ctypes Clight Clightdefs.
 
 
@@ -56,7 +56,7 @@ Section EVAL_EXPR_COMP.
     let x := m / n in
     (x * n =? m).
 
-  Definition load_bitfield_c (ty: type) 
+  (* Definition load_bitfield_c (ty: type) 
             (sz: intsize) (sg: signedness) (pos: Z) (width: Z) 
             (addr: val) : itree eff val :=
   let chk := (0 <=? pos) && (0 <? width) 
@@ -102,53 +102,28 @@ Section EVAL_EXPR_COMP.
       else triggerUB
     else triggerUB
   | _, _, _ => triggerUB
-  end.
+  end. *)
 
   Definition assign_loc_c (ce: composite_env)
            (ty: type) (vp: val)
-           (bf: bitfield)
            (v: val): itree eff unit :=
-  match access_mode ty, bf with
-  | By_value chunk, Full =>
+  match access_mode ty with
+  | By_value chunk =>
     ccallU "store" (chunk, vp, v)
-  | By_copy, Full =>
-    match vp, v with
-    | Vptr b ofs, Vptr b' ofs' =>
-      let chk1 :=
-          if (0 <? sizeof ce ty) then
-            andb (divide_c
-                    (alignof_blockcopy ce ty)
-                    (Ptrofs.unsigned ofs'))
-                 (divide_c
-                    (alignof_blockcopy ce ty)
-                    (Ptrofs.unsigned ofs))
-          else true in
-      if negb chk1 then triggerUB else
-        let chk2 :=
-            (orb (negb (b' =? b))%positive
-                 (orb (Ptrofs.unsigned ofs' =? Ptrofs.unsigned ofs)
-                      (orb (Ptrofs.unsigned ofs' + sizeof ce ty <=? Ptrofs.unsigned ofs)
-                           (Ptrofs.unsigned ofs + sizeof ce ty <=? Ptrofs.unsigned ofs'))))%Z
-        in
-        if negb chk2 then triggerUB else
-          `bytes : list memval <- ccallU "loadbytes" (Vptr b' ofs', sizeof ce ty);;
-          ccallU "storebytes" (vp, bytes)
-    | _, _ => triggerUB
-    end
-  | _, Bits sz sg pos width => 
-    store_bitfield_c ty sz sg pos width vp v;;; Ret tt
-  | _, _ => triggerUB
+  | By_copy =>
+    let sz : Z := sizeof ce ty in
+    let al : Z := alignof_blockcopy ce ty in
+    ccallU "memcpy" (al, sz, [vp; v])
+  | _ => triggerUB
   end.
 
   Definition deref_loc_c (ty: type)
-             (vp: val) (bf: bitfield): itree eff val :=
-    match access_mode ty, bf with
-    | By_value chunk, Full => ccallU "load" (chunk, vp)
-    | By_reference, Full 
-    | By_copy, Full => Ret vp
-    | _, Bits sz sg pos width =>
-      load_bitfield_c ty sz sg pos width vp
-    | _, _ => triggerUB
+             (vp: val) : itree eff val :=
+    match access_mode ty with
+    | By_value chunk => ccallU "load" (chunk, vp)
+    | By_reference
+    | By_copy => Ret vp
+    | _ => triggerUB
     end.
 
   Variable e: Clight.env.
@@ -158,48 +133,40 @@ Section EVAL_EXPR_COMP.
     Variable _eval_expr_c: expr -> itree eff val.
 
     Definition _eval_lvalue_c (a: expr)
-      : itree eff (val * bitfield) :=
+      : itree eff val :=
       match a with
       | Evar id ty =>
         match e ! id with
         | Some (l, ty') =>
-          if type_eq ty ty' then Ret (Vptr l Ptrofs.zero, Full)
+          if type_eq ty ty' then Ret (Vptr l Ptrofs.zero)
           else triggerUB
         | None =>
           match SkEnv.id2blk skenv (string_of_ident id) with
-          | Some i => Ret (Vptr (Pos.of_succ_nat i) Ptrofs.zero, Full)
+          | Some i => Ret (Vptr (Pos.of_succ_nat i) Ptrofs.zero)
           | None => triggerUB
           end
         end
       | Ederef a ty =>
         v <- _eval_expr_c a;;
-        match v with
-        | Vptr l ofs => Ret (Vptr l ofs, Full)
-        | _ => triggerUB
-        end
+        if is_ptr_val v then Ret v
+        else triggerUB
       | Efield a i ty =>
         v <- _eval_expr_c a;;
-        match v with
-        | Vptr l ofs =>
-          match Clight.typeof a with
-          | Tstruct id att =>
-            co <- (ce ! id)?;;
-            match field_offset ce i (co_members co) with
-            | Errors.OK (delta, bf) =>
-              Ret (Vptr l (Ptrofs.add ofs (Ptrofs.repr delta)), bf)
-            | _ => triggerUB
+        if negb (is_ptr_val v ) then triggerUB
+        else match Clight.typeof a with
+             | Tstruct id att =>
+                co <- (ce ! id)?;;
+                match field_offset ce i (co_members co) with
+                | Errors.OK delta =>
+                  if Archi.ptr64
+                  then Ret (Val.addl v (Vptrofs (Ptrofs.repr delta)))
+                  else Ret (Val.add v (Vptrofs (Ptrofs.repr delta)))
+                | _ => triggerUB
+                end
+             | Tunion id att =>
+                (ce ! id)?;;; Ret v
+             | _ => triggerUB
             end
-          | Tunion id att =>
-            co <- (ce ! id)?;;
-            match union_field_offset ce i (co_members co) with
-            | Errors.OK (delta, bf) =>
-                Ret (Vptr l (Ptrofs.add ofs (Ptrofs.repr delta)), bf)
-            | _ => triggerUB
-            end
-          | _ => triggerUB
-          end
-        | _ => triggerUB
-        end
       | _ => triggerUB
       end.
 
@@ -211,8 +178,7 @@ Section EVAL_EXPR_COMP.
       match v with
       | Vint n => Ret (negb (Int.eq n Int.zero))
       | Vptr b ofs =>
-        if Archi.ptr64
-        then triggerUB
+        if Archi.ptr64 then triggerUB
         else ccallU "non_null?" v
       | _ => triggerUB
       end
@@ -220,8 +186,7 @@ Section EVAL_EXPR_COMP.
       match v with
       | Vlong n => Ret (negb (Int64.eq n Int64.zero))
       | Vptr b ofs =>
-        if negb Archi.ptr64
-        then triggerUB
+        if negb Archi.ptr64 then triggerUB
         else ccallU "non_null?" v
       | _ => triggerUB
       end
@@ -251,11 +216,10 @@ Section EVAL_EXPR_COMP.
 
   Definition sem_cast_c v t1 t2: itree eff val :=
     match Cop.classify_cast t1 t2 with
-    | Cop.cast_case_pointer =>
+    | Cop.cast_case_pointer2int | Cop.cast_case_pointer =>
       match v with
       | Vint _ => if Archi.ptr64 then triggerUB else Ret v
       | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
-      | Vptr _ _ => Ret v
       | _ => triggerUB
       end
     | Cop.cast_case_i2i sz2 si2 =>
@@ -708,11 +672,7 @@ Section EVAL_EXPR_COMP.
     | Econst_long i ty => Ret (Vlong i)
     | Etempvar id ty => (le ! id)?
     | Eaddrof a ty =>
-      '(vp, bf) <- _eval_lvalue_c eval_expr_c a;;
-      match bf with
-      | Full => Ret vp
-      | _ => triggerUB
-      end
+      _eval_lvalue_c eval_expr_c a
     | Eunop op a ty =>
       v <- eval_expr_c a;;
       unary_op_c op v (Clight.typeof a)
@@ -730,12 +690,12 @@ Section EVAL_EXPR_COMP.
     | Ealignof ty1 ty =>
       Ret (Vptrofs (Ptrofs.repr (alignof ce ty1)))
     | a =>
-      '(vp, bf) <- _eval_lvalue_c eval_expr_c a;;
-      v <- deref_loc_c (Clight.typeof a) vp bf;; Ret v
+      vp <- _eval_lvalue_c eval_expr_c a;;
+      v <- deref_loc_c (Clight.typeof a) vp;; Ret v
     end.
 
   Definition eval_lvalue_c
-    : expr -> itree eff (val * bitfield) :=
+    : expr -> itree eff val :=
     _eval_lvalue_c eval_expr_c.
 
   Fixpoint eval_exprlist_c

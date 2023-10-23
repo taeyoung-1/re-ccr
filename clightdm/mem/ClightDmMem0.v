@@ -6,18 +6,18 @@ Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
 Require Import AList.
-Require Import ConvC2ITree.
-Require Import ClightlightMemArith.
+Require Import ClightDmExprgen.
 
-From compcert Require Import
-     AST Maps Globalenvs Memory Values Linking Integers.
-From compcert Require Import
+From compcertip Require Import
+     AST Maps Globalenvs Memory Values ValuesAux Linking Integers.
+From compcertip Require Import
      Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.
 
 
 Section MODSEM.
+  Local Open Scope Z.
   Variable sk: Sk.t.
   Let skenv: SkEnv.t := Sk.load_skenv sk.
 
@@ -31,7 +31,7 @@ Section MODSEM.
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        let (m1, blk) := Mem.alloc m0 0%Z varg in
+        let (m1, blk) := Mem.alloc m0 0 varg in
         trigger (PPut m1↑);;;
         Ret blk.
 
@@ -40,7 +40,7 @@ Section MODSEM.
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
         let '(b, sz) := varg in
-        m1 <- (Mem.free m0 b 0%Z sz)?;;
+        m1 <- (Mem.free m0 b 0 sz)?;;
         trigger (PPut m1↑);;;
         Ret tt
     .
@@ -93,27 +93,38 @@ Section MODSEM.
 
     Definition cmp_ptrF : comparison * val * val -> itree Es bool :=
       fun varg =>
-        mp <- trigger (PGet);;
+        mp <- trigger PGet;;
         m <- mp↓?;;
         let '(c, v1, v2) := varg in
-        if Archi.ptr64
-        then (cmplu_bool_c m c v1 v2)?
-        else (cmpu_bool_c m c v1 v2)?.
+        let p1 := to_ptr_val m v1 in
+        let p2 := to_ptr_val m v2 in
+        let i1 := to_int_val m v1 in
+        let i2 := to_int_val m v2 in
+        let ret1 := (if Archi.ptr64
+                     then Val.cmplu_bool (Mem.valid_pointer m) c p1 p2
+                     else Val.cmpu_bool (Mem.valid_pointer m) c p1 p2) in
+        let ret2 := (if Archi.ptr64
+                     then Val.cmplu_bool (Mem.valid_pointer m) c i1 i2
+                     else Val.cmpu_bool (Mem.valid_pointer m) c i1 i2) in
+        match ret1, ret2 with
+        | Some b1, Some b2 =>
+          if (b1 && b2) || ((negb b1) && (negb b2)) then Ret b1
+          else triggerUB
+        | Some b, None => Ret b
+        | None, Some b => Ret b
+        | None, None => triggerUB
+        end.
 
     Definition sub_ptrF : Z * val * val -> itree Es val :=
       fun varg =>
         let '(sz, v1, v2) := varg in
-        match v1, v2 with
-        | Vptr b1 ofs1, Vptr b2 ofs2 =>
-          if
-            eq_block b1 b2 &&
-            Coqlib.proj_sumbool (Coqlib.zlt 0 sz) &&
+        mp <- trigger (PGet);;
+        m <- mp↓?;;
+        n <- (Cop._sem_ptr_sub_join v1 v2 m)?;;
+        if Coqlib.proj_sumbool (Coqlib.zlt 0 sz) &&
             Coqlib.proj_sumbool (Coqlib.zle sz Ptrofs.max_signed)
-          then
-            Ret (Vptrofs (Ptrofs.divs (Ptrofs.sub ofs1 ofs2) (Ptrofs.repr sz)))
-          else triggerUB
-        | _, _ => triggerUB
-        end.
+        then Ret (Vptrofs (Ptrofs.divs n (Ptrofs.repr sz)))
+        else triggerUB.
 
     Definition non_nullF: val -> itree Es bool :=
       fun varg =>
@@ -156,9 +167,9 @@ Section MODSEM.
                           Int64.unsigned i
                       | false, Vint i =>
                           Int.unsigned i
-                      | _, _ => (- 1)%Z
+                      | _, _ => - 1
                       end in
-            if (sz >? 0)%Z
+            if Coqlib.zlt 0 sz
             then m1 <- (Mem.free m0 b (Ptrofs.unsigned ofs - size_chunk Mptr) (Ptrofs.unsigned ofs + sz))?;;
                  trigger (PPut m1↑);;;
                  Ret Vundef
@@ -168,6 +179,55 @@ Section MODSEM.
         | _, _ => triggerUB
         end
     .
+
+    Definition memcpyF: Z * Z * list val -> itree Es val :=
+      fun varg =>
+        mp <- trigger (PGet);;
+        m <- mp↓?;;
+        match Archi.ptr64, varg with
+        | _, (al, sz, [vaddr; vaddr']) =>
+          let vp := to_ptr_val m vaddr in
+          let vp' := to_ptr_val m vaddr' in
+          match vp, vp' with
+          | Vptr b ofs, Vptr b' ofs' =>
+            if negb (dec al 1 && dec al 2 && dec al 4 && dec al 8) then triggerUB
+            else if negb (Coqlib.zle 0 sz && Zdivide_dec al sz) then triggerUB
+                 else 
+                  let chk1 := if negb (Coqlib.zlt 0 sz) then true
+                              else (Zdivide_dec al (Ptrofs.unsigned ofs'))
+                                    && (Zdivide_dec al (Ptrofs.unsigned ofs)) in
+                  if negb chk1 then triggerUB
+                  else
+                    let odst := Ptrofs.unsigned ofs in
+                    let osrc := Ptrofs.unsigned ofs' in
+                    let chk2 := (Coqlib.zle (osrc + sz) odst)
+                                  || (Coqlib.zle (odst + sz) osrc)
+                                      || (negb (dec b' b))
+                                          || (dec odst osrc) in
+                  if negb chk2 then triggerUB
+                  else bytes <- (Mem.loadbytes m b' osrc sz)?;;
+                       m' <- (Mem.storebytes m b odst bytes)?;;
+                       trigger (PPut m'↑);;; Ret Vundef
+          | _, _ => triggerUB
+          end
+        | _, _ => triggerUB
+        end.
+    
+    Definition captureF : list val -> itree Es val :=
+      fun varg =>
+        mp <- trigger (PGet);;
+        m <- mp↓?;;
+        match varg with
+        | [Vptr b ofs] =>
+          if negb (Coqlib.plt m.(Mem.nextblock) b) then triggerUB
+          else
+            '(exist (i, m') _) <- trigger (Choose { im' : Z * mem | Mem.capture m b (fst im') (snd im')});;
+            trigger (PPut m'↑);;;
+            Ret (Vptrofs (Ptrofs.repr (i + Ptrofs.unsigned ofs)))
+        | [Vint i] => if Archi.ptr64 then triggerUB else Ret (Vint i)
+        | [Vlong i] => if Archi.ptr64 then Ret (Vlong i) else triggerUB
+        | _ => triggerUB
+        end.
     
     Definition reallocF: list val -> itree Es val :=
       fun varg =>
@@ -287,7 +347,9 @@ Section MODSEM.
                         ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
                         ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
                         ("non_null?", cfunU non_nullF);
-                        ("malloc", cfunU mallocF); ("mfree", cfunU mfreeF)];
+                        ("malloc", cfunU mallocF); ("mfree", cfunU mfreeF);
+                        ("memcpy", cfunU memcpyF);
+                        ("capture", cfunU captureF)];
       ModSem.mn := "Mem";
       ModSem.initial_st := (load_mem)↑;
     |}
@@ -299,7 +361,9 @@ Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
     Mod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
-               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑)]
+               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑);
+               ("memcpy", (@Gfun Clight.fundef type (External (EF_memcpy 1 1) (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑);
+               ("capture", (@Gfun Clight.fundef type (External EF_capture (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑)]
   |}
 .
 

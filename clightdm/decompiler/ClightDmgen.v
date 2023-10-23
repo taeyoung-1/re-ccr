@@ -7,12 +7,12 @@ Require Import Any.
 Require Import ModSem.
 Require Import AList.
 
-From compcert Require Import
+From compcertip Require Import
      AST Maps Globalenvs Memory Values Linking Integers.
-From compcert Require Import
+From compcertip Require Import
      Ctypes Clight Clightdefs.
 
-Require Import ConvC2ITree.
+Require Import ClightDmExprgen.
 
 Section Clight.
 Context {eff : Type -> Type}.
@@ -64,11 +64,10 @@ Section DECOMP.
 
   Definition _sassign_c e le a1 a2 :=
     tau;;
-    '(vp, bf) <- eval_lvalue_c sk ce e le a1;;
-     v <- eval_expr_c sk ce e le a2;; 
-     v' <- sem_cast_c v (typeof a2) (typeof a1);;
-     v' <- v'?;;
-     assign_loc_c ce (typeof a1) vp bf v'.
+    vp <- eval_lvalue_c sk ce e le a1;;
+    v <- eval_expr_c sk ce e le a2;; 
+    v' <- sem_cast_c v (typeof a2) (typeof a1);;
+    assign_loc_c ce (typeof a1) vp v'.
 
   Definition _scall_c e le a al
     : itree eff val :=
@@ -86,7 +85,15 @@ Section DECOMP.
             fd <- (match gd with Gfun fd => Some fd | _ => None end)?;;
             if type_eq (type_of_fundef fd)
                 (Tfunction tyargs tyres cconv)
-            then ccallU gsym vargs
+            then match fd with
+                 | Internal f => ccallU gsym vargs
+                 | External EF_malloc _ _ _ => ccallU "malloc" vargs
+                 | External EF_free _ _ _ => ccallU "free" vargs
+                 (* this is for builtin memcpy, uncallable in standard C *)
+                 (* | External (EF_memcpy al sz) _ _ _ => ccallU "memcpy" (al, sz, vargs) *)
+                 | External EF_capture _ _ _ => ccallU "capture" vargs
+                 | _ => triggerUB
+                 end
             else triggerUB
           else triggerUB
       | _ => triggerUB (* unreachable b*)
@@ -99,8 +106,7 @@ Section DECOMP.
     : itree eff bool :=
     tau;;
     v1 <- eval_expr_c sk ce e le a;;
-    b <- bool_val_c v1 (typeof a);;
-    b?.
+    bool_val_c v1 (typeof a).
 
   Definition sloop_iter_body_one
              (itr: itr_t)
@@ -185,7 +191,7 @@ Section DECOMP.
     let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
 
   Definition blocks_of_env (ce: composite_env) :=
-    List.map (block_of_binding ce) ∘ PTree.elements.
+    fun x => ((List.map (block_of_binding ce)) (PTree.elements x)).
   
   Definition _sreturn_c
              (retty: type)
@@ -197,8 +203,7 @@ Section DECOMP.
     | Some a =>
       tau;;
       v <- eval_expr_c sk ce e le a;;
-      v' <- sem_cast_c v (typeof a) retty;;
-      v'?
+      sem_cast_c v (typeof a) retty
     end.
 
   Fixpoint decomp_stmt
@@ -220,7 +225,17 @@ Section DECOMP.
     | Scall optid a al =>
         v <- _scall_c e le a al;;
         Ret (e, (set_opttemp optid v le), None, None)
-    | Sbuiltin optid ef targs el => triggerUB
+    | Sbuiltin optid ef tyargs al =>
+      tau;;
+      vargs <- eval_exprlist_c sk ce e le al tyargs;;
+      match ef with
+      | EF_malloc => ccallU "malloc" vargs
+      | EF_free => ccallU "free" vargs
+      (* this is for builtin memcpy, uncallable in standard C *)
+      (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
+      | EF_capture => ccallU "capture" vargs
+      | _ => triggerUB
+      end
     | Ssequence s1 s2 =>
       '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
                         (* this is for steps *)
@@ -265,66 +280,12 @@ Section DECOMP.
     '(e', le', c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; 
     '(_, _, _, v) <- (match ov with
     | Some v => free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some v)
-    | None => match c with
+    | None => match c : option bool with
               | Some b0 => if b0 then triggerUB else triggerUB
               | None => tau;; free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some Vundef)
               end
     end);; v <- v?;;
     Ret v.
-
-    Lemma unfold_decomp_stmt :
-    decomp_stmt =
-  fun retty stmt e le =>
-    match stmt with
-    | Sskip =>
-      Ret (e, le, None, None)
-    | Sassign a1 a2 =>
-      _sassign_c e le a1 a2;;;
-      Ret (e, le, None, None)
-    | Sset id a =>
-      tau;;
-      v <- eval_expr_c sk ce e le a ;; 
-      let le' := PTree.set id v le in
-      Ret (e, le', None, None)
-    | Scall optid a al =>
-        v <- _scall_c e le a al;;
-        Ret (e, (set_opttemp optid v le), None, None)
-    | Sbuiltin optid ef targs el => triggerUB
-    | Ssequence s1 s2 =>
-      '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
-      match v with
-      | Some retval =>
-        Ret (e', le', None, v)
-      | None =>
-        match bc with
-        | None =>
-          tau;;decomp_stmt retty s2 e' le'
-        | Some true =>
-          tau;;Ret (e', le', bc, None)
-        | Some false => 
-          tau;;Ret (e', le', bc, None)
-        end
-      end
-    | Sifthenelse a s1 s2 =>
-      b <- _site_c e le a;;
-      if (b: bool) then (decomp_stmt retty s1 e le)
-      else (decomp_stmt retty s2 e le)
-    | Sloop s1 s2 =>
-      let itr1 := decomp_stmt retty s1 in
-      let itr2 := decomp_stmt retty s2 in
-      _sloop_itree e le itr1 itr2
-    | Sbreak =>
-      Ret (e, le, Some true, None)
-    | Scontinue =>
-      Ret (e, le, Some false, None)
-    | Sreturn oa =>
-      v <- _sreturn_c retty e le oa;;
-      Ret (e, le, None, Some v)
-    | _ =>
-      (* not supported *)
-      triggerUB
-    end.
-    Proof. repeat (apply func_ext; i). destruct x0; et. Qed.
 
 End DECOMP.
 End Clight.
