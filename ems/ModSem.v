@@ -7,15 +7,376 @@ Require Import Skeleton.
 Require Import STS Behavior.
 Require Import Any.
 Require Import Permutation.
+Require Import Optics.
 
 Set Implicit Arguments.
 
 
-
 Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
 
-Module ModSemL.
-Import EventsL.
+
+
+Module ModSem.
+Import Events.
+Section MODSEM.
+
+  Record t: Type := mk {
+    (* state : Type; *)
+    (* init_st : state; *)
+    init_st : Any.t;
+    fnsems : gname -> option (Any.t -> itree Es Any.t);
+
+  }
+  .
+
+  Program Definition wrap_fun {E} `{eventE -< E} A R 
+        (f: ktree E A R):
+    ktree E Any.t Any.t :=
+    fun arg =>
+      arg <- unwrapU (arg↓);;
+      ret <- (f arg);; Ret ret↑
+  .
+
+  Fixpoint get_fnsems {E} `{eventE -< E}
+          (fnsems: list (gname * (ktree E Any.t Any.t)))
+          (fn: gname):
+    option (ktree E Any.t Any.t) :=
+    match fnsems with
+    | [] => None
+    | (fn_hd, body_hd)::tl =>
+        if string_dec fn fn_hd then Some body_hd else get_fnsems tl fn
+    end.
+
+End MODSEM.
+
+Section INTERP.
+
+  Variable ms: t.
+
+  Definition prog: callE ~> itree Es :=
+    fun _ '(Call fn args) =>
+      sem <- (fnsems ms fn)?;;
+      rv <- (sem args);;
+      Ret rv
+  .  
+
+(*   Definition prog: callE ~> itree Es  :=
+  fun _ '(Call mn fn args) =>
+    sem <- (alist_find fn ms.(fnsems))?;;
+    rv <- (sem (mn, args));;
+    Ret rv
+. *)
+
+
+
+  (* Definition initial_p_state: p_state :=
+    (fun mn => match alist_find mn ms.(initial_mrs) with
+               | Some r => r
+               | None => tt↑
+               end). *)
+
+
+  Context `{CONF: EMSConfig}.
+
+  Definition initial_itr (P: option Prop) : itree eventE Any.t :=
+    match P with
+    | None => Ret tt
+    | Some P' => assume (<<WF: P'>>)
+    end;;;
+    snd <$> interp_Es prog (prog (Call "main" initial_arg)) (init_st ms).
+
+(*   Definition initial_itr (P: option Prop): itree (eventE) Any.t :=
+    match P with
+    | None => Ret tt
+    | Some P' => assume (<<WF: P'>>)
+    end;;;
+    snd <$> interp_Es prog (prog (Call None "main" initial_arg)) (initial_p_state). *)
+
+
+
+  Let state: Type := itree eventE Any.t.
+
+  Definition state_sort (st0: state): sort :=
+    match (observe st0) with
+    | TauF _ => demonic
+    | RetF rv =>
+      match (finalize rv) with
+      | Some rv => final rv
+      | _ => angelic
+      end
+    | VisF (Choose X) k => demonic
+    | VisF (Take X) k => angelic
+    | VisF (Syscall fn args rvs) k => vis
+    end
+  .
+
+  Inductive step: state -> option event -> state -> Prop :=
+  | step_tau
+      itr
+    :
+      step (Tau itr) None itr
+  | step_choose
+      X k (x: X)
+    :
+      step (Vis (subevent _ (Choose X)) k) None (k x)
+  | step_take
+      X k (x: X)
+    :
+      step (Vis (subevent _ (Take X)) k) None (k x)
+  | step_syscall
+      fn args rv (rvs: Any.t -> Prop) k
+      (SYSCALL: syscall_sem (event_sys fn args rv))
+      (RETURN: rvs rv)
+    :
+      step (Vis (subevent _ (Syscall fn args rvs)) k) (Some (event_sys fn args rv)) (k rv)
+  .
+
+  Lemma step_trigger_choose_iff X k itr e
+        (STEP: step (trigger (Choose X) >>= k) e itr)
+    :
+      exists x,
+        e = None /\ itr = k x.
+  Proof.
+    inv STEP.
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss.
+      unfold trigger in H0. ss. cbn in H0.
+      dependent destruction H0. ired. et.  }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+  Qed.
+
+  Lemma step_trigger_take_iff X k itr e
+        (STEP: step (trigger (Take X) >>= k) e itr)
+    :
+      exists x,
+        e = None /\ itr = k x.
+  Proof.
+    inv STEP.
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss.
+      unfold trigger in H0. ss. cbn in H0.
+      dependent destruction H0. ired. et.  }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+  Qed.
+
+  Lemma step_tau_iff itr0 itr1 e
+        (STEP: step (Tau itr0) e itr1)
+    :
+      e = None /\ itr0 = itr1.
+  Proof.
+    inv STEP. et.
+  Qed.
+
+  Lemma step_ret_iff rv itr e
+        (STEP: step (Ret rv) e itr)
+    :
+      False.
+  Proof.
+    inv STEP.
+  Qed.
+
+  Lemma step_trigger_syscall_iff fn args rvs k e itr
+        (STEP: step (trigger (Syscall fn args rvs) >>= k) e itr)
+    :
+      exists rv, itr = k rv /\ e = Some (event_sys fn args rv)
+                 /\ <<RV: rvs rv>> /\ <<SYS: syscall_sem (event_sys fn args rv)>>.
+  Proof.
+    inv STEP.
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss. }
+    { eapply f_equal with (f:=observe) in H0. ss.
+      unfold trigger in H0. ss. cbn in H0.
+      dependent destruction H0. ired. et. }
+  Qed.
+
+
+  Let itree_eta E R (itr0 itr1: itree E R)
+      (OBSERVE: observe itr0 = observe itr1)
+    :
+      itr0 = itr1.
+  Proof.
+    rewrite (itree_eta_ itr0).
+    rewrite (itree_eta_ itr1).
+    rewrite OBSERVE. auto.
+  Qed.
+
+  Lemma step_trigger_choose X k x
+    :
+      step (trigger (Choose X) >>= k) None (k x).
+  Proof.
+    unfold trigger. ss.
+    match goal with
+    | [ |- step ?itr _ _] =>
+      replace itr with (Subevent.vis (Choose X) k)
+    end; ss.
+    { econs. }
+    { eapply itree_eta. ss. cbv. f_equal.
+      extensionality x0. eapply itree_eta. ss. }
+  Qed.
+
+  Lemma step_trigger_take X k x
+    :
+      step (trigger (Take X) >>= k) None (k x).
+  Proof.
+    unfold trigger. ss.
+    match goal with
+    | [ |- step ?itr _ _] =>
+      replace itr with (Subevent.vis (Take X) k)
+    end; ss.
+    { econs. }
+    { eapply itree_eta. ss. cbv. f_equal.
+      extensionality x0. eapply itree_eta. ss. }
+  Qed.
+
+  Lemma step_trigger_syscall fn args (rvs: Any.t -> Prop) k rv
+        (RV: rvs rv) (SYS: syscall_sem (event_sys fn args rv))
+    :
+      step (trigger (Syscall fn args rvs) >>= k) (Some (event_sys fn args rv)) (k rv).
+  Proof.
+    unfold trigger. ss.
+    match goal with
+    | [ |- step ?itr _ _] =>
+      replace itr with (Subevent.vis (Syscall fn args rvs) k)
+    end; ss.
+    { econs; et. }
+    { eapply itree_eta. ss. cbv. f_equal.
+      extensionality x0. eapply itree_eta. ss. }
+  Qed.
+
+
+  Program Definition compile_itree: itree eventE Any.t -> semantics :=
+    fun itr =>
+      {|
+        STS.state := state;
+        STS.step := step;
+        STS.initial_state := itr;
+        STS.state_sort := state_sort;
+      |}
+  .
+  Next Obligation. inv STEP; inv STEP0; ss. csc. Qed.
+  Next Obligation. inv STEP; ss. Qed.
+  Next Obligation. inv STEP; ss. Qed.
+  Next Obligation. inv STEP; ss. Qed.
+  Next Obligation. inv STEP; ss. Qed.
+
+  Definition compile P: semantics :=
+    compile_itree (initial_itr P).
+
+  Lemma initial_itr_not_wf P
+        (WF: ~ P)
+        tr
+    :
+      Beh.of_program (compile_itree (initial_itr (Some P))) tr.
+  Proof.
+    eapply Beh.ub_top. pfold. econsr; ss; et. rr. ii; ss.
+    unfold initial_itr, assume in *. rewrite bind_bind in STEP.
+    eapply step_trigger_take_iff in STEP. des. subst. ss.
+  Qed.
+
+  Lemma compile_not_wf P
+        (WF: ~ P)
+        tr
+    :
+      Beh.of_program (compile (Some P)) tr.
+  Proof.
+    eapply initial_itr_not_wf; et.
+  Qed.
+
+  (* Program Definition interp_no_forge: semantics := {| *)
+  (*   STS.state := state; *)
+  (*   STS.step := step; *)
+  (*   STS.initial_state := itr2'; *)
+  (*   STS.state_sort := state_sort; *)
+  (* |} *)
+  (* . *)
+  (* Next Obligation. inv STEP; inv STEP0; ss. csc. rewrite SYSCALL in *. csc. Qed. *)
+  (* Next Obligation. inv STEP; ss. Qed. *)
+  (* Next Obligation. inv STEP; ss. Qed. *)
+
+  End INTERP.
+End ModSem.
+
+Section ADD_MODSEM.
+  Import ModSem.
+  Import Events.
+  (* Variable M1 M2 : ModSem.t. *)
+
+  (* Definition emb_l : forall X, Es Any.t X -> Es Any.t X  :=
+    lmap fstl.
+
+  Definition emb_r : forall X, Es (state M2) X -> Es (state M1 * state M2) X :=
+    lmap sndl. *)
+
+  Definition emb_l : forall X, Es Any.t -> Es Any.t  :=
+    lmap fstl.
+
+  Definition emb_r : forall X, Es (state M2) X -> Es (state M1 * state M2) X :=
+    lmap sndl.
+
+  Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
+    fun fn =>
+      match M1.(fnsems) fn, M2.(fnsems) fn with
+      | Some fn_body, None => Some (fun args => map_event emb_l (fn_body args))
+      | None, Some fn_body => Some (fun args => map_event emb_r (fn_body args))
+      | _, _ => None
+      end.
+
+
+  Definition ModSemAdd : ModSem.t :=
+  {|
+    (* state := state M1 * state M2; *)
+    init_st := Any.t
+    fnsems := add_fnsems;
+  |}.
+
+End ADD_MODSEM.
+
+Module Mod.
+Section MOD.
+  Context `{Sk.ld}.
+
+  Record t: Type := mk {
+    get_modsem: Sk.t -> ModSem.t;
+    sk: Sk.t;
+  }
+  .
+
+End MOD.
+End Mod.
+
+
+
+
+Section EVENTSCOMMON.
+
+(*** casting call, fun ***)
+(* Definition ccallN {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret. *)
+(* Definition ccallU {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret. *)
+(* Definition cfunN {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
+(*   fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑. *)
+(* Definition cfunU {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
+(*   fun varg => varg <- varg↓?;; vret <- body varg;; Ret vret↑. *)
+
+  (* Definition ccall {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret. *)
+  (* Definition cfun {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
+  (*   fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑. *)
+  Context `{HasCallE: callE -< E}.
+  Context `{HasEventE: eventE -< E}.
+
+  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
+  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret.
+
+  Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
+    fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
+  Definition cfunU {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
+    fun '(_, varg) => varg <- varg↓?;; vret <- body varg;; Ret vret↑.
+
+End EVENTSCOMMON.
+
+ Module ModSemL.
 Section MODSEML.
 
 
@@ -30,7 +391,7 @@ Section MODSEML.
   (* } *)
   (* . *)
 
-  Record t: Type := mk {
+(*   Record t: Type := mk {
     (* initial_ld: mname -> GRA; *)
     fnsems: alist gname ((option mname * Any.t) -> itree Es Any.t);
     initial_mrs: alist mname Any.t;
@@ -52,9 +413,9 @@ Section MODSEML.
     fnsems := app ms0.(fnsems) ms1.(fnsems);
     initial_mrs := app ms0.(initial_mrs) ms1.(initial_mrs);
   |}
-  .
+  . *)
 
-
+ 
 
   Section INTERP.
 
@@ -408,169 +769,24 @@ End ModSemL.
 
 
 
+ *)
 
 
 
 
 
-
-
-
-
-
-
-
-
-(* Module Events. *)
-Section EVENTS.
-
-  Inductive callE: Type -> Type :=
-  | Call (fn: gname) (args: Any.t): callE Any.t
-  .
-
-  Inductive pE: Type -> Type :=
-  | PPut (p: Any.t): pE unit
-  | PGet: pE Any.t
-  .
-
-  Definition Es: Type -> Type := (callE +' pE+' eventE).
-
-  Definition handle_pE (mn: mname): pE ~> EventsL.pE :=
-    fun _ pe =>
-      match pe with
-      | PPut a0 => (EventsL.PPut mn a0)
-      | PGet => (EventsL.PGet mn)
-      end
-  .
-
-  Definition handle_callE (mn: mname) `{EventsL.callE -< E}: callE ~> itree E :=
-    fun _ '(Call fn args) =>
-      r <- trigger (EventsL.Call (Some mn) fn args);;
-      Ret r
-  .
-
-  Definition handle_all (mn: mname): Es ~> itree EventsL.Es.
-    i. destruct X.
-    { apply (handle_callE mn); assumption. }
-    destruct s.
-    { exact (trigger (handle_pE mn p)). }
-    exact (trigger e).
-  Defined.
-
-  Definition transl_all (mn: mname): itree Es ~> itree EventsL.Es := interp (handle_all mn).
-
-
-
-
-
-
-  Lemma transl_all_bind
-        A B
-        (itr: itree Es A) (ktr: A -> itree Es B)
-        mn
-    :
-      transl_all mn (itr >>= ktr) = a <- (transl_all mn itr);; (transl_all mn (ktr a))
-  .
-  Proof. unfold transl_all. grind. Qed.
-
-  Lemma transl_all_tau
-        mn
-        A
-        (itr: itree Es A)
-    :
-      transl_all mn (tau;; itr) = tau;; (transl_all mn itr)
-  .
-  Proof. unfold transl_all. grind. Qed.
-
-  Lemma transl_all_ret
-        mn
-        A
-        (a: A)
-    :
-      transl_all mn (Ret a) = Ret a
-  .
-  Proof. unfold transl_all. grind. Qed.
-
-  Lemma transl_all_callE
-        mn
-        fn args
-    :
-      transl_all mn (trigger (Call fn args)) =
-      r <- (trigger (EventsL.Call (Some mn) fn args));;
-      tau;; Ret r
-  .
-  Proof. unfold transl_all. rewrite unfold_interp. ss. grind. Qed.
-
-  Lemma transl_all_pE
-        mn
-        T (e: pE T)
-    :
-      transl_all mn (trigger e) = r <- trigger (handle_pE mn e);; tau;; Ret r
-  .
-  Proof. dependent destruction e; ss; unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
-
-  Lemma transl_all_eventE
-        mn
-        T (e: eventE T)
-    :
-      transl_all mn (trigger e) = r <- trigger e;; tau;; Ret r
-  .
-  Proof. dependent destruction e; ss; unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
-
-  Lemma transl_all_triggerUB
-        mn T
-    :
-      transl_all mn (triggerUB: itree _ T) = triggerUB
-  .
-  Proof. unfold triggerUB. unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
-
-  Lemma transl_all_triggerNB
-        mn T
-    :
-      transl_all mn (triggerNB: itree _ T) = triggerNB
-  .
-  Proof. unfold triggerNB. unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
-
-End EVENTS.
-(* End Events. *)
-
-Section EVENTSCOMMON.
-
-(*** casting call, fun ***)
-(* Definition ccallN {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret. *)
-(* Definition ccallU {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret. *)
-(* Definition cfunN {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
-(*   fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑. *)
-(* Definition cfunU {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
-(*   fun varg => varg <- varg↓?;; vret <- body varg;; Ret vret↑. *)
-
-  (* Definition ccall {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret. *)
-  (* Definition cfun {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
-  (*   fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑. *)
-  Context `{HasCallE: callE -< E}.
-  Context `{HasEventE: eventE -< E}.
-
-  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
-  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret.
-
-  Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
-  Definition cfunU {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓?;; vret <- body varg;; Ret vret↑.
-
-End EVENTSCOMMON.
-
-
-
-Module ModSem.
-(* Import Events. *)
+(* Module ModSem.
+Import Events.
 Section MODSEM.
+
+
   Record t: Type := mk {
     fnsems: list (gname * ((option mname * Any.t) -> itree Es Any.t));
     mn: mname;
     initial_st: Any.t;
   }
   .
+
 
   Definition prog (ms: t): callE ~> itree Es :=
     fun _ '(Call fn args) =>
@@ -599,13 +815,12 @@ Section MODSEM.
   Definition compile (ms: t) P: semantics := ModSemL.compile (lift ms) P.
 
 End MODSEM.
-End ModSem.
 
-Coercion ModSem.lift: ModSem.t >-> ModSemL.t.
-
-
+End ModSem. *)
+(* Coercion ModSem.lift: ModSem.t >-> ModSemL.t. *)
 
 
+(* 
 Module ModL.
 Section MODL.
   Context `{Sk.ld}.
@@ -716,109 +931,119 @@ Section MODL.
 End MODL.
 End ModL.
 
+ *)
+
+(* Module Events. *)
+Section EVENTS.
 
 
-Module Mod.
-Section MOD.
-  Context `{Sk.ld}.
-
-  Record t: Type := mk {
-    get_modsem: Sk.t -> ModSem.t;
-    sk: Sk.t;
-  }
+  Inductive callE: Type -> Type :=
+  | Call (fn: gname) (args: Any.t) : callE Any.t
   .
 
-  Definition lift (md: t): ModL.t := {|
-    ModL.get_modsem := fun sk => md.(get_modsem) sk;
-    ModL.sk := md.(sk);
-  |}
+  Inductive sE: Type :=
+  | State (run : Any.t -> Any.t * Any.t) : sE
+  . 
+
+(* Double check type*)
+  Definition Get (p: Any.t -> Any.t) : sE := State (fun x => (x, p x)).
+  Definition Modify (f: Any.t -> Any.t) : sE := State (fun x => (f x, x)).
+
+  Notation Es := ((eventE +' callE) +' sE Any.t).
+  Notation Put x := (Modify (fun _ => x)).
+
+ (*  Definition handle_callE `{callE -< E}: callE ~> itree E :=
+    fun _ '(Call fn args) =>
+      r <- trigger (Call fn args);;
+      Ret r
   .
 
-  Coercion lift: t >-> ModL.t.
+  Definition handle_all: (Es state) ~> itree (Es state).
+    i. destruct X.
+    { apply (handle_callE mn); assumption. }
+    destruct s.
+    { exact (trigger (handle_pE mn p)). }
+    exact (trigger e).
+  Defined.
 
-  Definition wf (md: t): Prop := <<WF: ModL.wf (lift md)>>.
+  Definition transl_all (mn: mname): itree Es ~> itree EventsL.Es := interp (handle_all mn).
 
-   Definition add_list (xs: list t): ModL.t :=
-     fold_right ModL.add ModL.empty (List.map lift xs)
-   .
 
-   Lemma add_list_single: forall (x: t), add_list [x] = x.
-   Proof. ii; cbn. rewrite ModL.add_empty_r. refl. Qed.
 
-   Lemma add_list_cons
-         x xs
-     :
-       (add_list (x :: xs)) = (ModL.add x (add_list xs))
-   .
-   Proof. ss. Qed.
 
-   Lemma add_list_snoc
-         x xs
-     :
-       (add_list (snoc xs x)) = (ModL.add (add_list xs) x)
-   .
-   Proof.
-     ginduction xs; ii; ss.
-     { cbn. rewrite ModL.add_empty_l. rewrite ModL.add_empty_r. refl. }
-     { cbn. rewrite <- ModL.add_assoc'. f_equal. rewrite <- IHxs. refl. }
-   Qed.
 
-   Lemma add_list_app
-         xs ys
-     :
-       add_list (xs ++ ys) = ModL.add (add_list xs) (add_list ys)
-   .
-   Proof.
-     (* unfold add_list. rewrite map_app. rewrite fold_right_app. *)
-     ginduction xs; ii; ss.
-     - cbn. rewrite ModL.add_empty_l. refl.
-     - rewrite ! add_list_cons. rewrite <- ModL.add_assoc'. f_equal. eapply IHxs; ss.
-   Qed.
 
-   Lemma add_list_sk (mdl: list t)
-     :
-       ModL.sk (add_list mdl)
-       =
-       fold_right Sk.add Sk.unit (List.map sk mdl).
-   Proof.
-     induction mdl; ss. rewrite <- IHmdl. auto.
-   Qed.
+  Lemma transl_all_bind
+        A B
+        (itr: itree Es A) (ktr: A -> itree Es B)
+        mn
+    :
+      transl_all mn (itr >>= ktr) = a <- (transl_all mn itr);; (transl_all mn (ktr a))
+  .
+  Proof. unfold transl_all. grind. Qed.
 
-   Lemma add_list_initial_mrs (mdl: list t) (ske: Sk.t)
-     :
-       ModSemL.initial_mrs (ModL.get_modsem (add_list mdl) ske)
-       =
-       fold_right (@app _) [] (List.map (fun md => ModSemL.initial_mrs (get_modsem md ske)) mdl).
-   Proof.
-     induction mdl; ss. rewrite <- IHmdl. auto.
-   Qed.
+  Lemma transl_all_tau
+        mn
+        A
+        (itr: itree Es A)
+    :
+      transl_all mn (tau;; itr) = tau;; (transl_all mn itr)
+  .
+  Proof. unfold transl_all. grind. Qed.
 
-   Lemma add_list_fns (mdl: list t) (ske: Sk.t)
-     :
-       List.map fst (ModSemL.fnsems (ModL.get_modsem (add_list mdl) ske))
-       =
-       fold_right (@app _) [] (List.map (fun md => List.map fst (ModSemL.fnsems (get_modsem md ske))) mdl).
-   Proof.
-     induction mdl.
-     { auto. }
-     transitivity ((List.map fst (ModSemL.fnsems (get_modsem a ske)))++(fold_right (@app _) [] (List.map (fun md => List.map fst (ModSemL.fnsems (get_modsem md ske))) mdl))); auto.
-     rewrite <- IHmdl. clear.
-     ss. rewrite map_app. auto.
-   Qed.
+  Lemma transl_all_ret
+        mn
+        A
+        (a: A)
+    :
+      transl_all mn (Ret a) = Ret a
+  .
+  Proof. unfold transl_all. grind. Qed.
 
-   Lemma add_list_fnsems (mdl: list t) (ske: Sk.t)
-     :
-       (ModSemL.fnsems (ModL.get_modsem (add_list mdl) ske))
-       =
-       fold_right (@app _) [] (List.map (fun md => (ModSemL.fnsems (get_modsem md ske))) mdl).
-   Proof.
-     induction mdl.
-     { auto. }
-     transitivity ((ModSemL.fnsems (get_modsem a ske))++(fold_right (@app _) [] (List.map (fun md => ModSemL.fnsems (get_modsem md ske)) mdl))); auto.
-     rewrite <- IHmdl. clear. ss.
-   Qed.
-End MOD.
-End Mod.
+  Lemma transl_all_callE
+        mn
+        fn args
+    :
+      transl_all mn (trigger (Call fn args)) =
+      r <- (trigger (EventsL.Call (Some mn) fn args));;
+      tau;; Ret r
+  .
+  Proof. unfold transl_all. rewrite unfold_interp. ss. grind. Qed.
+
+  Lemma transl_all_pE
+        mn
+        T (e: pE T)
+    :
+      transl_all mn (trigger e) = r <- trigger (handle_pE mn e);; tau;; Ret r
+  .
+  Proof. dependent destruction e; ss; unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
+
+  Lemma transl_all_eventE
+        mn
+        T (e: eventE T)
+    :
+      transl_all mn (trigger e) = r <- trigger e;; tau;; Ret r
+  .
+  Proof. dependent destruction e; ss; unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
+
+  Lemma transl_all_triggerUB
+        mn T
+    :
+      transl_all mn (triggerUB: itree _ T) = triggerUB
+  .
+  Proof. unfold triggerUB. unfold transl_all; rewrite unfold_interp; ss; grind. Qed.
+
+  Lemma transl_all_triggerNB
+        mn T
+    :
+      transl_all mn (triggerNB: itree _ T) = triggerNB
+  .
+  Proof. unfold triggerNB. unfold transl_all; rewrite unfold_interp; ss; grind. Qed. *)
+
+End EVENTS.
+(* End Events. *)
+
+
 
 Coercion Mod.lift: Mod.t >-> ModL.t.
 

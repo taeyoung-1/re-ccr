@@ -3,6 +3,7 @@ Require Export sflib.
 Require Export ITreelib.
 Require Export AList.
 Require Import Any.
+Require Import Optics.
 
 Set Implicit Arguments.
 
@@ -91,6 +92,7 @@ Goal (tt ↑↓ǃ) = Ret tt. rewrite Any.upcast_downcast. ss. Qed.
 Section EVENTSCOMMON.
 
   Definition p_state: Type := (mname -> Any.t).
+  (* Definition p_state : Type := Any.t. *)
 
   (*** Same as State.pure_state, but does not use "Vis" directly ***)
   Definition pure_state {S E}: E ~> stateT S (itree E) := fun _ e s => x <- trigger e;; Ret (s, x).
@@ -108,64 +110,100 @@ End EVENTSCOMMON.
 
 
 
-Module EventsL.
-Section EVENTSL.
+Module Events.
+Section EVENTS.
 
   Inductive callE: Type -> Type :=
-  | Call (mn: option mname) (fn: gname) (args: Any.t): callE Any.t
+  | Call (fn: gname) (args: Any.t) : callE Any.t
   .
+  
+  Variant sE: Type -> Type :=
+  | SUpdate (run : Any.t -> Any.t * Any.t) : sE Any.t
+  . 
+  
+  (* Variant sE (S : Type) (X : Type) : Type :=
+  | State (run : S -> S * X) : sE S X
+  . *)
+  
+  Definition Es: Type -> Type := (callE +' sE +' eventE).
 
-  Inductive pE: Type -> Type :=
-  | PPut (mn: mname) (p: Any.t): pE unit
-  | PGet (mn: mname): pE Any.t
-  .
+  Definition Get (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
+  Definition Modify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
+  Definition Put x := (Modify (fun _ => x)).
+  
 
-  (*** TODO: we don't want to require "mname" here ***)
-  (*** use dummy mname? ***)
-  (* Definition FPut E `{rE -< E} (mn: mname) (fr: GRA): itree E unit := *)
+  (* Double-check Types*)
+  (* Definition Get (p: Any.t -> Any.t) : sE Any.t Any.t := SUpdate (fun x => (x, p x)).
+  Definition Modify (f: Any.t -> Any.t) : sE Any.t () := SUpdate (fun x => (f x, tt)).
+  Definition Put x := (Modify (fun _ => x)). *)
 
-  Definition Es: Type -> Type := (callE +' pE +' eventE).
-
-  (* Inductive mdE: Type -> Type := *)
-  (* | MPut (mn: mname) (r: GRA): mdE unit *)
-  (* | MGet (mn: mname): mdE GRA *)
-  (* . *)
-
-  (* Inductive fnE: Type -> Type := *)
-  (* | FPut (r: GRA): fnE unit *)
-  (* | FGet: fnE GRA *)
-  (* | FPush: fnE unit *)
-  (* | FPop: fnE unit *)
-  (* . *)
-
-
-
+  (* Definition Get {S} {X} (p: S -> X) : sE S X := SUpdate (fun x => (x, p x)). *)
+  (* Definition Modify {S} (f: S -> S) : sE S () := SUpdate (fun x => (f x, tt)). *)
+  (* Notation Put x := (Modify (fun _ => x)). *)
 
 
+  (* Definition Es: Type -> Type := (callE +' (sE Any.t) +' eventE). *)
 
   (********************************************************************)
   (*************************** Interpretation *************************)
   (********************************************************************)
 
-  Definition handle_pE {E}: pE ~> stateT p_state (itree E) :=
+  (* Definition handle_pE {E}: pE ~> stateT p_state (itree E) :=
     fun _ e mps =>
       match e with
       | PPut mn p => Ret (update mps mn p, tt)
       | PGet mn => Ret (mps, mps mn)
-      end.
-  Definition interp_pE {E}: itree (pE +' E) ~> stateT p_state (itree E) :=
-    (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
-    State.interp_state (case_ handle_pE pure_state).
+      end. 
+      
+      Definition handle_pE {E} : forall X, pE X -> (p_state -> itree E (p_state * X)) :=
+      
 
-  (* Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (rst0: r_state) (pst0: p_state): itree eventE _ := *)
-  (*   interp_pE (interp_rE (interp_mrec prog itr0) rst0) pst0 *)
-  (* . *)
+
+      *)
+ (* Definition interp_sE {E}: itree (pE +' E) ~> stateT p_state (itree E) :=
+    (* SUpdate.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) SUpdate.pure_state). *)
+    SUpdate.interp_state (case_ handle_pE pure_state).
+
+
   Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
-    '(st1, v) <- interp_pE (interp_mrec prog itr0) st0;;
+    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
+    Ret (st1, v)
+  . *)
+
+  (* Definition handle_sE {E} : forall S X, sE S X -> (S -> itree E (S * X)) :=
+    fun _ _ e glob =>
+      match e with
+      | SUpdate run => Ret (run glob)
+      end. *)
+
+  (* Definition interp_sE {E}: forall S X, itree ((sE S) +' E) (S * X) -> (S -> itree E (S * X)) :=
+    (* SUpdate.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) SUpdate.pure_state). *)
+    SUpdate.interp_state (case_ handle_sE pure_state). *)
+
+  (* Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
+    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
+    Ret (st1, v)
+  . *)
+
+  (* Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
+    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
+    Ret (st1, v)
+  . *)
+
+  Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
+    fun _ e glob =>
+      match e with
+      | SUpdate run => Ret (run glob)  
+      end. 
+      
+ Definition interp_sE {E}: itree (sE +' E) ~> stateT Any.t (itree E) :=
+    (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
+    State.interp_state (case_ handle_sE pure_state).
+
+  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
+    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
-
-
 
   Lemma interp_Es_bind
         A B
@@ -176,7 +214,7 @@ Section EVENTSL.
       interp_Es prog (v <- itr ;; ktr v) st0 =
       '(st1, v) <- interp_Es prog (itr) st0 ;; interp_Es prog (ktr v) st1
   .
-  Proof. unfold interp_Es, interp_pE. des_ifs. grind. Qed.
+  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_tau
         (prog: callE ~> itree Es)
@@ -186,7 +224,7 @@ Section EVENTSL.
     :
       interp_Es prog (tau;; itr) st0 = tau;; interp_Es prog itr st0
   .
-  Proof. unfold interp_Es, interp_pE. des_ifs. grind. Qed.
+  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_ret
         T
@@ -194,7 +232,7 @@ Section EVENTSL.
     :
       interp_Es prog (Ret v) st0 = Ret (st0, v)
   .
-  Proof. unfold interp_Es, interp_pE. des_ifs. grind. Qed.
+  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_callE
         p st0 T
@@ -203,21 +241,21 @@ Section EVENTSL.
     :
       interp_Es p (trigger e) st0 = tau;; (interp_Es p (p _ e) st0)
   .
-  Proof. unfold interp_Es, interp_pE. des_ifs. grind. Qed.
+  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
-  Lemma interp_Es_pE
+  Lemma interp_Es_sE
         p st0
         (* (e: Es Σ) *)
         T
-        (e: pE T)
+        (e: sE T)
     :
       interp_Es p (trigger e) st0 =
-      '(st1, r) <- handle_pE e st0;;
+      '(st1, r) <- handle_sE e st0;;
       tau;; tau;;
       Ret (st1, r)
   .
   Proof.
-    unfold interp_Es, interp_pE. grind.
+    unfold interp_Es, interp_sE. grind.
   Qed.
 
   Lemma interp_Es_eventE
@@ -229,7 +267,7 @@ Section EVENTSL.
       interp_Es p (trigger e) st0 = r <- trigger e;; tau;; tau;; Ret (st0, r)
   .
   Proof.
-    unfold interp_Es, interp_pE. grind.
+    unfold interp_Es, interp_sE. grind.
     unfold pure_state. grind.
   Qed.
 
@@ -241,7 +279,7 @@ Section EVENTSL.
       (interp_Es prog (triggerUB) st0: itree eventE (_ * A)) = triggerUB
   .
   Proof.
-    unfold interp_Es, interp_pE, pure_state, triggerUB. grind.
+    unfold interp_Es, interp_sE, pure_state, triggerUB. grind.
   Qed.
 
   Lemma interp_Es_triggerNB
@@ -252,9 +290,101 @@ Section EVENTSL.
       (interp_Es prog (triggerNB) st0: itree eventE (_ * A)) = triggerNB
   .
   Proof.
-    unfold interp_Es, interp_pE, pure_state, triggerNB. grind.
+    unfold interp_Es, interp_sE, pure_state, triggerNB. grind.
   Qed.
-  Opaque interp_Es.
-End EVENTSL.
-End EventsL.
-Opaque EventsL.interp_Es.
+  (* Opaque interp_Es. *)
+End EVENTS.
+End Events.
+Opaque Events.interp_Es.
+
+Section LENS.
+  Import Events.
+  (* Variable S: Type.
+  Variable V: Type.
+
+  Variable l: Lens.t S V.
+
+  Definition lens_state X : (V -> V * X) -> (S -> S * X) :=
+    fun run s =>
+      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s))).
+
+  Definition map_lens X (se: sE X) : sE X := 
+    match se with
+    | SUpdate run => SUpdate (lens_state run)
+    end. *)
+    
+  Variable l: Lens.t Any.t Any.t.
+
+  Definition fstl : Lens.t Any.t Any.t.
+  Proof.
+    exists (fun x => (fst (Any.split x), fun a => (a, snd (Any.split x)))).
+
+  (* Definition fstl : Lens.t (Any.t * Any.t) Any.t. 
+  Proof.
+    exists (fun x => (fst x, fun a => (a, snd x))).
+    constructor.
+    - extensionalities x. destruct x; ss.
+    - ss.
+  Defined.
+
+    
+  Definition sndl : Lens.t (Any.t * Any.t) Any.t.
+  Proof.
+    exists (fun x => (snd x, fun b => (fst x, b))).
+    constructor.
+    - extensionalities x. destruct x; ss.
+    - ss.
+  Defined. *)
+
+
+  Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
+    fun run s =>
+      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
+  .
+
+  Definition map_lens (se: sE Any.t ) : sE Any.t :=
+    match se with
+    | SUpdate run => SUpdate (lens_state run)
+    end
+  .
+
+End LENS.
+
+Section PROGRAM_EVENT.
+  Import Events.
+  (* Variable state state' : Type. *)
+
+  (* Variable l : Lens.t state' state. *)
+
+  Variable l : Lens.t Any.t Any.t.
+  
+  Definition lmap : Es Any.t -> Es Any.t .
+  Proof.
+    intro e. destruct e as [e|[e|e]].
+    - exact (e|)%sum.
+    - exact (|((map_lens l e))|)%sum.
+    - exact (||e)%sum.
+  Defined.
+
+End PROGRAM_EVENT.
+
+Section DEBUG.
+Import Events.
+Definition emb_l : forall X, Es Any.t -> Es (Any.t * Any.t)  :=
+  lmap fstl.
+
+End DEBUG.
+
+Section MAP_EVENT.
+
+  CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
+    fun itr =>
+      match observe itr with
+      | RetF r => Ret r
+      | TauF itr => Tau (map_event embed itr)
+      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
+      end.
+
+
+      
+End MAP_EVENT.
