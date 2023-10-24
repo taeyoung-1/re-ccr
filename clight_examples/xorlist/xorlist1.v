@@ -7,8 +7,8 @@ Require Import STB.
 Require Import Any.
 Require Import ModSem.
 Require Import ModSemE.
-Require Import Clight_Mem0.
-Require Import Clight_Mem1.
+Require Import ClightDmMem0.
+Require Import ClightDmMem1.
 From compcertip Require Export Ctypes Values AST Memdata Integers.
 
 Set Implicit Arguments.
@@ -179,12 +179,47 @@ Section XORLIST.
              )%I
          )
       ).
+
+  (* {ph |-> ll_h  /\ pt |-> ll_t /\ is_xorlist ll_h ll_t xs}                         *)
+  (* void delete(node** ph, node** pt, bool from_tail)                                *)
+  (* {r. exists ll_newh ll_newt, ph |-> ll_newh /\ pt |-> ll_newt                     *)
+  (*     /\                                                                           *)
+  (*     if ll_h = Null                                                               *)
+  (*     then r = 0 /\ is_xorlist ll_h ll_t []                                        *)
+  (*     else if from_tail = false                                                    *)
+  (*          then r = last xs /\ is_xorlist ll_newh ll_newt (removelast xs)          *)
+  (*          else r = hd xs /\ is_xorlist ll_newh ll_newt (tl xs)                    *) 
+  (* }                                                                                *)
+ 
+  Definition search_spec : fspec :=
+    mk_simple (X := val * val * _ * _ * int64 * int * list val)
+      (fun '(v_head, v_tail, p_head, p_tail, item, from_tail, xs) =>
+         (ord_pure 1%nat,
+           fun varg =>
+             (∃ (ll_h ll_t :val), ⌜ varg = ([v_head ; v_tail ; Vlong item ; Vint from_tail])↑
+              /\ val2ptr v_head = Some p_head /\ val2ptr v_tail = Some p_tail ⌝
+              ** (p_head |-> encode_val Mptr ll_h)
+              ** (p_tail |-> encode_val Mptr ll_t)
+              ** is_xorlist ll_h ll_t xs
+              ** nullptr_cond)%I,
+             
+           fun vret =>
+             let '(x, xs') := pure_delete xs from_tail (Vlong Int64.zero) in
+             (∃ (head_new tail_new : val),⌜vret = x↑⌝
+                 ** (p_head |-> encode_val Mptr head_new)
+                 ** (p_tail |-> encode_val Mptr tail_new)
+                 ** is_xorlist head_new tail_new xs'
+             )%I
+         )
+      ).
   
   Definition xorSbtb: list (gname * fspecbody) :=
-    [("encrypt",  mk_specbody encrypt_spec (fun _ => triggerNB));
-     ("decrypt",  mk_specbody decrypt_spec (fun _ => triggerNB));
-     ("insert",  mk_specbody insert_spec (fun _ => triggerNB));
-     ("delete",  mk_specbody delete_spec (fun _ => triggerNB)) ].
+    [("encrypt",  mk_pure encrypt_spec);
+     ("decrypt",  mk_pure decrypt_spec);
+     ("add",  mk_pure insert_spec);
+     ("delete",  mk_pure delete_spec);
+     ("search",  mk_pure search_spec)
+     ].
   
   Definition xorStb : list (gname * fspec).
     eapply (Seal.sealing "stb").
@@ -204,7 +239,7 @@ Section XORLIST.
   Definition Sxor : SMod.t :=
     {|
       SMod.get_modsem := fun _ => SxorSem;
-      SMod.sk := Sk.unit;
+      SMod.sk := get_sk global_definitions;
     |}.
   
   Definition xor stb : Mod.t := (SMod.to_tgt stb) Sxor.

@@ -40,6 +40,7 @@ Makefile.coq: Makefile $(COQTHEORIES)
          echo "-R examples $(COQMODULE)"; \
          echo "-R extract $(COQMODULE)"; \
          echo "-R clightdm $(COQMODULE)"; \
+         echo "-R clight_examples $(COQMODULE)"; \
    echo $(COQTHEORIES)) > _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq
 

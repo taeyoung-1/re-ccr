@@ -1,62 +1,106 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "xorlist.h"
 
 //Performs the xor operation of two pointers
-intptr_t encrypt(node *a, node *b)
-{
-    return ((intptr_t) a ^ (intptr_t) b);
+static intptr_t encrypt(node* prev, node* next) {
+    return ((intptr_t) prev ^ (intptr_t) next);
 }
-intptr_t decrypt(intptr_t xored, node *ptr)
-{
-  return (xored ^ (intptr_t) ptr);
+
+static node* decrypt(intptr_t key, node* ptr) {
+    return (node*) (key ^ (intptr_t) ptr);
 }
 
 //insertion takes place based on the 'at_tail' boolean value
-void insert(node **head, node **tail, long item, bool at_tail)
-{
-    node *ptr = (node*) malloc(sizeof(node));
-    ptr->item = item;
+void add(node** hd_handler, node** tl_handler, long item, bool at_tail) {
 
-    if (NULL == *head) {
-        ptr->link = 0;
-        *head = *tail = ptr;
+    node* entry = (node*) malloc(sizeof(node));
+    node* hd = *hd_handler;
+    node* tl = *tl_handler;
+    entry->item = item;
+
+    if (hd == NULL) {
+        entry->link = 0;
+        *hd_handler = *tl_handler = entry;
     } else if (at_tail) {
-        ptr->link = encrypt(*tail, NULL);
-        (*tail)->link = encrypt(ptr, (node *) decrypt((*tail)->link, NULL));
-        *tail = ptr;
+        entry->link = encrypt(tl, NULL);
+        node* tl_prev = decrypt(tl->link, NULL);
+        tl->link = encrypt(entry, tl_prev);
+        *tl_handler = entry;
     } else {
-        ptr->link = encrypt(NULL, *head);
-        (*head)->link = encrypt(ptr, (node *) decrypt((*head)->link, NULL));
-        *head = ptr;
+        entry->link = encrypt(NULL, hd);
+        node* hd_next = decrypt(hd->link, NULL);
+        hd->link = encrypt(entry, hd_next);
+        *hd_handler = entry;
     }
 }
 
-//deletion takes place from the end
-long delete(node **head, node **tail, bool from_tail)
-{
-    long item;
-    node *ptr;
-    if (NULL == head) {
-        return 0;
-    } else if (from_tail) {
-        ptr = *tail;
-        item = ptr->item;
-        node *prev = (node *) decrypt(ptr->link, NULL);
-        if (NULL == prev) *head = NULL;
-        else prev->link= encrypt(ptr, (node *) decrypt(prev->link, NULL));
-        *tail = prev;
+//deletion takes place based on the 'from_tail' boolean value
+long delete(node** hd_handler, node** tl_handler, bool from_tail) {
 
+    long item;
+
+    if (NULL == hd_handler) {
+        item = 0;
+    } else if (from_tail) {
+        // update tl_handler
+        node* tl_old = *tl_handler;
+        item = tl_old->item;
+        node *tl_new = decrypt(tl_old->link, NULL);
+        *tl_handler = tl_new;
+
+        // update node information and free old tail
+        if (tl_new == NULL) {
+            *hd_handler = NULL;
+        } else {
+            node* tl_new_prev = decrypt(tl_new->link, tl_old);
+            tl_new->link= encrypt(tl_new_prev, NULL);
+        }
+        free(tl_old);
     } else {
-        ptr = *head;
-        item = ptr->item;
-        node *next = (node *) decrypt(ptr->link, NULL);
-        if (NULL == next) *tail = NULL;
-        else next->link = encrypt(ptr, (node *) decrypt(next->link, NULL));
-        *head = next;
+        // update hd_handler
+        node* hd_old = *hd_handler;
+        item = hd_old->item;
+        node *hd_new = decrypt(hd_old->link, NULL);
+        *hd_handler = hd_new;
+
+        // update node information and free old head
+        if (hd_new == NULL) {
+            *tl_handler = NULL;
+        } else {
+            node* hd_new_next = decrypt(hd_new->link, hd_old);
+            hd_new->link = encrypt(NULL, hd_new_next);
+        } 
+        free(hd_old);
     }
-    free(ptr);
-    ptr = NULL;
     return item;
+}
+
+// return ith element from handler. to_right determines the 0th index and searching direction
+node* search(node* left, node* right, bool to_right, size_t index) {
+
+    node* cur;
+    node* prev;
+
+    if (to_right) {
+        cur = right;
+        prev = left;
+    } else {
+        cur = left;
+        prev = right;
+    }
+
+    while (index--) {
+        if (cur == NULL) {
+            return 0;
+        } else {
+            node* next = decrypt(cur->link, prev);
+            prev = cur;
+            cur = next;
+        }
+    }
+
+    return cur;
 }

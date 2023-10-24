@@ -3,12 +3,11 @@
 #include <stdbool.h>
 #include "xorlist.h"
 
-
-extern intptr_t decrypt(intptr_t a, node *b);
-
-extern void insert(node **head, node **tail, long item, bool at_tail);
+extern void add(node **head, node **tail, long item, bool at_tail);
 
 extern int delete(node **head, node **tail, bool from_tail);
+
+extern node* search(node *left, node *right, bool to_right, size_t index);
 
 void display(node *head)
 {
@@ -16,9 +15,9 @@ void display(node *head)
     node *prev = NULL, *next;
 
     printf("\nList elements are : ");
-    while (NULL != curr) {
+    while (curr != NULL) {
         printf("%ld ", curr->item);
-        next = (node *) decrypt(curr->link, prev);
+        next = search(prev, curr, true, 1);
         prev = curr;
         curr = next;
     }
@@ -31,7 +30,7 @@ int main(int argc, char *argv[])
     node *head = NULL, *tail = NULL;
     long item;
     for (long i = 1; i <= 10; i++){
-        insert(&head, &tail, i, i < 6);
+        add(&head, &tail, i, i < 6);
         printf("Successfully inserted %ld\n",i);
     }
 
