@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include "xorlist.h"
 
 //Performs the xor operation of two pointers

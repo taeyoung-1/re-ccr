@@ -7,7 +7,6 @@ Require Import STB.
 Require Import Any.
 Require Import ModSem.
 Require Import ModSemE.
-(* Require Import ClightDmMem0. *)
 Require Import ClightDmMem1.
 From compcertip Require Export Ctypes Values AST Memdata Integers.
 
