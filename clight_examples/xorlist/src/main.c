@@ -3,25 +3,24 @@
 #include <stdbool.h>
 #include "xorlist.h"
 
-extern void add(node **head, node **tail, long item, bool at_tail);
+extern void add(node**, node**, long, bool);
 
-extern int delete(node **head, node **tail, bool from_tail);
+extern int delete(node**, node**, bool);
 
-extern node* search(node *left, node *right, bool to_right, size_t index);
+extern long search(node**, node**, bool, size_t);
 
-void display(node *head)
+void display(node *head, bool test)
 {
     node *curr = head;
     node *prev = NULL, *next;
+    int limit = test?6:10;
+    long item;
 
     printf("\nList elements are : ");
-    while (curr != NULL) {
-        printf("%ld ", curr->item);
-        next = search(prev, curr, true, 1);
-        prev = curr;
-        curr = next;
+    for (int i = 0; i < limit; i++) {
+        item = search(&head, NULL, false, i);
+        printf("%ld ", item);
     }
-
     printf("\n");
 }
 
@@ -34,12 +33,12 @@ int main(int argc, char *argv[])
         printf("Successfully inserted %ld\n",i);
     }
 
-    display(head);
+    display(head, false);
     printf("\n");
     for (long i = 1; i <= 4; i++){
         item=delete(&head, &tail, i < 3);
         printf("Successfully deleted %ld\n",item);
     }
 
-    display(head);
+    display(head, true);
 }

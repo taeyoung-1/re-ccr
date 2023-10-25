@@ -79,17 +79,15 @@ long delete(node** hd_handler, node** tl_handler, bool from_tail) {
 }
 
 // return ith element from handler. to_right determines the 0th index and searching direction
-node* search(node* left, node* right, bool to_right, size_t index) {
+long search(node** hd_handler, node** tl_handler, bool from_tail, size_t index) {
 
     node* cur;
-    node* prev;
+    node* prev = NULL;
 
-    if (to_right) {
-        cur = right;
-        prev = left;
+    if (from_tail) {
+        cur = *tl_handler;
     } else {
-        cur = left;
-        prev = right;
+        cur = *hd_handler;
     }
 
     while (index--) {
@@ -102,5 +100,5 @@ node* search(node* left, node* right, bool to_right, size_t index) {
         }
     }
 
-    return cur;
+    return cur->item;
 }
