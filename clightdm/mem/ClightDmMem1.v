@@ -184,17 +184,29 @@ Section PROP.
   Definition allocated_with b sz bk q : iProp :=
     OwnM (_allocated_with b sz bk q) ** ⌜bk = Dynamic -> sz > 0⌝.
 
+  Definition relates_to v i : iProp :=
+    match v with
+    | Vptr b ofs =>
+        let ofs' := Ptrofs.unsigned ofs in
+        OwnM (_relates_to b (ofs' - i))
+    | Vint i' =>
+        if Archi.ptr64 then ⌜False⌝
+        else ⌜i = Int.unsigned i'⌝
+    | Vlong i' =>
+        if negb Archi.ptr64 then ⌜False⌝
+        else ⌜i = Int64.unsigned i'⌝
+    | _ => ⌜False⌝
+    end%I.
+
   Definition repr_to v b ofs : iProp :=
     match v with
     | Vptr b' ofs' => ⌜b' = b /\ Ptrofs.unsigned ofs' = ofs⌝%I
     | Vint i =>
         if Archi.ptr64 then ⌜False⌝%I
-        else let i' := Int.unsigned i in
-             (OwnM (_relates_to b (i' - ofs)))%I
+        else relates_to (Vptr b (Ptrofs.repr ofs)) (Int.unsigned i)
     | Vlong i =>
         if negb Archi.ptr64 then ⌜False⌝%I
-        else let i' := Int64.unsigned i in
-             (OwnM (_relates_to b (i' - ofs)))%I
+        else relates_to (Vptr b (Ptrofs.repr ofs)) (Int64.unsigned i)
     | _ => ⌜False⌝%I 
     end.
 
@@ -245,6 +257,7 @@ End PROP.
 
 Notation "addr |- q #> mvs" := (points_to addr mvs q) (at level 20).
 Notation "b # q ≔ ( sz , bk )" := (allocated_with b sz bk q) (at level 10).
+Notation "p ~~ i" := (relates_to p i) (at level 10).
 Notation "addr ⊸ ( b , ofs ) " := (repr_to addr b ofs) (at level 10).
 
 Section AUX.
@@ -518,18 +531,18 @@ Section SPEC.
   | is_relates_to vaddr b ofs : is_pretty (vaddr ⊸ (b, ofs))
   | is_conj ip1 ip2 (I1: is_pretty ip1) (I2: is_pretty ip2) : is_pretty (ip1 ** ip2)
   | is_wand ip1 ip2 (IC: is_pretty ip2) : is_pretty (ip1 -* ip2)
-  .
+  . *)
 
-  Definition capture_resource vaddr ret :=
+  (* Definition capture_resource vaddr ret :=
     match vaddr with
-    | Vptr b ofs => 
+    | Vptr b ofs =>  *)
 
   Definition capture_spec: fspec :=
     (mk_simple
-       (fun '(vaddr, ret) => (
+       (fun '(v) => (
             (ord_pure 0%nat),
-            (fun varg => ⌜varg = [vaddr]↑ ),
-            (fun vret => ⌜vret = ret↑⌝ ** )
+            (fun varg => ⌜varg = v↑⌝),
+            (fun vret => ∃ i, ⌜vret = (Vptrofs i)↑⌝ ** v ~~ (Ptrofs.unsigned i))
     )))%I.
 
   (* sealed *)
@@ -540,9 +553,9 @@ Section SPEC.
            ("store", store_spec); ("storebytes", storebytes_spec);
            ("sub_ptr", sub_ptr_spec); ("cmp_ptr", cmp_ptr_spec);
            ("non_null?", non_null_spec);
-           ("malloc", malloc_spec); ("mfree", mfree_spec)
-           (* ("memcpy", memcpy_spec);
-           ("capture", capture_spec) *)
+           ("malloc", malloc_spec); ("mfree", mfree_spec);
+           ("memcpy", memcpy_spec);
+           ("capture", capture_spec)
            ].
     Defined.
 
@@ -562,9 +575,9 @@ End BODY.
     ("cmp_ptr", mk_pure cmp_ptr_spec);
     ("non_null?",   mk_pure non_null_spec);
     ("malloc",   mk_pure malloc_spec);
-    ("mfree",   mk_pure mfree_spec)
-    (* ("memcpy", mk_pure memcpy_spec);
-    ("capture", mk_pure capture_spec); *)
+    ("mfree",   mk_pure mfree_spec);
+    ("memcpy", mk_pure memcpy_spec);
+    ("capture", mk_pure capture_spec)
     ]
   .
 

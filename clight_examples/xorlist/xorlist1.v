@@ -7,216 +7,165 @@ Require Import STB.
 Require Import Any.
 Require Import ModSem.
 Require Import ModSemE.
-Require Import ClightDmMem0.
+(* Require Import ClightDmMem0. *)
 Require Import ClightDmMem1.
 From compcertip Require Export Ctypes Values AST Memdata Integers.
 
 Set Implicit Arguments.
 
-Section DEFINITION.
+Section PROP.
 
-  Context `{Σ : GRA.t}.
-  Context `{@GRA.inG memRA Σ}.
-  Context `{@GRA.inG memRACAP Σ}.
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
+  Context `{@GRA.inG memhdRA Σ}.
 
-  Definition pure_insert A (x : A) (l : list A) (from_tail : int) : list A :=
-    if Int.eq from_tail Int.zero then x :: l
-    else l ++ [x].
-  
-  Definition pure_delete A (l : list A) (from_tail : int) (default : A) : A * list A :=
-    if Int.eq from_tail Int.zero then (hd default l, tl l)
+  Definition vlist_add (x: val) (l : list val) (at_tail: val) : list val :=
+    if Val.eq at_tail Vzero then x :: l else snoc l x.
+
+  Definition vlist_delete (l: list val) (from_tail: val) (default: val) : val * list val :=
+    if Val.eq from_tail Vzero then (hd default l, tl l)
     else (last l default, removelast l).
 
-  Definition nullptr_cond := ((xH, 0%Z) ~~ 0).
-
-  Definition val2ptr (v : val) : option (block * Z) :=
-    match v with
-    | Vptr b ofs => Some (b, Ptrofs.signed ofs)
-    | _ => None
+  Definition vnth (index: val) (l: list val) (from_tail: val) (default: val) : val :=
+    match index with
+    | Vint i => if Val.eq from_tail Vzero then nth (Z.to_nat (Int.unsigned i)) l default
+                else nth (List.length l - Z.to_nat (Int.unsigned i) - 1) l default
+    | Vlong i => if Val.eq from_tail Vzero then nth (Z.to_nat (Int64.unsigned i)) l default
+                 else nth (List.length l - Z.to_nat (Int64.unsigned i) - 1) l default
+    | _ => Vundef
     end.
 
-  Definition is_valid_ptr (v : val) (mvl : list memval) : iProp :=
-    match v with
-    | Vlong _ | Vint _ => (⌜ v = Vnullptr ⌝)%I
-    | Vptr _ _ => (∃ p, ⌜ val2ptr v = Some p ⌝ ** (p |-> mvl))%I
-    | _ => False%I
-  end.
-  
-  (* xor operation between pointers => casting two (Vptr _ _) to (Vlong _) and apply xor operation for long value (Val.xorl) *)
-  (* takes any value and return (Vlong _) *)
-  
-  Definition cast_to_intptr (v1 v2 : val) : iProp :=
-    match v1 with
-    | Vint i => (⌜ if Archi.ptr64 then Val.longofint v1 = v2 else v1 = v2 ⌝)%I
-    | Vlong l => (⌜ if Archi.ptr64 then v2 = Vptrofs (Ptrofs.of_int64 l) else False ⌝)%I
-    | Vptr _ _ => (∃ p i, ⌜ val2ptr v1 = Some p /\ v2 = Vptrofs i ⌝ ** (p ~~ Ptrofs.signed i))%I
-    | _ => False%I
-    end.
-  
-
-  
      (* is_xorlist represents the figure below    *)
      (*    ll_h                              ll_t *)
      (*     |                                 |   *)
      (*     v                                 v   *)
      (* xs  - - - - - - - - - - - - - - - - - -   *)
     
-  Fixpoint _is_xorlist (ll_h_prev : val) (ll_h : val) (ll_t : val) (xs : list val) {struct xs} : iProp :=
+  Fixpoint _is_xorlist (hd_prev : val) (hd : val) (tl : val) (xs : list val) {struct xs} : iProp :=
     match xs with
-    | [] => (⌜ll_h_prev = Vnullptr /\ ll_h = Vnullptr /\ ll_h = Vnullptr ⌝)%I (* null head and tail represents nil list *)
-    | h :: t => (∃ (ll_next : val) (ptr_h ptr_t : block * Z) (ip_h_prev ip_next ip_xor : ptrofs) (xitem : int64),
-                  ⌜ val2ptr ll_h = Some ptr_h /\ val2ptr ll_t = Some ptr_t /\ h = Vlong xitem ⌝
-                  ** cast_to_intptr ll_h_prev (Vptrofs ip_h_prev)
-                  ** cast_to_intptr ll_next (Vptrofs ip_next)
-                  ** ⌜ Ptrofs.xor ip_h_prev ip_next = ip_xor ⌝
-                  ** (ptr_h |-> ((encode_val Mint64 h) ++ (encode_val Mptr (Vptrofs ip_xor))))
-                  ** _is_xorlist ll_h ll_next ll_t t)%I
-    end.
+    | [] => ⌜hd_prev = Vnullptr /\ hd = Vnullptr /\ tl = Vnullptr⌝
+    | h :: t => ∃ hd_next i_hd_prev i_hd_next item,
+                cast_to_int hd_prev i_hd_prev
+                ** cast_to_int hd_next i_hd_next
+                ** hd |-1#> ((encode_val Mint64 item) ++ (encode_val Mptr (Vptrofs (Ptrofs.xor i_hd_prev i_hd_next))))
+                ** _is_xorlist hd hd_next tl t
+    end%I.
   
   Definition is_xorlist := _is_xorlist Vnullptr. 
 
-End DEFINITION.
+End PROP.
+
 
 Section XORLIST.
 
-  Context `{Σ : GRA.t}.
-  Context `{@GRA.inG memRA Σ}.
-  Context `{@GRA.inG memRACAP Σ}.
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
+  Context `{@GRA.inG memhdRA Σ}.
 
-  (* {p1 |-> _ /\ p2 |-> _} encrypt(p1, p2) {r. r = x ^ y /\ p1 ~~ x /\ p2 ~~ y} *)
+  (* The function only requires resource needed by capture *)
   Definition encrypt_spec : fspec :=
-    mk_simple (X := val * val * list memval * list memval)
-      (fun '(v1, v2, mvl1, mvl2) =>
-         (ord_pure 1%nat,
-           fun varg =>
-             (⌜ varg = ([v1 ; v2])↑⌝
-              ** is_valid_ptr v1 mvl1 ** is_valid_ptr v2 mvl2)%I,
-            
-           fun vret =>
-             (∃ (i1 i2 : ptrofs), ⌜vret = (Vptrofs (Ptrofs.xor i1 i2))↑⌝
-              ** cast_to_intptr v1 (Vptrofs i1) ** cast_to_intptr v2 (Vptrofs i2)
-              ** is_valid_ptr v1 mvl1 ** is_valid_ptr v2 mvl2
-             )%I
-         )
-      ).
+    (mk_simple
+      (fun '(left_ptr, right_ptr) => (
+            (ord_pure 1%nat),
+            (fun varg => ⌜varg = [left_ptr; right_ptr]↑⌝
+                          ** is_valid left_ptr
+                          ** is_valid right_ptr),
+            (fun vret => ∃ (i1 i2 : ptrofs), ⌜vret = (Vptrofs (Ptrofs.xor i1 i2))↑⌝
+                         ** left_ptr ~~ i1
+                         ** right_ptr ~~ i2
+                         ** is_valid left_ptr ** is_valid right_ptr)
+    ))).
 
-  (* {p1 |-> _} decrypt(a, p1) {r. r = a ^ x /\ p1 ~~ x } *)
+  (* The function requires resource needed by capture *)
   Definition decrypt_spec : fspec :=
-    mk_simple (X := _ * val * list memval)
-      (fun '(ip_xor, v, mvl) =>
-         (ord_pure 1%nat,
-           fun varg =>
-             (⌜ varg = ([Vptrofs ip_xor ; v])↑ ⌝
-              ** is_valid_ptr v mvl)%I,
-               
-           fun vret =>
-             (∃ (i : ptrofs), ⌜vret = (Vptrofs (Ptrofs.xor ip_xor i))↑⌝
-               ** cast_to_intptr v (Vptrofs i) ** is_valid_ptr v mvl)%I
-             
-         )
-      ).
+    (mk_simple
+      (fun '(i1, ptr) => (
+        (ord_pure 1%nat),
+        (fun varg => ⌜exists key, varg = [key; ptr]↑ /\ key = Vptrofs i1⌝
+                     ** is_valid ptr),
+        (fun vret => ∃ i2 : ptrofs, ⌜vret = (Vptrofs (Ptrofs.xor i1 i2))↑⌝
+                     ** ptr ~~ i2
+                     ** is_valid ptr)
+                     
+    ))).
   
-  (* {ph |-> ll_h  /\ pt |-> ll_t /\ is_xorlist ll_h ll_t xs}                                        *)
-  (* void insert(node** ph, node** pt, long item, bool from_tail)                                    *)
-  (* {r. if ll_h = Null                                                                              *)
-  (*     then exists ll_new, ph |-> ll_new /\ pt |-> ll_new /\ xorlist ll_new ll_new [item]          *)
-  (*     else if from_tail = false                                                                   *)
-  (*          then exists ll_new, ph |-> ll_new /\ pt |-> ll_t /\ xorlist ll_new ll_t (item :: xs)   *)
-  (*          else exists ll_new, ph |-> ll_h /\ pt |-> ll_new /\ xorlist ll_h ll_new (xs ++ [item]) *)
-  (* }                                                                                               *)
+  (* {hd_handler |-> hd  /\ tl_handler |-> tl /\ is_xorlist hd tl xs}
+     void add(node** hd_handler, node** tl_handler, long item, bool at_tail)
+     {r. if hd = null
+         then exists new_node, hd_handler |-> new_node /\ tl_handler |-> new_node /\ is_xorlist new_node new_node [item]
+         else if at_tail = false
+              then exists new_hd, hd_handler |-> new_hd /\ tl_handler |-> tl /\ is_xorlist new_hd tl (item :: xs)
+              else exists new_tl, hd_handler |-> hd /\ tl_handler |-> new_tl /\ is_xorlist hd new_tl (xs ++ [item])
+     } *)
   
-  Definition insert_spec : fspec :=
-    mk_simple (X := val * val * _ * _ * int64 * int * list val)
-      (fun '(v_head, v_tail, p_head, p_tail, item, from_tail, xs) =>
-         (ord_pure 1%nat,
-           fun varg =>
-             (∃ (ll_h ll_t :val), ⌜ varg = ([v_head ; v_tail ; Vlong item ; Vint from_tail])↑
-              /\ val2ptr v_head = Some p_head /\ val2ptr v_tail = Some p_tail ⌝
-              ** (p_head |-> encode_val Mptr ll_h)
-              ** (p_tail |-> encode_val Mptr ll_t)
-              ** is_xorlist ll_h ll_t xs
-              ** nullptr_cond)%I,
-             
-           fun vret =>
-             let xs' := pure_insert (Vlong item) xs from_tail in
-             (∃ (head_new tail_new : val),⌜vret = (Vundef)↑⌝
-                 ** (p_head |-> encode_val Mptr head_new)
-                 ** (p_tail |-> encode_val Mptr tail_new)
-                 ** is_xorlist head_new tail_new xs'
-             )%I
-         )
-      ).
+  Definition add_spec : fspec :=
+    (mk_simple
+      (fun '(hd_handler, tl_handler, item, at_tail, xs) => (
+        (ord_pure 2%nat),
+        (fun varg => ∃ hd_old tl_old,
+                     ⌜varg = [hd_handler; tl_handler; item; at_tail]↑
+                     /\ exists intb, Vint intb = at_tail
+                     /\ exists i, Vlong i = item⌝
+                     ** hd_handler |-1#> encode_val Mptr hd_old
+                     ** tl_handler |-1#> encode_val Mptr tl_old
+                     ** is_xorlist hd_old tl_old xs),
+        (fun vret => ∃ hd_new tail_new,
+                     ⌜vret = Vundef↑⌝
+                     ** hd_handler |-1> encode_val Mptr hd_new
+                     ** tl_handler |-1> encode_val Mptr tl_new
+                     ** is_xorlist hd_new tl_new (vlist_add item xs at_tail))
+    ))).
 
-  (* {ph |-> ll_h  /\ pt |-> ll_t /\ is_xorlist ll_h ll_t xs}                         *)
-  (* void delete(node** ph, node** pt, bool from_tail)                                *)
-  (* {r. exists ll_newh ll_newt, ph |-> ll_newh /\ pt |-> ll_newt                     *)
-  (*     /\                                                                           *)
-  (*     if ll_h = Null                                                               *)
-  (*     then r = 0 /\ is_xorlist ll_h ll_t []                                        *)
-  (*     else if from_tail = false                                                    *)
-  (*          then r = last xs /\ is_xorlist ll_newh ll_newt (removelast xs)          *)
-  (*          else r = hd xs /\ is_xorlist ll_newh ll_newt (tl xs)                    *) 
-  (* }                                                                                *)
- 
+  (* {hd_handler |-> hd  /\ tl_handler |-> tl /\ is_xorlist hd tl xs}
+     long delete(node** hd_handler, node** tl_handler, bool from_tail)
+     {r. if hd = null
+         then r = 0 /\ hd_handler |-> hd /\ tl_handler |-> tl /\ is_xorlist hd tl []
+         else if from_tail = false
+              then r = last xs /\ exists new_hd, hd_handler |-> new_hd /\ tl_handler |-> tl /\ is_xorlist new_hd tl (removelast xs)
+              else r = hd xs /\ exists new_tl, hd_handler |-> hd /\ tl_handler |-> new_tl /\ is_xorlist hd new_tl (tl xs)
+     } *)
   Definition delete_spec : fspec :=
-    mk_simple (X := val * val * _ * _ * int64 * int * list val)
-      (fun '(v_head, v_tail, p_head, p_tail, item, from_tail, xs) =>
-         (ord_pure 1%nat,
-           fun varg =>
-             (∃ (ll_h ll_t :val), ⌜ varg = ([v_head ; v_tail ; Vlong item ; Vint from_tail])↑
-              /\ val2ptr v_head = Some p_head /\ val2ptr v_tail = Some p_tail ⌝
-              ** (p_head |-> encode_val Mptr ll_h)
-              ** (p_tail |-> encode_val Mptr ll_t)
-              ** is_xorlist ll_h ll_t xs
-              ** nullptr_cond)%I,
-             
-           fun vret =>
-             let '(x, xs') := pure_delete xs from_tail (Vlong Int64.zero) in
-             (∃ (head_new tail_new : val),⌜vret = x↑⌝
-                 ** (p_head |-> encode_val Mptr head_new)
-                 ** (p_tail |-> encode_val Mptr tail_new)
-                 ** is_xorlist head_new tail_new xs'
-             )%I
-         )
-      ).
+    (mk_simple
+      (fun '(hd_handler, tl_handler, from_tail, xs) => (
+        (ord_pure 2%nat),
+        (fun varg => ∃ hd_old tl_old, ⌜varg = [hd_handler; tl_handler; from_tail]↑
+                     /\ exists intb, Vint intb = from_tail⌝
+                     ** hd_handler |-1#> encode_val Mptr hd_old
+                     ** tl_handler |-1#> encode_val Mptr tl_old
+                     ** is_xorlist hd_old tl_old xs),
+        (fun vret => let '(Vlong i, xs') := vlist_delete xs from_tail (Vlong Int64.zero) in
+                     ∃ head_new tail_new, ⌜vret = (Vlong i)↑⌝
+                     ** hd_handler |-> encode_val Mptr head_new
+                     ** tl_handler |-> encode_val Mptr tail_new
+                     ** is_xorlist head_new tail_new xs')
+    ))).
 
-  (* {ph |-> ll_h  /\ pt |-> ll_t /\ is_xorlist ll_h ll_t xs}                         *)
-  (* void delete(node** ph, node** pt, bool from_tail)                                *)
-  (* {r. exists ll_newh ll_newt, ph |-> ll_newh /\ pt |-> ll_newt                     *)
-  (*     /\                                                                           *)
-  (*     if ll_h = Null                                                               *)
-  (*     then r = 0 /\ is_xorlist ll_h ll_t []                                        *)
-  (*     else if from_tail = false                                                    *)
-  (*          then r = last xs /\ is_xorlist ll_newh ll_newt (removelast xs)          *)
-  (*          else r = hd xs /\ is_xorlist ll_newh ll_newt (tl xs)                    *) 
-  (* }                                                                                *)
+  (* {is_xorlist hd tl xs}
+     node* search(node* hd, size_t index)
+     {r. r = nth index xs 0 /\ is_xorlist hd tl xs} *)
  
   Definition search_spec : fspec :=
-    mk_simple (X := val * val * _ * _ * int64 * int * list val)
-      (fun '(v_head, v_tail, p_head, p_tail, item, from_tail, xs) =>
-         (ord_pure 1%nat,
-           fun varg =>
-             (∃ (ll_h ll_t :val), ⌜ varg = ([v_head ; v_tail ; Vlong item ; Vint from_tail])↑
-              /\ val2ptr v_head = Some p_head /\ val2ptr v_tail = Some p_tail ⌝
-              ** (p_head |-> encode_val Mptr ll_h)
-              ** (p_tail |-> encode_val Mptr ll_t)
-              ** is_xorlist ll_h ll_t xs
-              ** nullptr_cond)%I,
-             
-           fun vret =>
-             let '(x, xs') := pure_delete xs from_tail (Vlong Int64.zero) in
-             (∃ (head_new tail_new : val),⌜vret = x↑⌝
-                 ** (p_head |-> encode_val Mptr head_new)
-                 ** (p_tail |-> encode_val Mptr tail_new)
-                 ** is_xorlist head_new tail_new xs'
-             )%I
-         )
-      ).
+    (mk_simple
+      (fun '(v_head, v_tail, p_head, p_tail, item, from_tail, xs) => (
+        (ord_pure 2%nat),
+        (fun varg => ∃ hd tl q1 q2,
+                     ⌜varg = [hd_handler; tl_handler; from_tail; index]↑
+                     /\ exists intb, Vint intb = from_tail
+                     /\ exists i, Vptrofs i = index⌝
+                     ** hd_handler |-q1#> encode_val Mptr hd
+                     ** tl_handler |-q2#> encode_val Mptr tl
+                     ** is_xorlist hd tl xs),
+        (fun vret => let item := vnth index xs from_tail (Vlong Int64.zero) in
+                     ∃ hd tl, ⌜vret = item↑⌝
+                     ** hd_handler |-> encode_val Mptr hd
+                     ** tl_handler |-> encode_val Mptr tl
+                     ** is_xorlist hd tl xs)
+    ))).
   
   Definition xorSbtb: list (gname * fspecbody) :=
     [("encrypt",  mk_pure encrypt_spec);
      ("decrypt",  mk_pure decrypt_spec);
-     ("add",  mk_pure insert_spec);
+     ("add",  mk_pure add_spec);
      ("delete",  mk_pure delete_spec);
      ("search",  mk_pure search_spec)
      ].
