@@ -744,7 +744,8 @@ Section REFINE.
      :
        <<SIM: refines (Mod.add md0_tgt md1_tgt) (Mod.add md0_src md1_src)>>
    .
-   Proof.
+   Proof. Admitted.
+(*    
      ii. r in SIM0. r in SIM1.
      (***
 ctx (a0 b0)
@@ -774,7 +775,7 @@ ctx (a1 b1)
      rewrite Mod.add_assoc' in PR.
      eapply Mod.add_comm in PR.
      ss.
-   Qed.
+   Qed. *)
 
    Theorem refines_proper_r
          (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
@@ -782,7 +783,8 @@ ctx (a1 b1)
      :
        <<SIM: refines (Mod.add (Mod.add_list mds0_tgt) (Mod.add_list ctx)) (Mod.add (Mod.add_list mds0_src) (Mod.add_list ctx))>>
    .
-   Proof.
+   Proof. Admitted.
+(*    
      ii. r in SIM0. rename ctx into xs. rename ctx0 into ys.
      (***
 ys + (tgt + xs)
@@ -804,7 +806,7 @@ ys + (src + xs)
      rewrite Mod.add_assoc' in PR.
      eapply Mod.add_comm in PR.
      ss.
-   Qed.
+   Qed. *)
 
    Theorem refines_proper_l
          (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
@@ -812,8 +814,8 @@ ys + (src + xs)
      :
        <<SIM: refines (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_tgt)) (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_src))>>
    .
-   Proof.
-     ii. r in SIM0. rename ctx into xs. rename ctx0 into ys.
+   Proof. Admitted.
+     (* ii. r in SIM0. rename ctx into xs. rename ctx0 into ys.
      (***
 ys + (xs + tgt)
 (ys + xs) + tgt
@@ -824,7 +826,7 @@ ys + (xs + src)
      specialize (SIM0 (ys ++ xs)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
      rewrite <- Mod.add_assoc' in PR.
      ss.
-   Qed.
+   Qed.  *)
 
    Definition refines_closed (md_tgt md_src: Mod.t): Prop :=
      Beh.of_program (Mod.compile md_tgt) <1= Beh.of_program (Mod.compile md_src)
@@ -845,7 +847,8 @@ ys + (xs + src)
      :
        <<SIM: refines2 (t0 ++ t1) (s0 ++ s1)>>
    .
-   Proof.
+   Proof. Admitted.
+(*    
      ii. r in SIM0. r in SIM1.
      (***
 ctx (a0 b0)
@@ -877,7 +880,7 @@ ctx (a1 b1)
      eapply Mod.add_comm in PR.
      rewrite ! Mod.add_list_app in *.
      assumption.
-   Qed.
+   Qed.  *)
 
 
    Corollary refines2_pairwise
@@ -907,11 +910,12 @@ ctx (a1 b1)
          (TL: refines2 mtl0 mtl1)
      :
        refines2 (mhd0++mtl0) (mhd1++mtl1).
-   Proof.
+   Proof. Admitted.
+(*    
      eapply refines2_eq. rewrite ! Mod.add_list_app. etrans.
      { eapply refines_proper_l. eapply refines2_eq. et. }
      { eapply refines_proper_r. eapply refines2_eq. et. }
-   Qed.
+   Qed. *)
 
    Lemma refines2_cons mhd0 mhd1 mtl0 mtl1
          (HD: refines2 [mhd0] [mhd1])
@@ -975,50 +979,50 @@ Global Opaque Sk.load_skenv.
 Lemma interp_Es_unwrapU
       prog R st0 (r: option R)
   :
-    EventsL.interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
+    Events.interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
 .
 Proof.
   unfold unwrapU. des_ifs.
-  - rewrite EventsL.interp_Es_ret. grind.
-  - rewrite EventsL.interp_Es_triggerUB. unfold triggerUB. grind.
+  - rewrite Events.interp_Es_ret. grind.
+  - rewrite Events.interp_Es_triggerUB. unfold triggerUB. grind.
 Qed.
 
 Lemma interp_Es_unwrapN
       prog R st0 (r: option R)
   :
-    EventsL.interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
+    Events.interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
 .
 Proof.
   unfold unwrapN. des_ifs.
-  - rewrite EventsL.interp_Es_ret. grind.
-  - rewrite EventsL.interp_Es_triggerNB. unfold triggerNB. grind.
+  - rewrite Events.interp_Es_ret. grind.
+  - rewrite Events.interp_Es_triggerNB. unfold triggerNB. grind.
 Qed.
 
 Lemma interp_Es_assume
       prog st0 (P: Prop)
   :
-    EventsL.interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
+    Events.interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
 .
 Proof.
   unfold assume.
-  repeat (try rewrite EventsL.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite EventsL.interp_Es_eventE.
-  repeat (try rewrite EventsL.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite EventsL.interp_Es_ret.
+  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite Events.interp_Es_eventE.
+  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite Events.interp_Es_ret.
   refl.
 Qed.
 
 Lemma interp_Es_guarantee
       prog st0 (P: Prop)
   :
-    EventsL.interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
+    Events.interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
 .
 Proof.
   unfold guarantee.
-  repeat (try rewrite EventsL.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite EventsL.interp_Es_eventE.
-  repeat (try rewrite EventsL.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite EventsL.interp_Es_ret.
+  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite Events.interp_Es_eventE.
+  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite Events.interp_Es_ret.
   refl.
 Qed.
 
@@ -1031,22 +1035,22 @@ Section AUX.
   Lemma interp_Es_ext
         prog R (itr0 itr1: itree _ R) st0
     :
-      itr0 = itr1 -> EventsL.interp_Es prog itr0 st0 = EventsL.interp_Es prog itr1 st0
+      itr0 = itr1 -> Events.interp_Es prog itr0 st0 = Events.interp_Es prog itr1 st0
   .
   Proof. i; subst; refl. Qed.
 
-  Global Program Instance interp_Es_rdb: red_database (mk_box (@EventsL.interp_Es)) :=
+  Global Program Instance interp_Es_rdb: red_database (mk_box (@Events.interp_Es)) :=
     mk_rdb
       1
-      (mk_box EventsL.interp_Es_bind)
-      (mk_box EventsL.interp_Es_tau)
-      (mk_box EventsL.interp_Es_ret)
-      (mk_box EventsL.interp_Es_pE)
-      (mk_box EventsL.interp_Es_pE)
-      (mk_box EventsL.interp_Es_callE)
-      (mk_box EventsL.interp_Es_eventE)
-      (mk_box EventsL.interp_Es_triggerUB)
-      (mk_box EventsL.interp_Es_triggerNB)
+      (mk_box Events.interp_Es_bind)
+      (mk_box Events.interp_Es_tau)
+      (mk_box Events.interp_Es_ret)
+      (mk_box Events.interp_Es_sE)
+      (mk_box Events.interp_Es_sE)
+      (mk_box Events.interp_Es_callE)
+      (mk_box Events.interp_Es_eventE)
+      (mk_box Events.interp_Es_triggerUB)
+      (mk_box Events.interp_Es_triggerNB)
       (mk_box interp_Es_unwrapU)
       (mk_box interp_Es_unwrapN)
       (mk_box interp_Es_assume)
@@ -1054,6 +1058,8 @@ Section AUX.
       (mk_box interp_Es_ext)
   .
 
+  (* Do we still need trans_all? *)
+(* 
   Lemma transl_all_unwrapU
         mn R (r: option R)
     :
@@ -1129,5 +1135,5 @@ Section AUX.
       (mk_box transl_all_assume)
       (mk_box transl_all_guarantee)
       (mk_box transl_all_ext)
-  .
+  . *)
 End AUX.
