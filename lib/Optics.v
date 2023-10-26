@@ -39,10 +39,10 @@ Module Lens.
 
   (* Lens is just a coalgebra of the Store comonad *)
   
-  Record isLens {S V} (l : S -> Store.t V S) : Prop :=
+  (* Record isLens {S V} (l : S -> Store.t V S) : Prop :=
     { counit : Store.counit ∘ l = id
     ; coaction : Store.map l ∘ l = Store.cojoin ∘ l
-    }.
+    }. *)
     
   (* Record isLens (l : Any.t -> Store.t Any.t Any.t) : Prop :=
     { counit : Store.counit ∘ l = id
@@ -50,19 +50,24 @@ Module Lens.
     }. *)
 
 
-  Definition t S V := {l : S -> Store.t V S | isLens l}.
+  (* Definition t S V := {l : S -> Store.t V S | isLens l}. *)
   (* Definition t := {l : Any.t -> Store.t Any.t Any.t | isLens l}. *)
+  (* Definition t := Any.t -> Store.t Any.t Any.t. *)
+  Definition t S V:= S -> Store.t V S.
 
-
-  Definition view {S V} : t S V -> S -> V := fun l s => fst (`l s).
-  Definition set {S V} : t S V -> V -> S -> S := fun l a s => snd (`l s) a.
+  Definition view {S V} : t S V -> S -> V := fun l s => fst (l s).
+  Definition set {S V} : t S V -> V -> S -> S := fun l a s => snd (l s) a.
   Definition modify {S V} : t S V -> (V -> V) -> (S -> S) := fun l f s => Lens.set l (f (Lens.view l s)) s.
 
-  (* Definition view : t -> Any.t -> Any.t := fun l s => fst (`l s).
-  Definition set : t -> Any.t -> Any.t -> Any.t := fun l a s => snd (`l s) a.
+  (* Definition view {S V} : t S V -> S -> V := fun l s => fst (`l s).
+  Definition set {S V} : t S V -> V -> S -> S := fun l a s => snd (`l s) a.
+  Definition modify {S V} : t S V -> (V -> V) -> (S -> S) := fun l f s => Lens.set l (f (Lens.view l s)) s. *)
+
+  (* Definition view : t -> Any.t -> Any.t := fun l s => fst (l s).
+  Definition set : t -> Any.t -> Any.t -> Any.t := fun l a s => snd (l s) a.
   Definition modify : t -> (Any.t -> Any.t) -> (Any.t -> Any.t) := fun l f s => Lens.set l (f (Lens.view l s)) s.  *)
 
-  Lemma view_set {S V} (l : t S V) : forall v s, view l (set l v s) = v.
+  (* Lemma view_set {S V} (l : t S V) : forall v s, view l (set l v s) = v.
   Proof.
     destruct l as [l [H1 H2]]. unfold view, set; ss.
     i. hspecialize H2 with s. cong snd in H2. hspecialize H2 with v. ss.
@@ -80,7 +85,7 @@ Module Lens.
     destruct l as [l [H1 H2]]. unfold view, set; ss.
     i. hspecialize H2 with s. cong snd in H2. hspecialize H2 with v. ss.
     unfold compose in H2. rewrite H2. ss.
-  Qed.
+  Qed. *)
 
   (* Lemma view_set (l : t) : forall v s, view l (set l v s) = v.
   Proof.
@@ -100,7 +105,7 @@ Module Lens.
     destruct l as [l [H1 H2]]. unfold view, set; ss.
     i. hspecialize H2 with s. cong snd in H2. hspecialize H2 with v. ss.
     unfold compose in H2. rewrite H2. ss.
-  Qed. *)
+  Qed.
 
   Definition compose {A B C} : t A B -> t B C -> t A C.
   Proof.
@@ -120,7 +125,7 @@ Module Lens.
     eapply eq_sig_hprop.
     - i. eapply proof_irrelevance.
     - ss.
-  Qed.
+  Qed. *)
 
 End Lens.
 
@@ -130,7 +135,19 @@ Delimit Scope lens_scope with lens.
 
 Section PRODUCT_LENS.
 
-  Context {A B : Type}.
+  Definition fstl : Lens.t Any.t Any.t :=
+    (fun x => (match Any.split x with
+                      | Some (a1, a2) => (a1, (fun a => Any.pair a a2))
+                      | None => (tt↑, fun _ => tt↑)
+                      end )).
+  
+  Definition sndl : Lens.t Any.t Any.t :=
+    (fun x => (match Any.split x with
+                      | Some (a1, a2) => (a2, (fun b => Any.pair a1 b))
+                      | None => (tt↑, fun _ => tt↑)
+                      end )).
+
+  (* Context {A B : Type}.
 
   Definition fstl : Lens.t (A * B) A.
   Proof.
@@ -146,7 +163,7 @@ Section PRODUCT_LENS.
     constructor.
     - extensionalities x. destruct x; ss.
     - ss.
-  Defined.
+  Defined. *)
 
 End PRODUCT_LENS.
 

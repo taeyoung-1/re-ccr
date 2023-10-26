@@ -315,34 +315,23 @@ Section LENS.
     
   Variable l: Lens.t Any.t Any.t.
 
-  Definition fstl : Lens.t Any.t Any.t.
-  Proof.
-    exists (fun x => (fst (Any.split x), fun a => (a, snd (Any.split x)))).
-
-  (* Definition fstl : Lens.t (Any.t * Any.t) Any.t. 
-  Proof.
-    exists (fun x => (fst x, fun a => (a, snd x))).
-    constructor.
-    - extensionalities x. destruct x; ss.
-    - ss.
-  Defined.
-
-    
-  Definition sndl : Lens.t (Any.t * Any.t) Any.t.
-  Proof.
-    exists (fun x => (snd x, fun b => (fst x, b))).
-    constructor.
-    - extensionalities x. destruct x; ss.
-    - ss.
-  Defined. *)
-
-
-  Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
+  (* Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
     fun run s =>
       (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
   .
 
   Definition map_lens (se: sE Any.t ) : sE Any.t :=
+    match se with
+    | SUpdate run => SUpdate (lens_state run)
+    end
+  . *)
+
+  Definition lens_state X: (Any.t -> Any.t * X) -> (Any.t -> Any.t * X) :=
+    fun run s =>
+      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
+  .
+
+  Definition map_lens X (se: sE X ) : sE X :=
     match se with
     | SUpdate run => SUpdate (lens_state run)
     end
@@ -358,7 +347,7 @@ Section PROGRAM_EVENT.
 
   Variable l : Lens.t Any.t Any.t.
   
-  Definition lmap : Es Any.t -> Es Any.t .
+  Definition lmap X :  Es X -> Es X .
   Proof.
     intro e. destruct e as [e|[e|e]].
     - exact (e|)%sum.
@@ -368,23 +357,22 @@ Section PROGRAM_EVENT.
 
 End PROGRAM_EVENT.
 
-Section DEBUG.
-Import Events.
-Definition emb_l : forall X, Es Any.t -> Es (Any.t * Any.t)  :=
-  lmap fstl.
-
-End DEBUG.
-
 Section MAP_EVENT.
+  Import Events.
+  (* CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
+    fun itr =>
+      match observe itr with
+      | RetF r => Ret r
+      | TauF itr => Tau (map_event embed itr)
+      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
+      end. *)
 
-  CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
+  CoFixpoint map_event (embed: forall X, Es X -> Es X) : itree Es Any.t -> itree Es Any.t :=
     fun itr =>
       match observe itr with
       | RetF r => Ret r
       | TauF itr => Tau (map_event embed itr)
       | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
       end.
-
-
       
 End MAP_EVENT.
