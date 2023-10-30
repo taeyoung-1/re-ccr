@@ -1,12 +1,14 @@
- Require Import Coqlib AList.
+Require Import Coqlib AList.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
+Require Import ModSemE.
 Require Import Skeleton.
 Require Import PCM.
 From Ordinal Require Export Ordinal Arithmetic Inaccessible.
 Require Import Any.
 Require Import IRed.
+
 
 From ExtLib Require Import
      Core.RelDec
@@ -64,8 +66,8 @@ Section FSPEC.
   Record fspec: Type := mk_fspec {
     meta: Type;
     measure: meta -> ord;
-    precond: option mname -> meta -> Any.t -> Any_tgt -> iProp; (*** meta-variable -> new logical arg -> current logical arg -> resource arg -> Prop ***)
-    postcond: option mname -> meta -> Any.t -> Any_tgt -> iProp; (*** meta-variable -> new logical ret -> current logical ret -> resource ret -> Prop ***)
+    precond: meta -> Any.t -> Any_tgt -> iProp; (*** meta-variable -> new logical arg -> current logical arg -> resource arg -> Prop ***)
+    postcond: meta -> Any.t -> Any_tgt -> iProp; (*** meta-variable -> new logical ret -> current logical ret -> resource ret -> Prop ***)
   }
   .
 
@@ -73,13 +75,13 @@ Section FSPEC.
     @mk_fspec
       X
       measure
-      (fun _ x arg_src arg_tgt => (∃ (aa: AA), ⌜arg_src = aa↑⌝ ∧ precond x aa arg_tgt)%I)
-      (fun _ x ret_src ret_tgt => (∃ (ar: AR), ⌜ret_src = ar↑⌝ ∧ postcond x ar ret_tgt)%I)
+      (fun x arg_src arg_tgt => (∃ (aa: AA), ⌜arg_src = aa↑⌝ ∧ precond x aa arg_tgt)%I)
+      (fun x ret_src ret_tgt => (∃ (ar: AR), ⌜ret_src = ar↑⌝ ∧ postcond x ar ret_tgt)%I)
   .
 
   Definition fspec_trivial: fspec :=
-    mk_fspec (meta:=unit) (fun _ => ord_top) (fun _ _ argh argl => (⌜argh = argl⌝: iProp)%I)
-             (fun _ _ reth retl => (⌜reth = retl⌝: iProp)%I)
+    mk_fspec (meta:=unit) (fun _ => ord_top) (fun  _ argh argl => (⌜argh = argl⌝: iProp)%I)
+             (fun  _ reth retl => (⌜reth = retl⌝: iProp)%I)
   .
 End FSPEC.
 
@@ -90,43 +92,56 @@ Section PROOF.
   Let GURA: URA.t := GRA.to_URA Σ.
   Local Existing Instance GURA.
 
-
-  Definition mput E `{pE -< E} `{eventE -< E} (mr: Σ): itree E unit :=
-    st <- trigger PGet;; '(mp, _) <- ((Any.split st)?);;
-    trigger (PPut (Any.pair mp mr↑))
+  Definition mupdate E `{sE-<E} `{eventE -< E} (mr: Σ) : itree E Any.t :=
+    trigger (sModify (fun x => match (Any.split x) with
+                            | Some (mp, _) => (Any.pair mp mr↑)
+                            | _ => tt↑
+                            end))   
   .
 
-  Definition mget E `{pE -< E} `{eventE -< E}: itree E Σ :=
-    st <- trigger PGet;; '(_, mr) <- ((Any.split st)?);;
+  Definition mput E `{sE-< E} `{eventE -< E} (mr: Σ) (p: Any.t -> Any.t): itree E Any.t :=
+    `st: Any.t <- trigger (sGet p);; '(mp, _) <- ((Any.split st)?);;
+    trigger (sPut (Any.pair mp mr↑))
+  .
+
+  Definition mget E `{sE -< E} `{eventE -< E} (p: Any.t -> Any.t): itree E Σ :=
+    st <- trigger (sGet p);; '(_, mr) <- ((Any.split st)?);;
     mr↓?
   .
 
-  Definition pput E `{pE -< E} `{eventE -< E} (mp: Any.t): itree E unit :=
-    st <- trigger PGet;; '(_, mr) <- ((Any.split st)?);;
-    trigger (PPut (Any.pair mp mr))
+  Definition pupdate E `{sE-<E} `{eventE -< E} (mp: Any.t) : itree E Any.t :=
+    trigger (sModify (fun x => match (Any.split x) with
+                            | Some (_, mr) => (Any.pair mp mr)
+                            | _ => tt↑
+                            end))   
   .
 
-  Definition pget E `{pE -< E} `{eventE -< E}: itree E Any.t :=
-    st <- trigger PGet;; '(mp, _) <- ((Any.split st)?);;
+  Definition pput E `{sE -< E} `{eventE -< E} (mp: Any.t) (p: Any.t -> Any.t): itree E Any.t :=
+    st <- trigger (sGet p);; '(_, mr) <- ((Any.split st)?);;
+    trigger (sPut (Any.pair mp mr))
+  .
+
+  Definition pget E `{sE -< E} `{eventE -< E} (p: Any.t -> Any.t): itree E Any.t :=
+    st <- trigger (sGet p);; '(mp, _) <- ((Any.split st)?);;
     Ret mp
   .
 
 
 
-  Definition ASSUME (Cond: Any.t -> Any.t -> iProp) (valp: Any.t): stateT Σ (itree Es) Any.t :=
+  Definition ASSUME (Cond: Any.t -> Any.t -> iProp) (valp: Any.t) (p: Any.t -> Any.t): stateT Σ (itree Es) Any.t :=
     fun fr =>
       '(cres, ctx) <- trigger (Take (Σ * Σ));;
-      mr <- mget;;
+      mr <- (mget p);;
       assume(URA.wf (cres ⋅ fr ⋅ ctx ⋅ mr));;;
       valv <- trigger (Take Any.t);;
       assume(Cond valv valp cres);;;
       Ret (ctx, valv)
   .
 
-  Definition ASSERT (Cond: Any.t -> Any.t -> iProp) (valv: Any.t): stateT Σ (itree Es) Any.t :=
+  Definition ASSERT (Cond: Any.t -> Any.t -> iProp) (valv: Any.t) (p: Any.t -> Any.t): stateT Σ (itree Es) Any.t :=
     fun ctx =>
       '(cres, fr, mr) <- trigger (Choose (Σ * Σ * Σ));;
-      mput mr;;;
+      mput mr p;;;
       guarantee(URA.wf (cres ⋅ fr ⋅ ctx ⋅ mr));;;
       valp <- trigger (Choose Any.t);;
       guarantee(Cond valv valp cres);;;
@@ -135,22 +150,23 @@ Section PROOF.
 
 
   Definition HoareCall
-             (mn: mname)
+             (* (mn: mname) *)
              (tbr: bool)
              (ord_cur: ord)
-             (fsp: fspec):
+             (fsp: fspec)
+             (p: Any.t -> Any.t):
     gname -> Any.t -> stateT (Σ) (itree Es) Any.t :=
     fun fn varg_src ctx =>
 
       x <- trigger (Choose fsp.(meta));;
-      '(fr, varg_tgt) <- (ASSERT (fsp.(precond) (Some mn) x) varg_src ctx);;
+      '(fr, varg_tgt) <- (ASSERT (fsp.(precond) x) varg_src p ctx);;
 
       let ord_next := fsp.(measure) x in
       guarantee(ord_lt ord_next ord_cur /\ (tbr = true -> is_pure ord_next) /\ (tbr = false -> ord_next = ord_top));;;
 
       vret_tgt <- trigger (Call fn varg_tgt);;
 
-      ASSUME (fsp.(postcond) (Some mn) x) vret_tgt fr
+      ASSUME (fsp.(postcond) x) vret_tgt p fr
   .
 
 End PROOF.
@@ -182,11 +198,11 @@ Variant hAPCE: Type -> Type :=
 | hAPC: hAPCE unit
 .
 
-Notation Es' := (hCallE +' pE +' eventE).
+Notation Es' := (hCallE +' sE +' eventE).
 
 Definition hEs := (hAPCE +' Es).
 
-Definition hcall {X Y} (fn: gname) (varg: X): itree (hCallE +' pE +' eventE) Y :=
+Definition hcall {X Y} (fn: gname) (varg: X): itree (hCallE +' sE +' eventE) Y :=
   vret <- trigger (hCall false fn varg↑);; vret <- vret↓ǃ;; Ret vret.
 
 Program Fixpoint _APC (at_most: Ord.t) {wf Ord.lt at_most}: itree Es' unit :=
@@ -260,8 +276,8 @@ Section CANCEL.
   (* Defined. *)
   Definition mk_simple {X: Type} (DPQ: X -> ord * (Any_tgt -> iProp) * (Any_tgt -> iProp)): fspec :=
     mk_fspec (fst ∘ fst ∘ DPQ)
-             (fun _ x y a => (((snd ∘ fst ∘ DPQ) x a: iProp) ∧ ⌜y = a⌝)%I)
-             (fun _ x z a => (((snd ∘ DPQ) x a: iProp) ∧ ⌜z = a⌝)%I)
+             (fun  x y a => (((snd ∘ fst ∘ DPQ) x a: iProp) ∧ ⌜y = a⌝)%I)
+             (fun  x z a => (((snd ∘ DPQ) x a: iProp) ∧ ⌜z = a⌝)%I)
   .
 
   Section INTERP.
@@ -276,7 +292,7 @@ Section CANCEL.
  ***)
   (*** TODO: try above idea; if it fails, document it; and refactor below with alist ***)
 
-  Variable mn: mname.
+  (* Variable mn: mname. *)
   Variable stb: gname -> option fspec.
 
   Definition handle_hAPCE_src: hAPCE ~> itree Es :=
@@ -321,7 +337,7 @@ Section CANCEL.
                   trivial_Handler)
   .
 
-  Definition body_to_mid2 {X} (body: X -> itree (hCallE +' pE +' eventE) Any.t): X -> itree Es Any.t :=
+  Definition body_to_mid2 {X} (body: X -> itree (hCallE +' sE +' eventE) Any.t): X -> itree Es Any.t :=
     (@interp_hCallE_mid2 _) ∘ body
   .
 
@@ -345,7 +361,7 @@ Section CANCEL.
                   ((fun T X => trigger X): _ ~> itree Es))
   .
 
-  Definition body_to_mid (ord_cur: ord) {X} (body: X -> itree (hCallE +' pE +' eventE) Any.t): X -> itree Es Any.t :=
+  Definition body_to_mid (ord_cur: ord) {X} (body: X -> itree (hCallE +' sE +' eventE) Any.t): X -> itree Es Any.t :=
     fun varg_mid => interp_hCallE_mid ord_cur (body varg_mid)
   .
 
@@ -358,18 +374,19 @@ Section CANCEL.
                                     | _ => body (mn, varg_src)
                                     end)).
 
-  Definition handle_hCallE_tgt (ord_cur: ord): hCallE ~> stateT (Σ) (itree Es) :=
+  Definition handle_hCallE_tgt (ord_cur: ord) (p: Any.t -> Any.t): hCallE ~> stateT (Σ) (itree Es) :=
     fun _ '(hCall tbr fn varg_src) 'ctx =>
       f <- (stb fn)ǃ;;
-      HoareCall mn tbr ord_cur f fn varg_src ctx
+      HoareCall tbr ord_cur f p fn varg_src ctx
   .
 
-  Definition handle_pE_tgt: pE ~> itree Es :=
+  Definition handle_pE_tgt: sE ~> itree Es :=
     Eval unfold pput, pget in
       (fun _ e =>
          match e with
-         | PPut st => pput st
-         | PGet => pget
+         (* | PPut st => pput st
+         | PGet => pget *)
+          | SUpdate run => 
          end).
 
   Definition interp_hCallE_tgt (ord_cur: ord): itree Es' ~> stateT Σ (itree Es) :=

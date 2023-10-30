@@ -17,7 +17,6 @@ Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
 
 
 Module ModSem.
-Import Events.
 Section MODSEM.
 
   Record t: Type := mk {
@@ -596,11 +595,11 @@ Section EVENTSCOMMON.
   (* Definition ccall {X Y} (fn: gname) (varg: X): itree Es Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret. *)
   (* Definition cfun {X Y} (body: X -> itree Es Y): Any.t -> itree Es Any.t := *)
   (*   fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑. *)
-  Context `{HasCallE: Events.callE -< E}.
+  Context `{HasCallE: callE -< E}.
   Context `{HasEventE: eventE -< E}.
 
-  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Events.Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
-  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Events.Call fn varg↑);; vret <- vret↓?;; Ret vret.
+  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
+  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret.
 
   Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
     fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
@@ -979,50 +978,50 @@ Global Opaque Sk.load_skenv.
 Lemma interp_Es_unwrapU
       prog R st0 (r: option R)
   :
-    Events.interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
+    interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
 .
 Proof.
   unfold unwrapU. des_ifs.
-  - rewrite Events.interp_Es_ret. grind.
-  - rewrite Events.interp_Es_triggerUB. unfold triggerUB. grind.
+  - rewrite interp_Es_ret. grind.
+  - rewrite interp_Es_triggerUB. unfold triggerUB. grind.
 Qed.
 
 Lemma interp_Es_unwrapN
       prog R st0 (r: option R)
   :
-    Events.interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
+    interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
 .
 Proof.
   unfold unwrapN. des_ifs.
-  - rewrite Events.interp_Es_ret. grind.
-  - rewrite Events.interp_Es_triggerNB. unfold triggerNB. grind.
+  - rewrite interp_Es_ret. grind.
+  - rewrite interp_Es_triggerNB. unfold triggerNB. grind.
 Qed.
 
 Lemma interp_Es_assume
       prog st0 (P: Prop)
   :
-    Events.interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
+    interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
 .
 Proof.
   unfold assume.
-  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite Events.interp_Es_eventE.
-  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite Events.interp_Es_ret.
+  repeat (try rewrite interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite interp_Es_eventE.
+  repeat (try rewrite interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite interp_Es_ret.
   refl.
 Qed.
 
 Lemma interp_Es_guarantee
       prog st0 (P: Prop)
   :
-    Events.interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
+    interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
 .
 Proof.
   unfold guarantee.
-  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite Events.interp_Es_eventE.
-  repeat (try rewrite Events.interp_Es_bind; try rewrite bind_bind). grind.
-  rewrite Events.interp_Es_ret.
+  repeat (try rewrite interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite interp_Es_eventE.
+  repeat (try rewrite interp_Es_bind; try rewrite bind_bind). grind.
+  rewrite interp_Es_ret.
   refl.
 Qed.
 
@@ -1035,22 +1034,22 @@ Section AUX.
   Lemma interp_Es_ext
         prog R (itr0 itr1: itree _ R) st0
     :
-      itr0 = itr1 -> Events.interp_Es prog itr0 st0 = Events.interp_Es prog itr1 st0
+      itr0 = itr1 -> interp_Es prog itr0 st0 = interp_Es prog itr1 st0
   .
   Proof. i; subst; refl. Qed.
 
-  Global Program Instance interp_Es_rdb: red_database (mk_box (@Events.interp_Es)) :=
+  Global Program Instance interp_Es_rdb: red_database (mk_box (@interp_Es)) :=
     mk_rdb
       1
-      (mk_box Events.interp_Es_bind)
-      (mk_box Events.interp_Es_tau)
-      (mk_box Events.interp_Es_ret)
-      (mk_box Events.interp_Es_sE)
-      (mk_box Events.interp_Es_sE)
-      (mk_box Events.interp_Es_callE)
-      (mk_box Events.interp_Es_eventE)
-      (mk_box Events.interp_Es_triggerUB)
-      (mk_box Events.interp_Es_triggerNB)
+      (mk_box interp_Es_bind)
+      (mk_box interp_Es_tau)
+      (mk_box interp_Es_ret)
+      (mk_box interp_Es_sE)
+      (mk_box interp_Es_sE)
+      (mk_box interp_Es_callE)
+      (mk_box interp_Es_eventE)
+      (mk_box interp_Es_triggerUB)
+      (mk_box interp_Es_triggerNB)
       (mk_box interp_Es_unwrapU)
       (mk_box interp_Es_unwrapN)
       (mk_box interp_Es_assume)

@@ -110,7 +110,7 @@ End EVENTSCOMMON.
 
 
 
-Module Events.
+
 Section EVENTS.
 
   Inductive callE: Type -> Type :=
@@ -127,9 +127,9 @@ Section EVENTS.
   
   Definition Es: Type -> Type := (callE +' sE +' eventE).
 
-  Definition Get (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
-  Definition Modify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
-  Definition Put x := (Modify (fun _ => x)).
+  Definition sGet (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
+  Definition sModify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
+  Definition sPut x := (sModify (fun _ => x)).
   
 
   (* Double-check Types*)
@@ -294,11 +294,9 @@ Section EVENTS.
   Qed.
   (* Opaque interp_Es. *)
 End EVENTS.
-End Events.
-Opaque Events.interp_Es.
+Opaque interp_Es.
 
 Section LENS.
-  Import Events.
   (* Variable S: Type.
   Variable V: Type.
 
@@ -340,7 +338,6 @@ Section LENS.
 End LENS.
 
 Section PROGRAM_EVENT.
-  Import Events.
   (* Variable state state' : Type. *)
 
   (* Variable l : Lens.t state' state. *)
@@ -358,7 +355,6 @@ Section PROGRAM_EVENT.
 End PROGRAM_EVENT.
 
 Section MAP_EVENT.
-  Import Events.
   (* CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
     fun itr =>
       match observe itr with

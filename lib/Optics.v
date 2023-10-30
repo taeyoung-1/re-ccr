@@ -50,10 +50,11 @@ Module Lens.
     }. *)
 
 
+    Definition t S V:= S -> Store.t V S.
+    
   (* Definition t S V := {l : S -> Store.t V S | isLens l}. *)
   (* Definition t := {l : Any.t -> Store.t Any.t Any.t | isLens l}. *)
   (* Definition t := Any.t -> Store.t Any.t Any.t. *)
-  Definition t S V:= S -> Store.t V S.
 
   Definition view {S V} : t S V -> S -> V := fun l s => fst (l s).
   Definition set {S V} : t S V -> V -> S -> S := fun l a s => snd (l s) a.
