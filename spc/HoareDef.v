@@ -264,6 +264,18 @@ Section CANCEL.
              (fun _ x z a => (((snd ∘ DPQ) x a: iProp) ∧ ⌜z = a⌝)%I)
   .
 
+  Definition app_DPQ {X0} {X1}
+    (DPQ0: X0 -> ord * (Any.t -> iProp) * (Any.t -> iProp))
+    (DPQ1: X1 -> ord * (Any.t -> iProp) * (Any.t -> iProp))
+  :
+    (X0 + X1) -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+    fun meta =>
+      match meta with
+      | inl meta0 => DPQ0 meta0
+      | inr meta1 => DPQ1 meta1
+      end.
+  
+
   (* specbody with dummy function body used in pure spec *)
   Definition mk_pure (fsb: fspec) := mk_specbody fsb (fun arg => Ret arg.2).
 
@@ -490,9 +502,7 @@ End CANCEL.
 End PSEUDOTYPING.
 
 
-
-
-
+Notation "DPQ0 @ DPQ1" := (app_DPQ DPQ0 DPQ1) (at level 60, right associativity).
 
 
 Module SModSem.

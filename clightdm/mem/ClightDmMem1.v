@@ -1,13 +1,12 @@
 Require Import Coqlib.
 Require Import ITreelib.
+Require Import Any.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
 Require Import Skeleton.
-Require Import PCM.
+Require Import PCM IPM.
 Require Import HoareDef STB.
-Require Import ProofMode.
-Require Import Any.
 From compcertip Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.
@@ -388,71 +387,112 @@ Section SPEC.
                                     ** vaddr |-1#> mvs_old),
             (fun vret => ⌜vret = tt↑⌝ ** vaddr |-1#> mvs_new)
     )))%I.
+  
+  Local Open Scope Z.
+  
+  Definition cmp_ofs (c: comparison) (ofs0 ofs1: Z) :=
+    match c with
+    | Ceq => ofs0 =? ofs1
+    | Cne => negb (ofs0 =? ofs1)
+    | Clt => ofs0 <? ofs1
+    | Cle => ofs0 <=? ofs1
+    | Cgt => ofs0 >? ofs1
+    | Cge => ofs0 >=? ofs1
+    end.
+  
+  Definition cmp_ptr_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(c) => (
+            (ord_pure 0%nat),
+            (fun varg => ⌜varg = (c, Vnullptr, Vnullptr)↑⌝ ),
+            (fun vret => ⌜vret = match c with
+                                 | Ceq => true↑
+                                 | _ => false↑
+                                 end⌝)
+          )%I.
 
-  Definition cmp_ptr_case (pre inv: iProp) (c: comparison) (vaddr0 vaddr1: val) (result: bool) : Prop :=
-    if Val.eq vaddr0 Vnullptr
-    then if Val.eq vaddr1 Vnullptr
-        then match c with
-              | Ceq => result = true
-              | _ => result = false
-              end
-        else exists b ofs,
-              pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz tg opti, inv = (b ↱q# (sz, tg, opti))
-              /\
-              if Coqlib.zle 0 ofs && Coqlib.zle ofs sz
-              then match c with
-                  | Ceq => result = false
-                  | Cne => result = true
-                  | _ => False
-                  end
-              else False
-    else if Val.eq vaddr1 Vnullptr
-        then exists b ofs,
-              pre = (vaddr1 ⊸ (b, ofs)) /\ exists q sz tg opti, inv = (b ↱q# (sz, tg, opti))
-              /\
-              if Coqlib.zle 0 ofs && Coqlib.zle ofs sz
-              then match c with
-                  | Ceq => result = false
-                  | Cne => result = true
-                  | _ => False
-                  end
-              else False
-        else exists b0 ofs0 b1 ofs1,
-              pre = (vaddr0 ⊸ (b0, ofs0) ** (vaddr1 ⊸ (b1, ofs1)))
-              /\
-              if dec b0 b1
-              then exists q sz tg opti,
-                  inv = (b0 ↱q# (sz, tg, opti))
-                  /\
-                  if Coqlib.zle 0 ofs0 && Coqlib.zle ofs0 sz && Coqlib.zle 0 ofs1 && Coqlib.zle ofs1 sz 
-                  then match c with
-                        | Ceq => result = (Coqlib.zeq ofs0 ofs1)
-                        | Cne => result = negb (Coqlib.zeq ofs0 ofs1)
-                        | Clt => result = (Coqlib.zlt ofs0 ofs1)
-                        | Cle => result = (Coqlib.zle ofs0 ofs1)
-                        | Cgt => result = negb (Coqlib.zle ofs0 ofs1)
-                        | Cge => result = negb (Coqlib.zlt ofs0 ofs1)
-                        end
-                  else False
-              else exists q0 sz0 tg0 opti0 q1 sz1 tg1 opti1,
-                  inv = (b0 ↱q0# (sz0, tg0, opti0) ** b1 ↱q1# (sz1, tg1, opti1))
-                  /\
-                  if Coqlib.zle 0 ofs0 && Coqlib.zle (ofs0 + 1) sz0 && Coqlib.zle 0 ofs1 && Coqlib.zle (ofs1 + 1) sz1
-                  then match c with
-                        | Ceq => result = false
-                        | Cne => result = true
-                        | _ => False
-                        end
-                  else False.
+  Definition cmp_ptr_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b, q, sz, tg, opti) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr ⊸ (b, ofs)
+                         ** b ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = false↑⌝ ** b ↱q# (sz, tg, opti))
+          )%I.
+
+  Definition cmp_ptr_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b, q, sz, tg, opti) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr ⊸ (b, ofs)
+                         ** b ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = true↑⌝ ** b ↱q# (sz, tg, opti))
+          )%I.
+
+  Definition cmp_ptr_hoare3 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b, q, sz, tg, opti) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr ⊸ (b, ofs)
+                         ** b ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = false↑⌝ ** b ↱q# (sz, tg, opti))
+          )%I.
+
+  Definition cmp_ptr_hoare4 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b, q, sz, tg, opti) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr ⊸ (b, ofs)
+                         ** b ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = true↑⌝ ** b ↱q# (sz, tg, opti))
+          )%I.
+
+  Definition cmp_ptr_hoare5 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(c, ofs0, ofs1, b, q, sz, tg, opti) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (c, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 ≤ sz /\ 0 ≤ ofs1 ≤ sz⌝
+                         ** vaddr0 ⊸ (b, ofs0)
+                         ** vaddr1 ⊸ (b, ofs1)
+                         ** b ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = (cmp_ofs c ofs0 ofs1)↑⌝ ** b ↱q# (sz, tg, opti))
+          )%I.
+
+  Definition cmp_ptr_hoare6 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (Ceq, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
+                         ** vaddr0 ⊸ (b0, ofs0)
+                         ** vaddr1 ⊸ (b1, ofs1)
+                         ** b0 ↱q0# (sz0, tg0, opti0)
+                         ** b1 ↱q1# (sz1, tg1, opti1)),
+            (fun vret => ⌜vret = false↑⌝ 
+                         ** b0 ↱q0# (sz0, tg0, opti0)
+                         ** b1 ↱q1# (sz1, tg1, opti1))
+          )%I.
+
+  Definition cmp_ptr_hoare7 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (Cne, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
+                         ** vaddr0 ⊸ (b0, ofs0)
+                         ** vaddr1 ⊸ (b1, ofs1)
+                         ** b0 ↱q0# (sz0, tg0, opti0)
+                         ** b1 ↱q1# (sz1, tg1, opti1)),
+            (fun vret => ⌜vret = true↑⌝ 
+                         ** b0 ↱q0# (sz0, tg0, opti0)
+                         ** b1 ↱q1# (sz1, tg1, opti1))
+          )%I.
 
   Definition cmp_ptr_spec: fspec :=
-    (mk_simple
-      (fun '(pre, inv, result) => (
-            (ord_pure 0%nat),
-            (fun varg => ⌜exists c v1 v2, varg = (c, v1, v2)↑ /\ cmp_ptr_case pre inv c v1 v2 result ⌝
-                        ** pre ** inv),
-            (fun vret => ⌜vret = result↑⌝ ** inv)%I
-    )))%I.
+    mk_simple (
+      cmp_ptr_hoare0
+      @ cmp_ptr_hoare1
+      @ cmp_ptr_hoare2
+      @ cmp_ptr_hoare3
+      @ cmp_ptr_hoare4
+      @ cmp_ptr_hoare5
+      @ cmp_ptr_hoare6
+      @ cmp_ptr_hoare7
+    ).
 
   Definition sub_ptr_spec: fspec :=
     (mk_simple
@@ -522,29 +562,22 @@ Section SPEC.
   | is_wand ip1 ip2 (IC: is_pretty ip2) : is_pretty (ip1 -* ip2)
   . *)
 
-  Definition capture_resource pre f_post vaddr: Prop:=
-    match vaddr with
-    | Vptr b ofs =>
-      exists q sz tg opti,
-        pre = b ↱q# (sz, tg, opti)
-        /\ 
-        f_post = fun vret =>
-                  (∃ i, ⌜vret = (Vptrofs (Ptrofs.repr i))↑⌝
-                  ** b ↱q# (sz, tg, Some i))%I
-    | Vint i => if Archi.ptr64 then False
-                else f_post = fun vret => ⌜vret = vaddr↑⌝%I
-    | Vlong i => if Archi.ptr64 then f_post = fun vret => ⌜vret = vaddr↑⌝%I
-                 else False
-    | _ => False
-    end.
+  Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(i) => (
+            (ord_pure 0%nat),
+            (fun varg => ⌜varg = [Vptrofs i]↑⌝),
+            (fun vret => ⌜vret = (Vptrofs i)↑⌝ )
+          )%I.
+
+  Definition capture_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(b, q, sz, tg) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ ofs opti, ⌜varg = [Vptr b ofs]↑⌝ ** b ↱q# (sz, tg, opti)),
+            (fun vret => ∃ i, ⌜vret = (Vptrofs i)↑⌝ ** b ↱q# (sz, tg, Some (Ptrofs.unsigned i)) )
+          )%I.
 
   Definition capture_spec: fspec :=
-    (mk_simple
-       (fun '(f_post) => (
-            (ord_pure 0%nat),
-            (fun varg => ∃ pre vaddr, ⌜varg = [vaddr]↑ /\ capture_resource pre f_post vaddr⌝ ** pre),
-            (fun vret => f_post vret)
-    )))%I.
+    mk_simple (capture_hoare1 @ capture_hoare2).
 
   (* sealed *)
   Definition MemStb: list (gname * fspec).
