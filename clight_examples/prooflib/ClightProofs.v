@@ -201,7 +201,7 @@ Section POINTS_TO.
 End SEP.    
 End POINTS_TO.
 
-Section DECOMP.
+Section UNFOLD_DECOMP.
   Variable eff : Type -> Type.
   Context `{HasCall : callE -< eff}.
   Context `{HasEvent : eventE -< eff}.

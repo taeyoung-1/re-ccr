@@ -14,13 +14,14 @@ From compcertip Require Import
 
 Require Import ClightDmExprgen.
 
+
 Section Clight.
 Context {eff : Type -> Type}.
 Context {HasCall : callE -< eff}.
 Context {HasEvent : eventE -< eff}.
 Variable sk: Sk.t.
 Let skenv: SkEnv.t := Sk.load_skenv sk.
-Variable ce: composite_env.
+Variable ce: comp_env.
 
 Definition id_list_norepet_c: list ident -> bool :=
   fun ids => if Coqlib.list_norepet_dec (ident_eq) ids then true else false.
@@ -30,7 +31,7 @@ Definition id_list_disjoint_c: list ident -> list ident -> bool :=
     if (Coqlib.list_disjoint_dec ident_eq ids1 ids2)
     then true else false.
 
-Fixpoint alloc_variables_c (ce: composite_env) (e: env)
+Fixpoint alloc_variables_c (ce: comp_env) (e: env)
          (vars: list (ident * type))
   : itree eff env := 
   match vars with
@@ -38,20 +39,20 @@ Fixpoint alloc_variables_c (ce: composite_env) (e: env)
   | (id, ty) :: vars' =>
     v <- ccallU "salloc" (sizeof ce ty);;
     match v with
-    | Vptr b ofs => alloc_variables_c ce (PTree.set id (b, ty) e) vars'
+    | Vptr b ofs => alloc_variables_c ce (alist_add (string_of_ident id) (b, ty) e) vars'
     | _ => triggerUB (* dummy *)
     end
   end.
 
 Definition function_entry_c
-           (ce: composite_env) (f: function) (vargs: list val)
+           (ce: comp_env) (f: function) (vargs: list val)
   : itree eff (env * temp_env) :=
   if (id_list_norepet_c (var_names (fn_vars f)) &&
       id_list_norepet_c (var_names (fn_params f)) &&
       id_list_disjoint_c (var_names (fn_params f))
                          (var_names (fn_temps f)))%bool
   then
-    e <- alloc_variables_c ce empty_env (fn_vars f);;
+    e <- alloc_variables_c ce [] (fn_vars f);;
     le <- (bind_parameter_temps (fn_params f) vargs (create_undef_temps (fn_temps f)))?;;
     Ret (e, le)
   else triggerUB.
@@ -187,11 +188,11 @@ Section DECOMP.
       free_list_aux l'
     end.
 
-  Definition block_of_binding (ce: composite_env) (id_b_ty: ident * (block * type)) :=
+  Definition block_of_binding (ce: comp_env) (id_b_ty: string * (block * type)) :=
     let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
 
-  Definition blocks_of_env (ce: composite_env) :=
-    fun x => ((List.map (block_of_binding ce)) (PTree.elements x)).
+  Definition blocks_of_env (ce: comp_env) (le: env) :=
+    List.map (block_of_binding ce) le.
   
   Definition _sreturn_c
              (retty: type)
@@ -220,20 +221,23 @@ Section DECOMP.
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;;
-      let le' := PTree.set id v le in
+      let le' := alist_add (string_of_ident id) v le in
       Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
-        Ret (e, (set_opttemp optid v le), None, None)
+        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
     | Sbuiltin optid ef tyargs al =>
       tau;;
       vargs <- eval_exprlist_c sk ce e le al tyargs;;
       match ef with
-      | EF_malloc => ccallU "malloc" vargs
-      | EF_free => ccallU "free" vargs
+      | EF_malloc => v <- ccallU "malloc" vargs;;
+        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
+      | EF_free => v <- ccallU "free" vargs;;
+        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
       (* this is for builtin memcpy, uncallable in standard C *)
       (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
-      | EF_capture => ccallU "capture" vargs
+      | EF_capture => v <- ccallU "capture" vargs;;
+        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
       | _ => triggerUB
       end
     | Ssequence s1 s2 =>
@@ -287,6 +291,71 @@ Section DECOMP.
     end);; v <- v?;;
     Ret v.
 
+  (* Lemma unfold_decomp_stmt :
+    decomp_stmt
+    = fun retty stmt e le =>
+        match stmt with
+        | Sskip =>
+          Ret (e, le, None, None)
+        | Sassign a1 a2 =>
+          _sassign_c e le a1 a2;;;
+          Ret (e, le, None, None)
+        | Sset id a =>
+          tau;;
+          v <- eval_expr_c sk ce e le a ;;
+          let le' := PTree.set id v le in
+          Ret (e, le', None, None)
+        | Scall optid a al =>
+            v <- _scall_c e le a al;;
+            Ret (e, (set_opttemp optid v le), None, None)
+        | Sbuiltin optid ef tyargs al =>
+          tau;;
+          vargs <- eval_exprlist_c sk ce e le al tyargs;;
+          match ef with
+          | EF_malloc => ccallU "malloc" vargs
+          | EF_free => ccallU "free" vargs
+          (* this is for builtin memcpy, uncallable in standard C *)
+          (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
+          | EF_capture => ccallU "capture" vargs
+          | _ => triggerUB
+          end
+        | Ssequence s1 s2 =>
+          '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
+                            (* this is for steps *)
+          match v with
+          | Some retval =>
+            Ret (e', le', None, v)
+          | None =>
+            match bc with
+            | None =>
+              tau;;decomp_stmt retty s2 e' le'
+            | Some true =>
+              tau;;Ret (e', le', bc, None)
+            | Some false =>
+              tau;;Ret (e', le', bc, None)
+            end
+          end
+        | Sifthenelse a s1 s2 =>
+          b <- _site_c e le a;;
+          if (b: bool) then (decomp_stmt retty s1 e le)
+          else (decomp_stmt retty s2 e le)
+        | Sloop s1 s2 =>
+          let itr1 := decomp_stmt retty s1 in
+          let itr2 := decomp_stmt retty s2 in
+          _sloop_itree e le itr1 itr2
+        | Sbreak =>
+          Ret (e, le, Some true, None)
+        | Scontinue =>
+          Ret (e, le, Some false, None)
+        | Sreturn oa =>
+          v <- _sreturn_c retty e le oa;;
+          Ret (e, le, None, Some v)
+        | _ =>
+          (* not supported *)
+          triggerUB
+        end.
+    Proof. repeat (apply func_ext; i). destruct x0; et. Qed. *)
+  
 End DECOMP.
 End Clight.
 (* Notation call_data := (block * (* fundef * *) list val * mem)%type. *)
@@ -488,12 +557,11 @@ End Clight.
 Section DECOMP_PROG.
 
   (* Context `{SystemEnv}. *)
-  Variable types: list composite_definition.
-  Variable defs: list (ident * globdef Clight.fundef type).
-  Variable public: list ident.
-  Variable wf: wf_composites types.
-  Let ce: composite_env := let (ce, _) := build_composite_env' types wf in ce.
-  
+  Variable prog: Clight.program.
+  Let ce: comp_env := List.map (fun '(id, p) => (string_of_ident id, p)) (PTree.elements prog.(prog_comp_env)).
+  Let defs: list (ident * globdef Clight.fundef type) := prog.(prog_defs).
+  Let public: list ident := prog.(prog_public).
+  Let types: list composite_definition := prog.(prog_types).
   Variable mn: string.
 
   (* Fixpoint get_source_name (filename : string) := *)
@@ -523,15 +591,7 @@ Section DECOMP_PROG.
   Fixpoint get_sk (defs: list (ident * globdef Clight.fundef type)) :=
     match defs with
     | [] => []
-    | (id, gdef) :: defs' =>
-        match gdef with
-        | Gvar gv => (string_of_ident id, gdef↑) :: get_sk defs'
-        | Gfun gf =>
-            match gf with
-            | Internal f => (string_of_ident id, gdef↑) :: get_sk defs'
-            | _ => get_sk defs'
-            end
-        end
+    | (id, gdef) :: defs' => (string_of_ident id, gdef↑) :: get_sk defs'
     end
   .
 

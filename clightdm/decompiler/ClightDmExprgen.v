@@ -40,13 +40,102 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
 End GType. *)
 
+Section ABENVS.
+
+  Definition env : Type := alist string (block * type).
+  Definition temp_env : Type := alist string val.
+  Definition comp_env : Type := alist string composite.
+
+  Fixpoint sizeof (ce: comp_env) (t: type) : Z :=
+    match t with
+    | Tint I16 _ _ => 2%Z
+    | Tint I32 _ _ => 4%Z
+    | Tint _ _ _ => 1%Z
+    | Tlong _ _ => 8%Z
+    | Tfloat F32 _ => 4%Z
+    | Tfloat F64 _ => 8%Z
+    | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
+    | Tarray t' n _ => (sizeof ce t' * Z.max 0 n)%Z
+    | Tstruct id _ | Tunion id _ =>
+      match alist_find (string_of_ident id) ce with
+      | Some co => co_sizeof co
+      | None => 0%Z
+      end
+    | _ => 1%Z
+    end.
+
+  Fixpoint alignof (ce: comp_env) (ty: type) :=
+    align_attr (attr_of_type ty)
+    match ty with
+    | Tint I16 _ _ => 2
+    | Tlong _ _ => Archi.align_int64
+    | Tint I32 _ _ | Tfloat F32 _ => 4
+    | Tfloat F64 _ => Archi.align_float64
+    | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
+    | Tarray t' _ _ => alignof ce t'
+    | Tstruct id _ | Tunion id _ =>
+        match alist_find (string_of_ident id) ce with
+        | Some co => co_alignof co
+        | None => 1
+        end
+    | _ => 1
+    end.
+
+  Fixpoint alignof_blockcopy (ce: comp_env) (ty: type) :=
+    match ty with
+    | Tint I16 _ _ => 2%Z
+    | Tint I32 _ _ => 4%Z
+    | Tlong _ _ => 8%Z
+    | Tfloat F32 _ => 4%Z
+    | Tfloat F64 _ => 8%Z
+    | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
+    | Tarray t' n _ => alignof_blockcopy ce t'
+    | Tstruct id _ | Tunion id _ =>
+      match alist_find (string_of_ident id) ce with
+      | Some co => Z.min 8 (co_alignof co)
+      | None => 1%Z
+      end
+    | _ => 1%Z
+    end.
+
+  Fixpoint field_offset_rec (ce: comp_env) (id: ident)
+    (fld: members) (pos: Z) : Errors.res Z :=
+    match fld with
+    | [] => Errors.Error [Errors.MSG "Unknown field "; Errors.CTX id]
+    | p :: fld' =>
+      let (id', t) := p in
+      if ident_eq id id'
+      then Errors.OK (Coqlib.align pos (alignof ce t))
+      else
+        field_offset_rec ce id fld'
+          (Coqlib.align pos (alignof ce t) + sizeof ce t)%Z
+  end.
+
+  Definition field_offset ce id fld := field_offset_rec ce id fld 0.
+
+  Fixpoint create_undef_temps (temps: list (ident * type)) : temp_env :=
+    match temps with
+    | [] => []
+    | p :: temps' => (string_of_ident (fst p), Vundef) :: (create_undef_temps temps')
+    end.
+
+  Fixpoint bind_parameter_temps (formals: list (ident * type))
+    (vargs: list val) (le: temp_env) : option temp_env :=
+    match formals, vargs with
+    | [], [] => Some le
+    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (string_of_ident (fst p)) v le)
+    | _, _ => None
+    end.
+
+End ABENVS.
+
 Section Clight.
 Context {eff : Type -> Type}.
 Context {HasCall : callE -< eff}.
 Context {HasEvent : eventE -< eff}.
 Variable sk: Sk.t.
 Let skenv: SkEnv.t := Sk.load_skenv sk.
-Variable ce: composite_env.
+Variable ce: comp_env.
   
 Section EVAL_EXPR_COMP.
 
@@ -104,7 +193,7 @@ Section EVAL_EXPR_COMP.
   | _, _, _ => triggerUB
   end. *)
 
-  Definition assign_loc_c (ce: composite_env)
+  Definition assign_loc_c (ce: comp_env)
            (ty: type) (vp: val)
            (v: val): itree eff unit :=
   match access_mode ty with
@@ -126,8 +215,8 @@ Section EVAL_EXPR_COMP.
     | _ => triggerUB
     end.
 
-  Variable e: Clight.env.
-  Variable le: Clight.temp_env.
+  Variable e: env.
+  Variable le: temp_env.
 
   Section EVAL_LVALUE.
     Variable _eval_expr_c: expr -> itree eff val.
@@ -136,7 +225,7 @@ Section EVAL_EXPR_COMP.
       : itree eff val :=
       match a with
       | Evar id ty =>
-        match e ! id with
+        match alist_find (string_of_ident id) e with
         | Some (l, ty') =>
           if type_eq ty ty' then Ret (Vptr l Ptrofs.zero)
           else triggerUB
@@ -155,7 +244,7 @@ Section EVAL_EXPR_COMP.
         if negb (is_ptr_val v ) then triggerUB
         else match Clight.typeof a with
              | Tstruct id att =>
-                co <- (ce ! id)?;;
+                co <- (alist_find (string_of_ident id) ce)?;;
                 match field_offset ce i (co_members co) with
                 | Errors.OK delta =>
                   if Archi.ptr64
@@ -164,7 +253,7 @@ Section EVAL_EXPR_COMP.
                 | _ => triggerUB
                 end
              | Tunion id att =>
-                (ce ! id)?;;; Ret v
+                (alist_find (string_of_ident id) ce)?;;; Ret v
              | _ => triggerUB
             end
       | _ => triggerUB
@@ -218,6 +307,7 @@ Section EVAL_EXPR_COMP.
     match Cop.classify_cast t1 t2 with
     | Cop.cast_case_pointer2int | Cop.cast_case_pointer =>
       match v with
+      | Vptr _ _ => Ret v
       | Vint _ => if Archi.ptr64 then triggerUB else Ret v
       | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
       | _ => triggerUB
@@ -407,13 +497,43 @@ Section EVAL_EXPR_COMP.
       end
     | Cop.bin_default => triggerUB
     end.
+  
+  Definition sem_add_ptr_int_c cenv ty si v1 v2: itree eff val :=
+    match v1, v2 with
+    | Vint n1, Vint n2 =>
+      if Archi.ptr64 then triggerUB
+      else Ret (Vint (Int.add n1 (Int.mul (Int.repr (sizeof cenv ty)) n2)))
+    | Vlong n1, Vint n2 =>
+      let n3 := Cop.cast_int_long si n2 in
+      if negb Archi.ptr64 then triggerUB
+      else Ret (Vlong (Int64.add n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n3)))
+    | Vptr b1 ofs1, Vint n2 =>
+      let n3 := Cop.ptrofs_of_int si n2 in
+      Ret (Vptr b1 (Ptrofs.add ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n3)))
+    | _, _ => triggerUB
+    end.
+
+  Definition sem_add_ptr_long_c cenv ty v1 v2: itree eff val :=
+    match v1, v2 with
+    | Vint n1, Vlong n2 =>
+      let n3 := Int.repr (Int64.unsigned n2) in
+      if Archi.ptr64 then triggerUB
+      else Ret (Vint (Int.add n1 (Int.mul (Int.repr (sizeof cenv ty)) n3)))
+    | Vlong n1, Vlong n2 =>
+      if negb Archi.ptr64 then triggerUB
+      else Ret (Vlong (Int64.add n1 (Int64.mul (Int64.repr (sizeof cenv ty)) n2)))
+    | Vptr b1 ofs1, Vlong n2 =>
+      let n3 := Ptrofs.of_int64 n2 in
+      Ret (Vptr b1 (Ptrofs.add ofs1 (Ptrofs.mul (Ptrofs.repr (sizeof cenv ty)) n3)))
+    | _, _ => triggerUB
+    end.
 
   Definition sem_add_c cenv v1 t1 v2 t2: itree eff val :=
     match Cop.classify_add t1 t2 with
-    | Cop.add_case_pi ty si => (Cop.sem_add_ptr_int cenv ty si v1 v2)?
-    | Cop.add_case_pl ty => (Cop.sem_add_ptr_long cenv ty v1 v2)?
-    | Cop.add_case_ip si ty => (Cop.sem_add_ptr_int cenv ty si v2 v1)?
-    | Cop.add_case_lp ty => (Cop.sem_add_ptr_long cenv ty v2 v1)?
+    | Cop.add_case_pi ty si => sem_add_ptr_int_c cenv ty si v1 v2
+    | Cop.add_case_pl ty => sem_add_ptr_long_c cenv ty v1 v2
+    | Cop.add_case_ip si ty => sem_add_ptr_int_c cenv ty si v2 v1
+    | Cop.add_case_lp ty => sem_add_ptr_long_c cenv ty v2 v1
     | Cop.add_default =>
       sem_binarith_c
         (fun (_ : signedness) (n1 n2 : int) => Some (Vint (Int.add n1 n2)))
@@ -662,7 +782,6 @@ Section EVAL_EXPR_COMP.
     | Cop.Ole => sem_cmp_c Cle v1 t1 v2 t2
     | Cop.Oge => sem_cmp_c Cge v1 t1 v2 t2
     end.
-  
 
   Fixpoint eval_expr_c (expr: Clight.expr): itree eff val :=
     match expr with
@@ -670,7 +789,7 @@ Section EVAL_EXPR_COMP.
     | Econst_float f ty => Ret (Vfloat f)
     | Econst_single f ty => Ret (Vsingle f)
     | Econst_long i ty => Ret (Vlong i)
-    | Etempvar id ty => (le ! id)?
+    | Etempvar id ty => (alist_find (string_of_ident id) le)?
     | Eaddrof a ty =>
       _eval_lvalue_c eval_expr_c a
     | Eunop op a ty =>
