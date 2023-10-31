@@ -18,11 +18,13 @@ Inductive tag :=
 
 Let _memcntRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
 Let _memhdRA: URA.t := (block ==> (Consent.t (Z * tag)))%ra.
+Let _memphyRA: URA.t := (Z ==> (Consent.t block))%ra.
 
 Compute (URA.car (t:=_memcntRA)).
+Compute (URA.car (t:=_memphyRA)).
 Compute (URA.car (t:=_memhdRA)).
 Instance memcntRA: URA.t := Auth.t _memcntRA.
-Instance memphyRA: URA.t := (Z ==> (OneShot.t block))%ra.
+Instance memphyRA: URA.t := Auth.t _memphyRA.
 Instance memidRA: URA.t := (block ==> (OneShot.t Z))%ra.
 Instance memhdRA: URA.t := Auth.t _memhdRA.
 
@@ -127,17 +129,21 @@ Section ALLOCATEDWITH.
               else ε)
   .
 
-  Definition _allocated_with (b: block) (sz: Z) (tg: tag) (q: Qp) : memhdRA := Auth.white (__allocated_with b sz tg q).
+  Definition _allocated_with (b: block) (sz: Z) (tg: tag) (q: Qp) : memhdRA :=
+    Auth.white (__allocated_with b sz tg q).
 
 End ALLOCATEDWITH.
 
 Section BELONGSTO.
 
-  Definition _belongs_to (bID: Z) (sz: Z) (b: block) : memphyRA :=
+  Definition __belongs_to (bID: Z) (sz: Z) (b: block) (q: Qp) : _memphyRA :=
     (fun _ofs => if (Coqlib.zle bID _ofs) && (Coqlib.zlt _ofs (bID + sz))
-                 then OneShot.white b
+                 then Consent.just q b
                  else ε)
   .
+
+  Definition _belongs_to (bID: Z) (sz: Z) (b: block) (q: Qp) : memphyRA :=
+    Auth.white (__belongs_to bID sz b q).
 
 End BELONGSTO.
 
@@ -185,27 +191,48 @@ Section PROP.
           let align := size_rule (Z.to_nat (length mvs)) in
           (∃ b ofs, OwnM (_points_to b ofs mvs q) ** OwnM (_relates_to b (i' - ofs))
                     ** ⌜(align | ofs)⌝ ** ⌜(align | (i' - ofs))⌝)%I
-    | _ => ⌜False⌝%I 
+    | _ => ⌜False⌝%I
     end.
 
-  Definition allocated_with b sz tg opti q : iProp :=
-    OwnM (_allocated_with b sz tg q)
-    ** match opti with
-       | Some i => OwnM (_belongs_to i sz b) ** OwnM (_relates_to b i)
-       | None => ⌜True⌝
-       end.
+  Definition allocated_with addr b ofs sz tg opti q : iProp :=
+    match addr with
+    | Vptr b' ofs' => ⌜b = b' /\ Ptrofs.unsigned ofs' = ofs⌝
+                      ** OwnM (_allocated_with b sz tg q)
+                      ** match opti with
+                         | Some bID => OwnM (_belongs_to bID sz b q)
+                                       ** OwnM (_relates_to b bID)
+                         | None => ⌜True⌝
+                         end
+    | Vint i => if Archi.ptr64 then ⌜False⌝%I
+                else match opti with
+                     | Some bID => ⌜Int.unsigned i = (bID + ofs)%Z⌝
+                                   ** OwnM (_allocated_with b sz tg q) 
+                                   ** OwnM (_belongs_to bID sz b q) 
+                                   ** OwnM (_relates_to b bID)
+                     | None => ⌜False⌝
+                     end
+    | Vlong i => if negb Archi.ptr64 then ⌜False⌝%I
+                 else match opti with
+                      | Some bID => ⌜Int64.unsigned i = (bID + ofs)%Z⌝
+                                    ** OwnM (_allocated_with b sz tg q)
+                                    ** OwnM (_belongs_to bID sz b q)
+                                    ** OwnM (_relates_to b bID)
+                      | None => ⌜False⌝
+                      end
+    | _ => ⌜False⌝%I 
+    end%I.
 
-  Definition repr_to v b ofs : iProp :=
+  (* Definition repr_to v b ofs : iProp :=
     match v with
     | Vptr b' ofs' => ⌜b' = b /\ Ptrofs.unsigned ofs' = ofs⌝%I
     | Vint i =>
         if Archi.ptr64 then ⌜False⌝%I
-        else OwnM (_relates_to b (ofs - Int.unsigned i))
+        else OwnM (_relates_to b (Int.unsigned i - ofs))
     | Vlong i =>
         if negb Archi.ptr64 then ⌜False⌝%I
-        else OwnM (_relates_to b (ofs - Int64.unsigned i))
+        else OwnM (_relates_to b (Int64.unsigned i - ofs))
     | _ => ⌜False⌝%I 
-    end.
+    end. *)
 
   (* Lemma detach_size addr vs sz : (addr #↦ vs ⋯ sz) -∗ (addr ↦ vs).
   Proof. 
@@ -253,12 +280,23 @@ Section PROP.
 End PROP.
 
 Notation "addr |- q #> mvs" := (points_to addr mvs q) (at level 20).
-Notation "b ↱ q # ( sz , tag , opti )" := (allocated_with b sz tag opti q) (at level 10).
-Notation "addr ⊸ ( b , ofs ) " := (repr_to addr b ofs) (at level 10).
+Notation " addr $# ( b , ofs )  ↱ q # ( sz , tag , opti )" := (allocated_with addr b ofs sz tag opti q) (at level 10).
+(* Notation "addr ⊸ ( b , ofs ) " := (repr_to addr b ofs) (at level 10). *)
 
 Section AUX.
 
-  Context `{@GRA.inG memRA Σ}.
+  Context `{@GRA.inG memcntRA Σ}.
+  Context `{@GRA.inG memphyRA Σ}.
+  Context `{@GRA.inG memidRA Σ}.
+  Context `{@GRA.inG memhdRA Σ}.
+
+  Lemma _relates_to_degen b i i' : OwnM (_relates_to b i ⋅ _relates_to b i') -∗ ⌜i = i'⌝.
+  Proof.
+    iIntros "[PTR PTR']". iCombine "PTR" "PTR'" as "PTR".
+    iPoseProof (OwnM_valid with "PTR") as "%".
+    iPureIntro. unfold _relates_to in *. ur in H3.
+    specialize (H3 b). des_ifs. apply OneShot.oneshot_degen. et.
+  Qed.
 
   (* Lemma points_to_disj
         ptr x0 x1
@@ -335,8 +373,7 @@ Section SPEC.
                     (fun varg => ⌜varg = sz↑⌝),
                     (fun vret => ∃ b vaddr, ⌜vret = b↑⌝
                                 ** vaddr |-1#> List.repeat Undef (Z.to_nat sz)
-                                ** b ↱1# (sz, Local, None)
-                                ** vaddr ⊸ (b, 0))
+                                ** vaddr $# (b, 0) ↱1# (sz, Local, None))
     )))%I.
 
   Definition sfree_spec: fspec :=
@@ -345,8 +382,7 @@ Section SPEC.
                   (fun varg => ∃ mvl vaddr b sz opti,
                                 ⌜varg = (b, sz)↑ /\ Z.of_nat (List.length mvl) = sz⌝
                                 ** vaddr |-1#> mvl
-                                ** b ↱1# (sz, Local, opti)
-                                ** vaddr ⊸ (b, 0)),
+                                ** vaddr $# (b, 0) ↱1# (sz, Local, opti)),
                   (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
@@ -411,75 +447,68 @@ Section SPEC.
           )%I.
 
   Definition cmp_ptr_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b, q, sz, tg, opti) => (
+      fun '(vaddr, b, ofs, q, sz, tg, opti) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
-                         ** vaddr ⊸ (b, ofs)
-                         ** b ↱q# (sz, tg, opti)),
-            (fun vret => ⌜vret = false↑⌝ ** b ↱q# (sz, tg, opti))
+            (fun varg => ⌜varg = (Ceq, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = false↑⌝ ** vaddr $# (b, ofs) ↱q# (sz, tg, opti))
           )%I.
 
   Definition cmp_ptr_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b, q, sz, tg, opti) => (
+      fun '(vaddr, b, ofs, q, sz, tg, opti) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
-                         ** vaddr ⊸ (b, ofs)
-                         ** b ↱q# (sz, tg, opti)),
-            (fun vret => ⌜vret = true↑⌝ ** b ↱q# (sz, tg, opti))
+            (fun varg => ⌜varg = (Cne, Vnullptr, vaddr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = true↑⌝ ** vaddr $# (b, ofs) ↱q# (sz, tg, opti))
           )%I.
 
   Definition cmp_ptr_hoare3 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b, q, sz, tg, opti) => (
+      fun '(vaddr, b, ofs, q, sz, tg, opti) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
-                         ** vaddr ⊸ (b, ofs)
-                         ** b ↱q# (sz, tg, opti)),
-            (fun vret => ⌜vret = false↑⌝ ** b ↱q# (sz, tg, opti))
+            (fun varg => ⌜varg = (Ceq, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = false↑⌝ ** vaddr $# (b, ofs) ↱q# (sz, tg, opti))
           )%I.
 
   Definition cmp_ptr_hoare4 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b, q, sz, tg, opti) => (
+      fun '(vaddr, b, ofs, q, sz, tg, opti) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
-                         ** vaddr ⊸ (b, ofs)
-                         ** b ↱q# (sz, tg, opti)),
-            (fun vret => ⌜vret = true↑⌝ ** b ↱q# (sz, tg, opti))
+            (fun varg => ⌜varg = (Cne, vaddr, Vnullptr)↑ /\ 0 ≤ ofs ≤ sz⌝
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
+            (fun vret => ⌜vret = true↑⌝ ** vaddr $# (b, ofs) ↱q# (sz, tg, opti))
           )%I.
 
   Definition cmp_ptr_hoare5 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(c, ofs0, ofs1, b, q, sz, tg, opti) => (
+      fun '(vaddr0, vaddr1, c, ofs0, ofs1, b, q0, q1, sz, tg, opti) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (c, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 ≤ sz /\ 0 ≤ ofs1 ≤ sz⌝
-                         ** vaddr0 ⊸ (b, ofs0)
-                         ** vaddr1 ⊸ (b, ofs1)
-                         ** b ↱q# (sz, tg, opti)),
-            (fun vret => ⌜vret = (cmp_ofs c ofs0 ofs1)↑⌝ ** b ↱q# (sz, tg, opti))
+            (fun varg => ⌜varg = (c, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 ≤ sz /\ 0 ≤ ofs1 ≤ sz⌝
+                         ** vaddr0 $# (b, ofs0) ↱q0# (sz, tg, opti)
+                         ** vaddr1 $# (b, ofs1) ↱q1# (sz, tg, opti)),
+            (fun vret => ⌜vret = (cmp_ofs c ofs0 ofs1)↑⌝
+                         ** vaddr0 $# (b, ofs0) ↱q0# (sz, tg, opti)
+                         ** vaddr1 $# (b, ofs1) ↱q1# (sz, tg, opti))
           )%I.
 
   Definition cmp_ptr_hoare6 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
+      fun '(vaddr0, vaddr1, b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (Ceq, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
-                         ** vaddr0 ⊸ (b0, ofs0)
-                         ** vaddr1 ⊸ (b1, ofs1)
-                         ** b0 ↱q0# (sz0, tg0, opti0)
-                         ** b1 ↱q1# (sz1, tg1, opti1)),
+            (fun varg => ⌜varg = (Ceq, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1)),
             (fun vret => ⌜vret = false↑⌝ 
-                         ** b0 ↱q0# (sz0, tg0, opti0)
-                         ** b1 ↱q1# (sz1, tg1, opti1))
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1))
           )%I.
 
   Definition cmp_ptr_hoare7 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
+      fun '(vaddr0, vaddr1, b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (Cne, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
-                         ** vaddr0 ⊸ (b0, ofs0)
-                         ** vaddr1 ⊸ (b1, ofs1)
-                         ** b0 ↱q0# (sz0, tg0, opti0)
-                         ** b1 ↱q1# (sz1, tg1, opti1)),
+            (fun varg => ⌜varg = (Cne, vaddr0, vaddr1)↑ /\ 0 ≤ ofs0 < sz0 /\ 0 ≤ ofs1 < sz1⌝
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1)),
             (fun vret => ⌜vret = true↑⌝ 
-                         ** b0 ↱q0# (sz0, tg0, opti0)
-                         ** b1 ↱q1# (sz1, tg1, opti1))
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1))
           )%I.
 
   Definition cmp_ptr_spec: fspec :=
@@ -496,24 +525,24 @@ Section SPEC.
 
   Definition sub_ptr_spec: fspec :=
     (mk_simple
-      (fun '(ofs0, ofs1, sz) => (
+      (fun '(vaddr0, vaddr1, sz, b0, ofs0, q0, sz0, tg0, opti0, b1, ofs1, q1, sz1, tg1, opti1) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1 b,
-                        ⌜varg = (sz, vaddr0, vaddr1)↑ /\ 0 < sz ≤ Ptrofs.max_signed⌝
-                        ** vaddr0 ⊸ (b, ofs0)
-                        ** vaddr1 ⊸ (b, ofs1)),
-            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (ofs0 - ofs1) sz)))↑⌝)
+            (fun varg => ⌜varg = (sz, vaddr0, vaddr1)↑ /\ 0 < sz ≤ Ptrofs.max_signed⌝
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1)),
+            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (ofs0 - ofs1) sz)))↑⌝
+                         ** vaddr0 $# (b0, ofs0) ↱q0# (sz0, tg0, opti0)
+                         ** vaddr1 $# (b1, ofs1) ↱q1# (sz1, tg1, opti1))
     )))%I.
 
   Definition non_null_spec: fspec :=
     (mk_simple
-      (fun '(b, q, sz, tg, opti) => (
+      (fun '(vaddr, b, ofs, q, sz, tg, opti) => (
             (ord_pure 0%nat),
             (fun varg => ∃ vaddr ofs, ⌜varg = vaddr↑ /\ 0 ≤ ofs ≤ sz⌝
-                        ** vaddr ⊸ (b, ofs)
-                        ** b ↱q# (sz, tg, opti)),
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
             (fun vret => ⌜vret = true↑⌝ 
-                        ** b ↱q# (sz, tg, opti))
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti))
     )))%I.
 
   (* heap malloc free *)
@@ -523,8 +552,7 @@ Section SPEC.
                     (fun varg => ⌜varg = [Vptrofs sz]↑⌝),
                     (fun vret => ∃ vaddr b, ⌜vret = vaddr↑⌝
                                 ** vaddr |-1#> List.repeat Undef (Z.to_nat (Ptrofs.unsigned sz))
-                                ** b ↱1# (Ptrofs.unsigned sz, Dynamic, None)
-                                ** vaddr ⊸ (b, 0)) 
+                                ** vaddr $# (b, 0) ↱1# (Ptrofs.unsigned sz, Dynamic, None))
     )))%I.
 
   Definition mfree_spec: fspec :=
@@ -533,8 +561,7 @@ Section SPEC.
                     (fun varg => ∃ mvs vaddr b sz opti,
                                 ⌜varg = [vaddr]↑ /\ Z.of_nat (List.length mvs) = sz⌝
                                 ** vaddr |-1#> mvs
-                                ** b ↱1# (sz, Dynamic, opti)
-                                ** vaddr ⊸ (b, 0)),
+                                ** vaddr $# (b, 0) ↱1# (sz, Dynamic, opti)),
                     (fun vret => ⌜vret = Vundef↑⌝)
     )))%I.
 
@@ -570,10 +597,12 @@ Section SPEC.
           )%I.
 
   Definition capture_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(b, q, sz, tg) => (
+      fun '(vaddr, b, ofs, q, sz, tg) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ ofs opti, ⌜varg = [Vptr b ofs]↑⌝ ** b ↱q# (sz, tg, opti)),
-            (fun vret => ∃ i, ⌜vret = (Vptrofs i)↑⌝ ** b ↱q# (sz, tg, Some (Ptrofs.unsigned i)) )
+            (fun varg => ∃ opti, ⌜varg = [vaddr]↑⌝ 
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, opti)),
+            (fun vret => ∃ i, ⌜vret = (Vptrofs (Ptrofs.add i (Ptrofs.repr ofs)))↑⌝ 
+                         ** vaddr $# (b, ofs) ↱q# (sz, tg, Some (Ptrofs.unsigned i)))
           )%I.
 
   Definition capture_spec: fspec :=
