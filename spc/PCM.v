@@ -997,6 +997,14 @@ Next Obligation.
       try solve [exists boom; ss].
   eexists (white _). et.
 Qed.
+
+Theorem oneshot_degen
+        a b
+        (WF: URA.wf (t:=t) ((white a) ⋅ (white b)))
+  :
+    a = b
+.
+Proof. rewrite URA.unfold_add in WF; rewrite URA.unfold_wf in WF. ss. des_ifs. Qed.
   
 Theorem oneshot_white_unupdatable
           a0 a1

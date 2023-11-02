@@ -14,6 +14,13 @@ From compcertip Require Import
 
 Require Import ClightDmExprgen.
 
+Section HIDE.
+
+  Definition hide {A: Type} {a: A} := a.
+  Arguments hide {A} {a}: simpl never.  
+
+End HIDE.
+
 
 Section Clight.
 Context {eff : Type -> Type}.
@@ -177,7 +184,7 @@ Section DECOMP.
              (itr1 itr2: env -> temp_env -> itr_t)
     : itr_t :=
     '(e', le', v) <-
-    ITree.iter (sloop_iter_body itr1 itr2) (e, le) ;;
+    ITree.iter (@hide _ (sloop_iter_body itr1 itr2)) (e, le) ;;
     Ret (e', le', None, v).
 
   Fixpoint free_list_aux (l: list (block * Z)): itree eff unit :=
@@ -210,8 +217,9 @@ Section DECOMP.
   Fixpoint decomp_stmt
            (retty: type)
            (stmt: statement)
-           (e: env) (le: temp_env)
-    : itr_t :=
+    : env -> temp_env -> itr_t :=
+    @hide _ 
+    (fun (e: env) (le: temp_env) =>
     match stmt with
     | Sskip =>
       Ret (e, le, None, None)
@@ -274,13 +282,13 @@ Section DECOMP.
     | _ =>
       (* not supported *)
       triggerUB
-    end.
+    end).
 
   Definition decomp_func
            (f: Clight.function)
            (vargs: list val)
     : itree eff val :=
-    '(e, le) <- function_entry_c ce f vargs;;
+    '(e, le) <- function_entry_c ce (@hide _ f) vargs;;
     '(e', le', c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; 
     '(_, _, _, v) <- (match ov with
     | Some v => free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some v)
