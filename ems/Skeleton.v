@@ -66,76 +66,89 @@ End SkEnv.
 
 
 Require Import Orders.
-Require Import Any.
+Require Import PCM.
+From compcertip Require Import Maps Clightdefs.
 
 Module Sk.
   Class ld: Type := mk {
     t:> Type;
+    sem: Type;
     unit: t;
     add: t -> t -> t;
-    canon: t -> t;
+    canon: t -> sem;
     wf: t -> Prop;
-    add_comm: forall a b (WF: wf (add a b)),
-        canon (add a b) = canon (add b a);
-    add_assoc: forall a b c, add a (add b c) = add (add a b) c;
-    add_unit_l: forall a, add unit a = a;
-    add_unit_r: forall a, add a unit = a;
+    add_comm: forall a b,
+      canon (add a b) = canon (add b a);
+    add_assoc: forall a b c,
+      canon (add a (add b c)) = canon (add (add a b) c);
+    add_unit_l: forall a, canon (add unit a) = canon a;
+    add_unit_r: forall a, canon (add a unit) = canon a;
     wf_comm: forall a b, wf (add a b) -> wf (add b a);
     unit_wf: wf unit;
-    wf_mon: forall a b, wf (canon (add a b)) -> wf (canon a);
-
+    wf_mon: forall a b, wf (add a b) -> wf a;
     extends := fun a b => exists ctx, canon (add a ctx) = b;
   }
   .
 
+  Section SK.
+  Context {M: RA.t}.
 
-  (* Imp Instance *)
-  Module GDef <: Typ. Definition t := Any.t. End GDef.
+  Definition _add : option RA.car -> option RA.car -> option RA.car :=
+    fun optx opty =>
+      match optx, opty with
+      | Some x, Some y => Some (RA.add x y)
+      | Some x, None => Some x
+      | None, Some y => Some y
+      | None, None => None
+      end.
 
-  Module SkSort := AListSort GDef.
-
-
-  Definition sort: alist gname Any.t -> alist gname Any.t := SkSort.sort.
-
-  Program Definition gdefs: ld :=
-    @mk (alist gname Any.t) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) _ _ _ _ _ _ _.
+  Program Instance globalenv : ld := {
+    t := PTree.t RA.car;
+    sem := alist string RA.car;
+    unit := PTree.empty RA.car;
+    add := PTree.combine _add;
+    canon:= (List.map (map_fst string_of_ident)) ∘ (@PTree.elements RA.car);
+    wf := fun m => forall p x, PTree.get p m = Some x -> RA.wf x;
+  }.
   Next Obligation.
   Proof.
-    eapply SkSort.sort_add_comm. auto.
-    (* eapply Permutation.Permutation_NoDup; [|et]. *)
-    (* eapply Permutation.Permutation_map. *)
-    (* symmetry. eapply SkSort.sort_permutation. *)
+    unfold add. erewrite PTree.combine_commut; et.
+    i. unfold _add. des_ifs. f_equal. apply RA.add_comm. 
   Qed.
   Next Obligation.
   Proof.
-    eapply List.app_assoc.
+    f_equal. apply PTree.elements_extensional.
+    i. repeat (rewrite PTree.gcombine; et).
+    unfold _add. des_ifs. f_equal. apply RA.add_assoc.
   Qed.
   Next Obligation.
   Proof.
-    rewrite List.app_nil_r. auto.
+    f_equal. apply PTree.elements_extensional.
+    i. rewrite PTree.xgcombine_r; et.
+    unfold _add. des_ifs.
   Qed.
   Next Obligation.
   Proof.
-    i. eapply Permutation.Permutation_NoDup; [|et].
-    eapply Permutation.Permutation_map.
-    apply Permutation.Permutation_app_comm.
+    f_equal. apply PTree.elements_extensional.
+    i. repeat (rewrite PTree.gcombine; et).
+    unfold _add. des_ifs.
+    all: rewrite PTree.gempty in Heq0; clarify.
   Qed.
   Next Obligation.
   Proof.
-    econs.
+    erewrite PTree.combine_commut in H0; try eapply H; et.
+    i. unfold _add. des_ifs. f_equal. apply RA.add_comm.
   Qed.
   Next Obligation.
   Proof.
-    cut (NoDup (map fst a)).
-    { i. eapply Permutation.Permutation_NoDup; [|et].
-      eapply Permutation.Permutation_map.
-      eapply SkSort.sort_permutation. }
-    cut (NoDup (map fst (a ++ b))).
-    { i. rewrite map_app in H0.
-      eapply nodup_app_l. et. }
-    i. eapply Permutation.Permutation_NoDup; [|et].
-    eapply Permutation.Permutation_map.
-    symmetry. eapply SkSort.sort_permutation.
+    rewrite PTree.gempty in H. ss.
+  Qed.
+  Next Obligation.
+  Proof.
+    specialize (H p). rewrite PTree.gcombine in H; et.
+    rewrite H0 in H. destruct (b ! p).
+    - hexploit H; et. eapply RA.wf_mon.
+    - hexploit H; et.
   Qed.
 
   Local Existing Instance gdefs.
