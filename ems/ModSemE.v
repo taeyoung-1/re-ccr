@@ -113,7 +113,8 @@ End EVENTSCOMMON.
 
 Section EVENTS.
 
-  Variable st: Type.
+  Variable S: Type.
+  (* Variable st: Type.*)
 
   Inductive callE: Type -> Type :=
   | Call (fn: gname) (args: Any.t) : callE Any.t
@@ -123,15 +124,21 @@ Section EVENTS.
   | SUpdate (run : Any.t -> Any.t * Any.t) : sE Any.t
   . *)
 
-  Variant sE (S : Type) (X : Type) : Type :=
-  | SUpdate (run : S -> S * X) : sE S X
+  Variant sE  (X : Type) : Type :=
+  | SUpdate (run : S -> S * X) : sE X
   .
   
-  Definition Es: Type -> Type := (callE +' (sE st)+' eventE).
+  (* Variant sE (S: Type)  (X : Type) : Type :=
+  | SUpdate (run : S -> S * X) : sE X
+  . 
+  If implemented in this way with another variable st, universe inconsistency occurs.
+  *)
+
+  Definition Es: Type -> Type := (callE +' sE +' eventE).
   
-  Definition sGet {S} {X} (p: S -> X) : sE S X := SUpdate (fun x => (x, p x)).
-  Definition sModify {S} (f: S -> S) : sE S () := SUpdate (fun x => (f x, tt)).
-  Definition Put {S} x := (sModify (fun _:S => x)).
+  Definition sGet {X} (p: S -> X) : sE X := SUpdate (fun x => (x, p x)).
+  Definition sModify (f: S -> S) : sE () := SUpdate (fun x => (f x, tt)).
+  Definition sPut x := (sModify (fun _:S => x)).
   
   (* Double-check Types*)
   (* Definition Get (p: Any.t -> Any.t) : sE Any.t Any.t := SUpdate (fun x => (x, p x)).
@@ -206,17 +213,17 @@ Section EVENTS.
     Ret (st1, v)
   . *)
 
-  Definition handle_sE {E}: sE st ~> stateT st (itree E) := 
+  Definition handle_sE {E}: sE ~> stateT S (itree E) := 
     fun _ e glob =>
       match e with
       | SUpdate run => Ret (run glob)  
       end. 
       
- Definition interp_sE {E}: itree ((sE st) +' E) ~> stateT st (itree E) :=
+ Definition interp_sE {E}: itree (sE +' E) ~> stateT S (itree E) :=
     (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
     State.interp_state (case_ handle_sE pure_state).
 
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: st): itree eventE (st * _)%type :=
+  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: S): itree eventE (S * _)%type :=
     '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
@@ -263,7 +270,7 @@ Section EVENTS.
         p st0
         (* (e: Es Σ) *)
         T
-        (e: (sE st) T)
+        (e: sE T)
     :
       interp_Es p (trigger e) st0 =
       '(st1, r) <- handle_sE e st0;;
