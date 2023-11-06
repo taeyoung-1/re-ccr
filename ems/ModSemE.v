@@ -113,33 +113,34 @@ End EVENTSCOMMON.
 
 Section EVENTS.
 
+  Variable st: Type.
+
   Inductive callE: Type -> Type :=
   | Call (fn: gname) (args: Any.t) : callE Any.t
   .
   
-  Variant sE: Type -> Type :=
+  (* Variant sE: Type -> Type :=
   | SUpdate (run : Any.t -> Any.t * Any.t) : sE Any.t
-  . 
-  
-  (* Variant sE (S : Type) (X : Type) : Type :=
-  | State (run : S -> S * X) : sE S X
   . *)
-  
-  Definition Es: Type -> Type := (callE +' sE +' eventE).
 
-  Definition sGet (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
-  Definition sModify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
-  Definition sPut x := (sModify (fun _ => x)).
+  Variant sE (S : Type) (X : Type) : Type :=
+  | SUpdate (run : S -> S * X) : sE S X
+  .
   
-
+  Definition Es: Type -> Type := (callE +' (sE st)+' eventE).
+  
+  Definition sGet {S} {X} (p: S -> X) : sE S X := SUpdate (fun x => (x, p x)).
+  Definition sModify {S} (f: S -> S) : sE S () := SUpdate (fun x => (f x, tt)).
+  Definition Put {S} x := (sModify (fun _:S => x)).
+  
   (* Double-check Types*)
   (* Definition Get (p: Any.t -> Any.t) : sE Any.t Any.t := SUpdate (fun x => (x, p x)).
   Definition Modify (f: Any.t -> Any.t) : sE Any.t () := SUpdate (fun x => (f x, tt)).
   Definition Put x := (Modify (fun _ => x)). *)
 
-  (* Definition Get {S} {X} (p: S -> X) : sE S X := SUpdate (fun x => (x, p x)). *)
-  (* Definition Modify {S} (f: S -> S) : sE S () := SUpdate (fun x => (f x, tt)). *)
-  (* Notation Put x := (Modify (fun _ => x)). *)
+  (* Definition sGet (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
+  Definition sModify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
+  Definition sPut x := (sModify (fun _ => x)). *)
 
 
   (* Definition Es: Type -> Type := (callE +' (sE Any.t) +' eventE). *)
@@ -190,7 +191,7 @@ Section EVENTS.
     Ret (st1, v)
   . *)
 
-  Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
+  (* Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
     fun _ e glob =>
       match e with
       | SUpdate run => Ret (run glob)  
@@ -201,6 +202,21 @@ Section EVENTS.
     State.interp_state (case_ handle_sE pure_state).
 
   Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
+    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
+    Ret (st1, v)
+  . *)
+
+  Definition handle_sE {E}: sE st ~> stateT st (itree E) := 
+    fun _ e glob =>
+      match e with
+      | SUpdate run => Ret (run glob)  
+      end. 
+      
+ Definition interp_sE {E}: itree ((sE st) +' E) ~> stateT st (itree E) :=
+    (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
+    State.interp_state (case_ handle_sE pure_state).
+
+  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: st): itree eventE (st * _)%type :=
     '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
@@ -247,7 +263,7 @@ Section EVENTS.
         p st0
         (* (e: Es Σ) *)
         T
-        (e: sE T)
+        (e: (sE st) T)
     :
       interp_Es p (trigger e) st0 =
       '(st1, r) <- handle_sE e st0;;
@@ -295,9 +311,12 @@ Section EVENTS.
   (* Opaque interp_Es. *)
 End EVENTS.
 Opaque interp_Es.
+(* Notation sPut x := (sModify (fun _ => x)). *)
+
+
 
 Section LENS.
-  (* Variable S: Type.
+  Variable S: Type.
   Variable V: Type.
 
   Variable l: Lens.t S V.
@@ -306,23 +325,24 @@ Section LENS.
     fun run s =>
       (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s))).
 
-  Definition map_lens X (se: sE X) : sE X := 
+  Definition map_lens X (se: sE V X) : sE S X := 
     match se with
     | SUpdate run => SUpdate (lens_state run)
-    end. *)
+    end.
     
-  Variable l: Lens.t Any.t Any.t.
-
-  (* Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
+    
+    (* Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
     fun run s =>
-      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
-  .
+    (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
+    .
+    
+    Definition map_lens (se: sE Any.t ) : sE Any.t :=
+      match se with
+      | SUpdate run => SUpdate (lens_state run)
+      end
+      . *)
 
-  Definition map_lens (se: sE Any.t ) : sE Any.t :=
-    match se with
-    | SUpdate run => SUpdate (lens_state run)
-    end
-  . *)
+  (* Variable l: Lens.t Any.t Any.t.
 
   Definition lens_state X: (Any.t -> Any.t * X) -> (Any.t -> Any.t * X) :=
     fun run s =>
@@ -333,18 +353,18 @@ Section LENS.
     match se with
     | SUpdate run => SUpdate (lens_state run)
     end
-  .
+  . *)
 
 End LENS.
 
 Section PROGRAM_EVENT.
-  (* Variable state state' : Type. *)
+  Variable st st' : Type.
 
-  (* Variable l : Lens.t state' state. *)
+  Variable l : Lens.t st' st.
 
-  Variable l : Lens.t Any.t Any.t.
+  (* Variable l : Lens.t Any.t Any.t. *)
   
-  Definition lmap X :  Es X -> Es X .
+  Definition lmap X :  Es st X -> Es st' X .
   Proof.
     intro e. destruct e as [e|[e|e]].
     - exact (e|)%sum.
@@ -355,20 +375,20 @@ Section PROGRAM_EVENT.
 End PROGRAM_EVENT.
 
 Section MAP_EVENT.
-  (* CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
-    fun itr =>
-      match observe itr with
-      | RetF r => Ret r
-      | TauF itr => Tau (map_event embed itr)
-      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
-      end. *)
-
-  CoFixpoint map_event (embed: forall X, Es X -> Es X) : itree Es Any.t -> itree Es Any.t :=
+  CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
     fun itr =>
       match observe itr with
       | RetF r => Ret r
       | TauF itr => Tau (map_event embed itr)
       | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
       end.
+
+  (* CoFixpoint map_event (embed: forall X, Es X -> Es X) : itree Es Any.t -> itree Es Any.t :=
+    fun itr =>
+      match observe itr with
+      | RetF r => Ret r
+      | TauF itr => Tau (map_event embed itr)
+      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
+      end. *)
       
 End MAP_EVENT.

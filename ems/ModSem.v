@@ -20,11 +20,11 @@ Module ModSem.
 Section MODSEM.
 
   Record t: Type := mk {
-    (* state : Type; *)
-    (* init_st : state; *)
-    init_st : Any.t;
-    fnsems : gname -> option (Any.t -> itree Es Any.t);
-
+    state : Type;
+    init_st : state;
+    (* init_st : Any.t; *)
+    (* fnsems : gname -> option (Any.t -> itree Es Any.t); *)
+    fnsems : gname -> option (Any.t -> itree (Es state) Any.t)
   }
   .
 
@@ -51,7 +51,7 @@ Section INTERP.
 
   Variable ms: t.
 
-  Definition prog: callE ~> itree Es :=
+  Definition prog: callE ~> itree (Es (state ms)) :=
     fun _ '(Call fn args) =>
       sem <- (fnsems ms fn)?;;
       rv <- (sem args);;
@@ -240,54 +240,46 @@ End MODSEM.
 
 
 Section ADD.
-  (* Variable M1 M2 : ModSem.t. *)
+  Variable M1 M2 : ModSem.t.
 
-  Definition emb_l : forall X, Es X -> Es X  :=
+  Definition emb_l : forall X, Es (state M1) X -> Es (state M1 * state M2) X  :=
     lmap fstl.
 
-  Definition emb_r : forall X, Es X -> Es X :=
+  Definition emb_r : forall X, Es (state M2) X -> Es (state M1 * state M2) X :=
     lmap sndl.
 
-
-    
-  (* Definition emb_l : Es Any.t -> Es Any.t  :=
-    lmap fstl.
-
-  Definition emb_r : Es Any.t -> Es Any.t  :=
-    lmap sndl.   *)
-
-  (* Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
+  Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
     fun fn =>
       match M1.(fnsems) fn, M2.(fnsems) fn with
       | Some fn_body, None => Some (fun args => map_event emb_l (fn_body args))
       | None, Some fn_body => Some (fun args => map_event emb_r (fn_body args))
       (* Some _, Some _ => UB *)
       | _, _ => None
-      end. *)
+      end.
 
-  Definition add_fnsems (ms1 ms2: t) : gname -> option (Any.t -> itree _ Any.t) :=
+  (* Definition add_fnsems (ms1 ms2: t) : gname -> option (Any.t -> itree _ Any.t) :=
     fun fn =>
       match (fnsems ms1) fn, (fnsems ms2) fn with
       | Some fn_body, None => Some (fun args => map_event emb_l (fn_body args))
       | None, Some fn_body => Some (fun args => map_event emb_r (fn_body args))
       (* Some _, Some _ => UB *)
       | _, _ => None
-      end.  
+      end.   *)
 
-  Definition add (ms1 ms2 : t) : t :=
+  (* Definition add (ms1 ms2 : t) : t :=
     {|
       init_st := Any.pair (init_st ms1) (init_st ms2);
       fnsems := add_fnsems ms1 ms2;
 
-    |}.
+    |}. *)
 
 
-  (* Definition ModSemAdd : ModSem.t :=
+  Definition add : ModSem.t :=
   {|
-    (* state := state M1 * state M2; *)
-    init_st := Any.pair (init_st M1) (init_st M2);
+    state := state M1 * state M2;
+    init_st := (init_st M1, init_st M2);
     fnsems := add_fnsems;
-  |}. *)
+  |}.
 
 End ADD.
 
@@ -601,10 +593,10 @@ Section EVENTSCOMMON.
   Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
   Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret.
 
-  Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
-  Definition cfunU {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓?;; vret <- body varg;; Ret vret↑.
+  Definition cfunN {X Y} (body: X -> itree E Y): Any.t-> itree E Any.t :=
+    fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
+  Definition cfunU {X Y} (body: X -> itree E Y): Any.t -> itree E Any.t :=
+    fun varg => varg <- varg↓?;; vret <- body varg;; Ret vret↑.
 
 End EVENTSCOMMON.
 
@@ -972,11 +964,11 @@ Arguments Sk.add: simpl never.
 Arguments Sk.wf: simpl never.
 Coercion Sk.load_skenv: Sk.t >-> SkEnv.t.
 Global Opaque Sk.load_skenv.
-
+Variable st: Type.
 
 (*** TODO: Move to ModSem.v ***)
 Lemma interp_Es_unwrapU
-      prog R st0 (r: option R)
+      prog R (st0: st) (r: option R)
   :
     interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
 .
@@ -987,7 +979,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_unwrapN
-      prog R st0 (r: option R)
+      prog R (st0: st) (r: option R)
   :
     interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
 .
@@ -998,7 +990,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_assume
-      prog st0 (P: Prop)
+      prog (st0: st) (P: Prop)
   :
     interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
 .
@@ -1012,7 +1004,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_guarantee
-      prog st0 (P: Prop)
+      prog (st0: st) (P: Prop)
   :
     interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
 .
@@ -1032,7 +1024,7 @@ Qed.
 Require Import Red IRed.
 Section AUX.
   Lemma interp_Es_ext
-        prog R (itr0 itr1: itree _ R) st0
+        prog R (itr0 itr1: itree _ R) (st0: st)
     :
       itr0 = itr1 -> interp_Es prog itr0 st0 = interp_Es prog itr1 st0
   .
