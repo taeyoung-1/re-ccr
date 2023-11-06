@@ -52,7 +52,6 @@ Section PROOF.
   Hypothesis MEMINCL : forall sk, stb_incl (to_stb MemStb) (GlobalStb sk).
 
   Opaque get_sk.
-  Opaque prog_comp_env.
 
   Definition wf : _ -> Any.t * Any.t -> Prop :=
     @mk_wf
@@ -87,7 +86,7 @@ Section PROOF.
   
   Lemma mkint64_eq' x y : Int64.unsigned x = Int64.unsigned y -> x = y.
   Proof. i. destruct x. destruct y. apply Int64.mkint_eq. et. Qed.
-
+  Local Open Scope Z.
   Lemma lxor_size a b
     :
   0 ≤ a ≤ Ptrofs.max_unsigned
@@ -139,21 +138,26 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
     :
   b ↱q# (sz, tg, Some i) ** Vptrofs i' ⊸ (b, ofs) -∗ ⌜(i + ofs)%Z = Ptrofs.unsigned i'⌝.
   Proof. 
-    iIntros "[BLK PTR]". unfold allocated_with, repr_to. des_ifs.
+    (* iIntros "[BLK PTR]". unfold allocated_with, repr_to. des_ifs.
     iDestruct "BLK" as "[ALLOC [BL PTR']]".
     iCombine "PTR" "PTR'" as "PTR".
     iPoseProof (provenace_dup with "PTR") as "%". clarify.
     iPureIntro.
     unfold Vptrofs in *. des_ifs_safe. unfold Ptrofs.to_int64.
     do 2 autorewrite with ptrArith; auto with ptrArith. nia.
-  Qed.
+  Qed. *)
+  Admitted.
+
+
+
+
 
   Lemma sim_encrypt (sk: Sk.t) :
     sim_fnsem wf top2
       ("encrypt", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure encrypt_spec))
       ("encrypt", cfunU (decomp_func sk ce f_encrypt)).
   Proof.
-    Opaque repr_to.
+    (* Opaque repr_to.
     Opaque allocated_with.
     Opaque points_to.
     Opaque ccallU.
@@ -241,7 +245,7 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
       hred_l. iApply isim_choose_src. iExists _.
       iApply isim_ret. iSplits; ss.
       admit.
-    Unshelve. all: et. 
+    Unshelve. all: et.  *)
   Admitted.
 
   Lemma sim_decrypt (sk: Sk.t) :
@@ -249,6 +253,7 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
       ("decrypt", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure decrypt_spec))
       ("decrypt", cfunU (decomp_func sk ce f_decrypt)).
   Proof.
+
   Admitted.
 
   Require Import ClightDmExprgen.
@@ -324,15 +329,63 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         I r g f_src f_tgt st_src st_tgt
-        (arg: memory_chunk * val * val) itr_src (ktr_tgt: val -> _)
+        (arg: memory_chunk * val * val) itr_src (ktr_tgt: unit -> _)
         fuel0
         (STBINCL': stb_incl (to_stb MemStb) stb)
         (DEPTH: ord_lt (ord_pure 0%nat) o)
         (FUEL: Ord.lt fuel1 fuel0)
     :
       bi_entails
-        (∃ b ofs, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vptr b ofs)))
+        (isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt tt))
         (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "store" arg >>= ktr_tgt)).
+  Proof. Admitted.
+
+  Lemma isim_ccallU_cmp_ptr
+        o stb fuel1
+        R_src R_tgt
+        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
+        I r g f_src f_tgt st_src st_tgt
+        (arg: comparison * val * val) itr_src (ktr_tgt: bool -> _)
+        fuel0
+        (STBINCL': stb_incl (to_stb MemStb) stb)
+        (DEPTH: ord_lt (ord_pure 0%nat) o)
+        (FUEL: Ord.lt fuel1 fuel0)
+    :
+      bi_entails
+        (∀ b, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt b))
+        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" arg >>= ktr_tgt)).
+  Proof. Admitted.
+
+  Lemma isim_ccallU_encrypt
+        o stb fuel1
+        R_src R_tgt
+        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
+        I r g f_src f_tgt st_src st_tgt
+        (arg: list val) itr_src (ktr_tgt: val -> _)
+        fuel0
+        (STBINCL': stb_incl (to_stb MemStb) stb)
+        (DEPTH: ord_lt (ord_pure 0%nat) o)
+        (FUEL: Ord.lt fuel1 fuel0)
+    :
+      bi_entails
+        (∀ i, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vlong i)))
+        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "encrypt" arg >>= ktr_tgt)).
+  Proof. Admitted.
+
+  Lemma isim_ccallU_decrypt
+        o stb fuel1
+        R_src R_tgt
+        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
+        I r g f_src f_tgt st_src st_tgt
+        (arg: list val) itr_src (ktr_tgt: val -> _)
+        fuel0
+        (STBINCL': stb_incl (to_stb MemStb) stb)
+        (DEPTH: ord_lt (ord_pure 0%nat) o)
+        (FUEL: Ord.lt fuel1 fuel0)
+    :
+      bi_entails
+        (∀ i, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vlong i)))
+        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "decrypt" arg >>= ktr_tgt)).
   Proof. Admitted.
 
   Lemma decomp_se sk ce' retty s1 s2 e le
@@ -353,7 +406,80 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
         end
       end.
   Proof. ss. Qed.
-       
+
+Ltac init_hide :=
+    repeat (match goal with
+    | [ |- context[@hide ?A ?a]] =>
+        let H := fresh "HIDDEN" in set (H := @hide A a) at 1
+    end).
+
+Ltac unhide H :=
+    unfold H in *;
+    unfold hide at 1;
+    init_hide;
+    clear H.
+
+Tactic Notation "unhide" constr(H) :=
+  unhide H.
+
+Tactic Notation "unhide" :=
+    repeat match goal with | |- context[ITree.bind (?H _ _) _] =>
+    unhide H end.
+
+  Ltac remove_tau :=
+    repeat (ss; hred_r; iApply isim_tau_tgt; ss; hred_r).
+
+  Lemma unfold_build_composite_env: forall x,
+  build_composite_env x =
+  add_composite_definitions (Maps.PTree.empty composite) x.
+Proof.
+  reflexivity.
+Qed.
+    Ltac alist_composites ce cel :=
+    match cel with
+    | (?name, Build_composite ?su ?mem ?attr ?size ?align ?rank _ _ _) :: ?tl =>
+    pose (s_size := size);
+    vm_compute in s_size;
+    let s_align := fresh in
+    pose (s_align := align);
+    vm_compute in s_align;
+    let Hco := fresh in
+    (assert (Hco: exists co, alist_find name ce = Some co /\
+    co_su co = su /\ co_members co = mem /\ co_attr co = attr /\
+    co_sizeof co = s_size /\ co_alignof co = s_align /\ co_rank co = rank)
+    by now subst ce; ss; eexists; repeat (split; try reflexivity));
+    let co := fresh "co" in
+    let get_co := fresh "get_co" in
+    let co_co_su := fresh "co_co_su" in
+    let co_co_members := fresh "co_co_members" in
+    let co_co_attr := fresh "co_co_attr" in
+    let co_co_sizeof := fresh "co_co_sizeof" in
+    let co_co_alignof := fresh "co_co_alignof" in
+    let co_co_rank := fresh "co_co_rank" in
+    destruct Hco as [co [get_co
+      [co_co_su [co_co_members [co_co_attr [co_co_sizeof
+      [co_co_alignof co_co_rank]]]]]]];
+    unfold s_size in co_co_sizeof;
+    unfold s_align in co_co_alignof;
+    clear s_size;
+    clear s_align;
+    match tl with
+    | [] => idtac
+    | _ => alist_composites ce tl
+    end
+    end.
+
+    Ltac get_composite ce e :=
+    let comp_env := fresh in
+    pose (comp_env := unfold_build_composite_env composites);
+    rewrite e in comp_env; ss;
+    let comp_env' := fresh in
+    inversion comp_env as [comp_env']; clarify;
+    ss; clear e; clear comp_env;
+    match goal with
+    | ce := ?cel |- _ => alist_composites ce cel
+    end; clearbody ce.
+
   Lemma sim_insert (sk: Sk.t) :
     sim_fnsem wf top2
       ("add", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure add_spec))
@@ -363,160 +489,224 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
     Opaque allocated_with.
     Opaque points_to.
     Opaque ccallU.
-    Opaque free_list_aux.
-    Opaque ClightDmgen.blocks_of_env.
-    Opaque _sassign_c.
-    Opaque _sreturn_c.
-    Opaque _eval_lvalue_c.
-    Opaque _scall_c.
-    Opaque ClightDmExprgen.eval_expr_c.
-    init. harg.
-    unfold decomp_func, function_entry_c.
-    Opaque decomp_stmt.
-    ss. des_ifs_safe. mDesAll. clarify.
-    steps.
-    repeat rewrite decomp_se. steps.
-    hide_k.
-
-    rewrite decomp_seq.
-    Transparent decomp_stmt. steps.
-
-    set (decomp_stmt _ _).
-    Red.prw _red_gen 1 1 0.
-    steps.
-    hide_k. 
-    steps. unhide_k.
-    
-    steps.
-    ss. clarify. rewrite Any.upcast_downcast. ss.
+    Opaque build_composite_env.
     econs; ss. red.
+
+     unfold prog in ce. unfold mkprogram in ce.
+    destruct (build_composite_env').
+    get_composite ce e.
     apply isim_fun_to_tgt; auto. i; ss.
     unfold decomp_func, function_entry_c. ss.
-    iIntros "[INV PRE]". des_ifs_safe. ss.
+    init_hide.
+
+  get_sk (Ctypes.prog_defs prog) skincl skwf 
+    iIntros "[INV PRE]". des_ifs_safe.
     iDestruct "PRE" as "[PRE %]".
     iDestruct "PRE" as (hd_old tl_old) "[[[% HD] TL] XOR]".
-    ss. clarify. rewrite Any.upcast_downcast. ss.
-    rewrite bind_ret_l. rewrite bind_ret_l. 
-    ss. rewrite bind_ret_l. rewrite bind_ret_l.
-    rewrite bind_bind. rewrite bind_bind. 
-    rewrite bind_tau. iApply isim_tau_tgt. rewrite bind_tau.
-    rewrite bind_tau.
-    iApply isim_tau_tgt. unfold _scall_c.
-    rewrite bind_bind. rewrite bind_bind.
-    unfold Cop.classify_fun. unfold Clight.typeof.
-    rewrite bind_tau. iApply isim_tau_tgt.
-    rewrite bind_bind.
-    rewrite unfold_expr.
-    unfold _eval_lvalue_c.
-    assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) (string_of_ident _malloc) = Some i).
+    ss. clarify. ss. hred_r.
+    unhide HIDDEN. unhide HIDDEN1. unhide HIDDEN2.
+    remove_tau.
+    assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) "malloc" = Some i).
     { admit "". }
-    des. rewrite H3.
-    replace (alist_find _ _) with (@None (Values.block * type)) by refl.
-    rewrite bind_ret_l. unfold deref_loc_c.
-    unfold access_mode. unfold typeof. rewrite bind_ret_l.
-    rewrite bind_ret_l. unfold eval_exprlist_c.
-    rewrite unfold_expr. set (sizeof _ _).
-    unfold ce in z. simpl in z. unfold prog in z.
-    unfold mkprogram in z. destruct (build_composite_env' _ _) in z.
-    simpl in z. 
-    Transparent prog_comp_env.
-    unfold prog_comp_env in z. unfold build_composite_env in e.
-    unfold composites in e.
-    simpl in e. clarify. simpl in z.
-    assert (z = 16) by refl. rewrite H4.
-    do 2 rewrite bind_ret_l. unfold sem_cast_c.
-    unfold Cop.classify_cast. unfold tulong. unfold typeof.
-    destruct Archi.ptr64; clarify.
-    destruct (Vptrofs _) eqn: E; clarify.
-    do 2 rewrite bind_ret_l.
-    destruct (Ptrofs.eq_dec _ _); clarify.
-    assert (SkEnv.blk2id (Sk.load_skenv sk) i = Some (string_of_ident _malloc)). 
-    { admit "". }
-    replace (Init.Nat.pred _) with i by nia.
-    assert (alist_find (string_of_ident _malloc) sk = alist_find (string_of_ident _malloc) xorlist0.xor.(Mod.sk)).
-    { admit "". }
-    Transparent get_sk.
-    Transparent alist_find.
-    simpl in H6. 
-    Opaque alist_find.
-    set (Gfun _) in H6.
-    assert (nth_error sk i = Some (string_of_ident _malloc, g↑)).
-    { admit "". }
-    rewrite H7. unfold unwrapU. rewrite bind_ret_l.
-    rewrite Any.upcast_downcast. rewrite bind_ret_l.
-    unfold g. rewrite bind_ret_l. unfold type_of_fundef.
-    destruct (type_eq _ _); clarify.
-    Opaque alist_remove.
+    des. rewrite H3. hred_r. des_ifs_safe. hred_r.
+    replace (pred _) with i by nia.
+    set (alist_find "malloc" (xorlist0.xor.(Mod.sk))) as optg.
+    ss. unfold prog, mkprogram in optg. 
+    destruct (build_composite_env').
+    Transparent get_sk. ss.
+    Opaque get_sk.
+    set (Any.upcast _) as g in optg.
+    replace (nth_error sk i) with (Some ("malloc", g)) by admit "".
+    unfold g. hred_r. 
     iApply isim_ccallU_malloc.
     1,2,3:admit "".
     iExists xH, Ptrofs.zero.
-    rewrite bind_ret_l.
-    do 2 rewrite bind_tau. do 2 iApply isim_tau_tgt.
-    rewrite bind_bind. rewrite bind_bind.
-    hide_k.
-    rewrite bind_ret_l. rewrite bind_ret_l.
-    rewrite bind_ret_l. do 5 rewrite bind_tau.
-    do 3 iApply isim_tau_tgt.
-    destruct ("hd_handler" ?[ eq ] "entry") eqn: E2; clarify.
-    unfold is_ptr_val. do 3 rewrite bind_bind.
-    destruct (_ "hd_handler" _).
-    2:{ admit "". }
-    rewrite bind_ret_l.
-    destruct v3. 1,2,3,4,5: admit "".
-    rewrite bind_ret_l.
-    unfold tptr. rewrite bind_ret_r.
+    remove_tau.
+    unhide HIDDEN. unhide HIDDEN0.
+    remove_tau. unhide HIDDEN1.
+    unhide HIDDEN. remove_tau.
+    destruct v1.
+    1,2,3,4,5: admit "".
+    ss. hred_r.
     iApply isim_ccallU_load2.
     1,2,3:admit "".
     iExists xH, Ptrofs.zero.
-    rewrite bind_ret_l.
-    do 5 rewrite bind_tau. do 3 iApply isim_tau_tgt.
-    do 4 rewrite bind_bind.
-    destruct ("tl_handler" ?[ eq ] "hd") eqn: E3; clarify.
-    destruct (alist_find _ _).
-    rewrite bind_bind.
-    rewrite bind_ret_l.
-    rewrite bind_bind.
+    hred_r. unhide HIDDEN1. remove_tau.
+    destruct v2.
+    1,2,3,4,5: admit "".
+    ss. hred_r.
     iApply isim_ccallU_load2.
     1,2,3:admit "".
-    unfold tptr. rewrite bind_ret_r.
-    do 2 rewrite bind_bind. 
-
-    ss.
-    ss.
-    unfold alist_remove. 
-    unfold type_eq.
-    
-     clear. clearbody ce.
-    hred_r. 
-
+    iExists xH, Ptrofs.zero.
+    hred_r. unhide HIDDEN0. unhide HIDDEN1. remove_tau.
+    unfold _sassign_c. ss. remove_tau.
+    rewrite Heq2. hred_r. rewrite co_co_members.
+    des_ifs. hred_r. destruct v0.
+    1,2,4,5,6: admit "".
     hred_r.
-
-    des_ifs_safe.
+    iApply isim_ccallU_store2.
+    1,2,3: admit "".
+    hred_r. unhide HIDDEN. remove_tau.
+    unfold _site_c. remove_tau. des_ifs.
     hred_r.
+    iApply isim_ccallU_cmp_ptr.
+    1,2,3: admit "".
+    iIntros (b1). hred_r.
+    des_ifs. 1,3,4,5,6: admit "".
+    hred_r. des_ifs.
+    - unhide HIDDEN0. unhide HIDDEN2. unfold _sassign_c.
+      remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
+      ss. des_ifs. hred_r. iApply isim_ccallU_store2.
+      1,2,3: admit "".
+      hred_r. unhide HIDDEN. unhide HIDDEN2. unhide HIDDEN3.
+      remove_tau. unhide HIDDEN. unfold _sassign_c.
+      remove_tau. iApply isim_ccallU_store2.
+      1,2,3: admit "". hred_r.
+      unhide HIDDEN0. unfold _sassign_c.
+      remove_tau. iApply isim_ccallU_store2.
+      1,2,3: admit "". hred_r.
+      remove_tau. admit "".
+    - unhide HIDDEN1. 
+      unfold _site_c. remove_tau. des_ifs.
+      1,3,4,5,6: admit "".
+      hred_r. des_ifs.
+      + unhide. remove_tau. unhide.
+        remove_tau. unhide.
+        unfold _scall_c. ss.
+        assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) "encrypt" = Some i).
+        { admit "". }
+        des. rewrite H4. remove_tau. des_ifs_safe. hred_r.
+        replace (pred _) with i7 by nia.
+        set (alist_find "encrypt" (xorlist0.xor.(Mod.sk))) as optg'.
+        ss. unfold prog, mkprogram in optg'. 
+        destruct (build_composite_env').
+        Transparent get_sk. ss.
+        Opaque get_sk.
+        set (Any.upcast _) as g' in optg'.
+        replace (nth_error sk i7) with (Some ("encrypt", g')) by admit "".
+        hred_r. unfold g'. hred_r. ss.
+        iApply isim_ccallU_encrypt.
+        1,2,3: admit "".
+        iIntros (i8). hred_r. unhide. unfold _sassign_c.
+        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
+        ss. des_ifs. hred_r.
+        iApply isim_ccallU_store2.
+        1,2,3: admit "". hred_r. unhide.
+        remove_tau. unhide. remove_tau. unhide.
+        unfold _scall_c. ss.
+        assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) "decrypt" = Some i).
+        { admit "". }
+        des. remove_tau. rewrite H5. hred_r.
+        rewrite Heq2. hred_r. rewrite co_co_members. ss. 
+        des_ifs_safe. hred_r. iApply isim_ccallU_load2.
+        1,2,3: admit "".
+        iExists xH, Ptrofs.zero.
+        hred_r.
+        replace (pred _) with i10 by nia.
+        set (alist_find "decrypt" (xorlist0.xor.(Mod.sk))) as optg''.
+        ss. unfold prog, mkprogram in optg''. 
+        destruct (build_composite_env').
+        Transparent get_sk. ss.
+        Opaque get_sk.
+        set (Any.upcast _) as g'' in optg''.
+        replace (nth_error sk i10) with (Some ("decrypt", g'')) by admit "".
+        hred_r. unfold g''. hred_r. ss.
+        iApply isim_ccallU_decrypt.
+        1,2,3: admit "".
+        iIntros (i11). hred_r. unhide. remove_tau. unhide.
+        remove_tau. unhide. remove_tau. unhide.
+        unfold _scall_c. ss.
+        des. remove_tau. rewrite H4. hred_r.
+        replace (pred _) with i7 by nia.
+        replace (nth_error sk i7) with (Some ("encrypt", g')) by admit "".
+        des_ifs_safe. unfold g'. hred_r. ss.
+        iApply isim_ccallU_encrypt.
+        1,2,3: admit "".
+        iIntros (i12). hred_r. unhide. unfold _sassign_c.
+        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members. ss. 
+        des_ifs_safe. hred_r. iApply isim_ccallU_store2.
+        1,2,3: admit "".
+        hred_r. unhide. unfold _sassign_c. remove_tau.
+        iApply isim_ccallU_store2.
+        1,2,3: admit "".
+        remove_tau. admit "".
+      + unhide. remove_tau. unhide.
+        remove_tau. unhide.
+        unfold _scall_c. ss.
+        assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) "encrypt" = Some i).
+        { admit "". }
+        des. rewrite H4. remove_tau. des_ifs_safe. hred_r.
+        replace (pred _) with i7 by nia.
+        set (alist_find "encrypt" (xorlist0.xor.(Mod.sk))) as optg'.
+        ss. unfold prog, mkprogram in optg'. 
+        destruct (build_composite_env').
+        Transparent get_sk. ss.
+        Opaque get_sk.
+        set (Any.upcast _) as g' in optg'.
+        replace (nth_error sk i7) with (Some ("encrypt", g')) by admit "".
+        hred_r. unfold g'. hred_r. ss.
+        iApply isim_ccallU_encrypt.
+        1,2,3: admit "".
+        iIntros (i8). hred_r. unhide. unfold _sassign_c.
+        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
+        ss. des_ifs. hred_r.
+        iApply isim_ccallU_store2.
+        1,2,3: admit "". hred_r. unhide.
+        remove_tau. unhide. remove_tau. unhide.
+        unfold _scall_c. ss.
+        assert (exists i, SkEnv.id2blk (Sk.load_skenv sk) "decrypt" = Some i).
+        { admit "". }
+        des. remove_tau. rewrite H5. hred_r.
+        rewrite Heq2. hred_r. rewrite co_co_members. ss. 
+        des_ifs_safe. hred_r. iApply isim_ccallU_load2.
+        1,2,3: admit "".
+        iExists xH, Ptrofs.zero.
+        hred_r.
+        replace (pred _) with i10 by nia.
+        set (alist_find "decrypt" (xorlist0.xor.(Mod.sk))) as optg''.
+        ss. unfold prog, mkprogram in optg''. 
+        destruct (build_composite_env').
+        Transparent get_sk. ss.
+        Opaque get_sk.
+        set (Any.upcast _) as g'' in optg''.
+        replace (nth_error sk i10) with (Some ("decrypt", g'')) by admit "".
+        hred_r. unfold g''. hred_r. ss.
+        iApply isim_ccallU_decrypt.
+        1,2,3: admit "".
+        iIntros (i11). hred_r. unhide. remove_tau. unhide.
+        remove_tau. unhide. remove_tau. unhide.
+        unfold _scall_c. ss.
+        des. remove_tau. rewrite H4. hred_r.
+        replace (pred _) with i7 by nia.
+        replace (nth_error sk i7) with (Some ("encrypt", g')) by admit "".
+        des_ifs_safe. unfold g'. hred_r. ss.
+        iApply isim_ccallU_encrypt.
+        1,2,3: admit "".
+        iIntros (i12). hred_r. unhide. unfold _sassign_c.
+        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members. ss. 
+        des_ifs_safe. hred_r. iApply isim_ccallU_store2.
+        1,2,3: admit "".
+        hred_r. unhide. unfold _sassign_c. remove_tau.
+        iApply isim_ccallU_store2.
+        1,2,3: admit "".
+        remove_tau. admit "".
+  Unshelve. all: try exact (Ord.from_nat 0).
+  Qed.
 
-    set (eval_expr_c _ _ _ _ _) as t.
-    Set Printing All.
-
-
-    unfold ClightDmExprgen.eval_expr_c.
-    destruct (Cop.classify_fun _).
-     ss.
-     hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-    ss. hred_r. des_ifs_safe.
-    iApply isim_apc. iExists (Some (2%nat : Ord.t)).
-    iPoseProof (val_multimap with "PTR1") as "%".
-    iPoseProof (val_multimap with "PTR2") as "%".
-    - des_ifs_safe. hred_r. iApply isim_ccallU_capture2; ss; oauto.
-  Admitted.
- 
-  Lemma sim_delete (sk: alist string Sk.gdef) :
+  Lemma sim_delete (sk: Sk.t) :
     sim_fnsem wf top2
-      ("delete",
-        fun_to_tgt (SModSem.mn (SMod.get_modsem Sxor sk)) (GlobalStb sk)
-                   {| fsb_fspec := delete_spec; fsb_body := λ _ : option string * Any.t, triggerNB |})
-      ("delete", cfunU delete_body).
+      ("delete", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_spec))
+      ("delete", cfunU (decomp_func sk ce f_delete)).
   Proof.
   Admitted.
+
+  Lemma sim_search (sk: Sk.t) :
+    sim_fnsem wf top2
+      ("search", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure search_spec))
+      ("search", cfunU (decomp_func sk ce f_search)).
+  Proof.
+  Admitted.
+
  
   Theorem correct : refines2 [xorlist0.xor] [xorlist1.xor GlobalStb].
   Proof.
@@ -530,11 +720,13 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
     econs; cycle 1.
     econs; et.
     all: rewrite f_bind_ret_r.
-    - apply sim_search.
+    - 
+    apply sim_search.
     - apply sim_delete.
-    - apply sim_add.
+    - apply sim_insert.
     - apply sim_decrypt.
     - apply sim_encrypt.
+    Unshelve. exact tt.
   Qed.
 
-End XorProof.
+End PROOF.

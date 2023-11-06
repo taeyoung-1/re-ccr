@@ -564,12 +564,14 @@ End Clight.
 
 Section DECOMP_PROG.
 
+  Definition get_ce (prog: Clight.program) : comp_env :=
+    List.map (fun '(id, p) => (string_of_ident id, p)) (PTree.elements prog.(prog_comp_env)).
+
   (* Context `{SystemEnv}. *)
   Variable prog: Clight.program.
-  Let ce: comp_env := List.map (fun '(id, p) => (string_of_ident id, p)) (PTree.elements prog.(prog_comp_env)).
+  Let ce: comp_env := get_ce prog.
   Let defs: list (ident * globdef Clight.fundef type) := prog.(prog_defs).
   Let public: list ident := prog.(prog_public).
-  Let types: list composite_definition := prog.(prog_types).
   Variable mn: string.
 
   (* Fixpoint get_source_name (filename : string) := *)
@@ -599,7 +601,9 @@ Section DECOMP_PROG.
   Fixpoint get_sk (defs: list (ident * globdef Clight.fundef type)) :=
     match defs with
     | [] => []
-    | (id, gdef) :: defs' => (string_of_ident id, gdef↑) :: get_sk defs'
+    | (id, gdef) :: defs' => 
+      if in_dec Pos.eq_dec id public then (string_of_ident id, gdef↑) :: get_sk defs'
+      else get_sk defs'
     end
   .
 
@@ -614,7 +618,7 @@ Section DECOMP_PROG.
     Mod.sk := get_sk defs;
   |}.
 
-End DECOMP_PROG.
+End DECOMP_PROG.  
 
 (* Section EXECUTION_STRUCTURE. *)
 (*   (*   execution modules consist of modules executes in sites independently  *) *)
