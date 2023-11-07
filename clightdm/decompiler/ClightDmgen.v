@@ -26,8 +26,8 @@ Section Clight.
 Context {eff : Type -> Type}.
 Context {HasCall : callE -< eff}.
 Context {HasEvent : eventE -< eff}.
-Variable sk: Sk.t.
-Let skenv: SkEnv.t := Sk.load_skenv sk.
+Variable ske: Sk.sem.
+Let skenv: SkEnv.t := Sk.load_skenv ske.
 Variable ce: comp_env.
 
 Definition id_list_norepet_c: list ident -> bool :=
@@ -72,8 +72,8 @@ Section DECOMP.
 
   Definition _sassign_c e le a1 a2 :=
     tau;;
-    vp <- eval_lvalue_c sk ce e le a1;;
-    v <- eval_expr_c sk ce e le a2;; 
+    vp <- eval_lvalue_c ske ce e le a1;;
+    v <- eval_expr_c ske ce e le a2;; 
     v' <- sem_cast_c v (typeof a2) (typeof a1);;
     assign_loc_c ce (typeof a1) vp v'.
 
@@ -82,24 +82,23 @@ Section DECOMP.
     match Cop.classify_fun (typeof a) with
     | Cop.fun_case_f tyargs tyres cconv =>
       tau;;
-      vf <- eval_expr_c sk ce e le a;;
-      vargs <- eval_exprlist_c sk ce e le al tyargs;;
+      vf <- eval_expr_c ske ce e le a;;
+      vargs <- eval_exprlist_c ske ce e le al tyargs;;
       match vf with
       | Vptr b ofs =>
           if Ptrofs.eq_dec ofs Ptrofs.zero
           then
-            '(gsym, skentry) <- (nth_error sk (pred (Pos.to_nat b)))?;;
-            `gd : globdef _ type <- (skentry↓)?;;
-            fd <- (match gd with Gfun fd => Some fd | _ => None end)?;;
-            if type_eq (type_of_fundef fd)
+            '(id, gd) <- (nth_error ske (pred (Pos.to_nat b)))?;;
+            fd <- (match gd with inr (Gfun fd) => Some fd | _ => None end)?;;
+            if type_eq (type_of_clightdm_fundef fd)
                 (Tfunction tyargs tyres cconv)
             then match fd with
-                 | Internal f => ccallU gsym vargs
-                 | External EF_malloc _ _ _ => ccallU "malloc" vargs
-                 | External EF_free _ _ _ => ccallU "free" vargs
+                 | CInternal _ => ccallU (string_of_ident id) vargs
+                 | CExternal CEF_malloc _ => ccallU "malloc" vargs
+                 | CExternal CEF_free _ => ccallU "free" vargs
                  (* this is for builtin memcpy, uncallable in standard C *)
                  (* | External (EF_memcpy al sz) _ _ _ => ccallU "memcpy" (al, sz, vargs) *)
-                 | External EF_capture _ _ _ => ccallU "capture" vargs
+                 | CExternal CEF_capture _ => ccallU "capture" vargs
                  | _ => triggerUB
                  end
             else triggerUB
@@ -113,7 +112,7 @@ Section DECOMP.
              (e: env) (le: temp_env) (a: expr)
     : itree eff bool :=
     tau;;
-    v1 <- eval_expr_c sk ce e le a;;
+    v1 <- eval_expr_c ske ce e le a;;
     bool_val_c v1 (typeof a).
 
   Definition sloop_iter_body_one
@@ -210,7 +209,7 @@ Section DECOMP.
     | None => tau;;Ret Vundef
     | Some a =>
       tau;;
-      v <- eval_expr_c sk ce e le a;;
+      v <- eval_expr_c ske ce e le a;;
       sem_cast_c v (typeof a) retty
     end.
 
@@ -228,7 +227,7 @@ Section DECOMP.
       Ret (e, le, None, None)
     | Sset id a =>
       tau;;
-      v <- eval_expr_c sk ce e le a ;;
+      v <- eval_expr_c ske ce e le a ;;
       let le' := alist_add (string_of_ident id) v le in
       Ret (e, le', None, None)
     | Scall optid a al =>
@@ -236,7 +235,7 @@ Section DECOMP.
         Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
     | Sbuiltin optid ef tyargs al =>
       tau;;
-      vargs <- eval_exprlist_c sk ce e le al tyargs;;
+      vargs <- eval_exprlist_c ske ce e le al tyargs;;
       match ef with
       | EF_malloc => v <- ccallU "malloc" vargs;;
         Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
@@ -577,38 +576,83 @@ Section DECOMP_PROG.
   (* Fixpoint get_source_name (filename : string) := *)
   (*   String.substring 0 (String.length filename - 2) filename. *)
 
-  Fixpoint decomp_fundefs (sk: Sk.t)
+  Fixpoint decomp_fundefs (ske: Sk.sem)
            (defs: list (ident * globdef Clight.fundef type))
     : list (ident * (list val -> itree Es val)) :=
     match defs with
     | [] => []
     | (id, gdef) :: defs' =>
       match gdef with
-      | Gvar _ => decomp_fundefs sk defs'
+      | Gvar _ => decomp_fundefs ske defs'
       | Gfun fd =>
         match fd with
         | Internal f => 
           (id, fun vl => 
-                  v <- decomp_func sk ce f vl;; 
+                  v <- decomp_func ske ce f vl;; 
                   (if Pos.eq_dec id (ident_of_string "main")
                    then (match v with Vint _ => Ret v | _ => triggerUB end)
-                   else Ret v)) :: decomp_fundefs sk defs'
-        | _ => decomp_fundefs sk defs'
+                   else Ret v)) :: decomp_fundefs ske defs'
+        | _ => decomp_fundefs ske defs'
         end
       end
     end.
+  
+  Definition ef2cef (ef: external_function) : extfun :=
+    match ef with
+    | EF_external _ _ => CEF_external
+    | EF_builtin name sg => CEF_builtin name sg 
+    | EF_runtime name sg => CEF_runtime name sg
+    | EF_vload chunk => CEF_vload chunk
+    | EF_vstore chunk => CEF_vstore chunk
+    | EF_malloc => CEF_malloc 
+    | EF_free => CEF_free 
+    | EF_memcpy sz al => CEF_memcpy sz al
+    | EF_annot id str typl => CEF_annot id str typl
+    | EF_annot_val id str typ => CEF_annot_val id str typ
+    | EF_inline_asm str sg strs => CEF_inline_asm str sg strs
+    | EF_debug pos id typl => CEF_debug pos id typl
+    | EF_capture => CEF_capture
+    end.
 
-  Fixpoint get_sk (defs: list (ident * globdef Clight.fundef type)) :=
+  Fixpoint get_sk_aux
+    (defs: list (ident * globdef Clight.fundef type)) (p: PTree.t clightdm_globaldata) 
+      : Sk.t :=
     match defs with
-    | [] => []
+    | [] => p
     | (id, gdef) :: defs' => 
-      if in_dec Pos.eq_dec id public then (string_of_ident id, gdef↑) :: get_sk defs'
-      else get_sk defs'
+      if in_dec Pos.eq_dec id public
+      then match gdef with
+           | Gvar gv => 
+              PTree.set id
+                (inr (Gvar (F:=clightdm_fundef) gv))
+                (get_sk_aux defs' p)
+           | Gfun fd =>
+              match fd with
+              | Internal f =>
+                PTree.set id
+                  (inr (Gfun (CInternal (type_of_fundef fd))))
+                  (get_sk_aux defs' p)
+              | External (EF_external name sg) tyl rty cc =>
+                if dec id (ident_of_string name) && signature_eq sg (signature_of_type tyl rty cc)
+                then PTree.set id
+                      (inr (Gfun (CExternal CEF_external (type_of_fundef fd))))
+                      (get_sk_aux defs' p)
+                else PTree.set id (inl true) (get_sk_aux defs' p)
+              | External ef _ _ _ =>
+                PTree.set id
+                  (inr (Gfun (CExternal (ef2cef ef) (type_of_fundef fd))))
+                  (get_sk_aux defs' p)
+              end
+            end
+      else get_sk_aux defs' p
     end
   .
 
-  Definition modsem (sk: Sk.t) : ModSem.t := {|
-    ModSem.fnsems := List.map (fun '(fn, f) => (string_of_ident fn, cfunU f)) (decomp_fundefs sk defs);
+  Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : Sk.t :=
+    get_sk_aux defs (PTree.empty _).
+
+  Definition modsem (ske: Sk.sem) : ModSem.t := {|
+    ModSem.fnsems := List.map (fun '(fn, f) => (string_of_ident fn, cfunU f)) (decomp_fundefs ske defs);
     ModSem.mn := mn;
     ModSem.initial_st := tt↑;
   |}.

@@ -8,6 +8,7 @@ Require Export ITreelib.
 Require Export AList.
 Require Import Skeleton.
 Require Import ModSem.
+Require Import PCM.
 
 Set Implicit Arguments.
 
@@ -47,6 +48,26 @@ Global Program Instance EMSConfigImp: EMSConfig := {|
 |}
 .
 
+Program Instance dd : RA.t.
+Next Obligation.
+Proof.
+Admitted.
+Next Obligation.
+Proof.
+Admitted.
+Next Obligation.
+Proof.
+Admitted.
+Next Obligation.
+Proof.
+Admitted.
+Next Obligation.
+Proof.
+Admitted.
+
+Definition asdf := @Sk.globalenv dd.
+
+Global Existing Instance asdf.
 Definition wordsize_64 := 64.
 Definition modulus_64 := two_power_nat wordsize_64.
 Definition modulus_64_half := (modulus_64 / 2)%Z.
