@@ -476,10 +476,10 @@ If this feature is needed; we can extend it then. At the moment, I will only all
 
   End INTERP.
 
-
+  Context `{Sk.ld}.
 
   Variable md_tgt: ModL.t.
-  Let ms_tgt: ModSemL.t := (ModL.get_modsem md_tgt md_tgt.(ModL.sk)).
+  Let ms_tgt: ModSemL.t := (ModL.get_modsem md_tgt (Sk.canon md_tgt.(ModL.sk))).
 
   Variable sbtb: alist gname fspecbody.
   Let stb: alist gname fspec := List.map (fun '(gn, fsb) => (gn, fsb_fspec fsb)) sbtb.
@@ -547,14 +547,15 @@ Module SMod.
 Section SMOD.
 
   Context `{Σ: GRA.t}.
+  Context `{X:Sk.ld}.
 
   Record t: Type := mk {
-    get_modsem: Sk.t -> SModSem.t;
+    get_modsem: Sk.sem -> SModSem.t;
     sk: Sk.t;
   }
   .
 
-  Definition transl (tr: Sk.t -> mname -> fspecbody -> (option mname * Any.t -> itree Es Any.t)) (mst: SModSem.t -> Any.t) (md: t): Mod.t := {|
+  Definition transl (tr: Sk.sem -> mname -> fspecbody -> (option mname * Any.t -> itree Es Any.t)) (mst: SModSem.t -> Any.t) (md: t): Mod.t := {|
     Mod.get_modsem := fun sk => SModSem.transl (tr sk) mst (md.(get_modsem) sk);
     Mod.sk := md.(sk);
   |}
@@ -563,17 +564,17 @@ Section SMOD.
   Definition to_src (md: t): Mod.t := transl (fun _ _ => fun_to_src ∘ fsb_body) SModSem.initial_st md.
   Definition to_mid (stb: gname -> option fspec) (md: t): Mod.t := transl (fun _ _ => fun_to_mid stb ∘ fsb_body) SModSem.initial_st md.
   Definition to_mid2 (stb: gname -> option fspec) (md: t): Mod.t := transl (fun _ _ => fun_to_mid2 ∘ fsb_body) SModSem.initial_st md.
-  Definition to_tgt (stb: Sk.t -> gname -> option fspec) (md: t): Mod.t :=
+  Definition to_tgt (stb: Sk.sem -> gname -> option fspec) (md: t): Mod.t :=
     transl (fun sk mn => fun_to_tgt mn (stb sk)) (fun ms => Any.pair ms.(SModSem.initial_st) ms.(SModSem.initial_mr)↑) md.
 
 
-  Definition get_stb (mds: list t): Sk.t -> alist gname fspec :=
+  Definition get_stb (mds: list t): Sk.sem -> alist gname fspec :=
     fun sk => map (map_snd fsb_fspec) (flat_map (SModSem.fnsems ∘ (flip get_modsem sk)) mds).
 
-  Definition get_sk (mds: list t): Sk.t :=
-    Sk.sort (fold_right Sk.add Sk.unit (List.map sk mds)).
+  Definition get_sk (mds: list t): Sk.sem :=
+    Sk.canon (fold_right Sk.add Sk.unit (List.map sk mds)).
 
-  Definition get_initial_mrs (mds: list t): Sk.t -> Σ :=
+  Definition get_initial_mrs (mds: list t): Sk.sem -> Σ :=
     fun sk => fold_left (⋅) (List.map (SModSem.initial_mr ∘ (flip get_modsem sk)) mds) ε.
 
 
@@ -672,7 +673,7 @@ Section SMOD.
   .
   Proof. rewrite ! transl_sk. ss. Qed.
 
-  Definition load_fnsems (sk: Sk.t) (mds: list t) (tr0: mname -> fspecbody -> option mname * Any.t -> itree Es Any.t) :=
+  Definition load_fnsems (sk: Sk.sem) (mds: list t) (tr0: mname -> fspecbody -> option mname * Any.t -> itree Es Any.t) :=
     do md <- mds;
     let ms := (get_modsem md sk) in
       (do '(fn, fsb) <- ms.(SModSem.fnsems);
@@ -682,7 +683,7 @@ Section SMOD.
 
   Let transl_fnsems_aux
         tr0 mr0 mds
-        (sk: Sk.t)
+        (sk: Sk.sem)
     :
       (ModSemL.fnsems (ModL.get_modsem (Mod.add_list (List.map (transl tr0 mr0) mds)) sk)) =
       (load_fnsems sk mds (tr0 sk))
@@ -706,7 +707,7 @@ Section SMOD.
         tr0 mr0 mds
     :
       (ModSemL.fnsems (ModL.enclose (Mod.add_list (List.map (transl tr0 mr0) mds)))) =
-      (load_fnsems (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds (tr0 (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds)))))
+      (load_fnsems (Sk.canon (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds (tr0 (Sk.canon (List.fold_right Sk.add Sk.unit (List.map sk mds)))))
   .
   Proof.
     unfold ModL.enclose.
@@ -746,7 +747,7 @@ Section SMOD.
 
 
 
-  Definition load_initial_mrs {A} (sk: Sk.t) (mds: list t) (mr0: SModSem.t -> A): list (string * A) :=
+  Definition load_initial_mrs {A} (sk: Sk.sem) (mds: list t) (mr0: SModSem.t -> A): list (string * A) :=
     do md <- mds;
     let ms := (get_modsem md sk) in
     ret (ms.(SModSem.mn), mr0 ms)
@@ -754,7 +755,7 @@ Section SMOD.
 
   Let transl_initial_mrs_aux
         tr0 mr0 mds
-        (sk: Sk.t)
+        (sk: Sk.sem)
     :
       (ModSemL.initial_mrs (ModL.get_modsem (Mod.add_list (List.map (transl tr0 mr0) mds)) sk)) =
       (load_initial_mrs sk mds mr0)
@@ -768,7 +769,7 @@ Section SMOD.
         tr0 mr0 mds
     :
       (ModSemL.initial_mrs (ModL.enclose (Mod.add_list (List.map (transl tr0 mr0) mds)))) =
-      (load_initial_mrs (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds mr0)
+      (load_initial_mrs (Sk.canon (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds mr0)
   .
   Proof.
     unfold ModL.enclose.
