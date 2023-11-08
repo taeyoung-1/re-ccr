@@ -620,8 +620,7 @@ Section DECOMP_PROG.
     match defs with
     | [] => p
     | (id, gdef) :: defs' => 
-      if in_dec Pos.eq_dec id public
-      then match gdef with
+      match gdef with
            | Gvar gv => 
               PTree.set id
                 (inr (Gvar (F:=clightdm_fundef) gv))
@@ -644,7 +643,6 @@ Section DECOMP_PROG.
                   (get_sk_aux defs' p)
               end
             end
-      else get_sk_aux defs' p
     end
   .
 

@@ -12,13 +12,14 @@ From compcertip Require Import
      AST Maps Globalenvs Memory Values ValuesAux Linking Integers.
 From compcertip Require Import
      Ctypes Clight Clightdefs.
+Import Clightdefs.ClightNotations.
 
 Set Implicit Arguments.
 
 
 Section MODSEM.
   Local Open Scope Z.
-  Variable sk: Sk.t.
+  Variable sk: Sk.sem.
   Let skenv: SkEnv.t := Sk.load_skenv sk.
 
   Section BODY.
@@ -304,36 +305,37 @@ Section MODSEM.
         end
     end.
   
-  Definition alloc_global (m : mem) (entry : string * Any.t) :=
-    let (_, agd) := entry in
-    match Any.downcast agd : option (globdef Clight.fundef type) with
-    | Some g => 
-      match g with
-      | Gfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
-      | Gvar v =>
-        let init := gvar_init v in
-        let sz := init_data_list_size init in
-        let (m1, b) := Mem.alloc m 0 sz in
-        match store_zeros m1 b 0 sz with
-        | Some m2 =>
-            match store_init_data_list m2 b 0 init with
-            | Some m3 => Mem.drop_perm m3 b 0 sz (Genv.perm_globvar v)
-            | None => None
-            end
-        | None => None
-        end
+  Definition alloc_global (m : mem) (gd : globdef clightdm_fundef type) : option mem :=
+    match gd with
+    | Gfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
+    | Gvar v =>
+      let init := gvar_init v in
+      let sz := init_data_list_size init in
+      let (m1, b) := Mem.alloc m 0 sz in
+      match store_zeros m1 b 0 sz with
+      | Some m2 =>
+          match store_init_data_list m2 b 0 init with
+          | Some m3 => Mem.drop_perm m3 b 0 sz (Genv.perm_globvar v)
+          | None => None
+          end
+      | None => None
       end
-    | None => None
     end.
 
-  Fixpoint alloc_globals (m: mem) (sk: list (string * Any.t)) : mem :=
+  Fixpoint alloc_globals (m: mem) (sk: list (ident * _)) : mem :=
   match sk with
   | nil => m
   | g :: gl' =>
-      match alloc_global m g with
-      | None => Mem.empty
+    let (_, gd) := g in
+    match gd with
+    | inl false => alloc_globals m gl'
+    | inl true => Mem.empty
+    | inr gd =>
+      match alloc_global m gd with
       | Some m' => alloc_globals m' gl'
+      | None => Mem.empty
       end
+    end
   end.
 
   Definition load_mem := alloc_globals Mem.empty sk.
@@ -357,13 +359,16 @@ Section MODSEM.
 
 End MODSEM.
 
+Local Open Scope clight_scope.
+Locate "$".
+
 Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
-    Mod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
-               ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑);
-               ("memcpy", (@Gfun Clight.fundef type (External (EF_memcpy 1 1) (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑);
-               ("capture", (@Gfun Clight.fundef type (External EF_capture (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑)]
+    Mod.sk := Maps.PTree.set ($"malloc") (inr (Gfun (CExternal CEF_malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))))
+                (Maps.PTree.set ($"free") (inr (Gfun (CExternal CEF_free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default))))
+                  (Maps.PTree.set ($"memcpy") (inr (Gfun (CExternal (CEF_memcpy 1 1) (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
+                    (Maps.PTree.set ($"capture") (inr (Gfun (CExternal CEF_capture (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
+                      (Maps.PTree.empty _))))
   |}
 .
-

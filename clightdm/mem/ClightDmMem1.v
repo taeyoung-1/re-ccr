@@ -7,7 +7,10 @@ Require Import ModSem.
 Require Import Skeleton.
 Require Import PCM IPM.
 Require Import HoareDef STB.
+Require Import ClightDmExprgen.
+Require Import ClightDmgen.
 From compcertip Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
+Import Clightdefs.ClightNotations.
 
 Set Implicit Arguments.
 
@@ -600,7 +603,7 @@ Section MRS.
   Context `{@GRA.inG memcntRA Σ}.
   Context `{@GRA.inG memhdRA Σ}.
 
-  Variable sk: Sk.t.
+  Variable sk: Sk.sem.
   Let skenv: SkEnv.t := Sk.load_skenv sk.
 
   Definition store_init_data (res : _memcntRA) (b : block) (p : Z) (optq : option Qp) (id : init_data) : option _memcntRA :=
@@ -682,35 +685,36 @@ Section MRS.
         end
     end.
 
-  Definition alloc_global (res : Σ) (b: block) (entry : string * Any.t) : option Σ :=
-    let (_, agd) := entry in
-    match Any.downcast agd : option (globdef Clight.fundef type) with
-    | Some g => 
-      match g with
-      | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b 1 Unfreeable (1/2)%Qp)) ⋅ res)
-      | Gvar v =>
-        let optq := match Globalenvs.Genv.perm_globvar v with
-                    | Freeable | Writable => Some 1%Qp
-                    | Readable => Some (1/2)%Qp
-                    | Nonempty => None
-                    end
-        in
-        match store_init_data_list ε b 0 optq (gvar_init v) with
-        | Some res' => Some (GRA.embed (Auth.black (__allocated_with b (init_data_list_size (gvar_init v)) Unfreeable (1/2)%Qp))
-                             ⋅ GRA.embed (Auth.black res') ⋅ res)
-        | None => None
-        end
+  Definition alloc_global (res : Σ) (b: block) (gd : globdef clightdm_fundef type) : option Σ :=
+    match gd with
+    | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b 1 Unfreeable (1/2)%Qp)) ⋅ res)
+    | Gvar v =>
+      let optq := match Globalenvs.Genv.perm_globvar v with
+                  | Freeable | Writable => Some 1%Qp
+                  | Readable => Some (1/2)%Qp
+                  | Nonempty => None
+                  end
+      in
+      match store_init_data_list ε b 0 optq (gvar_init v) with
+      | Some res' => Some (GRA.embed (Auth.black (__allocated_with b (init_data_list_size (gvar_init v)) Unfreeable (1/2)%Qp))
+                            ⋅ GRA.embed (Auth.black res') ⋅ res)
+      | None => None
       end
-    | None => None
     end.
 
-  Fixpoint alloc_globals (res: Σ) (b: block) (sk: list (string * Any.t)) : Σ :=
+  Fixpoint alloc_globals (res: Σ) (b: block) (sk: list (ident * _)) : Σ :=
     match sk with
     | nil => res
     | g :: gl' => 
-      match alloc_global res b g with
-      | Some res' => alloc_globals res' (Pos.succ b) gl'
-      | None => ε
+      let (_, gd) := g in
+      match gd with
+      | inl false => alloc_globals res (Pos.succ b) gl'
+      | inl true => ε
+      | inr gd =>
+        match alloc_global res b gd with
+        | Some res' => alloc_globals res' (Pos.succ b) gl'
+        | None => ε
+        end
       end
     end.
 
@@ -760,12 +764,15 @@ Section SMOD.
   |}
   .
 
+  Local Open Scope clight_scope.
+
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
-    SMod.sk := [("malloc", (@Gfun Clight.fundef type (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default))↑);
-                ("free", (@Gfun Clight.fundef type (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))↑);
-                ("memcpy", (@Gfun Clight.fundef type (External (EF_memcpy 1 1) (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑);
-                ("capture", (@Gfun Clight.fundef type (External EF_capture (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))↑)]
+    SMod.sk := Maps.PTree.set ($"malloc") (inr (Gfun (CExternal CEF_malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))))
+                (Maps.PTree.set ($"free") (inr (Gfun (CExternal CEF_free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default))))
+                  (Maps.PTree.set ($"memcpy") (inr (Gfun (CExternal (CEF_memcpy 1 1) (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
+                    (Maps.PTree.set ($"capture") (inr (Gfun (CExternal CEF_capture (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
+                      (Maps.PTree.empty _))))
   |}
   .
 
