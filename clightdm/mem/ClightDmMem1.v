@@ -459,7 +459,7 @@ Section SPEC.
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = n↑⌝),
-                    (fun vret => ∃ m vaddr, ⌜vret = vaddr↑ /\ m.(sz) = Z.of_nat n⌝
+                    (fun vret => ∃ m vaddr, ⌜vret = (m.(blk))↑ /\ m.(sz) = Z.of_nat n⌝
                                  ** vaddr ↦m#1≻ List.repeat Undef n
                                  ** vaddr ⊨m#1≖ (0, Local))
     )))%I.
@@ -643,7 +643,7 @@ Section SPEC.
   Definition malloc_spec: fspec :=
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = [Vptrofs n]↑⌝),
+                    (fun varg => ⌜varg = [Vptrofs n]↑ /\ Ptrofs.unsigned n > 0⌝),
                     (fun vret => ∃ m vaddr, ⌜vret = vaddr↑ /\ m.(sz) = Ptrofs.unsigned n⌝
                                  ** vaddr ↦m#1≻ List.repeat Undef (Z.to_nat (Ptrofs.unsigned n))
                                  ** vaddr ⊨m#1≖ (0, Dynamic))
