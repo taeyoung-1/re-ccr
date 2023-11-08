@@ -30,231 +30,203 @@ Local Open Scope nat_scope.
 
 
 Section SIM.
-  Let st_local: Type := (Any.t).
+  (* Let st_local: Type := (Any.t). *)
 
   Variable world: Type.
 
-  Let W: Type := (Any.t) * (Any.t).
-  Variable wf: world -> W -> Prop.
+  (* Let W: Type := (Any.t) * (Any.t). *)
+  (* Variable wf : world -> W -> Prop. *)
   Variable le: relation world.
 
 
-  Inductive _sim_itree (sim_itree: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
-          {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-    : bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop :=
+  Inductive _sim_itree (sim_itree: forall (st_src st_tgt R_src R_tgt: Type) (wf: world -> (st_src * st_tgt) -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
+          {st_src st_tgt R_src R_tgt} (wf: world -> (st_src * st_tgt) -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop)
+    : bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop :=
   | sim_itree_ret
       i_src0 i_tgt0 w0 st_src0 st_tgt0
       v_src v_tgt
       (RET: RR st_src0 st_tgt0 v_src v_tgt)
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, (Ret v_src)) (st_tgt0, (Ret v_tgt))
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, Ret v_src) (st_tgt0, Ret v_tgt)
+
   | sim_itree_call
       i_src0 i_tgt0 w w0 st_src0 st_tgt0
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          sim_itree _ _ _ _ wf RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                  (st_tgt0, trigger (Call fn varg) >>= k_tgt)
+
   | sim_itree_syscall
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       fn varg rvs k_src k_tgt
       (K: forall vret,
-          sim_itree _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
+          sim_itree _ _ _ _ wf RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                  (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
 
   | sim_itree_tau_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
-  | sim_itree_choose_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: exists (x: X), _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
-                 (st_tgt0, i_tgt)
-  | sim_itree_take_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: forall (x: X), _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-                 (st_tgt0, i_tgt)
-
-  | sim_itree_pput_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      st_src1
-      (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-    :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-                 (st_tgt0, i_tgt)
-
-  | sim_itree_pget_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-    :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-                 (st_tgt0, i_tgt)
-
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
 
   | sim_itree_tau_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+
+  | sim_itree_choose_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: exists (x: X), _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
+    :
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
+                 (st_tgt0, i_tgt)
+
   | sim_itree_choose_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       X i_src k_tgt
-      (K: forall (x: X), _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+      (K: forall (x: X), _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                  (st_tgt0, trigger (Choose X) >>= k_tgt)
-  | sim_itree_take_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X i_src k_tgt
-      (K: exists (x: X), _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+
+  | sim_itree_take_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: forall (x: X), _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+                 (st_tgt0, i_tgt)
+
+  | sim_itree_take_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X i_src k_tgt
+      (K: exists (x: X), _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+    :
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                  (st_tgt0, trigger (Take X) >>= k_tgt)
 
-  | sim_itree_pput_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      st_tgt1
-      (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
+  | sim_itree_supdate_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      k_src i_tgt
+      (run: st_src -> st_src * _ )
+      (K: _sim_itree sim_itree wf RR true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                 (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src)(st_tgt0, i_tgt)  
 
-  | sim_itree_pget_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
+  | sim_itree_supdate_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      i_src k_tgt
+      (run: st_tgt -> st_tgt * _ )
+      (K: _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt))
     :
-      _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                 (st_tgt0, trigger (PGet) >>= k_tgt)
+      _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (SUpdate run) >>= k_tgt)
 
   | sim_itree_progress
-      i_src0 i_tgt0 w0 st_src0 st_tgt0 i_src i_tgt
-      (SIM: sim_itree _ _ RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt) i_src i_tgt
+      (SIM: sim_itree _ _ _ _ wf RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
       (SRC: i_src0 = true)
       (TGT: i_tgt0 = true)
     :
-      _sim_itree sim_itree RR true true w0 (st_src0, i_src) (st_tgt0, i_tgt)
+      _sim_itree sim_itree wf RR true true w0 (st_src0, i_src) (st_tgt0, i_tgt)
   .
 
-  Definition lift_rel {R_src R_tgt} (w0: world) (RR: R_src -> R_tgt -> Prop)
-             (st_src st_tgt: st_local) (ret_src ret_tgt : Any.t) :=
+  Definition lift_rel {st_src st_tgt R_src R_tgt} (w0: world) (wf: world -> (st_src * st_tgt) -> Prop) (RR: R_src -> R_tgt -> Prop)
+             (st_src0: st_src) (st_tgt0: st_tgt) (ret_src ret_tgt: Any.t) :=
     exists w1 : world,
-      (<<WLE: le w0 w1 >> /\ <<WF: wf w1 (st_src, st_tgt) >> /\ <<RET: ret_src = ret_tgt >>).
+      (<<WLE: le w0 w1 >> /\ <<WF: wf w1 (st_src0, st_tgt0) >> /\ <<RET: ret_src = ret_tgt >>).
 
-  Lemma _sim_itree_ind2 (sim_itree: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
-        {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-        (P: bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
+  Lemma _sim_itree_ind2 (sim_itree: forall (st_src st_tgt R_src R_tgt: Type) (wf: world -> (st_src * st_tgt) -> Prop) 
+                                    (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
+        {st_src st_tgt R_src R_tgt} (wf: world -> (st_src * st_tgt) -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop)
+        (P: bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
         (RET: forall
             i_src0 i_tgt0 w0 st_src0 st_tgt0
             v_src v_tgt
             (RET: RR st_src0 st_tgt0 v_src v_tgt),
-            P i_src0 i_tgt0 w0 (st_src0, (Ret v_src)) (st_tgt0, (Ret v_tgt)))
+            P i_src0 i_tgt0 w0 (st_src0, Ret v_src) (st_tgt0, Ret v_tgt))
         (CALL: forall
             i_src0 i_tgt0 w w0 st_src0 st_tgt0
             fn varg k_src k_tgt
             (WF: wf w0 (st_src0, st_tgt0))
             (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-                sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
+                sim_itree _ _ _ _ wf RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
             P i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
               (st_tgt0, trigger (Call fn varg) >>= k_tgt))
         (SYSCALL: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             fn varg rvs k_src k_tgt
             (K: forall vret,
-                sim_itree _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
+                sim_itree _ _ _ _ wf RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
             P i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
               (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt))
         (TAUSRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             i_src i_tgt
-            (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            (K: _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
             (IH: P true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt)),
             P i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt))
-        (CHOOSESRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            X k_src i_tgt
-            (K: exists (x: X), <<SIM: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
-              (st_tgt0, i_tgt))
-        (TAKESRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            X k_src i_tgt
-            (K: forall (x: X), <<SIM: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-              (st_tgt0, i_tgt))
-        (PPUTSRC: forall
-            i_src0 i_tgt0 w0 st_tgt0 st_src0
-            k_src i_tgt
-            st_src1
-            (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-            (IH: P true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt)),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-              (st_tgt0, i_tgt))
-        (PGETSRC: forall
-            i_src0 i_tgt0 w0 st_tgt0 st_src0
-            k_src i_tgt
-            (K: _sim_itree sim_itree RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-            (IH: P true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt)),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-              (st_tgt0, i_tgt))
         (TAUTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             i_src i_tgt
-            (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            (K: _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
             (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt)),
             P i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt))
+        (CHOOSESRC: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            X k_src i_tgt
+            (K: exists (x: X), <<SIM: _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
+            P i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
+              (st_tgt0, i_tgt))
         (CHOOSETGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             X i_src k_tgt
-            (K: forall (x: X), <<SIMH: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
+            (K: forall (x: X), <<SIMH: _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
             P i_src0 i_tgt0 w0 (st_src0, i_src)
               (st_tgt0, trigger (Choose X) >>= k_tgt))
+        (TAKESRC: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            X k_src i_tgt
+            (K: forall (x: X), <<SIM: _sim_itree sim_itree wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
+            P i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+              (st_tgt0, i_tgt))
         (TAKETGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             X i_src k_tgt
-            (K: exists (x: X), <<SIM:_sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
+            (K: exists (x: X), <<SIM:_sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
             P i_src0 i_tgt0 w0 (st_src0, i_src)
               (st_tgt0, trigger (Take X) >>= k_tgt))
-        (PPUTTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            k_tgt i_src
-            st_tgt1
-            (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
-            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt)),
-            P i_src0 i_tgt0 w0 (st_src0, i_src)
-              (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt))
-        (PGETTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            k_tgt i_src
-            (K: _sim_itree sim_itree RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
-            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0)),
-            P i_src0 i_tgt0 w0 (st_src0, i_src)
-              (st_tgt0, trigger (PGet) >>= k_tgt))
+        (SUPDATESRC: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            k_src i_tgt
+            (run: st_src -> st_src * _ )
+            (K: _sim_itree sim_itree wf RR true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt))
+            (IH: P true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt)),
+            P i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src) (st_tgt0, i_tgt))
+        (SUPDATETGT: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            i_src k_tgt
+            (run: st_tgt -> st_tgt * _ )
+            (K: _sim_itree sim_itree wf RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt))
+            (IH: P i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt)),
+            P i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (SUpdate run) >>= k_tgt))
         (PROGRESS: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0 i_src i_tgt
-            (SIM: sim_itree _ _ RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt) i_src i_tgt
+            (SIM: sim_itree _ _ _ _ wf RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
             (SRC: i_src0 = true)
             (TGT: i_tgt0 = true),
             P true true w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
       forall i_src0 i_tgt0 w0 st_src st_tgt
-             (SIM: _sim_itree sim_itree RR i_src0 i_tgt0 w0 st_src st_tgt),
+             (SIM: _sim_itree sim_itree wf RR i_src0 i_tgt0 w0 st_src st_tgt),
         P i_src0 i_tgt0 w0 st_src st_tgt.
   Proof.
     fix IH 6. i. inv SIM.
@@ -262,22 +234,21 @@ Section SIM.
     { eapply CALL; eauto. }
     { eapply SYSCALL; eauto. }
     { eapply TAUSRC; eauto. }
-    { eapply CHOOSESRC; eauto. des. esplits; eauto. }
-    { eapply TAKESRC; eauto. }
-    { eapply PPUTSRC; eauto. }
-    { eapply PGETSRC; eauto. }
     { eapply TAUTGT; eauto. }
+    { eapply CHOOSESRC; eauto. des. esplits; eauto. }
     { eapply CHOOSETGT; eauto. }
+    { eapply TAKESRC; eauto. }
     { eapply TAKETGT; eauto. des. esplits; eauto. }
-    { eapply PPUTTGT; eauto. }
-    { eapply PGETTGT; eauto. }
+    { eapply SUPDATESRC; eauto. }
+    { eapply SUPDATETGT; eauto. }
     { eapply PROGRESS; eauto. }
+
   Qed.
 
-  Definition sim_itree o_src o_tgt w0: relation _ :=
-    paco8 _sim_itree bot8 _ _ (lift_rel w0 (@eq Any.t)) o_src o_tgt w0.
+  Definition sim_itree {st_src st_tgt} o_src o_tgt w0 (wf: world -> (st_src * st_tgt) -> Prop) :=
+    paco11 _sim_itree bot11 _ _ _ _ wf (lift_rel w0 wf (@eq Any.t)) o_src o_tgt w0.
 
-  Lemma sim_itree_mon: monotone8 _sim_itree.
+  Lemma sim_itree_mon: monotone11 _sim_itree.
   Proof.
     ii. induction IN using _sim_itree_ind2; try (by des; econs; ss; et).
     - econs; ss; et. ii. exploit K; et. i; des. esplits; et.
@@ -290,103 +261,88 @@ Section SIM.
   Hint Resolve cpn8_wcompat: paco.
 
   Lemma sim_itree_ind
-        R_src R_tgt (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-        (P: bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
+        {st_src st_tgt} R_src R_tgt (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop) (wf: world -> (st_src * st_tgt) -> Prop)
+        (P: bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
         (RET: forall
             i_src0 i_tgt0 w0 st_src0 st_tgt0
             v_src v_tgt
             (RET: RR st_src0 st_tgt0 v_src v_tgt),
-            P i_src0 i_tgt0 w0 (st_src0, (Ret v_src)) (st_tgt0, (Ret v_tgt)))
+            P i_src0 i_tgt0 w0 (st_src0, Ret v_src) (st_tgt0, Ret v_tgt))
         (CALL: forall
             i_src0 i_tgt0 w w0 st_src0 st_tgt0
             fn varg k_src k_tgt
             (WF: wf w0 (st_src0, st_tgt0))
             (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-                paco8 _sim_itree bot8 _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
+                paco11 _sim_itree bot11 _ _ _ _ wf RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
             P i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
               (st_tgt0, trigger (Call fn varg) >>= k_tgt))
         (SYSCALL: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             fn varg rvs k_src k_tgt
             (K: forall vret,
-                paco8 _sim_itree bot8 _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
+                paco11 _sim_itree bot11 _ _ _ _ wf RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
             P i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
               (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt))
         (TAUSRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             i_src i_tgt
-            (K: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            (K: paco11 _sim_itree bot11 _ _ _ _ wf RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
             (IH: P true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt)),
             P i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt))
+        (TAUTGT: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            i_src i_tgt
+            (K: paco11 _sim_itree bot11 _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt)),
+            P i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt))            
         (CHOOSESRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             X k_src i_tgt
-            (K: exists (x: X), <<SIM: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
+            (K: exists (x: X), <<SIM: paco11 _sim_itree bot11 _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
             P i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
               (st_tgt0, i_tgt))
-        (TAKESRC: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            X k_src i_tgt
-            (K: forall (x: X), <<SIM: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-              (st_tgt0, i_tgt))
-        (PPUTSRC: forall
-            i_src0 i_tgt0 w0 st_tgt0 st_src0
-            k_src i_tgt
-            st_src1
-            (K: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-            (IH: P true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt)),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-              (st_tgt0, i_tgt))
-        (PGETSRC: forall
-            i_src0 i_tgt0 w0 st_tgt0 st_src0
-            k_src i_tgt
-            (K: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-            (IH: P true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt)),
-            P i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-              (st_tgt0, i_tgt))
-        (TAUTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            i_src i_tgt
-            (K: paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
-            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt)),
-            P i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt))
         (CHOOSETGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             X i_src k_tgt
-            (K: forall (x: X), <<SIMH: paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
+            (K: forall (x: X), <<SIMH: paco11 _sim_itree bot11 _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
             P i_src0 i_tgt0 w0 (st_src0, i_src)
               (st_tgt0, trigger (Choose X) >>= k_tgt))
+        (TAKESRC: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            X k_src i_tgt
+            (K: forall (x: X), <<SIM: paco11 _sim_itree bot11 _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>> /\ <<IH: P true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt)>>),
+            P i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+              (st_tgt0, i_tgt))
         (TAKETGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
             X i_src k_tgt
-            (K: exists (x: X), <<SIM:paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
+            (K: exists (x: X), <<SIM:paco11 _sim_itree bot11 _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>> /\ <<IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x)>>),
             P i_src0 i_tgt0 w0 (st_src0, i_src)
               (st_tgt0, trigger (Take X) >>= k_tgt))
-        (PPUTTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            k_tgt i_src
-            st_tgt1
-            (K: paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
-            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt)),
-            P i_src0 i_tgt0 w0 (st_src0, i_src)
-              (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt))
-        (PGETTGT: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0
-            k_tgt i_src
-            (K: paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
-            (IH: P i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0)),
-            P i_src0 i_tgt0 w0 (st_src0, i_src)
-              (st_tgt0, trigger (PGet) >>= k_tgt))
+        (SUPDATESRC: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            k_src i_tgt
+            (run: st_src -> st_src * _ )
+            (K: paco11 _sim_itree bot11 _ _ _ _ wf RR true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt))
+            (IH: P true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt)),
+            P i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src) (st_tgt0, i_tgt))
+        (SUPDATETGT: forall
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            i_src k_tgt
+            (run: st_tgt -> st_tgt * _ )
+            (K: paco11 _sim_itree bot11 _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt))
+            (IH: P i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt)),
+            P i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (SUpdate run) >>= k_tgt))       
         (PROGRESS: forall
-            i_src0 i_tgt0 w0 st_src0 st_tgt0 i_src i_tgt
-            (SIM: paco8 _sim_itree bot8 _ _ RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
+            i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+            i_src i_tgt
+            (SIM: paco11 _sim_itree bot11 _ _ _ _ wf RR false false w0 (st_src0, i_src) (st_tgt0, i_tgt))
             (SRC: i_src0 = true)
             (TGT: i_tgt0 = true),
             P true true w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
       forall i_src0 i_tgt0 w0 st_src st_tgt
-             (SIM: paco8 _sim_itree bot8 _ _ RR i_src0 i_tgt0 w0 st_src st_tgt),
+             (SIM: paco11 _sim_itree bot11 _ _ _ _ wf RR i_src0 i_tgt0 w0 st_src st_tgt),
         P i_src0 i_tgt0 w0 st_src st_tgt.
   Proof.
     i. punfold SIM. induction SIM using _sim_itree_ind2.
@@ -394,306 +350,268 @@ Section SIM.
     { eapply CALL; eauto. i. exploit K; eauto. i. pclearbot. eauto. }
     { eapply SYSCALL; eauto. i. exploit K; eauto. i. pclearbot. eauto. }
     { eapply TAUSRC; eauto. }
+    { eapply TAUTGT; eauto. }
     { eapply CHOOSESRC; eauto. des. esplits; eauto. }
+    { eapply CHOOSETGT; eauto. i. exploit K; eauto. i. des.
+    pclearbot. esplits; eauto. }
     { eapply TAKESRC; eauto. i. exploit K; eauto. i. des.
       pclearbot. esplits; eauto. }
-    { eapply PPUTSRC; eauto. }
-    { eapply PGETSRC; eauto. }
-    { eapply TAUTGT; eauto. }
-    { eapply CHOOSETGT; eauto. i. exploit K; eauto. i. des.
-      pclearbot. esplits; eauto. }
     { eapply TAKETGT; eauto. des. esplits; eauto. }
-    { eapply PPUTTGT; eauto. }
-    { eapply PGETTGT; eauto. }
+    { eapply SUPDATESRC; eauto. }
+    { eapply SUPDATETGT; eauto. }
     { eapply PROGRESS; eauto. pclearbot. auto. }
+
   Qed.
 
-  Variant sim_itree_indC (sim_itree: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
-          {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-    : bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop :=
+  Variant sim_itree_indC (sim_itree: forall (st_src st_tgt R_src R_tgt: Type) (wf: world -> st_src * st_tgt -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
+          {st_src st_tgt R_src R_tgt} (wf: world -> (st_src * st_tgt) -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop)
+    : bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop :=
   | sim_itree_indC_ret
       i_src0 i_tgt0 w0 st_src0 st_tgt0
       v_src v_tgt
       (RET: RR st_src0 st_tgt0 v_src v_tgt)
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, (Ret v_src)) (st_tgt0, (Ret v_tgt))
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, Ret v_src) (st_tgt0, Ret v_tgt)
   | sim_itree_indC_call
       i_src0 i_tgt0 w w0 st_src0 st_tgt0
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          sim_itree _ _ _ _ wf RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                      (st_tgt0, trigger (Call fn varg) >>= k_tgt)
   | sim_itree_indC_syscall
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       fn varg rvs k_src k_tgt
       (K: forall vret,
-          sim_itree _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
+          sim_itree _ _ _ _ wf RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                      (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
 
   | sim_itree_indC_tau_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: sim_itree _ _ RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: sim_itree _ _ _ _ wf RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
-  | sim_itree_indC_choose_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: exists (x: X), sim_itree _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
-                     (st_tgt0, i_tgt)
-  | sim_itree_indC_take_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: forall (x: X), sim_itree _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-                     (st_tgt0, i_tgt)
-
-  | sim_itree_indC_pput_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      st_src1
-      (K: sim_itree _ _ RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-    :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-                     (st_tgt0, i_tgt)
-
-  | sim_itree_indC_pget_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      (K: sim_itree _ _ RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-    :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-                     (st_tgt0, i_tgt)
-
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
 
   | sim_itree_indC_tau_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: sim_itree _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+
+  | sim_itree_indC_choose_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: exists (x: X), sim_itree _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
+    :
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
+                     (st_tgt0, i_tgt)
   | sim_itree_indC_choose_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       X i_src k_tgt
-      (K: forall (x: X), sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+      (K: forall (x: X), sim_itree _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                      (st_tgt0, trigger (Choose X) >>= k_tgt)
+
+  | sim_itree_indC_take_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: forall (x: X), sim_itree _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
+    :
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+                     (st_tgt0, i_tgt)
   | sim_itree_indC_take_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       X i_src k_tgt
-      (K: exists (x: X), sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+      (K: exists (x: X), sim_itree _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                      (st_tgt0, trigger (Take X) >>= k_tgt)
-
-  | sim_itree_indC_pput_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      st_tgt1
-      (K: sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
+  
+  | sim_itree_indC_supdate_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      k_src i_tgt
+      (run: st_src -> st_src * _ )
+      (K: sim_itree _ _ _ _ wf RR true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                     (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src) (st_tgt0, i_tgt)
 
-  | sim_itree_indC_pget_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      (K: sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
+  | sim_itree_indC_supdate_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      i_src k_tgt
+      (run: st_tgt -> st_tgt * _ )
+      (K: sim_itree _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt))
     :
-      sim_itree_indC sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                     (st_tgt0, trigger (PGet) >>= k_tgt)
+      sim_itree_indC sim_itree wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (SUpdate run) >>= k_tgt)
   .
 
-  Lemma sim_itree_indC_mon: monotone8 sim_itree_indC.
+  Lemma sim_itree_indC_mon: monotone11 sim_itree_indC.
   Proof.
     ii. inv IN; try (by des; econs; ss; et).
   Qed.
   Hint Resolve sim_itree_indC_mon: paco.
 
   Lemma sim_itree_indC_spec:
-    sim_itree_indC <9= gupaco8 (_sim_itree) (cpn8 _sim_itree).
+    sim_itree_indC <12= gupaco11 (_sim_itree) (cpn11 _sim_itree).
   Proof.
-    eapply wrespect8_uclo; eauto with paco.
+    eapply wrespect11_uclo; eauto with paco.
     econs; eauto with paco. i. inv PR.
     { econs 1; eauto. }
     { econs 2; eauto. i. exploit K; eauto. i. des.
-      esplits; eauto. eapply rclo8_base. eauto. }
-    { econs 3; eauto. i. eapply rclo8_base. eauto. }
-    { econs 4; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 5; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 6; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 7; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 8; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 9; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 10; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 11; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 12; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 13; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+      esplits; eauto. eapply rclo11_base. eauto. }
+    { econs 3; eauto. i. eapply rclo11_base. eauto. }
+    { econs 4; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 5; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 6; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 7; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 8; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 9; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto. }
+    { econs 10; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto.  }
+    { econs 11; eauto. eapply sim_itree_mon; eauto. i. eapply rclo11_base. eauto.  }
   Qed.
 
-  Variant sim_itreeC (r g: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
-          {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-    : bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop :=
+  Variant sim_itreeC (r g: forall (st_src st_tgt R_src R_tgt: Type) (wf: world -> (st_src * st_tgt) -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
+          {st_src st_tgt R_src R_tgt} (wf: world -> st_src * st_tgt -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop)
+    : bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop :=
   | sim_itreeC_ret
       i_src0 i_tgt0 w0 st_src0 st_tgt0
       v_src v_tgt
       (RET: RR st_src0 st_tgt0 v_src v_tgt)
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, (Ret v_src)) (st_tgt0, (Ret v_tgt))
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, Ret v_src) (st_tgt0, Ret v_tgt)
   | sim_itreeC_call
       i_src0 i_tgt0 w w0 st_src0 st_tgt0
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          g _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          g _ _ _ _ wf RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                  (st_tgt0, trigger (Call fn varg) >>= k_tgt)
   | sim_itreeC_syscall
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       fn varg rvs k_src k_tgt
       (K: forall vret,
-          g _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
+          g _ _ _ _ wf RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                  (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
 
   | sim_itreeC_tau_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: r _ _ RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: r _ _ _ _ wf RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
-  | sim_itreeC_choose_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: exists (x: X), r _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
-                 (st_tgt0, i_tgt)
-  | sim_itreeC_take_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: forall (x: X), r _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-                 (st_tgt0, i_tgt)
-
-  | sim_itreeC_pput_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      st_src1
-      (K: r _ _ RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-    :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-                 (st_tgt0, i_tgt)
-
-  | sim_itreeC_pget_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      (K: r _ _ RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-    :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-                 (st_tgt0, i_tgt)
-
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
 
   | sim_itreeC_tau_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       i_src i_tgt
-      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
+      (K: r _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, tau;; i_tgt)
+
+
+  | sim_itreeC_choose_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: exists (x: X), r _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
+    :
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Choose X) >>= k_src)
+                 (st_tgt0, i_tgt)
   | sim_itreeC_choose_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       X i_src k_tgt
-      (K: forall (x: X), r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+      (K: forall (x: X), r _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                  (st_tgt0, trigger (Choose X) >>= k_tgt)
+  | sim_itreeC_take_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      X k_src i_tgt
+      (K: forall (x: X), r _ _ _ _ wf RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
+    :
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+                 (st_tgt0, i_tgt)
   | sim_itreeC_take_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
       X i_src k_tgt
-      (K: exists (x: X), r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
+      (K: exists (x: X), r _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt x))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, i_src)
                  (st_tgt0, trigger (Take X) >>= k_tgt)
-
-  | sim_itreeC_pput_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      st_tgt1
-      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
+  | sim_itreeC_supdate_src
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      k_src i_tgt
+      (run: st_src -> st_src * _ )
+      (K: r _ _ _ _ wf RR true i_tgt0 w0 (fst (run st_src0), k_src tt) (st_tgt0, i_tgt))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                 (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src) (st_tgt0, i_tgt)
 
-  | sim_itreeC_pget_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
+  | sim_itreeC_supdate_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_src) (st_tgt0: st_tgt)
+      i_src k_tgt
+      (run: st_tgt -> st_tgt * _)
+      (K: r _ _ _ _ wf RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt tt))
     :
-      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                 (st_tgt0, trigger (PGet) >>= k_tgt)
+      sim_itreeC r g wf RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (SUpdate run) >>= k_tgt)
+
   .
 
   Lemma sim_itreeC_spec_aux:
-    sim_itreeC <10= gpaco8 (_sim_itree) (cpn8 _sim_itree).
+    sim_itreeC <13= gpaco11 (_sim_itree) (cpn11 _sim_itree).
   Proof.
     i. inv PR.
     { gstep. econs 1; eauto. }
     { gstep. econs 2; eauto. i. gbase. eauto. }
     { gstep. econs 3; eauto. i. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 4; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 5; eauto. des. esplits; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 6; eauto. i. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 5; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 6; eauto. des. esplits; eauto. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 7; eauto. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 8; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 9; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 10; eauto. i. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 11; eauto. des. esplits; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 12; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 13; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 9; eauto. des. esplits; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 10; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 11; eauto. gbase. eauto. }
   Qed.
 
   Lemma sim_itreeC_spec r g
     :
-      @sim_itreeC (gpaco8 (_sim_itree) (cpn8 _sim_itree) r g) (gpaco8 (_sim_itree) (cpn8 _sim_itree) g g)
-      <8=
-      gpaco8 (_sim_itree) (cpn8 _sim_itree) r g.
+      @sim_itreeC (gpaco11 (_sim_itree) (cpn11 _sim_itree) r g) (gpaco11 (_sim_itree) (cpn11 _sim_itree) g g)
+      <11=
+      gpaco11 (_sim_itree) (cpn11 _sim_itree) r g.
   Proof.
-    i. eapply gpaco8_gpaco; [eauto with paco|].
-    eapply gpaco8_mon.
+    i. eapply gpaco11_gpaco; [eauto with paco|].
+    eapply gpaco11_mon.
     { eapply sim_itreeC_spec_aux. eauto. }
     { auto. }
-    { i. eapply gupaco8_mon; eauto. }
+    { i. eapply gupaco11_mon; eauto. }
   Qed.
 
-  Lemma sim_itree_progress_flag R0 R1 RR r g w st_src st_tgt
-        (SIM: gpaco8 _sim_itree (cpn8 _sim_itree) g g R0 R1 RR false false w st_src st_tgt)
+  Lemma sim_itree_progress_flag {st_src st_tgt} R0 R1 (wf: world -> (st_src * st_tgt) -> Prop) RR w r g st_src0 st_tgt0
+        (SIM: gpaco11 _sim_itree (cpn11 _sim_itree) g g _ _ R0 R1 wf RR false false w st_src0 st_tgt0)
     :
-      gpaco8 _sim_itree (cpn8 _sim_itree) r g R0 R1 RR true true w st_src st_tgt.
+      gpaco11 _sim_itree (cpn11 _sim_itree) r g _ _ R0 R1 wf RR true true w st_src0 st_tgt0.
   Proof.
-    gstep. destruct st_src, st_tgt. econs; eauto.
+    gstep. destruct st_src0, st_tgt0. econs; eauto. 
   Qed.
 
   Lemma sim_itree_flag_mon
-        (sim_itree: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
-        R_src R_tgt (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-        f_src0 f_tgt0 f_src1 f_tgt1 w st_src st_tgt
-        (SIM: @_sim_itree sim_itree _ _ RR f_src0 f_tgt0 w st_src st_tgt)
+        (sim_itree: forall (st_src st_tgt R_src R_tgt: Type) (wf: world -> st_src * st_tgt -> Prop)
+                           (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_src * itree (Es st_src) R_src -> st_tgt * itree (Es st_tgt) R_tgt -> Prop)
+        {st_src st_tgt} R_src R_tgt (wf: world -> st_src * st_tgt -> Prop) (RR: st_src -> st_tgt -> R_src -> R_tgt -> Prop)
+        f_src0 f_tgt0 f_src1 f_tgt1 w st_src0 st_tgt0
+        (SIM: @_sim_itree sim_itree _ _ _ _  wf RR f_src0 f_tgt0 w st_src0 st_tgt0)
         (SRC: f_src0 = true -> f_src1 = true)
         (TGT: f_tgt0 = true -> f_tgt1 = true)
     :
-      @_sim_itree sim_itree _ _ RR f_src1 f_tgt1 w st_src st_tgt.
+      @_sim_itree sim_itree _ _ _ _ wf RR f_src1 f_tgt1 w st_src0 st_tgt0.
   Proof.
     revert f_src1 f_tgt1 SRC TGT.
     induction SIM using _sim_itree_ind2; i; clarify.
@@ -701,30 +619,30 @@ Section SIM.
     { econs 2; eauto. }
     { econs 3; eauto. }
     { econs 4; eauto. }
-    { econs 5; eauto. des. esplits; eauto. }
-    { econs 6; eauto. i. exploit K; eauto. i. des. eauto. }
-    { econs 7; eauto. }
-    { econs 8; eauto. }
-    { econs 9; eauto. }
-    { econs 10; eauto. i. exploit K; eauto. i. des. eauto. }
-    { econs 11; eauto. des. esplits; eauto. }
-    { econs 12; eauto. }
-    { econs 13; eauto. }
-    { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs 14; eauto. }
+    { econs 5; eauto. } 
+    { econs 6; eauto. des. esplits; eauto. }
+    { econs 7; eauto. i. exploit K; eauto. i. des. eauto. }
+    { econs 8; eauto. i. exploit K; eauto. i. des. eauto. }
+    { econs 9; eauto. des. esplits; eauto. }
+    { econs 10; eauto. }
+    { econs 11; eauto. } 
+    { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs; eauto. }
   Qed.
 
-  Definition sim_fsem: relation (option mname * Any.t -> itree Es Any.t) :=
+  (* If src/tgt itree is different from each other, how does the relation change? *)
+  (* In which case "st_src =/= st_tgt" holds? (Isn't it always same?)*)
+  Definition sim_fsem: relation (option mname * Any.t -> itree (Es st) Any.t) :=
     (eq ==> (fun it_src it_tgt => forall w mrs_src mrs_tgt (SIMMRS: wf w (mrs_src, mrs_tgt)),
                  sim_itree false false w (mrs_src, it_src)
                            (mrs_tgt, it_tgt)))%signature
   .
 
-  Definition sim_fnsem: relation (string * (option mname * Any.t -> itree Es Any.t)) := RelProd eq sim_fsem.
+  Definition sim_fnsem: relation (string * (option mname * Any.t -> itree (Es st) Any.t)) := RelProd eq sim_fsem.
 
 
-  Variant lflagC (r: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
+  Variant lflagC (r: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree (Es st) R_src -> st_local * itree (Es st) R_tgt -> Prop)
           {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
-    : bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop :=
+    : bool -> bool -> world -> st_local * itree (Es st) R_src -> st_local * itree (Es st) R_tgt -> Prop :=
   | lflagC_intro
       f_src0 f_src1 f_tgt0 f_tgt1 w st_src st_tgt
       (SIM: r _ _ RR f_src0 f_tgt0 w st_src st_tgt)
@@ -810,18 +728,18 @@ Section SIM.
     }
   Qed.
 
-  Variant lbindR (r s: forall S_src S_tgt (SS: st_local -> st_local -> S_src -> S_tgt -> Prop), bool -> bool -> world -> st_local * itree Es S_src -> st_local * itree Es S_tgt -> Prop):
-    forall S_src S_tgt (SS: st_local -> st_local -> S_src -> S_tgt -> Prop), bool -> bool -> world -> st_local * itree Es S_src -> st_local * itree Es S_tgt -> Prop :=
+  Variant lbindR (r s: forall S_src S_tgt (SS: st_local -> st_local -> S_src -> S_tgt -> Prop), bool -> bool -> world -> st_local * itree (Es st) S_src -> st_local * itree (Es st) S_tgt -> Prop):
+    forall S_src S_tgt (SS: st_local -> st_local -> S_src -> S_tgt -> Prop), bool -> bool -> world -> st_local * itree (Es st) S_src -> st_local * itree (Es st) S_tgt -> Prop :=
   | lbindR_intro
       f_src f_tgt w0 w1
 
       R_src R_tgt RR
       (st_src0 st_tgt0: st_local)
-      (i_src: itree Es R_src) (i_tgt: itree Es R_tgt)
+      (i_src: itree (Es st) R_src) (i_tgt: itree (Es st) R_tgt)
       (SIM: r _ _ RR f_src f_tgt w0 (st_src0, i_src) (st_tgt0, i_tgt))
 
       S_src S_tgt SS
-      (k_src: ktree Es R_src S_src) (k_tgt: ktree Es R_tgt S_tgt)
+      (st_src0, k_src: ktree (Es st) R_src S_src) (st_tgt0, k_tgt: ktree (Es st) R_tgt S_tgt)
       (SIMK: forall st_src1 st_tgt1 vret_src vret_tgt (SIM: RR st_src1 st_tgt1 vret_src vret_tgt), s _ _ SS false false w1 (st_src1, k_src vret_src) (st_tgt1, k_tgt vret_tgt))
     :
       lbindR r s SS f_src f_tgt w1 (st_src0, ITree.bind i_src k_src) (st_tgt0, ITree.bind i_tgt k_tgt)
@@ -1086,7 +1004,7 @@ Section ADEQUACY.
       forall R0 R1 (RR: R0 -> R1 -> Prop), bool -> bool -> (itree eventE R0) -> (itree eventE R1) -> Prop :=
     | my_r0_intro
         w0
-        (itr_src itr_tgt: itree Es Any.t)
+        (itr_src itr_tgt: itree (Es st) Any.t)
         st_src st_tgt o_src o_tgt
         (SIM: sim_itree wf le o_src o_tgt w0 (st_src mn, itr_src) (st_tgt mn, itr_tgt))
         (STATE: forall mn' (MN: mn <> mn'), st_src mn' = st_tgt mn')
@@ -1104,7 +1022,7 @@ Section ADEQUACY.
         mn' w0 st_src st_tgt
         (MN: mn <> mn')
         (SIM: g_lift_rel w0 st_src st_tgt)
-        (itr: itree Es Any.t)
+        (itr: itree (Es st) Any.t)
       :
         my_r1 (fun '(st_src, ret_src) '(st_tgt, ret_tgt) =>
                  g_lift_rel w0 st_src st_tgt /\ ret_src = ret_tgt)

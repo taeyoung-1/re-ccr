@@ -2,7 +2,7 @@ Require Import Coqlib.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
-Import ModSemL.
+(* Import ModSemL. *)
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
