@@ -1,8 +1,47 @@
 Require Import Coqlib.
-From compcert Require Import Integers Ctypes.
-Require Import ConvC2ITree.
+Require Import ProofMode.
+From Coq Require Import Program.
+From compcertip Require Import Values Integers Clightdefs.
 
-#[global] Transparent Ptrofs.repr.
+  Lemma ptrofs_max : Archi.ptr64 = true -> Int64.max_unsigned = Ptrofs.max_unsigned.
+  Proof. des_ifs_safe. Qed.
+  
+  Lemma mkint64_eq' x y : Int64.unsigned x = Int64.unsigned y -> x = y.
+  Proof. i. destruct x. destruct y. apply Int64.mkint_eq. et. Qed.
+
+  Local Open Scope Z_scope.
+
+  Lemma lxor_size a b
+    :
+      0 ≤ a ≤ Ptrofs.max_unsigned
+      -> 0 ≤ b ≤ Ptrofs.max_unsigned
+      -> 0 ≤ Z.lxor a b ≤ Ptrofs.max_unsigned.
+  Proof.
+    i. change Ptrofs.max_unsigned with (2 ^ 64 - 1) in *.
+    assert (I1: 0 ≤ a < 2 ^ 64) by nia.
+    assert (I2: 0 ≤ b < 2 ^ 64) by nia. 
+    assert (0 ≤ Z.lxor a b < 2 ^ 64); try nia.
+    destruct (Coqlib.zeq a 0);
+    destruct (Coqlib.zeq b 0); clarify.
+    2: split.
+    - rewrite Z.lxor_0_r. nia.
+    - rewrite Z.lxor_nonneg. nia.
+    - des.
+      rewrite Z.log2_lt_pow2 in I3; try nia.
+      rewrite Z.log2_lt_pow2 in I0; try nia.
+      destruct (Coqlib.zeq (Z.lxor a b) 0); try nia.
+      rewrite Z.log2_lt_pow2; cycle 1.
+      + assert (0 ≤ Z.lxor a b); try nia. rewrite Z.lxor_nonneg. nia.
+      + eapply Z.le_lt_trans; try apply Z.log2_lxor; try nia. 
+  Qed.
+
+Create HintDb ptrArith.
+
+Hint Unfold Vptrofs Int64.xor Ptrofs.to_int64 : ptrArith.
+Hint Rewrite ptrofs_max Ptrofs.unsigned_repr Int64.unsigned_repr : ptrArith.
+Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
+
+(* #[global] Transparent Ptrofs.repr.
 
 Lemma modulus_non_zero: Ptrofs.modulus <> 0%Z.
 Proof.
@@ -138,7 +177,7 @@ Ltac solve_ptr_eq :=
   unfold two_power_nat;
   simpl;
   zify;
-  lia.
+  lia. *)
 (*
 Ltac rewrite_ptrofs ptr1 ptr2 :=
   let H1 := fresh in

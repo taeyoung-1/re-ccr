@@ -41,13 +41,17 @@ Section PROP.
      (*     v                                 v   *)
      (* xs  - - - - - - - - - - - - - - - - - -   *)
 
+  
   Fixpoint _is_xorlist (hd_prev : val) (hd : val) (tl : val) (xs : list val) {struct xs} : iProp :=
     match xs with
     | [] => ⌜hd_prev = Vnullptr /\ hd = Vnullptr /\ tl = Vnullptr⌝
-    | h :: t => ∃ b_prev ofs_prev hd_next b_next ofs_next i_hd_prev i_hd_next item,
-                hd_prev ⊸ (b_prev, ofs_prev)
-                ** b_next ↱1# (8, Dynamic, Some i_hd_prev)
-                ** hd_next ⊸ (b_next, ofs_next)
+    | h :: t => 
+      if Val.eq Vnullptr hd_prev then
+
+      else ∃ b_prev ofs_prev hd_next b_next ofs_next i_hd_prev i_hd_next item,
+                hd_prev ~~ (b_prev, ofs_prev)
+                ** b_prev ↱1# (8, Dynamic, Some i_hd_prev)
+                ** hd_next ~~ (b_next, ofs_next)
                 ** b_next ↱1# (8, Dynamic, Some i_hd_next)
                 ** hd ⊢1#> (encode_val Mint64 item
                             ++ encode_val Mptr (Vptrofs (Ptrofs.repr (Z.lxor i_hd_prev i_hd_next))))

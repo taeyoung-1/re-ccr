@@ -17,7 +17,7 @@ Require Import xorlist.
 Require Import xorlist0.
 Require Import xorlist1.
 Require Import CTactics.
-(* Require Import Int64Arith. *)
+Require Import PtrofsArith.
 (* Require Import ClightProofs.
 Require Import csyntax.
 Require Import ClightPreambles. *)
@@ -66,47 +66,13 @@ Section PROOF.
 
   Let ce := map (fun '(id, p) => (string_of_ident id, p)) (Maps.PTree.elements (prog_comp_env prog)).
 
-  Lemma ptrofs_max : Archi.ptr64 = true -> Int64.max_unsigned = Ptrofs.max_unsigned.
-  Proof. des_ifs_safe. Qed.
-  
-  Lemma mkint64_eq' x y : Int64.unsigned x = Int64.unsigned y -> x = y.
-  Proof. i. destruct x. destruct y. apply Int64.mkint_eq. et. Qed.
-  Local Open Scope Z.
-  Lemma lxor_size a b
-    :
-  0 ≤ a ≤ Ptrofs.max_unsigned
-  -> 0 ≤ b ≤ Ptrofs.max_unsigned
-  -> 0 ≤ Z.lxor a b ≤ Ptrofs.max_unsigned.
-  Proof.
-    i. change Ptrofs.max_unsigned with (2 ^ 64 - 1) in *.
-    assert (I1: 0 ≤ a < 2 ^ 64) by nia.
-    assert (I2: 0 ≤ b < 2 ^ 64) by nia. clear H3 H4.
-    assert (0 ≤ Z.lxor a b < 2 ^ 64); try nia.
-    destruct (Coqlib.zeq a 0);
-    destruct (Coqlib.zeq b 0); clarify.
-    2: split.
-    - rewrite Z.lxor_0_r. nia.
-    - rewrite Z.lxor_nonneg. nia.
-    - des.
-      rewrite Z.log2_lt_pow2 in I3; try nia.
-      rewrite Z.log2_lt_pow2 in I0; try nia.
-      destruct (Coqlib.zeq (Z.lxor a b) 0); try nia.
-      rewrite Z.log2_lt_pow2; cycle 1.
-      + assert (0 ≤ Z.lxor a b); try nia. rewrite Z.lxor_nonneg. nia.
-      + eapply Z.le_lt_trans; try apply Z.log2_lxor; try nia. 
-  Qed.
 
-Arguments ClightDmExprgen.sem_xor_c /.
-Arguments ClightDmExprgen.sem_binarith_c /.
-Arguments ClightDmExprgen.sem_cast_c /.
+  Arguments ClightDmExprgen.sem_xor_c /.
+  Arguments ClightDmExprgen.sem_binarith_c /.
+  Arguments ClightDmExprgen.sem_cast_c /.
 
-Create HintDb ptrArith.
 
-Hint Unfold Vptrofs Int64.xor Ptrofs.to_int64 : ptrArith.
-Hint Rewrite ptrofs_max Ptrofs.unsigned_repr Int64.unsigned_repr : ptrArith.
-Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
-
-  Lemma val_multimap v b ofs : (v ⊸ (b, ofs)) -∗ ⌜exists i, v = Vptrofs i \/ exists b ofs, v = Vptr b ofs⌝.
+  (* Lemma val_multimap v b ofs : (v ⊸ (b, ofs)) -∗ ⌜exists i, v = Vptrofs i \/ exists b ofs, v = Vptr b ofs⌝.
   Proof.
     iIntros "A". destruct v; ss; des_ifs_safe.
     - unfold Vptrofs. des_ifs_safe. iPureIntro. exists (Ptrofs.of_int64 i).
@@ -131,7 +97,7 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
     unfold Vptrofs in *. des_ifs_safe. unfold Ptrofs.to_int64.
     do 2 autorewrite with ptrArith; auto with ptrArith. nia.
   Qed. *)
-  Admitted.
+  Admitted. *)
 
 
 
@@ -241,8 +207,8 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
 
   Admitted. *)
 
-  Require Import ClightDmExprgen.
-  From compcertip Require Import Clight.
+  (* Require Import ClightDmExprgen.
+  From compcertip Require Import Clight. *)
 
   (* Lemma unfold_expr sk ce' e le expr :
     (eval_expr_c sk ce' e le expr : itree Es val)
@@ -392,79 +358,7 @@ Hint Resolve Ptrofs.unsigned_range_2 : ptrArith.
       end.
   Proof. ss. Qed. *)
 
-Ltac init_hide :=
-    repeat (match goal with
-    | [ |- context[@hide ?A ?a]] =>
-        let H := fresh "HIDDEN" in set (H := @hide A a) at 1
-    end).
-
-Ltac unhide H :=
-    unfold H in *;
-    unfold hide at 1;
-    init_hide;
-    clear H.
-
-Tactic Notation "unhide" constr(H) :=
-  unhide H.
-
-Tactic Notation "unhide" :=
-    repeat match goal with | |- context[ITree.bind (?H _ _) _] =>
-    unhide H end.
-
-  Ltac remove_tau :=
-    repeat (ss; hred_r; iApply isim_tau_tgt; ss; hred_r).
-
-  Lemma unfold_build_composite_env: forall x,
-  build_composite_env x =
-  add_composite_definitions (Maps.PTree.empty composite) x.
-Proof.
-  reflexivity.
-Qed.
-    Ltac alist_composites ce cel :=
-    match cel with
-    | (?name, Build_composite ?su ?mem ?attr ?size ?align ?rank _ _ _) :: ?tl =>
-    pose (s_size := size);
-    vm_compute in s_size;
-    let s_align := fresh in
-    pose (s_align := align);
-    vm_compute in s_align;
-    let Hco := fresh in
-    (assert (Hco: exists co, alist_find name ce = Some co /\
-    co_su co = su /\ co_members co = mem /\ co_attr co = attr /\
-    co_sizeof co = s_size /\ co_alignof co = s_align /\ co_rank co = rank)
-    by now subst ce; ss; eexists; repeat (split; try reflexivity));
-    let co := fresh "co" in
-    let get_co := fresh "get_co" in
-    let co_co_su := fresh "co_co_su" in
-    let co_co_members := fresh "co_co_members" in
-    let co_co_attr := fresh "co_co_attr" in
-    let co_co_sizeof := fresh "co_co_sizeof" in
-    let co_co_alignof := fresh "co_co_alignof" in
-    let co_co_rank := fresh "co_co_rank" in
-    destruct Hco as [co [get_co
-      [co_co_su [co_co_members [co_co_attr [co_co_sizeof
-      [co_co_alignof co_co_rank]]]]]]];
-    unfold s_size in co_co_sizeof;
-    unfold s_align in co_co_alignof;
-    clear s_size;
-    clear s_align;
-    match tl with
-    | [] => idtac
-    | _ => alist_composites ce tl
-    end
-    end.
-
-    Ltac get_composite ce e :=
-    let comp_env := fresh in
-    pose (comp_env := unfold_build_composite_env composites);
-    rewrite e in comp_env; ss;
-    let comp_env' := fresh in
-    inversion comp_env as [comp_env']; clarify;
-    ss; clear e; clear comp_env;
-    match goal with
-    | ce := ?cel |- _ => alist_composites ce cel
-    end; clearbody ce.
-
+  Require Import ClightDmExprgen.
   (* need to repaired *)
   Lemma sk_incl_gd (sk0 sk1: Sk.t) gn blk gd: 
     Sk.extends sk0 sk1 ->
@@ -507,7 +401,7 @@ Qed.
     { instantiate (2:="malloc"). ss. }
     i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
     replace (pred _) with blk by nia.
-    erewrite sk_incl_gd; et. hred_r. 
+    erewrite sk_incl_gd; et. hred_r.
     iApply isim_ccallU_malloc.
     1,2,3:admit "".
     iExists xH, Ptrofs.zero.
