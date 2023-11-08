@@ -685,7 +685,7 @@ Proof.
   { gstep. eapply sim_progress; eauto. gbase. auto. }
 Qed.
 
-
+Context `{Sk.ld}.
 Variable md_src md_tgt: ModL.t.
 Let ms_src: ModSemL.t := md_src.(ModL.enclose).
 Let ms_tgt: ModSemL.t := md_tgt.(ModL.enclose).

@@ -49,7 +49,7 @@ Section PROP.
                 ** b_next ↱1# (8, Dynamic, Some i_hd_prev)
                 ** hd_next ⊸ (b_next, ofs_next)
                 ** b_next ↱1# (8, Dynamic, Some i_hd_next)
-                ** hd |-1#> (encode_val Mint64 item
+                ** hd ⊢1#> (encode_val Mint64 item
                             ++ encode_val Mptr (Vptrofs (Ptrofs.repr (Z.lxor i_hd_prev i_hd_next))))
                 ** _is_xorlist hd hd_next tl t
     end%I.
@@ -110,13 +110,14 @@ Section SPEC.
         (ord_pure 2%nat),
         (fun varg => ∃ hd_old tl_old,
                      ⌜varg = [hd_handler; tl_handler; item; at_tail]↑⌝
-                     ** hd_handler |-1#> encode_val Mptr hd_old
-                     ** tl_handler |-1#> encode_val Mptr tl_old
+                     (* item should be vlong *)
+                     ** hd_handler ⊢1#> encode_val Mptr hd_old
+                     ** tl_handler ⊢1#> encode_val Mptr tl_old
                      ** is_xorlist hd_old tl_old xs),
         (fun vret => ∃ hd_new tl_new,
                      ⌜vret = Vundef↑⌝
-                     ** hd_handler |-1#> encode_val Mptr hd_new
-                     ** tl_handler |-1#> encode_val Mptr tl_new
+                     ** hd_handler ⊢1#> encode_val Mptr hd_new
+                     ** tl_handler ⊢1#> encode_val Mptr tl_new
                      ** is_xorlist hd_new tl_new (vlist_add item xs at_tail))
     )))%I.
 
@@ -133,13 +134,13 @@ Section SPEC.
       (fun '(hd_handler, tl_handler, from_tail, xs) => (
         (ord_pure 2%nat),
         (fun varg => ∃ hd_old tl_old, ⌜varg = [hd_handler; tl_handler; from_tail]↑⌝
-                     ** hd_handler |-1#> encode_val Mptr hd_old
-                     ** tl_handler |-1#> encode_val Mptr tl_old
+                     ** hd_handler ⊢1#> encode_val Mptr hd_old
+                     ** tl_handler ⊢1#> encode_val Mptr tl_old
                      ** is_xorlist hd_old tl_old xs),
         (fun vret => let '(item, xs') := vlist_delete xs from_tail (Vlong Int64.zero) in
                      ∃ hd_new tl_new, ⌜vret = item↑⌝
-                     ** hd_handler |-1#> encode_val Mptr hd_new
-                     ** tl_handler |-1#> encode_val Mptr tl_new
+                     ** hd_handler ⊢1#> encode_val Mptr hd_new
+                     ** tl_handler ⊢1#> encode_val Mptr tl_new
                      ** is_xorlist hd_new tl_new xs')
     )))%I.
 
@@ -153,14 +154,14 @@ Section SPEC.
         (ord_pure 2%nat),
         (fun varg => ∃ hd tl,
                      ⌜varg = [hd_handler; tl_handler; from_tail; index]↑⌝
-                     ** hd_handler |-1#> encode_val Mptr hd
-                     ** tl_handler |-1#> encode_val Mptr tl
+                     ** hd_handler ⊢1#> encode_val Mptr hd
+                     ** tl_handler ⊢1#> encode_val Mptr tl
                      ** is_xorlist hd tl xs),
         (fun vret => let item := vnth index xs from_tail (Vlong Int64.zero) in
                      ∃ hd tl node link b ofs q opti, ⌜vret = node↑ /\ (q < 1)%Qp⌝
-                     ** hd_handler |-1#> encode_val Mptr hd
-                     ** tl_handler |-1#> encode_val Mptr tl
-                     ** node |-q#> ((encode_val Mint64 item) ++ (encode_val Mptr link))
+                     ** hd_handler ⊢1#> encode_val Mptr hd
+                     ** tl_handler ⊢1#> encode_val Mptr tl
+                     ** node ⊢q#> ((encode_val Mint64 item) ++ (encode_val Mptr link))
                      ** node ⊸ (b, ofs)
                      ** b ↱q# (8, Dynamic, opti)
                      ** is_xorlist hd tl xs)

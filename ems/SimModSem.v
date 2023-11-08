@@ -973,13 +973,14 @@ End ModSemPair.
 
 Module ModPair.
 Section SIMMOD.
+   Context `{Sk.ld}.
    Variable (md_src md_tgt: Mod.t).
    Inductive sim: Prop := mk {
      sim_modsem:
        forall sk
-              (SKINCL: Sk.incl md_tgt.(Mod.sk) sk)
-              (SKWF: Sk.wf sk),
-         <<SIM: ModSemPair.sim (md_src.(Mod.get_modsem) sk) (md_tgt.(Mod.get_modsem) sk)>>;
+              (SKINCL: Sk.extends md_tgt.(Mod.sk) sk)
+              (SKWF: Sk.wf (Sk.canon sk)),
+         <<SIM: ModSemPair.sim (md_src.(Mod.get_modsem) (Sk.canon sk)) (md_tgt.(Mod.get_modsem) (Sk.canon sk))>>;
      sim_sk: <<SIM: md_src.(Mod.sk) = md_tgt.(Mod.sk)>>;
    }.
 
@@ -992,6 +993,7 @@ End ModPair.
 Section SIMMOD.
 
   Context {CONF: EMSConfig}.
+  Context `{Sk.ld}.
 
   Lemma ModL_add_fnsems md0 md1 sk
     :
@@ -1003,7 +1005,7 @@ Section SIMMOD.
 
   Lemma ModL_add_sk md0 md1
     :
-      ModL.sk (ModL.add md0 md1) = ModL.sk md0 ++ ModL.sk md1.
+      ModL.sk (ModL.add md0 md1) = Sk.add (ModL.sk md0) (ModL.sk md1).
   Proof.
     ss.
   Qed.
@@ -1011,12 +1013,14 @@ Section SIMMOD.
   Lemma Mod_list_incl_sk (mds: list Mod.t) md
         (IN: In md mds)
     :
-      Sk.incl (Mod.sk md) (ModL.sk (Mod.add_list mds)).
+      Sk.extends (Mod.sk md) (ModL.sk (Mod.add_list mds)).
   Proof.
     rewrite Mod.add_list_sk. revert IN. induction mds; ss.
     i. des; clarify.
-    { ii. eapply in_or_app. auto. }
-    { ii. eapply in_or_app. right. eapply IHmds; et. }
+    { unfold Sk.extends. et. }
+    { hexploit IHmds; et. unfold Sk.extends. i. des.
+      exists (Sk.add (Mod.sk a) ctx). rewrite Sk.add_comm.
+      rewrite <- Sk.add_assoc. apply Sk.add_canon; et. rewrite Sk.add_comm. et. }
   Qed.
 
   Lemma Mod_add_list_get_modsem (mds: list Mod.t) sk
@@ -1268,6 +1272,8 @@ Section ADEQUACY.
     Qed.
   End SEMPAIR.
 
+  Context `{X: Sk.ld}.
+
   Theorem adequacy_local_strong md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
     :
@@ -1286,11 +1292,10 @@ Section ADEQUACY.
     rename SK into SKWF.
     rename wf_fnsems into FNWF.
     rename wf_initial_mrs into MNWF.
-    inv SIM. hexploit (sim_modsem (Sk.canon sk_tgt)).
-    { etrans; [|eapply Sk.sort_incl]. ss. ii. eapply in_or_app. auto. }
-    { ss. fold sk_src in SKWF. rewrite SKEQ. clear - SKWF.
-      unfold Sk.wf in *. ss. eapply Permutation.Permutation_NoDup; [|et].
-      eapply Permutation.Permutation_map. eapply Sk.SkSort.sort_permutation. }
+    inv SIM. hexploit (sim_modsem sk_tgt).
+    { unfold sk_tgt. unfold Sk.extends. ss.
+      eexists. apply Sk.add_comm. }
+    { unfold sk_tgt. simpl. rewrite <- sim_sk. et. }
     i. inv H. des.
     assert (WFTGT: ModL.wf (ModL.add (Mod.add_list ctx) md_tgt)).
     { rr. unfold ModL.enclose. fold sk_src sk_tgt.
@@ -1319,7 +1324,7 @@ Section ADEQUACY.
         eapply in_flat_map in Heq. des.
         eapply in_map_iff in Heq0. des. destruct x1. ss. clarify.
         right. left. esplits; ss; et.
-        instantiate (1:=ModSem.mn (Mod.get_modsem md_src (Sk.sort sk_tgt))).
+        instantiate (1:=ModSem.mn (Mod.get_modsem md_src (Sk.canon sk_tgt))).
         ii. eapply NoDup_app_disjoint.
         { rewrite List.map_app in MNWF. eapply MNWF. }
         { rewrite Mod.add_list_initial_mrs.
@@ -1383,11 +1388,28 @@ Section ADEQUACY.
     { ii. auto. }
     rewrite ! Mod.add_list_cons.
     etrans.
-    { rewrite <- Mod.add_list_single. eapply refines_strong_proper_r.
-      rewrite ! Mod.add_list_single. eapply adequacy_local_strong; et. }
-    replace (Mod.lift x) with (Mod.add_list [x]); cycle 1.
-    { cbn. rewrite ModL.add_empty_r. refl. }
-    eapply refines_strong_proper_l; et.
+    { red. i. red. i.
+      assert (PR': Beh.of_program (ModL.compile (ModL.add (Mod.add_list ctx) (ModL.add (Mod.add_list [y]) (Mod.add_list l')))) x0).
+      { apply ModL.add_comm. rewrite <- ModL.add_assoc. 
+        apply ModL.add_comm. unfold Mod.add_list at 3. ss.
+        rewrite ModL.add_empty_r_ctxl. apply ModL.add_comm.
+        rewrite ModL.add_assoc. apply ModL.add_comm. et. }
+      clear PR.
+      revert CONF0 ctx x0 PR'.
+      eapply refines_strong_proper_r.
+      apply adequacy_local_strong in H. red in H.
+      instantiate (1:=[x]).
+      red in H. red. unfold refines in *. i. 
+      unfold Mod.add_list at 2. unfold Mod.add_list in PR at 2. ss.
+      rewrite ModL.add_empty_r_ctxl.
+      rewrite ModL.add_empty_r_ctxl in PR. 
+      apply H. apply PR. }
+    eapply refines_strong_proper_l with (ctx := [x]) in IHFORALL.
+    red in IHFORALL. red in IHFORALL. red. red. i.
+    apply ModL.add_comm. rewrite <- ModL.add_assoc.
+    apply ModL.add_comm. rewrite <- ModL.add_empty_r_ctxl.
+    apply ModL.add_comm. rewrite ModL.add_assoc.
+    apply ModL.add_comm. apply IHFORALL. apply PR.
   Qed.
 
   Theorem adequacy_local2 md_src md_tgt
