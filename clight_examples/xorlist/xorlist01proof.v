@@ -18,34 +18,24 @@ Require Import xorlist0.
 Require Import xorlist1.
 Require Import CTactics.
 Require Import PtrofsArith.
-(* Require Import ClightProofs.
-Require Import csyntax.
-Require Import ClightPreambles. *)
-
 From Coq Require Import Program.
 From compcertip Require Import Clightdefs.
 
 
-Section LEMMA.
+(* Section LEMMA.
 
   Lemma f_bind_ret_r E R A (s : A -> itree E R)
     : (fun a => ` x : R <- (s a);; Ret x) = s.
   Proof. apply func_ext. i. apply bind_ret_r. Qed.
 
-End LEMMA.
+End LEMMA. *)
 
 Section PROOF.
 
-  (* Import CTypeNotation CExpNotation CStmtNotation.
-  Local Open Scope cexp_scope.
-  Local Open Scope cstmt_scope.
-  Local Open Scope ctypes_scope. *)
-  
-  (* Context `{CONF: EMSConfig}. *)
-  Context `{@GRA.inG memcntRA Σ}.
-  Context `{@GRA.inG memphyRA Σ}.
-  Context `{@GRA.inG memhdRA Σ}.
-  Context `{@GRA.inG memidRA Σ}.
+  Context `{@GRA.inG pointstoRA Σ}.
+  Context `{@GRA.inG allocatedRA Σ}.
+  Context `{@GRA.inG blocksizeRA Σ}.
+  Context `{@GRA.inG blockaddressRA Σ}.
   
   Variable GlobalStb : Sk.sem -> gname -> option fspec.
   Hypothesis STBINCL : forall sk, stb_incl (to_stb xorStb) (GlobalStb sk).
@@ -62,24 +52,18 @@ Section PROOF.
       unit
       (fun _ st_src st_tgt => ⌜True⌝)%I.
   
-  Arguments alist_add /.
 
   Let ce := map (fun '(id, p) => (string_of_ident id, p)) (Maps.PTree.elements (prog_comp_env prog)).
 
-
+  Arguments alist_add /.
+  Arguments ClightDmgen._sassign_c /.
+  Arguments ClightDmgen._scall_c /.
+  Arguments ClightDmgen._site_c /.
   Arguments ClightDmExprgen.sem_xor_c /.
   Arguments ClightDmExprgen.sem_binarith_c /.
   Arguments ClightDmExprgen.sem_cast_c /.
 
-
-  (* Lemma val_multimap v b ofs : (v ⊸ (b, ofs)) -∗ ⌜exists i, v = Vptrofs i \/ exists b ofs, v = Vptr b ofs⌝.
-  Proof.
-    iIntros "A". destruct v; ss; des_ifs_safe.
-    - unfold Vptrofs. des_ifs_safe. iPureIntro. exists (Ptrofs.of_int64 i).
-      rewrite Ptrofs.to_int64_of_int64; et.
-    - iDestruct "A" as "[% %]". iPureIntro. des. clarify. et.
-    Unshelve. et. 
-  Qed.
+  (* 
 
   Lemma val_exists i b ofs q0 z t a : Vptrofs i ⊸ (b, ofs) ** b ↱q0# (z, t, a) 
     -∗ b ↱q0# (z, t, Some (Ptrofs.unsigned i)).
@@ -98,267 +82,208 @@ Section PROOF.
     do 2 autorewrite with ptrArith; auto with ptrArith. nia.
   Qed. *)
   Admitted. *)
+  Definition cast_to_ptr (v: val) : itree Es val :=
+    match v with
+    | Vptr _ _ => Ret v
+    | Vint _ => if Archi.ptr64 then triggerUB else Ret v
+    | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
+    | _ => triggerUB
+    end.
 
+  Lemma liveness_ptr v m ofs
+    : 
+      v ⊨m# ofs -∗ ⌜cast_to_ptr v = Ret v⌝.
+  Proof.
+    iIntros "A". unfold has_offset.
+    destruct v; ss; des_ifs_safe;
+    iDestruct "A" as "[A %]"; clarify.
+  Qed.
 
+  Lemma points_to_is_ptr v m q mvs
+    : 
+      v ↦m#q≻ mvs -∗ ⌜is_ptr_val v = true⌝.
+  Proof.
+    iIntros "A". unfold points_to, has_offset.
+    destruct v; ss; des_ifs_safe;
+    iDestruct "A" as "[A B]"; clarify;
+    iDestruct "B" as (ofs) "[B [C %]]"; clarify.
+  Qed.
 
+  Opaque captured_to.
+  Opaque has_offset.
+  Opaque points_to.
+  Opaque metadata_alive.
+  Opaque ccallU.
+  Opaque get_sk.
+  Opaque build_composite_env.
 
-
-  (* Lemma sim_encrypt (sk: Sk.t) :
+  Lemma sim_encrypt :
     sim_fnsem wf top2
       ("encrypt", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure encrypt_spec))
       ("encrypt", cfunU (decomp_func (Sk.canon sk) ce f_encrypt)).
   Proof.
-    (* Opaque repr_to.
-    Opaque allocated_with.
-    Opaque points_to.
-    Opaque ccallU.
-    econs; ss. red.
+    (* econs; ss. red.
+
+    unfold prog in ce. unfold mkprogram in ce.
+    destruct (build_composite_env').
+    get_composite ce e.
+
     apply isim_fun_to_tgt; auto. i; ss.
     unfold decomp_func, function_entry_c. ss.
-    iIntros "[INV PRE]". des_ifs_safe. ss.
-    iDestruct "PRE" as "[PRE %]".
-    iDestruct "PRE" as (opt1 opt2) "[[[[% PTR1] ARG1] PTR2] ARG2]".
-    ss. clarify. hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-    ss. hred_r. des_ifs_safe.
-    iApply isim_apc. iExists (Some (2%nat : Ord.t)).
-    iPoseProof (val_multimap with "PTR1") as "%".
-    iPoseProof (val_multimap with "PTR2") as "%".
-    des.
-    - des_ifs. hred_r. rewrite <- Heq.
-      iApply isim_ccallU_capture1; ss; oauto.
-      iSplitL "INV"; iFrame.
-      iIntros (st_src0 st_tgt0) "INV".
-      hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-      hred_r. iApply isim_tau_tgt. ss. hred_r.
-      des_ifs. hred_r. rewrite <- Heq2.
+    init_hide.
+
+    iIntros "[INV PRE]".
+    destruct x as [?|[?|?]]; ss.
+    - unfold encrypt_hoare1 in *. des_ifs. ss.
+      iDestruct "PRE" as "[[[% ALIVE0] ALIVE1] %]".
+      clarify. hred_r. unhide. remove_tau. unhide. remove_tau. 
+      iPoseProof (liveness_ptr with "ALIVE0") as "%".
+      unfold cast_to_ptr in H3. rewrite H3. hred_r.
+
+      iApply isim_apc. iExists (Some (2%nat : Ord.t)).
+      iApply isim_ccallU_capture2; ss; oauto.
+      iSplitL "INV ALIVE0"; iFrame.
+      iIntros (st_src0 st_tgt0 i) "[INV [ALIVE0 CAP0]]".
+
+      hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau.
+      iPoseProof (liveness_ptr with "ALIVE1") as "%".
+      unfold cast_to_ptr in H4. rewrite H4. hred_r.
+
+      iApply isim_ccallU_capture2; ss; oauto.
+      iSplitL "INV ALIVE1"; iFrame.
+      iIntros (st_src1 st_tgt1 i0) "[INV [ALIVE1 CAP1]]".
+
+      hred_r. remove_tau. unhide. remove_tau. des_ifs_safe.
+      hred_r. hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. iSplits; ss.
+      iFrame. iPureIntro. f_equal.
+      autounfold with ptrArith in *. des_ifs_safe. f_equal.
+      autorewrite with ptrArith; auto with ptrArith.
+      apply lxor_size; auto with ptrArith.
+
+    - unfold encrypt_hoare2 in *. des_ifs. ss.
+      iDestruct "PRE" as "[[% ALIVE] %]".
+      clarify. hred_r. unhide. remove_tau. unhide. remove_tau. 
+      iPoseProof (liveness_ptr with "ALIVE") as "%".
+      unfold cast_to_ptr in H3. rewrite H3. hred_r.
+
+      iApply isim_apc. iExists (Some (2%nat : Ord.t)).
+      iApply isim_ccallU_capture2; ss; oauto.
+      iSplitL "INV ALIVE"; iFrame.
+      iIntros (st_src0 st_tgt0 i) "[INV [ALIVE CAP]]".
+
+      hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau.
+      des_ifs_safe. hred_r. rewrite <- Heq.
+
       iApply isim_ccallU_capture1; ss; oauto.
       iSplitL "INV"; iFrame.
       iIntros (st_src1 st_tgt1) "INV".
-      hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-      ss. hred_r.
-      des_ifs_safe. hred_r. hred_l. iApply isim_choose_src. iExists _.
-      iApply isim_ret. iSplits; ss.
-      admit.
-      (* iSplitR "ARG2 PTR2". 
-      iSplitR "ARG1 PTR1".
-      { iPureIntro. f_equal.
-        instantiate (1:=Ptrofs.unsigned i0).
-        instantiate (1:=Ptrofs.unsigned i).
-        autounfold with ptrArith in *. des_ifs_safe. f_equal.
-        autorewrite with ptrArith.
-        4:{ autorewrite with asdf; ss. auto with asdf. }
-        3:{ autorewrite with asdf; ss. auto with asdf. }
-        2:{ apply lxor_size; auto with asdf. }
-        { f_equal. apply Z.lxor_comm. } }
-      { admit. }
-      { admit. } *)
-    - des_ifs_safe. hred_r. iApply isim_ccallU_capture2; ss; oauto.
-      iSplitL "INV ARG1 PTR1". { admit. }
-      iIntros (st_src0 st_tgt0 ret) "[INV POST]".
-      iDestruct "POST" as (i1) "[% POST]".
-      clarify. hred_r. iApply isim_tau_tgt.
-      hred_r. iApply isim_tau_tgt. hred_r.
-      iApply isim_tau_tgt. ss. hred_r. des_ifs_safe.
-      hred_r. rewrite <- Heq. iApply isim_ccallU_capture1; ss; oauto.
-      iSplitL "INV"; ss. iIntros (st_src1 st_tgt1) "INV".
-      hred_r. iApply isim_tau_tgt. hred_r.
-      iApply isim_tau_tgt. ss. hred_r. des_ifs_safe.
+
+      hred_r. remove_tau. unhide. remove_tau. des_ifs_safe.
       hred_r. hred_l. iApply isim_choose_src. iExists _.
       iApply isim_ret. iSplits; ss.
-      admit.
-    - des_ifs_safe. hred_r. rewrite <- Heq. iApply isim_ccallU_capture1; ss; oauto.
-      iSplitL "INV"; ss. iIntros (st_src1 st_tgt1) "INV".
-      hred_r. iApply isim_tau_tgt. hred_r.
-      iApply isim_tau_tgt. ss. hred_r. iApply isim_tau_tgt.
-      hred_r. des_ifs_safe. hred_r.
+      iFrame. iPureIntro. f_equal. unfold Vnullptr in Heq1.
+      autounfold with ptrArith in *. des_ifs_safe. f_equal.
+      autorewrite with ptrArith; auto with ptrArith.
+      unfold Int64.zero.
+      rewrite Int64.unsigned_repr.
+      2:{ set Int64.max_unsigned. vm_compute in z0. nia. }
+      rewrite Z.lxor_0_r. et.
+
+    - unfold encrypt_hoare3 in *. des_ifs. ss.
+      iDestruct "PRE" as "[[% ALIVE] %]".
+      clarify. hred_r. unhide. remove_tau. unhide. remove_tau. 
+      des_ifs. hred_r. rewrite <- Heq.
+
+      iApply isim_apc. iExists (Some (2%nat : Ord.t)).
+      iApply isim_ccallU_capture1; ss; oauto.
+      iSplitL "INV"; iFrame.
+      iIntros (st_src1 st_tgt1) "INV".
+
+      hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau.
+      iPoseProof (liveness_ptr with "ALIVE") as "%".
+      unfold cast_to_ptr in H3. des_ifs_safe. rewrite H3. hred_r.
+
       iApply isim_ccallU_capture2; ss; oauto.
-      iSplitL "INV ARG1 PTR1". { admit. }
-      iIntros (st_src0 st_tgt0 ret) "[INV POST]".
-      iDestruct "POST" as (i2) "[% POST]".
-      clarify. hred_r. iApply isim_tau_tgt.
-      hred_r. iApply isim_tau_tgt. ss. hred_r.
-      des_ifs_safe. hred_r.
-      hred_l. iApply isim_choose_src. iExists _.
+      iSplitL "INV ALIVE"; iFrame.
+      iIntros (st_src0 st_tgt0 i0) "[INV [ALIVE CAP]]".
+
+      hred_r. remove_tau. unhide. remove_tau. des_ifs_safe.
+      hred_r. hred_l. iApply isim_choose_src. iExists _.
       iApply isim_ret. iSplits; ss.
-      admit.
-    - des_ifs_safe. hred_r. iApply isim_ccallU_capture2; ss; oauto.
-      iSplitL "INV PTR1 ARG1". { admit. }
-      iIntros (st_src0 st_tgt0 ret) "[INV POST]".
-      iDestruct "POST" as (i1) "[% LIV]".
-      hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-      hred_r. iApply isim_tau_tgt. ss. hred_r.
-      iApply isim_ccallU_capture2; ss; oauto.
-      iSplitL "INV PTR2 ARG2". { admit. }
-      iIntros (st_src1 st_tgt1 ret0) "[INV POST]".
-      iDestruct "POST" as (i2) "[% LIV1]".
-      hred_r. iApply isim_tau_tgt. hred_r. iApply isim_tau_tgt.
-      hred_r. ss. hred_r. des_ifs_safe. hred_r.
-      hred_l. iApply isim_choose_src. iExists _.
-      iApply isim_ret. iSplits; ss.
-      admit.
-    Unshelve. all: et.  *)
+      iFrame. iPureIntro. f_equal. unfold Vnullptr in Heq2.
+      autounfold with ptrArith in *. des_ifs_safe.
+  Qed. *)
   Admitted.
 
-  Lemma sim_decrypt (sk: Sk.t) :
+
+  Lemma sim_decrypt :
     sim_fnsem wf top2
-      ("decrypt", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure decrypt_spec))
-      ("decrypt", cfunU (decomp_func sk ce f_decrypt)).
+      ("decrypt", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure decrypt_spec))
+      ("decrypt", cfunU (decomp_func (Sk.canon sk) ce f_decrypt)).
   Proof.
+    (* econs; ss. red.
 
-  Admitted. *)
+    unfold prog in ce. unfold mkprogram in ce.
+    destruct (build_composite_env').
+    get_composite ce e.
 
-  (* Require Import ClightDmExprgen.
-  From compcertip Require Import Clight. *)
+    apply isim_fun_to_tgt; auto. i; ss.
+    unfold decomp_func, function_entry_c. ss.
+    init_hide.
 
-  (* Lemma unfold_expr sk ce' e le expr :
-    (eval_expr_c sk ce' e le expr : itree Es val)
-    =
-    match expr with
-    | Econst_int i ty => Ret (Vint i)
-    | Econst_float f ty => Ret (Vfloat f)
-    | Econst_single f ty => Ret (Vsingle f)
-    | Econst_long i ty => Ret (Vlong i)
-    | Etempvar id ty => (alist_find (string_of_ident id) le)?
-    | Eaddrof a ty =>
-      _eval_lvalue_c sk ce' e (eval_expr_c sk ce' e le) a
-    | Eunop op a ty =>
-      v <- eval_expr_c sk ce' e le a;;
-      unary_op_c op v (Clight.typeof a)
-    | Ebinop op a1 a2 ty =>
-      v1 <- eval_expr_c sk ce' e le a1;;
-      v2 <- eval_expr_c sk ce' e le a2;;
-      binary_op_c ce' op
-        v1 (Clight.typeof a1)
-        v2 (Clight.typeof a2)
-    | Ecast a ty =>
-      v <- eval_expr_c sk ce' e le a;;
-      sem_cast_c v (Clight.typeof a) ty
-    | Esizeof ty1 ty =>
-      Ret (Vptrofs (Ptrofs.repr (sizeof ce' ty1)))
-    | Ealignof ty1 ty =>
-      Ret (Vptrofs (Ptrofs.repr (alignof ce' ty1)))
-    | a =>
-      vp <- _eval_lvalue_c sk ce' e (eval_expr_c sk ce' e le) a;;
-      v <- deref_loc_c (Clight.typeof a) vp;; Ret v
-    end.
-  Proof. des_ifs. Qed. *)
+    iIntros "[INV PRE]".
+    destruct x as [?|?]; ss.
+    - unfold decrypt_hoare1 in *. des_ifs_safe. ss.
+      iDestruct "PRE" as "[PRE %]".
+      iDestruct "PRE" as (key) "[% ALIVE]". des. clarify.
+      hred_r. unhide. remove_tau. unhide. remove_tau.
+      iPoseProof (liveness_ptr with "ALIVE") as "%".
+      unfold cast_to_ptr in H3. rewrite H3. hred_r.
 
-  Lemma isim_ccallU_malloc
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: list val) itr_src (ktr_tgt: val -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (∃ b ofs, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vptr b ofs)))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "malloc" arg >>= ktr_tgt)).
-  Proof. Admitted.
+      iApply isim_apc. iExists (Some (1%nat : Ord.t)).
+      iApply isim_ccallU_capture2; ss; oauto.
+      iSplitL "INV ALIVE"; iFrame.
+      iIntros (st_src0 st_tgt0 i0) "[INV [ALIVE CAP]]".
 
-  Lemma isim_ccallU_load2
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: memory_chunk * val) itr_src (ktr_tgt: val -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (∃ b ofs, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vptr b ofs)))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "load" arg >>= ktr_tgt)).
-  Proof. Admitted.
+      hred_r. remove_tau. unhide. remove_tau. des_ifs_safe.
+      hred_r. hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret.
+      iFrame. iSplit; ss. iExists _. iFrame.
+      iPureIntro. f_equal.
+      autounfold with ptrArith in *. des_ifs_safe.
+      f_equal. unfold Ptrofs.xor.
+      autorewrite with ptrArith; auto with ptrArith.
+      apply lxor_size; auto with ptrArith.
 
-  Lemma isim_ccallU_store2
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: memory_chunk * val * val) itr_src (ktr_tgt: unit -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt tt))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "store" arg >>= ktr_tgt)).
-  Proof. Admitted.
+    - iDestruct "PRE" as "[PRE %]".
+      iDestruct "PRE" as (key) "%". des. clarify.
+      hred_r. unhide. remove_tau. unhide. remove_tau.
+      des_ifs. hred_r. rewrite <- Heq.
 
-  Lemma isim_ccallU_cmp_ptr
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: comparison * val * val) itr_src (ktr_tgt: bool -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (∀ b, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt b))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" arg >>= ktr_tgt)).
-  Proof. Admitted.
+      iApply isim_apc. iExists (Some (1%nat : Ord.t)).
+      iApply isim_ccallU_capture1; ss; oauto.
+      iSplitL "INV"; iFrame.
+      iIntros (st_src0 st_tgt0) "INV".
 
-  Lemma isim_ccallU_encrypt
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: list val) itr_src (ktr_tgt: val -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (∀ i, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vlong i)))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "encrypt" arg >>= ktr_tgt)).
-  Proof. Admitted.
-
-  Lemma isim_ccallU_decrypt
-        o stb fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        I r g f_src f_tgt st_src st_tgt
-        (arg: list val) itr_src (ktr_tgt: val -> _)
-        fuel0
-        (STBINCL': stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0)
-    :
-      bi_entails
-        (∀ i, isim (world:=unit) top2 I "xorlist" stb o (g, g, true, true) Q None (st_src, itr_src) (st_tgt, ktr_tgt (Vlong i)))
-        (isim (world:=unit) top2 I "xorlist" stb o (r, g, f_src, f_tgt) Q None (st_src, itr_src) (st_tgt, ccallU "decrypt" arg >>= ktr_tgt)).
-  Proof. Admitted.
-
-  (* Lemma decomp_se sk ce' retty s1 s2 e le
-  :
-    (decomp_stmt sk ce' retty (Clight.Ssequence s1 s2) e le : itree Es runtime_env)
-    = '(e', le', bc, v) <- (tau;; decomp_stmt sk ce' retty s1 e le);;
-      match v with
-      | Some retval =>
-        Ret (e', le', None, v)
-      | None =>
-        match bc with
-        | None =>
-          tau;; decomp_stmt sk ce' retty s2 e' le'
-        | Some true =>
-          tau;; Ret (e', le', bc, None)
-        | Some false =>
-          tau;; Ret (e', le', bc, None)
-        end
-      end.
-  Proof. ss. Qed. *)
+      hred_r. remove_tau. unhide. remove_tau.
+      des_ifs_safe. hred_r.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret.
+      iFrame. iSplit; ss.
+      iPureIntro. f_equal.
+      autounfold with ptrArith in *. des_ifs_safe.
+      f_equal. unfold Vnullptr in *. unfold Ptrofs.xor.
+      des_ifs_safe.
+      autorewrite with ptrArith; auto with ptrArith.
+      unfold Int64.zero. autorewrite with ptrArith.
+      2:{ set Int64.max_unsigned. vm_compute in z. nia. }
+      rewrite Z.lxor_0_r. et.
+  Qed. *)
+  Admitted.
 
   Require Import ClightDmExprgen.
+
   (* need to repaired *)
   Lemma sk_incl_gd (sk0 sk1: Sk.t) gn blk gd: 
     Sk.extends sk0 sk1 ->
@@ -368,51 +293,159 @@ Section PROOF.
   Proof.
   Admitted.
 
-  Lemma sim_insert :
+
+  Lemma sim_add :
     sim_fnsem wf top2
       ("add", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure add_spec))
       ("add", cfunU (decomp_func (Sk.canon sk) ce f_add)).
   Proof.
-    Opaque repr_to.
-    Opaque allocated_with.
-    Opaque points_to.
-    Opaque get_sk.
-    Opaque ccallU.
-    Opaque build_composite_env.
     econs; ss. red.
 
     unfold prog in ce. unfold mkprogram in ce.
     destruct (build_composite_env').
     get_composite ce e.
+
     apply isim_fun_to_tgt; auto. i; ss.
     unfold decomp_func, function_entry_c. ss.
     init_hide.
 
-    iIntros "[INV PRE]". des_ifs_safe.
+    iIntros "[INV PRE]". des_ifs_safe. ss.
     iDestruct "PRE" as "[PRE %]".
-    iDestruct "PRE" as (hd_old tl_old) "[[[% HD] TL] XOR]".
-    ss. clarify. ss. hred_r.
-    unhide HIDDEN. unhide HIDDEN1. unhide HIDDEN2.
-    remove_tau.
+    iDestruct "PRE" as (hd_old tl_old) "[[[% HD] TL] LIST]".
+    ss. clarify. ss. hred_r. unhide. remove_tau. unhide.
+    remove_tau. unhide.
+
+    des_ifs_safe. remove_tau.
+
     dup SKINCL. rename SKINCL0 into SKINCLENV.
     apply Sk.incl_incl_env in SKINCLENV.
     unfold Sk.incl_env in SKINCLENV.
     hexploit SKINCLENV.
     { instantiate (2:="malloc"). ss. }
     i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
+
+    des_ifs. hred_r.
     replace (pred _) with blk by nia.
     erewrite sk_incl_gd; et. hred_r.
-    iApply isim_ccallU_malloc.
-    1,2,3:admit "".
-    iExists xH, Ptrofs.zero.
+    rewrite <- Heq3.
+    iApply isim_apc. iExists (Some (10%nat : Ord.t)).
+    iApply isim_ccallU_malloc; ss; oauto.
+    iSplitL "INV"; iFrame.
+    { rewrite co_co_sizeof. ss. }
+    iIntros (st_src0 st_tgt0 vaddr m1) "[INV [[% PTO] ALIVE]]".
+    rewrite co_co_sizeof in *.
+    autorewrite with ptrArith in *.
+    2,3: set Ptrofs.max_unsigned; vm_compute in z; nia.
+
+    hred_r. remove_tau. unhide. remove_tau.
+    iPoseProof (liveness_ptr with "ALIVE") as "%".
+    unfold cast_to_ptr in H4. des_ifs_safe.
+    rewrite H4. hred_r. remove_tau. unhide.
+    remove_tau. unhide. remove_tau. 
+
+    iPoseProof (points_to_is_ptr with "HD") as "%".
+    rewrite H5. hred_r.
+
+    iApply isim_ccallU_load; ss; oauto.
+    iSplitL "INV HD"; iFrame.
+    { rewrite encode_val_length. et. }
+    iIntros (st_src1 st_tgt1) "[INV HD]".
+
+    hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau.
+    iPoseProof (points_to_is_ptr with "TL") as "%".
+    rewrite H6. hred_r.
+
+    iApply isim_ccallU_load; ss; oauto.
+    iSplitL "INV TL"; iFrame.
+    { rewrite encode_val_length. et. }
+    iIntros (st_src2 st_tgt2) "[INV TL]".
+
+    hred_r. remove_tau. unhide. remove_tau. unhide.
     remove_tau.
-    unhide HIDDEN. unhide HIDDEN0.
-    remove_tau. unhide HIDDEN1.
-    unhide HIDDEN. remove_tau.
-    destruct v1.
-    1,2,3,4,5: admit "".
-    ss. hred_r.
-    iApply isim_ccallU_load2.
+    iPoseProof (points_to_is_ptr with "PTO") as "%".
+
+    rewrite H7. hred_r.
+    rewrite H7. hred_r.
+    rewrite co_co_members. ss. des_ifs_safe. hred_r.
+    set (Coqlib.align _ _). vm_compute in z.
+    unfold z. clearbody z.
+
+    set (Undef :: _) as ls.
+    replace ls with ([] ++ ls) by et.
+    assert (H': (size_rule (strings.length ls) | (Z.of_nat (strings.length (@nil memval))))%Z).
+    { red. ss. exists 0. ss. }
+    iPoseProof ((points_to_split _ _ _ _ _ H') with "PTO") as "[UNIT PTO]".
+    ss.
+    replace ls with (List.repeat Undef 8 ++ List.repeat Undef 8) by et.
+    assert (H'': (size_rule (strings.length (List.repeat Undef 8)) | (Z.of_nat (strings.length (List.repeat Undef 8))))%Z).
+    { red. ss. exists 1. ss. }
+    iPoseProof ((points_to_split _ _ _ _ _ H'') with "PTO") as "[PTO_item PTO_key]".
+    ss.
+    iApply isim_ccallU_store; ss; oauto.
+    iSplitL "INV PTO_item"; iFrame.
+    { iExists _. iFrame. ss. }
+    iIntros (st_src3 st_tgt3) "[INV PTO_item]".
+
+    hred_r. remove_tau. unhide.
+    remove_tau. des_ifs_safe. hred_r.
+
+    destruct l.
+    (* case: nil list *)
+    - unfold full_xorlist, frag_xorlist at 1.
+      iDestruct "LIST" as "%". des. clarify.
+      pose proof (decode_encode_val_general Vnullptr Mptr Mptr).
+      unfold decode_encode_val in H8.
+      des_ifs_safe. rewrite H8. rewrite <- Heq4.
+      replace (Vlong (Int64.repr _)) with Vnullptr.
+      2:{ unfold Vnullptr. des_ifs. }
+
+      iApply isim_ccallU_cmp_ptr0; ss; oauto.
+      iSplitL "INV"; iFrame.
+      iIntros (st_src4 st_tgt4) "INV".
+
+      hred_r. des_ifs_safe. unhide. remove_tau.
+      unhide. remove_tau.
+      rewrite H7. hred_r.
+      rewrite H7. hred_r.
+      rewrite co_co_members. ss. des_ifs_safe.
+      rewrite Val.addl_assoc.
+      hred_r.
+      replace (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs (Ptrofs.repr 8)) by et.
+      replace (Val.addl (Vptrofs _) (Vptrofs _)) with (Vptrofs (Ptrofs.repr 8)) by et.
+      iApply isim_ccallU_store; ss; oauto.
+      iSplitL "INV PTO_key"; iFrame.
+      { iExists _. iFrame. ss. }
+      iIntros (st_src5 st_tgt5) "[INV PTO_key]".
+
+      hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau. unhide.
+      remove_tau. rewrite H4. hred_r. remove_tau. unhide.
+      remove_tau. rewrite H6. hred_r.
+      des_ifs_safe. rewrite H4. hred_r.
+
+      iApply isim_ccallU_store; ss; oauto.
+      iSplitL "INV TL"; iFrame.
+      { iExists _. iFrame. ss. }
+      iIntros (st_src6 st_tgt6) "[INV TL]".
+
+      hred_r. remove_tau. unhide.
+      remove_tau. rewrite H5. hred_r.
+      des_ifs_safe. rewrite H4. hred_r.
+
+      iApply isim_ccallU_store; ss; oauto.
+      iSplitL "INV HD"; iFrame.
+      { iExists _. iFrame. ss. }
+      iIntros (st_src7 st_tgt7) "[INV HD]".
+
+      hred_r. remove_tau. hred_l. iApply isim_choose_src.
+      iExists _. iApply isim_ret.
+      iFrame. iSplit; ss. iExists _, _. iFrame. iSplit; ss.
+      unfold vlist_add. destruct (Val.eq _ _); ss.
+      + destruct Val.eq; clarify. iExists _, _, _, _, _, _. iFrame. iSplit; ss. 
+      ss.
+
+
+
+
     1,2,3:admit "".
     iExists xH, Ptrofs.zero.
     hred_r. unhide HIDDEN1. remove_tau.
