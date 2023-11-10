@@ -588,7 +588,7 @@ Section MEM.
                   **
                   (∀ st_src st_tgt,
                       ((inv_with le I w0 st_src st_tgt)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
-        (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "mfree" [vaddr] >>= ktr_tgt)).
+        (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "free" [vaddr] >>= ktr_tgt)).
   Proof.
     (* iIntros "[[H0 H2] H1]". iDestruct "H2" as (m mvl) "[[H2 H3]%]".
     iApply isim_ccallU_pure; et.

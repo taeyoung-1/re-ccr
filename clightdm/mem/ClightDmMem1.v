@@ -450,7 +450,7 @@ Section RULES.
   Lemma captured_pointer_notnull
       vaddr m i
     :
-      vaddr (≃_m) i ⊢ ⌜i <> 0⌝.
+      vaddr (≃_m) i ⊢ ⌜Vnullptr <> vaddr⌝.
   Proof.
   Admitted.
 
@@ -735,7 +735,7 @@ Section SPEC.
            (* ("storebytes", storebytes_spec); *)
            ("sub_ptr", sub_ptr_spec); ("cmp_ptr", cmp_ptr_spec);
            ("non_null?", non_null_spec);
-           ("malloc", malloc_spec); ("mfree", mfree_spec);
+           ("malloc", malloc_spec); ("free", mfree_spec);
            ("memcpy", memcpy_spec);
            ("capture", capture_spec)
            ].
@@ -889,7 +889,7 @@ Section SMOD.
     ("cmp_ptr", mk_pure cmp_ptr_spec);
     ("non_null?",   mk_pure non_null_spec);
     ("malloc",   mk_pure malloc_spec);
-    ("mfree",   mk_pure mfree_spec);
+    ("free",   mk_pure mfree_spec);
     ("memcpy", mk_pure memcpy_spec);
     ("capture", mk_pure capture_spec)
     ]

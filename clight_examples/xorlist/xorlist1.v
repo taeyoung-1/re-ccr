@@ -53,21 +53,25 @@ Section PROP.
     | Vlong a :: xs' =>
       if Val.eq Vnullptr p_hd_prev
       then
-        ∃ p_next m_hd m_next i_next ofs_next tg_next,
+        ∃ p_next m_hd m_next i_next ofs_hd ofs_next tg_hd,
           p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_next)))
+          ** weak_valid m_hd p_hd ofs_hd
+          ** live_ q # (m_hd, tg_hd) 
+          ** ⌜(8 | ofs_hd)%Z⌝
           ** (if Z.eqb i_next 0 then ⌜p_next = Vnullptr⌝
-             else (p_next ⊨m_next# ofs_next
-                  ** live_ q # (m_next, tg_next) 
-                  ** p_next (≃_ m_next) i_next))
+              else (weak_valid m_next p_next ofs_next
+                   ** p_next (≃_ m_next) i_next))
           ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
       else
-        ∃ p_next m_prev m_hd m_next i_prev i_key ofs_next tg_next,
+        ∃ p_next m_prev m_hd m_next i_prev i_key ofs_hd ofs_next tg_hd,
           p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_key)))
+          ** weak_valid m_hd p_hd ofs_hd
+          ** live_ q # (m_hd, tg_hd) 
+          ** ⌜(8 | ofs_hd)%Z⌝
           ** p_hd_prev (≃_ m_prev) i_prev
           ** (if Z.eqb (Z.lxor i_prev i_key) 0 then ⌜p_next = Vnullptr⌝
-             else (p_next ⊨m_next# ofs_next)
-                  ** live_ q # (m_next, tg_next) 
-                  ** p_next (≃_ m_next) (Z.lxor i_prev i_key))
+              else (weak_valid m_next p_next ofs_next
+                   ** p_next (≃_ m_next) (Z.lxor i_prev i_key)))
           ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
     | _ => False
     end%I.
@@ -149,7 +153,7 @@ Section PROP.
   Unshelve. all: et.
   Qed. *)
 
-  Example xorlist_example2 p2 m2:
+  (* Example xorlist_example2 p2 m2:
   p2 ↦m2#1≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs Ptrofs.zero))
   ⊢ full_xorlist 1 p2 p2 [Vlong Int64.one].
   Proof.
@@ -161,7 +165,7 @@ Section PROP.
   - exact m2.
   - exact 0.
   - exact Local.
-  Qed.
+  Qed. *)
     
   Lemma split_xorlist q p_hd_prev p_hd p_tl p_tl_next xs0 xs1
     : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1)
@@ -339,8 +343,8 @@ Section SPEC.
                       /\ ((size_chunk Mptr) | ofs_tl_old)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_old
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_old
-                     ** hd_old ⊨m_h# ofs_hd_old
-                     ** tl_old ⊨m_t# ofs_tl_old
+                     ** hd_handler ⊨m_h# ofs_hd_old
+                     ** tl_handler ⊨m_t# ofs_tl_old
                      ** full_xorlist 1 hd_old tl_old xs),
         (fun vret => ∃ hd_new tl_new ofs_hd_new ofs_tl_new,
                      ⌜vret = Vundef↑
@@ -348,8 +352,8 @@ Section SPEC.
                      /\ ((size_chunk Mptr) | ofs_tl_new)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new
-                     ** hd_new ⊨m_h# ofs_hd_new
-                     ** tl_new ⊨m_t# ofs_tl_new
+                     ** hd_handler ⊨m_h# ofs_hd_new
+                     ** tl_handler ⊨m_t# ofs_tl_new
                      ** full_xorlist 1 hd_new tl_new (vlist_add (Vlong item) xs (Vint at_tail)))
     )))%I.
 
@@ -371,8 +375,8 @@ Section SPEC.
                      /\ ((size_chunk Mptr) | ofs_tl_old)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_old
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_old
-                     ** hd_old ⊨m_h# ofs_hd_old
-                     ** tl_old ⊨m_t# ofs_tl_old
+                     ** hd_handler ⊨m_h# ofs_hd_old
+                     ** tl_handler ⊨m_t# ofs_tl_old
                      ** full_xorlist 1 hd_old tl_old xs),
         (fun vret => let '(item, xs') := vlist_delete xs (Vint from_tail) (Vlong Int64.zero) in
                      ∃ hd_new tl_new ofs_hd_new ofs_tl_new,
@@ -381,8 +385,8 @@ Section SPEC.
                      /\ ((size_chunk Mptr) | ofs_tl_new)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new
-                     ** hd_new ⊨m_h# ofs_hd_new
-                     ** tl_new ⊨m_t# ofs_tl_new
+                     ** hd_handler ⊨m_h# ofs_hd_new
+                     ** tl_handler ⊨m_t# ofs_tl_new
                      ** full_xorlist 1 hd_new tl_new xs')
     )))%I.
 
