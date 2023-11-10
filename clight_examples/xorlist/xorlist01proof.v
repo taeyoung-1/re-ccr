@@ -351,34 +351,40 @@ Section PROOF.
           rewrite H13. hred_r.
           replace (pred _) with blk0 by nia.
           erewrite sk_incl_gd; et. hred_r. ss.
+          iApply isim_ccallU_mfree; ss; oauto.
+          iCombine "hd_pto_item hd_pto_key" as "hd_pto".
+          replace (Val.addl tl_old (Vptrofs (Ptrofs.repr 0))) with tl_old by admit.
+          replace (Val.addl tl_old (Vptrofs (Ptrofs.repr 8))) 
+          with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (inj_bytes (encode_int 8 (Int64.unsigned i0))))))) by admit.
+          iPoseProof (points_to_collect with "hd_pto") as "hd_pto".
+          iSplitL "INV hd_pto hd_liv hd_ofs".
+          { iFrame. iExists _,_.  iFrame. admit. }
+          iIntros (st_src9 st_tgt9) "INV".
 
-  assert(forall mn I
-        o stb w0 fuel1
-        R_src R_tgt
-        (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
-        r g f_src f_tgt st_src st_tgt
-        vaddr itr_src (ktr_tgt: val -> _)
-        fuel0
-        (STBINCL: stb_incl (to_stb MemStb) stb)
-        (DEPTH: ord_lt (ord_pure 0%nat) o)
-        (FUEL: Ord.lt fuel1 fuel0),
-      bi_entails
-        (inv_with le I w0 st_src st_tgt
-                  ** (∃ m mvl, vaddr ↦m#1≻ mvl ** vaddr ⊨m# 0 ** live_ 1# (m, Dynamic) ** ⌜Z.of_nat (List.length mvl) = m.(sz)⌝)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
-        (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "free" [vaddr] >>= ktr_tgt))).
-      { admit. }
-          rename H14 into isim_ccallU_free.
+          hred_r. remove_tau. unhide. remove_tau.
+          replace (inj_bytes (encode_int 8 (Int64.unsigned i0)))
+            with (encode_val Mint64 (Vlong i0)) by et.
+          pose proof (decode_encode_val_general (Vlong i0) Mint64 Mint64).
+          unfold decode_encode_val in H14.
+          rewrite H14. hred_r.
+          hred_l. iApply isim_choose_src. iExists _.
+          iApply isim_ret. iFrame. iSplit; ss.
+          unfold vlist_delete in Heq.
+          destruct (Val.eq _ Vzero); clarify.
+          { iExists _,_,_,_. iFrame. ss. iSplit; ss.
+            ss. rewrite Ptrofs.to_int64_of_int64; et.
+            iFrame. iPureIntro. splits; et. }
+          { iExists _,_,_,_. iFrame. ss. iSplit; ss.
+            ss. rewrite Ptrofs.to_int64_of_int64; et.
+            iFrame. iPureIntro. splits; et. }
+        * rewrite Ptrofs.to_int64_of_int64; et.
+          replace (Vlong (Int64.repr _)) with Vnullptr by et.
+          ss. destruct v2; try solve [iDestruct "LIST" as "%"; clarify].
+          iPoseProof (captured_pointer_notnull with "hd_ofs") as "%".
+          iApply isim_ccallU_cmp_ptr3; ss; oauto.
 
-          iApply isim_ccallU_free.
+          
 
-
-
-
-
-        rewrite H11. iExists _. iSplit; ss. clarify.
         
         
 

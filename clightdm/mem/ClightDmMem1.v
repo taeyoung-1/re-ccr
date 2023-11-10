@@ -48,71 +48,6 @@ Section POINTSTO.
 
   Definition _points_to (b: block) (ofs: Z) (mvs: list memval) (q: Qp): pointstoRA := Auth.white (__points_to b ofs mvs q).
 
-  (* Lemma _points_to_split_aux
-        blk ofs hd tl q
-    :
-      (_points_to blk ofs (hd :: tl) q) = (_points_to blk ofs [hd] q) ⋅ (_points_to blk (ofs + 1)%Z tl q)
-  .
-  Proof.
-    ss. unfold _points_to, Auth.white. repeat (rewrite URA.unfold_add; ss).
-    f_equal. unfold __points_to. ss.
-    repeat (apply func_ext; i).
-    des_ifs; bsimpl; des; des_sumbool; subst; ss;
-      try rewrite Z.leb_gt in *; try rewrite Z.leb_le in *; try rewrite Z.ltb_ge in *; try rewrite Z.ltb_lt in *; try lia; clarify.
-    - clear_tac. subst. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      assert(x0 = ofs). { lia. } subst.
-      rewrite Z.sub_diag in *. ss. clarify. 
-    - clear_tac. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      destruct (Z.to_nat (x0 - ofs)) eqn:T; ss.
-      { exfalso. lia. }
-      rewrite Z.sub_add_distr in *. rewrite Z2Nat.inj_sub in Heq4; ss. rewrite T in *. ss. rewrite Nat.sub_0_r in *. ss. clarify.
-    - clear_tac. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      destruct (Z.to_nat (x0 - ofs)) eqn:T; ss.
-      { exfalso. lia. }
-      rewrite Z.sub_add_distr in *. rewrite Z2Nat.inj_sub in Heq4; ss. rewrite T in *. ss. rewrite Nat.sub_0_r in *. ss. clarify.
-    - clear_tac. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      assert(x0 = ofs). { lia. } subst.
-      rewrite Z.sub_diag in *. ss.
-    - clear_tac. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      destruct (Z.to_nat (x0 - ofs)) eqn:T; ss.
-      { exfalso. lia. }
-    - clear_tac. rewrite Zpos_P_of_succ_nat in *. rewrite <- Zlength_correct in *.
-      destruct (Z.to_nat (x0 - ofs)) eqn:T; ss.
-      rewrite Z.sub_add_distr in *. rewrite Z2Nat.inj_sub in Heq4; ss. rewrite T in *. ss. rewrite Nat.sub_0_r in *. ss. clarify.
-  Qed.
-
-  Lemma __points_to_nil : forall blk ofs q _b _ofs, __points_to blk ofs [] _b _ofs q = ε.
-  Proof.
-    intros. unfold __points_to. ss. des_ifs. destruct (Z.to_nat _) in Heq0; ss. 
-  Qed.
-
-  Lemma points_to_nil : forall blk ofs q, _points_to blk ofs [] q = ε.
-  Proof.
-    intros. ss. unfold _points_to, Auth.white.
-    change (memcntRA.(URA.unit)) with (Auth.frag (_memcntRA.(URA.unit))). f_equal. ss.
-    repeat (apply func_ext; i). apply __points_to_nil.
-  Qed.
-
-  Lemma _points_to_app l l' q blk ofs:
-    (_points_to blk ofs (l++l') q) = (_points_to blk ofs l q) ⋅ (_points_to blk (ofs + length l) l' q).
-  Proof.
-    revert l' blk ofs. induction l;i;ss.
-    - rewrite points_to_nil. rewrite URA.unit_idl. rewrite Z.add_0_r. auto.
-    - rewrite _points_to_split_aux. rewrite (_points_to_split_aux blk ofs a l).
-      replace (ofs + Z.pos (Pos.of_succ_nat (strings.length l)))
-        with ((ofs + 1) + length l) by nia.
-      rewrite <- URA.add_assoc. rewrite <- IHl. auto.
-  Qed.
-
-  Lemma _points_to_split :
-    forall (blk : Values.block) (ofs : Z) (q: Qp) (n : nat) (l : list memval),
-      _points_to blk ofs l q =
-        _points_to blk ofs (firstn n l) q ⋅ _points_to blk (ofs + (length (firstn n l))) (skipn n l) q.
-  Proof.
-    intros. set l as k at 2 3 4. rewrite <- (firstn_skipn n l). unfold k. clear k.
-    rewrite _points_to_app. auto.
-  Qed. *)
-
 End POINTSTO.
 
 Section ALLOCATEDWITH.
@@ -151,16 +86,6 @@ Section PROP.
   Context `{@GRA.inG allocatedRA Σ}.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
-
-  (* Definition updblk [A: Type] (i f: nat) (l l': list A) : list A := firstn i l ++ l' ++ skipn f l.
-  Definition getblk [A: Type] (i delta: nat) (l: list A) : list A := firstn delta (skipn i l).
-
-  (* how to use getblk, updblk *)
-  Lemma getblk_updblk A (i delta: nat) (l: list A) : updblk i (i + delta) l (getblk i delta l) = l.
-  Proof.
-    unfold updblk, getblk. rewrite <- drop_drop. do 2 rewrite firstn_skipn. refl.
-  Qed. *)
-
 
   Definition get_align (sz: nat) : Z :=
     if lt_dec sz 2 then 1
@@ -207,8 +132,6 @@ Section PROP.
     ** ∃ ofs, OwnM (_points_to m.(blk) ofs mvs q)
        ** has_offset vaddr m ofs.
 
-
-
   Definition disjoint (m m0: metadata) : Prop :=
     m.(blk) <> m.(blk).
   
@@ -217,49 +140,6 @@ Section PROP.
 
   Definition weak_valid (m: metadata) (vaddr: val) (ofs: Z) : iProp :=
     has_offset vaddr m ofs ** ⌜0 ≤ ofs ≤ m.(sz)⌝.
-
-  (* Lemma detach_size addr vs sz : (addr #↦ vs ⋯ sz) -∗ (addr ↦ vs).
-  Proof. 
-    iIntros "A". unfold mpoints_to, points_to. des_ifs.
-    iDestruct "A" as "[B C]". iApply "B".
-  Qed.
-
-  Lemma asdf b ofs b' ofs' vs vs': Vptr b ofs ↦ vs ** Vptr b' ofs' ↦ vs' -∗ (Vptr b ofs ↦ vs ∧ Vptr b' ofs' ↦ vs').
-  Proof.
-    iIntros "A". iDestruct "A" as "[B C]".
-    iSplit.
-    - iApply "B".
-    - iApply "C".
-  Qed.
-  Lemma _points_to_split :
-    forall (blk: block) (ofs delta: ptrofs) (n: nat) (l: list memval)
-    (IN_RANGE: 0 <= Ptrofs.unsigned ofs + Ptrofs.unsigned delta < Ptrofs.modulus),
-    n = Z.to_nat (Ptrofs.unsigned delta) ->
-      Vptr blk ofs ↦ l -∗
-        Vptr blk ofs ↦ (firstn n l) ** Vptr blk (Ptrofs.add ofs delta) (skipn n l).
-  Proof.
-    intros. set l as k at 2 3 4. rewrite <- (firstn_skipn n l). unfold k. clear k.
-    rewrite _points_to_app. auto.
-  Qed.
-
-  Lemma points_to_load :
-    forall addr addr' (i delta : nat) l,
-      0 <= i <= length l ->
-      addr ↦ l -∗
-       (addr' ↦ getblk i delta l **
-         ((addr' ↦ getblk i delta l) -* (addr ↦ l))).
-  Proof.
-    intros. iIntros "A". unfold getblk, points_to. destruct H0 as [S1 S2].
-    assert (S3 : Z.to_nat m ≤ strings.length l) by nia.
-    pose proof (_points_to_split' blk ofs (Z.to_nat m) l S3) as Hr. set l as k at 4.
-    rewrite Hr. unfold k. clear k.
-    pose proof (_points_to_split blk (ofs + m) n (drop (Z.to_nat m) l)) as Ht.
-    replace (ofs + Z.to_nat m) with (ofs + m) by nia.
-    rewrite Ht. iDestruct "A" as "[A [B C]]".
-    iSplitL "B";auto. iIntros "B". iCombine "B C" as "B". rewrite <- _points_to_split.
-    iCombine "A B" as "A". replace (ofs + m) with (ofs + Z.to_nat m) by nia.
-    rewrite <- _points_to_split';auto.
-  Qed. *)
 
 End PROP.
 
@@ -275,68 +155,6 @@ Section RULES.
   Context `{@GRA.inG allocatedRA Σ}.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
-
-  (* Lemma points_to_disj
-        ptr x0 x1
-    :
-      (ptr |-> [x0] -∗ ptr |-> [x1] -* ⌜False⌝)
-  .
-  Proof.
-    destruct ptr as [blk ofs].
-    iIntros "A B". iCombine "A B" as "A". iOwnWf "A" as WF0.
-    unfold _points_to in WF0. rewrite ! unfold__points_to in *. repeat (ur in WF0); ss.
-    specialize (WF0 blk ofs). des_ifs; bsimpl; des; SimComp.Coqlib.des_sumbool; zsimpl; ss; try lia.
-  Qed. *)
-
-  (** TODO-is_list **)
-  (* Fixpoint is_list (ll: val) (xs: list val): iProp := *)
-  (*   match xs with *)
-  (*   | [] => (⌜ll = Vnullptr⌝: iProp)%I *)
-  (*   | xhd :: xtl => *)
-  (*     (∃ lhd ltl, ⌜ll = Vptr lhd (Ptrofs.repr 0)⌝ ** (OwnM ((lhd,0%Z) |-> [xhd; ltl])) *)
-  (*                            ** is_list ltl xtl: iProp)%I *)
-  (*   end *)
-  (* . *)
-
-  (* Lemma unfold_is_list: forall ll xs, *)
-  (*     is_list ll xs = *)
-  (*     match xs with *)
-  (*     | [] => (⌜ll = Vnullptr⌝: iProp)%I *)
-  (*     | xhd :: xtl => *)
-  (*       (∃ lhd ltl, ⌜ll = Vptr lhd (Ptrofs.repr 0)⌝ ** (OwnM ((lhd,0%Z) |-> [xhd; ltl])) *)
-  (*                              ** is_list ltl xtl: iProp)%I *)
-  (*     end *)
-  (* . *)
-  (* Proof. *)
-  (*   i. destruct xs; auto. *)
-  (* Qed. *)
-
-  (* Lemma unfold_is_list_cons: forall ll xhd xtl, *)
-  (*     is_list ll (xhd :: xtl) = *)
-  (*     (∃ lhd ltl, ⌜ll = Vptr lhd (Ptrofs.repr 0)⌝ ** (OwnM ((lhd,0%Z) |-> [xhd; ltl])) *)
-  (*                            ** is_list ltl xtl: iProp)%I. *)
-  (* Proof. *)
-  (*   i. eapply unfold_is_list. *)
-  (* Qed. *)
-
-  (* Lemma is_list_wf *)
-  (*       ll xs *)
-  (*   : *)
-  (*     (is_list ll xs) -∗ (⌜(ll = Vnullptr) \/ (match ll with | Vptr _ ofs => Ptrofs.eq ofs (Ptrofs.repr 0) | _ => False end)⌝) *)
-  (* . *)
-  (* Proof. *)
-  (*   iIntros "H0". destruct xs; ss; et. *)
-  (*   { iPure "H0" as H0. iPureIntro. left. et. } *)
-  (*   iDestruct "H0" as (lhd ltl) "[[H0 H1] H2]". *)
-  (*   iPure "H0" as H0. iPureIntro. right. subst. et. *)
-  (* Qed. *)
-
-  (* Global Opaque is_list. *)
-  (* Definition encode_list chunk vlist : list memval := flat_map (encode_val chunk) vlist. 
-
-  Definition is_arr (chunk : memory_chunk) (ll : val) (xs : list val) :=
-    (∃ (b :block) (ofs : ptrofs),
-        ⌜ll = Vptr b ofs⌝ ** (b, Ptrofs.intval ofs) |-> (encode_list chunk xs))%I. *)
 
   Lemma points_to_split
       vaddr mvs0 mvs1 m q
@@ -451,6 +269,13 @@ Section RULES.
       vaddr m i
     :
       vaddr (≃_m) i ⊢ ⌜Vnullptr <> vaddr⌝.
+  Proof.
+  Admitted.
+
+  Lemma alived_pointer_notnull
+      vaddr m ofs
+    :
+      vaddr ⊨m# ofs ⊢ ⌜Vnullptr <> vaddr⌝.
   Proof.
   Admitted.
 
@@ -895,7 +720,6 @@ Section SMOD.
     ]
   .
 
-  (* nextblock = Pos.of_nat (length sk + 1) *)
   Definition SMemSem sk : SModSem.t := {|
     SModSem.fnsems := MemSbtb;
     SModSem.mn := "Mem";
