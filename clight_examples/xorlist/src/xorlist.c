@@ -41,7 +41,7 @@ long delete(node** hd_handler, node** tl_handler, bool from_tail) {
 
     long item;
 
-    if (NULL == hd_handler) {
+    if (NULL == *hd_handler) {
         item = 0;
     } else if (from_tail) {
         // update tl_handler
