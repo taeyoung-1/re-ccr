@@ -15,7 +15,7 @@ Module Info.
   Definition abi := "standard".
   Definition bitsize := 64.
   Definition big_endian := false.
-  Definition source_file := "common/xorlist.c".
+  Definition source_file := "../intptr/CCR/clight_examples/xorlist/src/xorlist.c".
   Definition normalized := false.
 End Info.
 
@@ -115,9 +115,6 @@ Definition _t'5 : ident := 132%positive.
 Definition _t'6 : ident := 133%positive.
 Definition _t'7 : ident := 134%positive.
 Definition _t'8 : ident := 135%positive.
-Definition _t'9 : ident := 136%positive.
-Definition _t'10 : ident := 137%positive.
-Definition _t'11 : ident := 138%positive.
 
 Definition f_encrypt := {|
   fn_return := tlong;
@@ -125,13 +122,13 @@ Definition f_encrypt := {|
   fn_params := ((_prev, (tptr (Tstruct __Node noattr))) ::
                 (_next, (tptr (Tstruct __Node noattr))) :: nil);
   fn_vars := nil;
-  fn_temps := ((_t'9, tlong) :: (_t'10, tlong) :: nil);
+  fn_temps := nil;
   fn_body :=
-(Ssequence
-   (Sbuiltin (Some _t'9) EF_capture (Tcons (tptr (Tstruct __Node noattr)) Tnil) ((Etempvar _prev (tptr (Tstruct __Node noattr))) :: nil))
-   (Ssequence
-      (Sbuiltin (Some _t'10) EF_capture (Tcons (tptr (Tstruct __Node noattr)) Tnil) ((Etempvar _next (tptr (Tstruct __Node noattr))) :: nil))
-      (Sreturn (Some (Ebinop Oxor (Etempvar _t'9 tlong) (Etempvar _t'10 tlong) tlong)))))
+(Sreturn (Some (Ebinop Oxor
+                 (Ecast (Etempvar _prev (tptr (Tstruct __Node noattr)))
+                   tlong)
+                 (Ecast (Etempvar _next (tptr (Tstruct __Node noattr)))
+                   tlong) tlong)))
 |}.
 
 Definition f_decrypt := {|
@@ -140,11 +137,12 @@ Definition f_decrypt := {|
   fn_params := ((_key, tlong) :: (_ptr, (tptr (Tstruct __Node noattr))) ::
                 nil);
   fn_vars := nil;
-  fn_temps := ((_t'11, tlong) :: nil);
+  fn_temps := nil;
   fn_body :=
-  (Ssequence
-    (Sbuiltin (Some _t'11) EF_capture (Tcons (tptr (Tstruct __Node noattr)) Tnil) ((Etempvar _ptr (tptr (Tstruct __Node noattr))) :: nil))
-    (Sreturn (Some (Ecast (Ebinop Oxor (Etempvar _key tlong) (Etempvar _t'11 tlong) tlong) (tptr (Tstruct __Node noattr))))))
+(Sreturn (Some (Ecast
+                 (Ebinop Oxor (Etempvar _key tlong)
+                   (Ecast (Etempvar _ptr (tptr (Tstruct __Node noattr)))
+                     tlong) tlong) (tptr (Tstruct __Node noattr)))))
 |}.
 
 Definition f_add := {|
@@ -336,8 +334,9 @@ Definition f_delete := {|
 (Ssequence
   (Sifthenelse (Ebinop Oeq
                  (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
-                 (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-                 tint)
+                 (Ederef
+                   (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+                   (tptr (Tstruct __Node noattr))) tint)
     (Sset _item (Ecast (Econst_int (Int.repr 0) tint) tlong))
     (Sifthenelse (Etempvar _from_tail tbool)
       (Ssequence
@@ -863,3 +862,5 @@ Definition public_idents : list ident :=
 
 Definition prog : Clight.program := 
   mkprogram composites global_definitions public_idents _main Logic.I.
+
+

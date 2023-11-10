@@ -333,15 +333,23 @@ Section SPEC.
     (mk_simple
       (fun '(hd_handler, tl_handler, m_h, m_t, item, at_tail, xs) => (
         (ord_pure 2%nat),
-        (fun varg => ∃ hd_old tl_old,
-                     ⌜varg = [hd_handler; tl_handler; Vlong item; Vint at_tail]↑⌝
+        (fun varg => ∃ hd_old tl_old ofs_hd_old ofs_tl_old,
+                     ⌜varg = [hd_handler; tl_handler; Vlong item; Vint at_tail]↑
+                      /\ ((size_chunk Mptr) | ofs_hd_old)%Z
+                      /\ ((size_chunk Mptr) | ofs_tl_old)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_old
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_old
+                     ** hd_old ⊨m_h# ofs_hd_old
+                     ** tl_old ⊨m_t# ofs_tl_old
                      ** full_xorlist 1 hd_old tl_old xs),
-        (fun vret => ∃ hd_new tl_new,
-                     ⌜vret = Vundef↑⌝
+        (fun vret => ∃ hd_new tl_new ofs_hd_new ofs_tl_new,
+                     ⌜vret = Vundef↑
+                     /\ ((size_chunk Mptr) | ofs_hd_new)%Z
+                     /\ ((size_chunk Mptr) | ofs_tl_new)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new
+                     ** hd_new ⊨m_h# ofs_hd_new
+                     ** tl_new ⊨m_t# ofs_tl_new
                      ** full_xorlist 1 hd_new tl_new (vlist_add (Vlong item) xs (Vint at_tail)))
     )))%I.
 
@@ -357,14 +365,24 @@ Section SPEC.
     (mk_simple
       (fun '(hd_handler, tl_handler, m_h, m_t, from_tail, xs) => (
         (ord_pure 2%nat),
-        (fun varg => ∃ hd_old tl_old, ⌜varg = [hd_handler; tl_handler; Vint from_tail]↑⌝
+        (fun varg => ∃ hd_old tl_old ofs_hd_old ofs_tl_old,
+                     ⌜varg = [hd_handler; tl_handler; Vint from_tail]↑
+                     /\ ((size_chunk Mptr) | ofs_hd_old)%Z
+                     /\ ((size_chunk Mptr) | ofs_tl_old)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_old
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_old
+                     ** hd_old ⊨m_h# ofs_hd_old
+                     ** tl_old ⊨m_t# ofs_tl_old
                      ** full_xorlist 1 hd_old tl_old xs),
         (fun vret => let '(item, xs') := vlist_delete xs (Vint from_tail) (Vlong Int64.zero) in
-                     ∃ hd_new tl_new, ⌜vret = item↑⌝
+                     ∃ hd_new tl_new ofs_hd_new ofs_tl_new,
+                     ⌜vret = item↑
+                     /\ ((size_chunk Mptr) | ofs_hd_new)%Z
+                     /\ ((size_chunk Mptr) | ofs_tl_new)%Z⌝
                      ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new
                      ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new
+                     ** hd_new ⊨m_h# ofs_hd_new
+                     ** tl_new ⊨m_t# ofs_tl_new
                      ** full_xorlist 1 hd_new tl_new xs')
     )))%I.
 

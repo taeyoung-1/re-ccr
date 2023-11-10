@@ -22,13 +22,13 @@ From Coq Require Import Program.
 From compcertip Require Import Clightdefs.
 
 
-(* Section LEMMA.
+Section LEMMA.
 
   Lemma f_bind_ret_r E R A (s : A -> itree E R)
     : (fun a => ` x : R <- (s a);; Ret x) = s.
   Proof. apply func_ext. i. apply bind_ret_r. Qed.
 
-End LEMMA. *)
+End LEMMA.
 
 Section PROOF.
 
@@ -41,9 +41,6 @@ Section PROOF.
   Hypothesis STBINCL : forall sk, stb_incl (to_stb xorStb) (GlobalStb sk).
   Hypothesis MEMINCL : forall sk, stb_incl (to_stb MemStb) (GlobalStb sk).
 
-  Variable sk: Sk.t.
-  Hypothesis SKINCL : Sk.extends (xorlist0.xor.(Mod.sk)) sk.
-  Hypothesis SKWF : Sk.wf (Sk.canon sk).
 
 
   Definition wf : _ -> Any.t * Any.t -> Prop :=
@@ -54,6 +51,11 @@ Section PROOF.
   
 
   Let ce := map (fun '(id, p) => (string_of_ident id, p)) (Maps.PTree.elements (prog_comp_env prog)).
+
+  Section FUN.
+  Variable sk: Sk.t.
+  Hypothesis SKINCL : Sk.extends (xorlist0.xor.(Mod.sk)) sk.
+  Hypothesis SKWF : Sk.wf (Sk.canon sk).
 
   Arguments alist_add /.
   Arguments ClightDmgen._sassign_c /.
@@ -116,6 +118,52 @@ Section PROOF.
   Opaque ccallU.
   Opaque get_sk.
   Opaque build_composite_env.
+
+  Lemma sim_delete :
+    sim_fnsem wf top2
+      ("delete", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure delete_spec))
+      ("delete", cfunU (decomp_func (Sk.canon sk) ce f_delete)).
+  Proof.
+    econs; ss. red.
+
+    unfold prog in ce. unfold mkprogram in ce.
+    destruct (build_composite_env').
+    get_composite ce e.
+
+    apply isim_fun_to_tgt; auto.
+    unfold f_delete.
+     i; ss.
+    unfold decomp_func, function_entry_c. ss.
+    init_hide.
+
+    iIntros "[INV PRE]". des_ifs_safe. ss.
+    iDestruct "PRE" as "[PRE %]".
+    iDestruct "PRE" as (hd_old tl_old ofs_hd_old ofs_tl_old) "[[[% [HD_ofs]] TL_ofs] LIST]".
+    ss. clarify. ss. hred_r. unhide. remove_tau. unhide.
+    remove_tau. unhide.
+
+    des_ifs_safe. hred_r.
+    iPoseProof (points_to_is_ptr with "HD") as "%".
+    rewrite H3. hred_r.
+    iApply isim_apc. iExists (Some (10%nat : Ord.t)).
+    iApply isim_ccallU_load; ss; oauto.
+    iSplitL "INV HD"; iFrame.
+    { rewrite encode_val_length. et. }
+    iIntros (st_src1 st_tgt1) "[INV HD]".
+
+
+    replace (Vlong _) with Vnullptr by et.
+    destruct l.
+    - unfold full_xorlist, frag_xorlist at 1.
+      iDestruct "LIST" as "%". des. clarify.
+
+    dup SKINCL. rename SKINCL0 into SKINCLENV.
+    apply Sk.incl_incl_env in SKINCLENV.
+    unfold Sk.incl_env in SKINCLENV.
+    hexploit SKINCLENV.
+    { instantiate (2:="malloc"). ss. }
+    i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
+  Admitted.
 
   Lemma sim_encrypt :
     sim_fnsem wf top2
@@ -324,7 +372,7 @@ Section PROOF.
     { instantiate (2:="malloc"). ss. }
     i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
 
-    des_ifs. hred_r.
+    (* des_ifs. hred_r.
     replace (pred _) with blk by nia.
     erewrite sk_incl_gd; et. hred_r.
     rewrite <- Heq3.
@@ -441,166 +489,22 @@ Section PROOF.
       iFrame. iSplit; ss. iExists _, _. iFrame. iSplit; ss.
       unfold vlist_add. destruct (Val.eq _ _); ss.
       + destruct Val.eq; clarify. iExists _, _, _, _, _, _. iFrame. iSplit; ss. 
-      ss.
-
-
-
-
-    1,2,3:admit "".
-    iExists xH, Ptrofs.zero.
-    hred_r. unhide HIDDEN1. remove_tau.
-    destruct v2.
-    1,2,3,4,5: admit "".
-    ss. hred_r.
-    iApply isim_ccallU_load2.
-    1,2,3:admit "".
-    iExists xH, Ptrofs.zero.
-    hred_r. unhide HIDDEN0. unhide HIDDEN1. remove_tau.
-    unfold _sassign_c. ss. remove_tau.
-    rewrite Heq2. hred_r. rewrite co_co_members.
-    des_ifs. hred_r. destruct v0.
-    1,2,4,5,6: admit "".
-    hred_r.
-    iApply isim_ccallU_store2.
-    1,2,3: admit "".
-    hred_r. unhide HIDDEN. remove_tau.
-    unfold _site_c. remove_tau. des_ifs.
-    hred_r.
-    iApply isim_ccallU_cmp_ptr.
-    1,2,3: admit "".
-    iIntros (b1). hred_r.
-    des_ifs. 1,3,4,5,6: admit "".
-    hred_r. des_ifs.
-    - unhide HIDDEN0. unhide HIDDEN2. unfold _sassign_c.
-      remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
-      ss. des_ifs. hred_r. iApply isim_ccallU_store2.
-      1,2,3: admit "".
-      hred_r. unhide HIDDEN. unhide HIDDEN2. unhide HIDDEN3.
-      remove_tau. unhide HIDDEN. unfold _sassign_c.
-      remove_tau. iApply isim_ccallU_store2.
-      1,2,3: admit "". hred_r.
-      unhide HIDDEN0. unfold _sassign_c.
-      remove_tau. iApply isim_ccallU_store2.
-      1,2,3: admit "". hred_r.
-      remove_tau. admit "".
-    - unhide HIDDEN1. 
-      unfold _site_c. remove_tau. des_ifs.
-      1,3,4,5,6: admit "".
-      hred_r. des_ifs.
-      + unhide. remove_tau. unhide.
-        remove_tau. unhide.
-        unfold _scall_c. ss.
-        hexploit SKINCLENV.
-        { instantiate (2:="encrypt"). ss. }
-        i. des. ss. rewrite FIND0. hred_r. des_ifs_safe.
-        remove_tau. 
-        replace (pred _) with blk0 by nia.
-        erewrite sk_incl_gd; et. hred_r. des_ifs_safe. hred_r. ss.
-        iApply isim_ccallU_encrypt.
-        1,2,3: admit "".
-        iIntros (i8). hred_r. unhide. unfold _sassign_c.
-        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
-        ss. des_ifs. hred_r.
-        iApply isim_ccallU_store2.
-        1,2,3: admit "". hred_r. unhide.
-        remove_tau. unhide. remove_tau. unhide.
-        unfold _scall_c. ss.
-        hexploit SKINCLENV.
-        { instantiate (2:="decrypt"). ss. }
-        i. des. ss. rewrite FIND1. hred_r.
-        remove_tau. rewrite Heq2. ss. hred_r.
-        rewrite co_co_members. ss. des_ifs_safe.
-        hred_r. iApply isim_ccallU_load2.
-        1,2,3: admit "".
-        iExists xH, Ptrofs.zero.
-        hred_r.
-        replace (pred _) with blk1 by nia.
-        erewrite sk_incl_gd; et. hred_r. ss.
-        iApply isim_ccallU_decrypt.
-        1,2,3: admit "".
-        iIntros (i11). hred_r. unhide. remove_tau. unhide.
-        remove_tau. unhide. remove_tau. unhide.
-        unfold _scall_c. ss.
-        des. remove_tau. rewrite FIND0. hred_r.
-        replace (pred _) with blk0 by nia.
-        des_ifs. hred_r.
-        erewrite sk_incl_gd; et. hred_r. ss.
-        iApply isim_ccallU_encrypt.
-        1,2,3: admit "".
-        iIntros (i12). hred_r. unhide. unfold _sassign_c.
-        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members. ss. 
-        des_ifs_safe. hred_r. iApply isim_ccallU_store2.
-        1,2,3: admit "".
-        hred_r. unhide. unfold _sassign_c. remove_tau.
-        iApply isim_ccallU_store2.
-        1,2,3: admit "".
-        remove_tau. admit "".
-      + unhide. remove_tau. unhide.
-        remove_tau. unhide.
-        unfold _scall_c. ss.
-        hexploit SKINCLENV.
-        { instantiate (2:="encrypt"). ss. }
-        i. des. ss. rewrite FIND0. hred_r. des_ifs_safe.
-        remove_tau. 
-        replace (pred _) with blk0 by nia.
-        erewrite sk_incl_gd; et. hred_r. des_ifs_safe. hred_r. ss.
-        iApply isim_ccallU_encrypt.
-        1,2,3: admit "".
-        iIntros (i8). hred_r. unhide. unfold _sassign_c.
-        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members.
-        ss. des_ifs. hred_r.
-        iApply isim_ccallU_store2.
-        1,2,3: admit "". hred_r. unhide.
-        remove_tau. unhide. remove_tau. unhide.
-        unfold _scall_c. ss.
-        hexploit SKINCLENV.
-        { instantiate (2:="decrypt"). ss. }
-        i. des. ss. rewrite FIND1. hred_r.
-        remove_tau. rewrite Heq2. ss. hred_r.
-        rewrite co_co_members. ss. des_ifs_safe.
-        hred_r. iApply isim_ccallU_load2.
-        1,2,3: admit "".
-        iExists xH, Ptrofs.zero.
-        hred_r.
-        replace (pred _) with blk1 by nia.
-        erewrite sk_incl_gd; et. hred_r. ss.
-        iApply isim_ccallU_decrypt.
-        1,2,3: admit "".
-        iIntros (i11). hred_r. unhide. remove_tau. unhide.
-        remove_tau. unhide. remove_tau. unhide.
-        unfold _scall_c. ss.
-        des. remove_tau. rewrite FIND0. hred_r.
-        replace (pred _) with blk0 by nia.
-        des_ifs_safe. hred_r.
-        erewrite sk_incl_gd; et. hred_r. ss.
-        iApply isim_ccallU_encrypt.
-        1,2,3: admit "".
-        iIntros (i12). hred_r. unhide. unfold _sassign_c.
-        remove_tau. rewrite Heq2. hred_r. rewrite co_co_members. ss. 
-        des_ifs_safe. hred_r. iApply isim_ccallU_store2.
-        1,2,3: admit "".
-        hred_r. unhide. unfold _sassign_c. remove_tau.
-        iApply isim_ccallU_store2.
-        1,2,3: admit "".
-        remove_tau. admit "".
-  Unshelve. all: try exact (Ord.from_nat 0).
-  Qed.
-
-  Lemma sim_delete (sk: Sk.t) :
-    sim_fnsem wf top2
-      ("delete", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_spec))
-      ("delete", cfunU (decomp_func sk ce f_delete)).
-  Proof.
+      ss. *)
   Admitted.
 
-  Lemma sim_search (sk: Sk.t) :
+
+
+
+  Lemma sim_search :
     sim_fnsem wf top2
-      ("search", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure search_spec))
-      ("search", cfunU (decomp_func sk ce f_search)).
+      ("search", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure search_spec))
+      ("search", cfunU (decomp_func (Sk.canon sk) ce f_search)).
   Proof.
   Admitted.
+  End FUN.
 
- 
+  Opaque Sk.canon.
+
   Theorem correct : refines2 [xorlist0.xor] [xorlist1.xor GlobalStb].
   Proof.
     eapply adequacy_local2. econs; ss.
@@ -612,14 +516,13 @@ Section PROOF.
     econs; cycle 1.
     econs; cycle 1.
     econs; et.
-    all: rewrite f_bind_ret_r.
-    - 
-    apply sim_search.
-    - apply sim_delete.
-    - apply sim_insert.
-    - apply sim_decrypt.
-    - apply sim_encrypt.
+    all: rewrite f_bind_ret_r; unfold get_ce; replace (map _ _) with ce by et.
+    - apply sim_search; et.
+    - apply sim_delete; et.
+    - apply sim_add; et.
+    - apply sim_decrypt; et.
+    - apply sim_encrypt; et.
     Unshelve. exact tt.
   Qed.
-
 End PROOF.
+
