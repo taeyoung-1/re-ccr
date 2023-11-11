@@ -410,6 +410,14 @@ Module Sk.
     destruct p. eapply IHsks; et.
   Qed.
 
+  Lemma sk_incl_gd (sk0 sk1: t) gn blk gd: 
+    Sk.extends sk0 sk1 ->
+    SkEnv.id2blk (load_skenv (Maps.PTree.elements sk1)) gn = Some blk ->
+    Maps.PTree.get (ident_of_string gn) sk0 = Some gd ->
+    nth_error (Maps.PTree.elements sk1) blk = Some (ident_of_string gn, gd).
+  Proof.
+  Admitted.
+
 
 
 End SK.

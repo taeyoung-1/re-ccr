@@ -16,8 +16,8 @@ Require Import ClightDmExprgen.
 
 Section HIDE.
 
-  Definition hide {A: Type} {a: A} := a.
-  Arguments hide {A} {a}: simpl never.  
+  Definition hide (p: positive) {A: Type} {a: A} := a.
+  Arguments hide _ {A} {a}: simpl never.  
 
 End HIDE.
 
@@ -178,12 +178,12 @@ Section DECOMP.
       end
     end.
 
-  Definition _sloop_itree
+  Definition _sloop_itree (p: positive)
              (e: env) (le: temp_env)
-             (itr1 itr2: env -> temp_env -> itr_t)
+             (itr1 itr2: positive -> env -> temp_env -> itr_t)
     : itr_t :=
     '(e', le', v) <-
-    ITree.iter (@hide _ (sloop_iter_body itr1 itr2)) (e, le) ;;
+    ITree.iter (@hide p _ (sloop_iter_body (itr1 (xO p)) (itr2 (xI p)))) (e, le) ;;
     Ret (e', le', None, v).
 
   Fixpoint free_list_aux (l: list (block * Z)): itree eff unit :=
@@ -213,11 +213,11 @@ Section DECOMP.
       sem_cast_c v (typeof a) retty
     end.
 
-  Fixpoint decomp_stmt
+  Fixpoint decomp_stmt (p: positive)
            (retty: type)
            (stmt: statement)
     : env -> temp_env -> itr_t :=
-    @hide _ 
+    @hide p _ 
     (fun (e: env) (le: temp_env) =>
     match stmt with
     | Sskip =>
@@ -248,7 +248,7 @@ Section DECOMP.
       | _ => triggerUB
       end
     | Ssequence s1 s2 =>
-      '(e', le', bc, v) <- tau;;decomp_stmt retty s1 e le;;
+      '(e', le', bc, v) <- tau;;decomp_stmt (xO p) retty s1 e le;;
                         (* this is for steps *)
       match v with
       | Some retval =>
@@ -256,7 +256,7 @@ Section DECOMP.
       | None =>
         match bc with
         | None =>
-          tau;;decomp_stmt retty s2 e' le'
+          tau;;decomp_stmt (xI p) retty s2 e' le'
         | Some true =>
           tau;;Ret (e', le', bc, None)
         | Some false =>
@@ -265,12 +265,12 @@ Section DECOMP.
       end
     | Sifthenelse a s1 s2 =>
       b <- _site_c e le a;;
-      if (b: bool) then (decomp_stmt retty s1 e le)
-      else (decomp_stmt retty s2 e le)
+      if (b: bool) then (decomp_stmt (xO p) retty s1 e le)
+      else (decomp_stmt (xI p) retty s2 e le)
     | Sloop s1 s2 =>
-      let itr1 := decomp_stmt retty s1 in
-      let itr2 := decomp_stmt retty s2 in
-      _sloop_itree e le itr1 itr2
+      let itr1 := fun p => decomp_stmt p retty s1 in
+      let itr2 := fun p => decomp_stmt p retty s2 in
+      _sloop_itree (xO p) e le itr1 itr2
     | Sbreak =>
       Ret (e, le, Some true, None)
     | Scontinue =>
@@ -287,8 +287,8 @@ Section DECOMP.
            (f: Clight.function)
            (vargs: list val)
     : itree eff val :=
-    '(e, le) <- function_entry_c ce (@hide _ f) vargs;;
-    '(e', le', c, ov) <- decomp_stmt (fn_return f) (fn_body f) e le;; 
+    '(e, le) <- function_entry_c ce (@hide (xO xH) _ f) vargs;;
+    '(e', le', c, ov) <- decomp_stmt xH (fn_return f) (fn_body f) e le;; 
     '(_, _, _, v) <- (match ov with
     | Some v => free_list_aux (blocks_of_env ce e');;; Ret (e', le', c, Some v)
     | None => match c : option bool with

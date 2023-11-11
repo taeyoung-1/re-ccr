@@ -424,6 +424,7 @@ Section ABENVS.
 
 End ABENVS.
 
+Global Existing Instance clightdm_globaldata.
 Global Existing Instance clightdm_sk.
 
 Section Clight.

@@ -258,10 +258,24 @@ Section RULES.
   Proof.
   Admitted.
 
+  Lemma offset_unique_meta
+      vaddr m0 m1 ofs
+    :
+      vaddr ⊨m0# ofs ** vaddr ⊨m1# ofs ⊢ ⌜m0 = m1⌝.
+  Proof.
+  Admitted.
+
   Lemma offset_dup
       vaddr m ofs
     :
       vaddr ⊨m# ofs ⊢ vaddr ⊨m# ofs ** vaddr ⊨m# ofs.
+  Proof.
+  Admitted.
+
+  Lemma captured_address_not_zero
+      vaddr m i
+    :
+      vaddr (≃_m) i ⊢ ⌜Vptrofs (Ptrofs.repr i) <> Vnullptr⌝.
   Proof.
   Admitted.
 
@@ -272,13 +286,67 @@ Section RULES.
   Proof.
   Admitted.
 
-  Lemma alived_pointer_notnull
+  Lemma has_offset_notnull
       vaddr m ofs
     :
       vaddr ⊨m# ofs ⊢ ⌜Vnullptr <> vaddr⌝.
   Proof.
   Admitted.
 
+  Lemma points_to_notnull
+      vaddr m q mvs
+    :
+      vaddr ↦m#q≻ mvs ⊢ ⌜Vnullptr <> vaddr⌝.
+  Proof.
+  Admitted.
+
+  Lemma replace_meta_to_alive
+      vaddr m0 m1 q mvs i
+    :
+      vaddr ↦m0#q≻ mvs ** vaddr (≃_m1) i ⊢ vaddr ↦m0#q≻ mvs ** vaddr (≃_m0) i.
+  Proof.
+  Admitted.
+
+
+
+  Definition cast_to_ptr (v: val) : itree Es val :=
+    match v with
+    | Vptr _ _ => Ret v
+    | Vint _ => if Archi.ptr64 then triggerUB else Ret v
+    | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
+    | _ => triggerUB
+    end.
+
+  Lemma liveness_ptr v m ofs
+    : 
+      v ⊨m# ofs ⊢ ⌜cast_to_ptr v = Ret v⌝.
+  Proof.
+    iIntros "A". unfold has_offset.
+    destruct v; ss; des_ifs_safe;
+    iDestruct "A" as "[A %]"; clarify.
+  Qed.
+
+  Lemma points_to_is_ptr v m q mvs
+    : 
+      v ↦m#q≻ mvs ⊢ ⌜is_ptr_val v = true⌝.
+  Proof.
+    iIntros "A". unfold points_to, has_offset.
+    destruct v; ss; des_ifs_safe;
+    iDestruct "A" as "[A B]"; clarify;
+    iDestruct "B" as (ofs) "[B [C %]]"; clarify.
+  Qed.
+
+  Lemma decode_encode_ptr v m ofs 
+    : 
+      v ⊨m# ofs ⊢ ⌜decode_val Mptr (encode_val Mptr v) = v⌝.
+  Proof.
+    unfold Mptr. des_ifs.
+    pose proof (decode_encode_val_general v Mint64 Mint64).
+    unfold decode_encode_val in H3.
+    iIntros "A". unfold has_offset.
+    destruct v; try solve [iDestruct "A" as "[A %]"; clarify].
+    rewrite H3. et.
+  Qed.
 
 End RULES.
 

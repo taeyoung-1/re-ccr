@@ -49,123 +49,174 @@ Section PROP.
 
   Fixpoint frag_xorlist (q: Qp) (p_hd_prev p_hd p_tl p_tl_next: val) (xs : list val) {struct xs} : iProp :=
     match xs with
-    | [] => ⌜p_hd_prev = p_tl /\ p_hd = p_tl_next⌝
+    | [] =>
+      (if Val.eq Vnullptr p_hd_prev then ⌜p_hd_prev = p_tl⌝
+      else ∃ m i, validity p_hd_prev ⊨m# 0 ** p_tl ⊨m# 0)
+      **
+      (if Val.eq Vnullptr p_hd then ⌜p_hd = p_tl_next⌝
+      else ∃ m, p_hd ⊨m# 0 ** p_tl_next ⊨m# 0)
     | Vlong a :: xs' =>
       if Val.eq Vnullptr p_hd_prev
       then
-        ∃ p_next m_hd m_next i_next ofs_hd ofs_next tg_hd,
+        ∃ p_next m_hd i_next,
           p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_next)))
-          ** weak_valid m_hd p_hd ofs_hd
-          ** live_ q # (m_hd, tg_hd) 
-          ** ⌜(8 | ofs_hd)%Z⌝
+          ** p_hd ⊨m_hd# 0
+          ** live_ q # (m_hd, Dynamic)
+          ** ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
           ** (if Z.eqb i_next 0 then ⌜p_next = Vnullptr⌝
-              else (weak_valid m_next p_next ofs_next
-                   ** p_next (≃_ m_next) i_next))
+              else ∃ m_next, p_next (≃_ m_next) i_next)
           ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
       else
-        ∃ p_next m_prev m_hd m_next i_prev i_key ofs_hd ofs_next tg_hd,
+        ∃ p_next m_prev m_hd i_prev i_key,
           p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_key)))
-          ** weak_valid m_hd p_hd ofs_hd
-          ** live_ q # (m_hd, tg_hd) 
-          ** ⌜(8 | ofs_hd)%Z⌝
+          ** p_hd ⊨m_hd# 0
+          ** live_ q # (m_hd, Dynamic)
+          ** ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
           ** p_hd_prev (≃_ m_prev) i_prev
           ** (if Z.eqb (Z.lxor i_prev i_key) 0 then ⌜p_next = Vnullptr⌝
-              else (weak_valid m_next p_next ofs_next
-                   ** p_next (≃_ m_next) (Z.lxor i_prev i_key)))
+              else ∃ m_next, p_next (≃_ m_next) (Z.lxor i_prev i_key))
           ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
     | _ => False
     end%I.
 
+  Lemma unfold_frag_xorlist (q: Qp) (p_hd_prev p_hd p_tl p_tl_next: val) (xs : list val) :
+  frag_xorlist q p_hd_prev p_hd p_tl p_tl_next xs =
+    match xs with
+    | [] =>
+      (if Val.eq Vnullptr p_hd_prev then ⌜p_hd_prev = p_tl⌝
+      else ∃ m, p_hd_prev ⊨m# 0 ** p_tl ⊨m# 0)
+      **
+      (if Val.eq Vnullptr p_hd then ⌜p_hd = p_tl_next⌝
+      else ∃ m, p_hd ⊨m# 0 ** p_tl_next ⊨m# 0)
+    | Vlong a :: xs' =>
+      if Val.eq Vnullptr p_hd_prev
+      then
+        ∃ p_next m_hd i_next,
+          p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_next)))
+          ** p_hd ⊨m_hd# 0
+          ** live_ q # (m_hd, Dynamic) 
+          ** ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
+          ** (if Z.eqb i_next 0 then ⌜p_next = Vnullptr⌝
+              else ∃ m_next, p_next (≃_ m_next) i_next)
+          ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
+      else
+        ∃ p_next m_prev m_hd i_prev i_key,
+          p_hd ↦m_hd#q≻ (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.repr i_key)))
+          ** p_hd ⊨m_hd# 0
+          ** live_ q # (m_hd, Dynamic) 
+          ** ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
+          ** p_hd_prev (≃_ m_prev) i_prev
+          ** (if Z.eqb (Z.lxor i_prev i_key) 0 then ⌜p_next = Vnullptr⌝
+              else ∃ m_next, p_next (≃_ m_next) (Z.lxor i_prev i_key))
+          ** frag_xorlist q p_hd p_next p_tl p_tl_next xs'
+    | _ => False
+    end%I.
+  Proof. des_ifs. Qed.
+
   Definition full_xorlist q p_hd p_tl xs : iProp := 
     frag_xorlist q Vnullptr p_hd p_tl Vnullptr xs.
 
-  Lemma real_pointer_notnull'
-      vaddr m ofs
-    :
-      vaddr ⊨m# ofs ⊢ ⌜Coqlib.proj_sumbool (Val.eq Vnullptr vaddr) = false⌝.
-  Proof.
-  Admitted.
-
-  Lemma points_to_notnull
-      vaddr m q mvs
-    :
-      vaddr ↦m#q≻ mvs ⊢ ⌜Coqlib.proj_sumbool (Val.eq Vnullptr vaddr) = false⌝.
-  Proof.
-  Admitted.
-
-
-  Example xorlist_example1 p1 p2 p3 m1 m2 m3 i1 i2 i3 ofs3 tg3 ofs2 tg2:
-  p1 ↦m1#1≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vlong (Int64.repr i2)))
+  Example xorlist_example1 q p1 p2 p3 m1 m2 m3 i1 i2 i3:
+  (p1 ↦m1#q≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs (Ptrofs.repr i2)))
   ** p1 (≃_ m1) i1
-  ** p2 ↦m2#1≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs (Ptrofs.repr (Z.lxor i1 i3))))
-  ** p2 ⊨m2# ofs2
-  ** live_ 1# (m2, tg2)
-  ** p2 (≃_ m2) i2
-  ** p3 ↦m3#1≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vlong (Int64.repr i2)))
-  ** p3 ⊨m3# ofs3
-  ** live_ 1# (m3, tg3)
-  ** p3 (≃_ m3) i3
-  ⊢ full_xorlist 1 p1 p3 [Vlong Int64.one;Vlong Int64.one;Vlong Int64.one].
-  Proof.
-  Admitted.
-    (* iIntros "[[[[[[[i j] h] b] c] d] e] f]".
-    unfold full_xorlist. ss. des_ifs_safe.
-    iExists _,_,_,_,_,_. unfold Vptrofs in *.
-    destruct Archi.ptr64 eqn: X; clarify.
-    ss. unfold Mptr in *.
-    destruct Archi.ptr64 eqn: X'; clarify.
-    unfold Ptrofs.to_int64 in *.
-    iPoseProof (points_to_notnull with "i") as "%".
-    iPoseProof (captured_pointer_notnull with "c") as "%".
-    iPoseProof (capture_dup with "c") as "[c c']".
-    iSplitL "i b c".
-    { instantiate (1:= i2). 
-      rewrite (Int64.unsigned_repr (Ptrofs.unsigned _)).
-      2:{ change Int64.max_unsigned with Ptrofs.max_unsigned.
-          apply Ptrofs.unsigned_range_2. }
-      iFrame. 
-      instantiate (2:=p2).
-      destruct (i2 =? 0)%Z eqn:E.
-      { apply Z.eqb_eq in E. clarify. }
-      iFrame. }
-    iPoseProof (captured_pointer_notnull with "f") as "%".
-    destruct (Val.eq _ _); ss; clarify.
-    iExists _,_,_,_,_,_,_,_.
-    iPoseProof (points_to_notnull with "h") as "%".
-    iSplitL "h e f j".
-    { instantiate (1:=(Z.lxor i1 i3)).
-      instantiate (3:=p3).
-      rewrite (Int64.unsigned_repr (Ptrofs.unsigned _)).
-      2:{ change Int64.max_unsigned with Ptrofs.max_unsigned.
-          apply Ptrofs.unsigned_range_2. }
-      rewrite <- Z.lxor_assoc. rewrite Z.lxor_nilpotent.
-      rewrite Z.lxor_0_l.
-      destruct (i3 =? 0)%Z eqn: E'.
-      { apply Z.eqb_eq in E'. clarify. }
-      iFrame. }
-    destruct (Val.eq _ _); ss; clarify.
-    iExists _,_,_,_,_,_,_,_.
-    instantiate (2:=i2).
-    rewrite (Int64.unsigned_repr (Ptrofs.unsigned _)).
-    2:{ change Int64.max_unsigned with Ptrofs.max_unsigned.
-        apply Ptrofs.unsigned_range_2. }
-    iFrame. iSplit; et. rewrite Z.lxor_nilpotent. ss.
-  Unshelve. all: et.
-  Qed. *)
+  ** live_ q# (m1, Dynamic)
+  ** p1 ⊨m1# 0
+  ** ⌜m1.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝)
 
-  (* Example xorlist_example2 p2 m2:
-  p2 ↦m2#1≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs Ptrofs.zero))
-  ⊢ full_xorlist 1 p2 p2 [Vlong Int64.one].
+  ** (p2 ↦m2#q≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs (Ptrofs.repr (Z.lxor i1 i3))))
+     ** p2 (≃_ m2) i2
+     ** live_ q# (m2, Dynamic)
+     ** p2 ⊨m2# 0
+     ** ⌜m2.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝)
+
+  ** (p3 ↦m3#q≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs (Ptrofs.repr i2)))
+     ** p3 (≃_ m3) i3
+     ** live_ q# (m3, Dynamic)
+     ** p3 ⊨m3# 0
+     ** ⌜m3.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝)
+
+  ⊢ full_xorlist q p1 p3 [Vlong Int64.one;Vlong Int64.one;Vlong Int64.one].
   Proof.
-    iIntros "d".
-    unfold full_xorlist. ss.
-    destruct (Val.eq Vnullptr _); clarify.
-    iExists _,_,_,_,_,_. iFrame. ss.
-  Unshelve.
-  - exact m2.
-  - exact 0.
-  - exact Local.
-  Qed. *)
+    iIntros "[[N1 N2] N3]".
+    iDestruct "N1" as "[[[[n1_point n1_addr] n1_live] n1_ofs] %]".
+    iDestruct "N2" as "[[[[n2_point n2_addr] n2_live] n2_ofs] %]".
+    iDestruct "N3" as "[[[[n3_point n3_addr] n3_live] n3_ofs] %]".
+    unfold full_xorlist. simpl.
+    destruct (Val.eq Vnullptr Vnullptr) eqn:?; clarify.
+    iPoseProof (capture_dup with "n2_addr") as "[n2_addr_b n2_addr_f]".
+    iPoseProof (points_to_notnull with "n1_point") as "%".
+    iPoseProof (points_to_notnull with "n2_point") as "%".
+    iPoseProof (points_to_notnull with "n3_point") as "%".
+    iExists _,_,_.
+    iSplitL "n1_point n1_live n1_ofs n2_addr_f".
+    { iSplitR "n2_addr_f". iSplit; try rewrite H3. iSplitR "n1_live". iSplitR "n1_ofs".
+      { iApply "n1_point". }
+      { iApply "n1_ofs". }
+      { iApply "n1_live". }
+      { simpl. iPureIntro. reflexivity. }
+      { iPoseProof (captured_address_not_zero with "n2_addr_f") as "%".
+        destruct (i2 =? 0)%Z eqn: ?.
+        { exfalso. apply Z.eqb_eq in Heqb. clarify. }
+        { iExists _. iApply "n2_addr_f". } } }
+    destruct (Val.eq Vnullptr p1) eqn: ?; clarify.
+    iExists _,_,_,_,_.
+    iSplitL "n2_point n2_live n2_ofs n1_addr n3_addr".
+    { iSplitR "n3_addr". iSplitR "n1_addr".
+      iSplit; try rewrite H4.
+      iSplitR "n2_live". iSplitR "n2_ofs".
+      { iApply "n2_point". }
+      { iApply "n2_ofs". }
+      { iApply "n2_live". }
+      { simpl. iPureIntro. reflexivity. }
+      { iApply "n1_addr". }
+      { rewrite <- Z.lxor_assoc. rewrite Z.lxor_nilpotent.
+        rewrite Z.lxor_0_l.
+        iPoseProof (captured_address_not_zero with "n3_addr") as "%".
+        destruct (i3 =? 0)%Z eqn: ?.
+        { exfalso. apply Z.eqb_eq in Heqb. clarify. }
+        { iExists _. iApply "n3_addr". } } }
+    destruct (Val.eq Vnullptr p2) eqn: ?; clarify.
+    iPoseProof (offset_dup with "n3_ofs") as "[n3_ofs n3_ofs']".
+    iExists _,_,_,_,_.
+    iSplitR "n3_ofs'".
+    iSplitR "". iSplitR "n2_addr_b".
+    iSplit; try rewrite H5.
+    iSplitR "n3_live". iSplitR "n3_ofs".
+    { iApply "n3_point". }
+    { iApply "n3_ofs". }
+    { iApply "n3_live". }
+    { simpl. iPureIntro. reflexivity. }
+    { iApply "n2_addr_b". }
+    { rewrite Z.lxor_nilpotent. simpl. ss. }
+    { destruct Val.eq eqn: ?; destruct (Val.eq Vnullptr p3) eqn: ?.
+      - iPureIntro. et.
+      - iSplit; ss. iExists _. iApply offset_dup. iFrame. 
+      - iPoseProof (has_offset_notnull with "n3_ofs'") as "%". clarify.
+      - iPoseProof (has_offset_notnull with "n3_ofs'") as "%". clarify. }
+  Qed.
+
+  Example xorlist_example2 q p2 m2:
+  p2 ↦m2#q≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs Ptrofs.zero))
+  ** live_ q# (m2, Dynamic)
+  ** p2 ⊨m2# 0
+  ** ⌜m2.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
+  ⊢ full_xorlist q p2 p2 [Vlong Int64.one].
+  Proof.
+    iIntros "[[[d e] f] %]".
+    unfold full_xorlist. simpl.
+    destruct (Val.eq Vnullptr Vnullptr); clarify.
+    iExists _,_,_. 
+    iPoseProof (offset_dup with "f") as "[f f']".
+    iSplitR "f'". iSplitR "".
+    iSplitR "". iSplitR "e". iSplitR "f".
+    { iApply "d". }
+    { iApply "f". }
+    { iApply "e". }
+    { simpl. iPureIntro. ss. }
+    { simpl. iPureIntro. ss. }
+    { destruct Val.eq eqn:?; clarify; destruct (Val.eq Vnullptr Vnullptr) eqn:?; clarify. 
+      iSplit; ss. iExists _. iApply offset_dup. iFrame.  }
+  Qed.
     
   Lemma split_xorlist q p_hd_prev p_hd p_tl p_tl_next xs0 xs1
     : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1)
@@ -246,21 +297,6 @@ Section SPEC.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
-  (* The function only requires resource needed by capture *)
-  (* Definition encrypt_spec : fspec :=
-    (mk_simple
-      (fun '(left_ptr, right_ptr, b1, b2, sz1, sz2, tag1, tag2, q1, q2) => (
-            (ord_pure 1%nat),
-            (fun varg => ∃ ofs1 ofs2 opt1 opt2, ⌜varg = [left_ptr; right_ptr]↑⌝
-                          ** left_ptr ⊸ (b1, ofs1)
-                          ** b1 ↱q1# (sz1, tag1, opt1)
-                          ** right_ptr ⊸ (b2, ofs2)
-                          ** b2 ↱q2# (sz2, tag2, opt2)),
-            (fun vret => ∃ i1 i2, ⌜vret = (Vptrofs (Ptrofs.repr (Z.lxor i1 i2)))↑⌝
-                          ** b1 ↱q1# (sz1, tag1, Some i1)
-                          ** b2 ↱q2# (sz2, tag2, Some i2))
-
-    )))%I. *)
   Definition encrypt_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(left_ptr, right_ptr, m_l, m_r, tg_l, tg_r, q_l, q_r) => (
             (ord_pure 1%nat),
@@ -294,12 +330,19 @@ Section SPEC.
             (fun vret => ∃ i_r, ⌜vret = (Vptrofs (Ptrofs.repr i_r))↑⌝
                          ** right_ptr (≃_ m_r) i_r
                          ** live_ q_r# (m_r, tg_r)))%I.
+
+  Definition encrypt_hoare4 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '() => (
+            (ord_pure 1%nat),
+            (fun varg => ⌜varg = [Vnullptr; Vnullptr]↑⌝),
+            (fun vret => ⌜vret = Vnullptr↑⌝))%I.
   
   Definition encrypt_spec :=
     mk_simple (
       encrypt_hoare1
       @ encrypt_hoare2
       @ encrypt_hoare3
+      @ encrypt_hoare4
     ).
 
   Definition decrypt_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=

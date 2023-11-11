@@ -721,12 +721,29 @@ Section MEM.
 End MEM.
 
 Require Import ClightDmgen.
-From compcertip Require Import Ctypes.
+From compcertip Require Import Ctypes Clightdefs.
+
+Global Opaque captured_to.
+Global Opaque has_offset.
+Global Opaque points_to.
+Global Opaque metadata_alive.
+Global Opaque ccallU.
+Global Opaque get_sk.
+Global Opaque build_composite_env'.
+Global Opaque build_composite_env.
+
+Global Arguments alist_add /.
+Global Arguments ClightDmgen._sassign_c /.
+Global Arguments ClightDmgen._scall_c /.
+Global Arguments ClightDmgen._site_c /.
+Global Arguments ClightDmExprgen.sem_xor_c /.
+Global Arguments ClightDmExprgen.sem_binarith_c /.
+Global Arguments ClightDmExprgen.sem_cast_c /.
 
 Ltac init_hide :=
     repeat (match goal with
-    | [ |- context[@hide ?A ?a]] =>
-        let H := fresh "HIDDEN" in set (H := @hide A a) at 1
+    | [ |- context[hide ?p]] =>
+        let H := fresh "HIDDEN" in set (H := hide p) at 1
     end).
 
 Ltac unhide H :=
@@ -739,8 +756,10 @@ Tactic Notation "unhide" constr(H) :=
   unhide H.
 
 Tactic Notation "unhide" :=
-    repeat match goal with | |- context[ITree.bind (?H _ _) _] =>
-    unhide H end.
+    repeat (match goal with 
+            | |- context[ITree.bind (?H _ _) _] => unhide H
+            | |- context[{| _observe := TauF (ITree.bind (?H _ _) _) |}] => unhide H 
+            end).
 
 Ltac remove_tau :=
     repeat (ss; hred_r; iApply isim_tau_tgt; ss; hred_r).
