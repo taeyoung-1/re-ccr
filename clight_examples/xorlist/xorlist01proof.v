@@ -592,6 +592,7 @@ Section PROOF.
              { rewrite e in H5. clarify. }
              iExists _,_,_,_,_. iFrame.
              rewrite H4. iSplit; ss. admit "capture_refl".
+      (* case: not nil list && delete from tail *)
       + pose proof (Int.eq_spec from_tail Int.zero). rewrite Heqb in H3.
         clear Heqb. clarify. unfold vlist_delete in del_spc.
         Opaque last. Opaque removelast. Opaque rev.
@@ -705,7 +706,7 @@ Section PROOF.
         hred_r. unhide. remove_tau. unhide. remove_tau.
         replace (Vlong (Int64.repr _)) with Vnullptr by et.
         destruct l_next_reversed.
-        (* case: singleton list && delete from head *)
+        (* case: singleton list && delete from tail *)
         * ss. iDestruct "LIST" as "%". des. clarify.
           destruct (i_next =? 0)%Z eqn: X; cycle 1.
           { iDestruct "next_info" as (m_next) "next_capture".
@@ -769,7 +770,7 @@ Section PROOF.
           iSplit; ss. iSplitL.
           { iPureIntro. clarify. }
           unfold null_or_int. iLeft. iPureIntro. et.
-        (* case: list length with more than 1 && delete from head *)
+        (* case: list length with more than 1 && delete from tail *)
         * ss. destruct v; try solve [iDestruct "LIST" as "%"; clarify].
           iPoseProof (has_offset_notnull with "tl_ofs") as "%".
           destruct (Val.eq _ tl_old) eqn: ?; clarify. clear H3 H4 n Heqs.
@@ -1053,28 +1054,51 @@ Section PROOF.
              iPoseProof (capture_unique with "new") as "%".
              iDestruct "new" as "[_ new_addr]".
              clarify.
-             (* yet updated *)
 
-             iPoseProof (rev_xorlist with "LIST") as "LIST".
+             apply (f_equal (@rev val)) in Heql_reversed.
+             rewrite rev_involutive in Heql_reversed.
+             rewrite <- Heql_reversed.
+             change (last (rev _)) with (last (rev ([Vlong tl_long] ++ (Vlong next_long :: Vlong next_next_long :: l_next_reversed)))).
+             rewrite rev_app_distr.
+             change (rev [Vlong tl_long]) with [Vlong tl_long].
+             rewrite last_last.
+             change (removelast (rev _)) with (removelast (rev ([Vlong tl_long] ++ (Vlong next_long :: Vlong next_next_long :: l_next_reversed)))).
+             rewrite rev_app_distr.
+             change (rev [Vlong tl_long]) with [Vlong tl_long].
+             rewrite removelast_app.
+             2:{ et. }
+             change (removelast [Vlong tl_long]) with (@nil val).
+             rewrite app_nil_r.
 
-             iExists _,_,_,_,_,_. iFrame.
-             instantiate(1:=tl_old).
-             iSplitL "".
-             { iSplitL. iSplitL. iSplit; ss.
-               { unfold null_or_int. iLeft. iPureIntro. ss. }
-               { unfold null_or_int. iLeft. iPureIntro. ss. } }
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
+             iExists _,_,hd_old,p_next,_,_. iFrame.
+             iSplitL "new_addr'".
+             { iSplitR. iSplit; ss.
+               { iLeft. ss. }
+               { iRight. iExists _. iSplit; ss. iExists _. iFrame. } }
+             iApply rev_xorlist.
+             ss.
+
+             destruct Val.eq; clarify. clear e.
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
+             iPoseProof (capture_pointto_comm with "new_addr'") as "comm".
+             iPoseProof ("comm" with "new_point") as "new_point".
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
+             iPoseProof (capture_offset_comm with "new_addr'") as "comm".
+             iPoseProof ("comm" with "new_ofs'") as "new_ofs".
              iExists p_new,_,_. iFrame.
-             rewrite m_new_size. iSplitL "new_next_addr new_next_addr_store".
+             iPoseProof (captured_address_not_zero with "new_next_addr_store") as "%".
+             iPoseProof (capture_dup with "new_next_addr") as "[new_next_addr new_next_addr']".
+             iSplitL "new_next_addr_store new_next_addr'".
              { iSplit; ss.
-               iPoseProof (captured_address_not_zero with "new_next_addr_store") as "%".
-               destruct (i_keytl =? 0)%Z eqn: ?.
-               { apply Z.eqb_eq in Heqb0. exfalso. clarify. }
-               { admit "capture_trans". } }
-             iPoseProof (captured_address_not_zero with "new_addr") as "%".
-             destruct Val.eq.
-             { rewrite e in H5. clarify. }
+               destruct (i_keytl =? 0)%Z eqn:?.
+               - exfalso. apply Z.eqb_eq in Heqb0. clarify.
+               - iExists _. admit "capture_trans". }
+
+             iPoseProof (captured_pointer_notnull with "new_addr") as "%".
+             destruct Val.eq; clarify. clear H6 H5 n1.
              iExists _,_,_,_,_. iFrame.
-             rewrite H4. iSplit; ss. admit "capture_refl".
+             iPureIntro. ss.
     Unshelve. all: et.
   Qed.
 
