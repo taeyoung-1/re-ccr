@@ -444,127 +444,36 @@ Section PROOF.
              iPoseProof (points_to_collect with "new_point") as "new_point". 
              iSplit; ss. 
              rewrite unfold_frag_xorlist.
-             destruct lreturn.
-             { ss. iDestruct "LIST" as "[ptr_eq0 ptr_eq1]".
-               iPoseProof (captured_pointer_notnull with "new_addr") as "%".
-               destruct Val.eq eqn:?; clarify.
-               iDestruct "ptr_eq0" as (m) "[p_next_ofs tl_old_ofs]".
-               iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
-               iPoseProof (capture_pointto_comm with "new_addr'") as "new".
-               iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
-               iPoseProof (capture_offset_comm with "new_addr'") as "new'".
-               iPoseProof ("new" with "new_point") as "new_point".
-               iPoseProof ("new'" with "new_ofs'") as "new_ofs".
-               iCombine "p_next_ofs new_point" as "new".
-               iPoseProof (replace_meta_to_ofs with "new") as "[new_ofs' new_point]".
-               iCombine "new_point new_addr" as "new".
-               iPoseProof (replace_meta_to_alive with "new") as "[new_point new_addr]".
-               iCombine "new_ofs new_point" as "new".
-               iPoseProof (replace_meta_to_point with "new") as "[new_ofs new_point]".
-               iCombine "new_ofs new_ofs'" as "new".
-               iPoseProof (offset_unique with "new") as "%".
-               rewrite <- H4.
-               iDestruct "new" as "[new_ofs _]".
-               iPoseProof (offset_dup with "new_ofs") as "[new_ofs new_ofs']".
-               ss. iExists _,_,_,_.
-               iSplitL "hd_handler_point tl_handler_point hd_handler_ofs tl_handler_ofs".
-               { iFrame. iPureIntro. split; ss. }
-               iExists _,_,_. iFrame. instantiate (1:=Vnullptr).
-               instantiate(1:=0%Z).
-               change (Vptrofs (Ptrofs.repr 0)) with Vnullptr.
-               iFrame. rewrite m_new_size.
-               iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
-               iPoseProof (capture_pointto_comm with "new_addr'") as "new".
-               iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
-               iPoseProof (capture_offset_comm with "new_addr'") as "new'".
-               iPoseProof ("new" with "new_point") as "new_point".
-               iPoseProof ("new'" with "new_ofs'") as "new_ofs'".
-               iCombine "new_point new_addr" as "new".
-               iPoseProof ()
-
-               iSplitR "tl_old_ofs new_ofs'".
-               iSplit; ss. iSplitR ""; ss.
-               iPoseProof (captured_address_not_zero with "new_addr") as "%".
-
-               destruct (Val.eq Vnullptr (Vptrofs (Ptrofs.repr i_next))) eqn:?.
-               - rewrite e in H4. exfalso. clarify.
-               - iExists _,_. iFrame.
-                 iPoseProof (capture_offset_comm with "new_addr") as "new_addr".
-                 iPoseProof ("new_addr" with "p_next_ofs") as "d".
-                 
-
-
-
-
-
-
-
-
-
-
-
-             replace l1 with (encode_val Mint64 (Vlong i2)) by et.
-             rewrite <- Heq2. unfold Vptrofs. clarify.
-             rewrite Ptrofs.to_int64_of_int64; et.
-             rewrite <- Heq1.
-             replace (encode_val Mint64 (decode_val _ _))
-               with (encode_val Mint64 (Vptrofs (Ptrofs.repr i_next))).
-             2:{ pose proof (decode_encode_val_general (Vptrofs (Ptrofs.repr i_next)) Mint64 Mint64).
-                 unfold decode_encode_val in H15. des_ifs_safe.
-                 rewrite H15. et. }
-             destruct l; cycle 1.
-             { ss. destruct v2; try solve [iDestruct "LIST" as "%"; clarify].
-               destruct (Val.eq Vnullptr p_next).
-               - iDestruct "LIST" as (? ? ?) "[[[[[i j] h] f] c] a]".
-                 iPoseProof (has_offset_notnull with "j") as "%".
+             destruct lreturn; cycle 1.
+             { destruct (Val.eq Vnullptr p_next) eqn:?.
+               - iPoseProof (captured_pointer_notnull with "new_addr") as "%".
                  clarify.
-               - iDestruct "LIST" as (? ? ? ? ?) "[[[[[[k u] j] h] f] c] a]".
-                 iPoseProof (has_offset_notnull with "u") as "%".
+               - destruct v; try solve [iDestruct "LIST" as "%"; clarify].
+                 iDestruct "LIST" as (? ? ? ? ?)
+                  "[[[[[[a b] c] d] e] f] LIST]".
+                 iPoseProof (points_to_notnull with "a") as "%".
                  clarify. }
-             ss. iDestruct "LIST" as "%". des. clarify.
-             unfold vlist_delete in Heq.
-             iExists _,_,_,_.
+             ss. iDestruct "LIST" as "%".
+             des. clarify. clear H4.
+             iPoseProof (captured_address_not_zero with "new_addr") as "%".
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
+             iPoseProof (capture_pointto_comm with "new_addr'") as "comm".
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr']".
+             iPoseProof (capture_offset_comm with "new_addr'") as "comm'".
+             iPoseProof ("comm" with "new_point") as "new_point".
+             iPoseProof ("comm'" with "new_ofs'") as "new_ofs".
+             ss. iExists _,_,tl_old,tl_old,_,_.
+             iSplitL "hd_handler_point tl_handler_point hd_handler_ofs tl_handler_ofs new_addr".
+             { iFrame. iSplitL. iSplitR "new_addr".
+               { iPureIntro. clarify. }
+               { unfold null_or_int. iRight.
+                 iExists _. iSplit; ss. iExists _. iFrame. }
+               { unfold null_or_int. iLeft. ss. } }
+             { iExists _,_,_. iFrame. instantiate (2:=0%Z).
+               change (Vptrofs (Ptrofs.repr 0)) with Vnullptr.
+               iFrame. simpl. rewrite m_new_size. ss. }
+          **
 
-
-              iSplitR "".
-
-
-
-              
-
-
-              
-
-
-
-
-
-
-        
-        
-
-
-        
-
-        
-
-        
-        
-        
-
-        
-
-
-      unfold vlist_add. destruct (Val.eq _ _); ss.
-      destruct (Int.eq) eqn:?; ss; clarify.
-
-
-    dup SKINCL. rename SKINCL0 into SKINCLENV.
-    apply Sk.incl_incl_env in SKINCLENV.
-    unfold Sk.incl_env in SKINCLENV.
-    hexploit SKINCLENV.
-    { instantiate (2:="malloc"). ss. }
-    i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
   Admitted.
 
   Lemma sim_encrypt :

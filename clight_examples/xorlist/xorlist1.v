@@ -49,12 +49,7 @@ Section PROP.
 
   Fixpoint frag_xorlist (q: Qp) (p_hd_prev p_hd p_tl p_tl_next: val) (xs : list val) {struct xs} : iProp :=
     match xs with
-    | [] =>
-      (if Val.eq Vnullptr p_hd_prev then ⌜p_hd_prev = p_tl⌝
-      else ∃ m i, validity p_hd_prev ⊨m# 0 ** p_tl ⊨m# 0)
-      **
-      (if Val.eq Vnullptr p_hd then ⌜p_hd = p_tl_next⌝
-      else ∃ m, p_hd ⊨m# 0 ** p_tl_next ⊨m# 0)
+    | [] => ⌜p_hd_prev = p_tl /\ p_hd = p_tl_next⌝
     | Vlong a :: xs' =>
       if Val.eq Vnullptr p_hd_prev
       then
@@ -82,12 +77,7 @@ Section PROP.
   Lemma unfold_frag_xorlist (q: Qp) (p_hd_prev p_hd p_tl p_tl_next: val) (xs : list val) :
   frag_xorlist q p_hd_prev p_hd p_tl p_tl_next xs =
     match xs with
-    | [] =>
-      (if Val.eq Vnullptr p_hd_prev then ⌜p_hd_prev = p_tl⌝
-      else ∃ m, p_hd_prev ⊨m# 0 ** p_tl ⊨m# 0)
-      **
-      (if Val.eq Vnullptr p_hd then ⌜p_hd = p_tl_next⌝
-      else ∃ m, p_hd ⊨m# 0 ** p_tl_next ⊨m# 0)
+    | [] => ⌜p_hd_prev = p_tl /\ p_hd = p_tl_next⌝
     | Vlong a :: xs' =>
       if Val.eq Vnullptr p_hd_prev
       then
@@ -176,9 +166,8 @@ Section PROP.
         { exfalso. apply Z.eqb_eq in Heqb. clarify. }
         { iExists _. iApply "n3_addr". } } }
     destruct (Val.eq Vnullptr p2) eqn: ?; clarify.
-    iPoseProof (offset_dup with "n3_ofs") as "[n3_ofs n3_ofs']".
     iExists _,_,_,_,_.
-    iSplitR "n3_ofs'".
+    iSplitR "".
     iSplitR "". iSplitR "n2_addr_b".
     iSplit; try rewrite H5.
     iSplitR "n3_live". iSplitR "n3_ofs".
@@ -188,11 +177,7 @@ Section PROP.
     { simpl. iPureIntro. reflexivity. }
     { iApply "n2_addr_b". }
     { rewrite Z.lxor_nilpotent. simpl. ss. }
-    { destruct Val.eq eqn: ?; destruct (Val.eq Vnullptr p3) eqn: ?.
-      - iPureIntro. et.
-      - iSplit; ss. iExists _. iApply offset_dup. iFrame. 
-      - iPoseProof (has_offset_notnull with "n3_ofs'") as "%". clarify.
-      - iPoseProof (has_offset_notnull with "n3_ofs'") as "%". clarify. }
+    { iPureIntro. et. }
   Qed.
 
   Example xorlist_example2 q p2 m2:
@@ -214,79 +199,127 @@ Section PROP.
     { iApply "e". }
     { simpl. iPureIntro. ss. }
     { simpl. iPureIntro. ss. }
-    { destruct Val.eq eqn:?; clarify; destruct (Val.eq Vnullptr Vnullptr) eqn:?; clarify. 
-      iSplit; ss. iExists _. iApply offset_dup. iFrame.  }
+    { simpl. iPureIntro. ss. }
   Qed.
     
   Lemma split_xorlist q p_hd_prev p_hd p_tl p_tl_next xs0 xs1
     : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1)
       ⊢ ∃ mid mid_next, frag_xorlist q p_hd_prev p_hd mid mid_next xs0 ** frag_xorlist q mid mid_next p_tl p_tl_next xs1.
   Proof.
-    (* revert q p_hd_prev p_hd p_tl p_tl_next xs1.
+    revert q p_hd_prev p_hd p_tl p_tl_next xs1.
     induction xs0; i; ss.
     - iIntros "A". iExists _,_. iSplit; et.
     - iIntros "A". des_ifs.
-      + iDestruct "A" as (p_next m_hd m_next i_next ofs_next tg_next) "[PTO NXT]".
+      + iDestruct "A" as (p_next m_hd i_next) "[PTO NXT]".
         iDestruct "PTO" as "[PTO RES]". clarify.
         iPoseProof (IHxs0 with "NXT") as (mid mid_next) "[NXT0 NXT1]".
         des_ifs.
         * apply Z.eqb_eq in Heq. clarify.
           iDestruct "RES" as "%". clarify.
           iExists _,_. iFrame.
-          iExists _,_,_,_,_,_. iFrame. ss.
-        * iDestruct "RES" as "[NXT_ALIVE NXT_CAP]". clarify.
+          iExists _,_,_. iFrame. ss.
+        * iDestruct "RES" as (m_next) "NXT_CAP". clarify.
           iExists _,_. iFrame.
-          iExists _,_,_,_,_,_. iFrame. rewrite Heq.
-          iFrame.
-      + iDestruct "A" as (p_next m_prev m_hd m_next i_prev i_key ofs_next tg_next) "[PTO NXT]".
+          iExists _,_,_. iFrame. rewrite Heq.
+          iExists _. iFrame.
+      + iDestruct "A" as (p_next m_prev m_hd i_prev i_key) "[PTO NXT]".
         iDestruct "PTO" as "[[PTO CAP_PREV] RES]".
         iPoseProof (IHxs0 with "NXT") as (mid mid_next) "[NXT0 NXT1]".
         des_ifs.
         * iDestruct "RES" as "%". apply Z.eqb_eq in Heq. clarify.
           iExists _,_. iFrame.
-          iExists _,_,_,_,_,_,_,_. iFrame. rewrite Heq.
+          iExists _,_,_,_,_. iFrame. rewrite Heq.
           ss.
-        * iDestruct "RES" as "[NXT_ALIVE NXT_CAP]".
+        * iDestruct "RES" as (m_next) "NXT_CAP".
           iExists _,_. iFrame.
-          iExists _,_,_,_,_,_,_,_. iFrame. rewrite Heq.
-          iFrame.
-  Unshelve. all: et.
-  Qed. *)
-  Admitted.
+          iExists _,_,_,_,_. iFrame. rewrite Heq.
+          iExists _. iFrame.
+  Qed.
 
   Lemma concat_xorlist q p_hd_prev p_hd p_tl p_tl_next mid mid_next xs0 xs1
     : frag_xorlist q p_hd_prev p_hd mid mid_next xs0 ** frag_xorlist q mid mid_next p_tl p_tl_next xs1
       ⊢ frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1).
   Proof.
-    (* revert q p_hd_prev p_hd p_tl p_tl_next mid mid_next xs1.
+    revert q p_hd_prev p_hd p_tl p_tl_next mid mid_next xs1.
     induction xs0; i; ss.
     - iIntros "[% A]". des. clarify.
     - iIntros "A". des_ifs; try solve [iDestruct "A" as "[% A]"; clarify].
       + iDestruct "A" as "[PTO NXT1]". 
-        iDestruct "PTO" as (p_next m_hd m_next i_next ofs_next tg_next) "[[PTO RES] NXT0]".
+        iDestruct "PTO" as (p_next m_hd i_next) "[[PTO RES] NXT0]".
         clarify. iCombine "NXT0 NXT1" as "NXT".
         iPoseProof (IHxs0 with "NXT") as "NXT".
         des_ifs.
         * apply Z.eqb_eq in Heq. clarify.
           iDestruct "RES" as "%". clarify.
-          iExists _,_,_,_,_,_. iFrame. ss.
-        * iDestruct "RES" as "[NXT_ALIVE NXT_CAP]".
-          iExists _,_,_,_,_,_. iFrame. rewrite Heq.
-          iFrame.
+          iExists _,_,_. iFrame. ss.
+        * iDestruct "RES" as (m_next) "NXT_CAP".
+          iExists _,_,_. iFrame. rewrite Heq.
+          iExists _. iFrame.
       + iDestruct "A" as "[PTO NXT1]". 
-        iDestruct "PTO" as (p_next m_prev m_hd m_next i_prev i_key ofs_next tg_next) "[[[PTO CAP_PREV] RES] NXT]".
+        iDestruct "PTO" as (p_next m_prev m_hd i_prev i_key) "[[[PTO CAP_PREV] RES] NXT]".
         clarify. iCombine "NXT NXT1" as "NXT".
         iPoseProof (IHxs0 with "NXT") as "NXT".
         des_ifs.
         * iDestruct "RES" as "%". apply Z.eqb_eq in Heq. clarify.
-          iExists _,_,_,_,_,_,_,_. iFrame. rewrite Heq.
+          iExists _,_,_,_,_. iFrame. rewrite Heq.
           ss.
-        * iDestruct "RES" as "[NXT_ALIVE NXT_CAP]".
-          iExists _,_,_,_,_,_,_,_. iFrame. rewrite Heq.
-          iFrame.
-  Unshelve. all: et.
-  Qed. *)
-  Admitted.
+        * iDestruct "RES" as (m_next) "NXT_CAP".
+          iExists _,_,_,_,_. iFrame. rewrite Heq.
+          iExists _. iFrame.
+  Qed.
+
+  Lemma rev_xorlist q p_hd_prev p_hd p_tl p_tl_next xs
+    : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next xs
+      ⊢ frag_xorlist q p_tl_next p_tl p_hd p_hd_prev (rev xs).
+  Proof.
+    revert q p_hd_prev p_hd p_tl p_tl_next.
+    induction xs; i; ss.
+    - iIntros "%". des. iPureIntro. clarify.
+    - iIntros "A". destruct a; try solve [iDestruct "A" as "%"; clarify].
+      destruct Val.eq eqn:?.
+      + iDestruct "A" as (p_next m_hd i_next) 
+          "[[[[[hd_point hd_ofs] hd_liv] %] next_info] NEXT]".
+        iPoseProof (IHxs with "NEXT") as "NEXT".
+        iApply concat_xorlist. iFrame.
+        ss. destruct (i_next =? 0)%Z eqn: ?.
+        * iDestruct "next_info" as "%". clarify.
+          destruct Val.eq; clarify. clear e Heqs.
+          iExists _,_,_.
+          rewrite H3. iFrame. iSplit; ss.
+          rewrite Heqb. iPureIntro. et.
+        * iDestruct "next_info" as (m_next) "next_info".
+          iPoseProof (captured_pointer_notnull with "next_info") as "%".
+          destruct (Val.eq Vnullptr p_next); clarify. clear H4 n.
+          iExists _,_,_,_,_.
+          rewrite H3. iFrame. 
+          rewrite Z.lxor_nilpotent. simpl.
+          iPureIntro. et.
+      + iDestruct "A" as (p_next m_prev m_hd i_prev i_next) 
+          "[[[[[[hd_point hd_ofs] hd_liv] %] hd_prev_addr] next_info] NEXT]".
+        iPoseProof (IHxs with "NEXT") as "NEXT".
+        iApply concat_xorlist. iFrame.
+        ss. destruct (Z.lxor i_prev i_next =? 0)%Z eqn: ?.
+        * iDestruct "next_info" as "%". clarify.
+          destruct (Val.eq Vnullptr Vnullptr); clarify. clear e Heqs.
+          rewrite Z.eqb_eq in Heqb. apply Z.lxor_eq in Heqb. clarify.
+          iPoseProof (captured_address_not_zero with "hd_prev_addr") as "%".
+          iExists _,_,_.
+          rewrite H3. iFrame. iSplit; ss. iSplit; ss.
+          destruct (i_next =? 0)%Z eqn: ?.
+          { apply Z.eqb_eq in Heqb. clarify. }
+          iExists _. iFrame.
+        * iDestruct "next_info" as (m_next) "next_info".
+          iPoseProof (captured_pointer_notnull with "next_info") as "%".
+          destruct (Val.eq Vnullptr p_next); clarify. clear H4 n0.
+          iExists _,_,_,_,_.
+          rewrite H3. iFrame. iSplit; ss. iSplit; ss.
+          rewrite Z.lxor_assoc. rewrite Z.lxor_nilpotent.
+          rewrite Z.lxor_0_r. 
+          iPoseProof (captured_address_not_zero with "hd_prev_addr") as "%".
+          destruct (i_prev =? 0)%Z eqn: ?.
+          { apply Z.eqb_eq in Heqb0. clarify. }
+          iExists _. iFrame.
+  Qed.
 
 End PROP.
 
@@ -408,6 +441,10 @@ Section SPEC.
               then r = last xs /\ exists new_hd, hd_handler |-> new_hd /\ tl_handler |-> tl /\ is_xorlist new_hd tl (removelast xs)
               else r = hd xs /\ exists new_tl, hd_handler |-> hd /\ tl_handler |-> new_tl /\ is_xorlist hd new_tl (tl xs)
      } *)
+
+  Definition null_or_int (p q: val) : iProp :=
+    (⌜p = q⌝ ∨ ∃ i, ⌜p = Vptrofs (Ptrofs.repr i)⌝ ** ∃ m, q (≃_m) i)%I.
+
   Definition delete_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, m_h, m_t, from_tail, xs) => (
@@ -422,14 +459,16 @@ Section SPEC.
                      ** tl_handler ⊨m_t# ofs_tl_old
                      ** full_xorlist 1 hd_old tl_old xs),
         (fun vret => let '(item, xs') := vlist_delete xs (Vint from_tail) (Vlong Int64.zero) in
-                     ∃ hd_new tl_new ofs_hd_new ofs_tl_new,
+                     ∃ hd_new_data tl_new_data hd_new tl_new ofs_hd_new ofs_tl_new,
                      ⌜vret = item↑
                      /\ ((size_chunk Mptr) | ofs_hd_new)%Z
                      /\ ((size_chunk Mptr) | ofs_tl_new)%Z⌝
-                     ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new
-                     ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new
+                     ** hd_handler ↦m_h#1≻ encode_val Mptr hd_new_data
+                     ** tl_handler ↦m_t#1≻ encode_val Mptr tl_new_data
                      ** hd_handler ⊨m_h# ofs_hd_new
                      ** tl_handler ⊨m_t# ofs_tl_new
+                     ** null_or_int hd_new_data hd_new 
+                     ** null_or_int tl_new_data tl_new 
                      ** full_xorlist 1 hd_new tl_new xs')
     )))%I.
 
