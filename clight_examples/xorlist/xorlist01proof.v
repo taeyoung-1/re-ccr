@@ -771,10 +771,10 @@ Section PROOF.
           unfold null_or_int. iLeft. iPureIntro. et.
         (* case: list length with more than 1 && delete from head *)
         * ss. destruct v; try solve [iDestruct "LIST" as "%"; clarify].
-          iPoseProof (has_offset_notnull with "hd_ofs") as "%".
-          destruct (Val.eq _ hd_old) eqn: ?; clarify. clear H3 n Heqs.
-          iDestruct "LIST" as (p_new m_hd' m_new i_hd i_key)
-            "[[[[[[new_point new_ofs] new_liv] %] hd_addr] next_next_info] LIST]".
+          iPoseProof (has_offset_notnull with "tl_ofs") as "%".
+          destruct (Val.eq _ tl_old) eqn: ?; clarify. clear H3 H4 n Heqs.
+          iDestruct "LIST" as (p_new m_tl' m_new i_tl i_key)
+            "[[[[[[new_point new_ofs] new_liv] %] tl_addr] next_next_info] LIST]".
           rename i into next_long. rename H3 into m_new_size.
 
           iPoseProof (has_offset_notnull with "new_ofs") as "%".
@@ -795,7 +795,7 @@ Section PROOF.
           { iFrame. rewrite m_new_size. vm_compute (size_chunk Mptr). iPureIntro. nia. }
           iIntros (st_src7 st_tgt7) "[INV new_liv]".
           
-          hred_r. des_ifs_safe. clear e Heq.
+          hred_r. des_ifs_safe. clear Heq.
           unhide. hred_r. unhide. remove_tau.
           unhide. remove_tau.
           rewrite decrypt_loc. hred_r. des_ifs_safe. hred_r. rewrite Heq. clear Heq.
@@ -817,9 +817,9 @@ Section PROOF.
             iApply offset_slide; try iFrame. rewrite m_new_size.
             vm_compute (size_chunk Mptr). nia. }
           iIntros (st_src8 st_tgt8) "[INV new_point_key]".
-          unfold Mptr at 11. rewrite ptr64. rewrite decode_encode_ofs.
+          unfold Mptr at 9. rewrite ptr64. rewrite decode_encode_ofs.
           hred_r. clear e.
-          iPoseProof (liveness_ptr with "hd_ofs") as "%".
+          iPoseProof (liveness_ptr with "tl_ofs") as "%".
           unfold cast_to_ptr in H3. rewrite ptr64 in H3.
           rewrite H3. rename H3 into hd_old_cast. hred_r. des_ifs_safe.
           rewrite <- Heq. clear Heq i.
@@ -833,21 +833,22 @@ Section PROOF.
           { eapply fn_has_spec_in_stb; et.
             { eapply STBINCL. stb_tac. unfold xorStb.
               unseal "stb". ss. }
-            { ss. instantiate (1:=inl (Ptrofs.repr i_key, hd_old, m_hd, 1%Qp, Dynamic)).
+            { ss. instantiate (1:=inl (Ptrofs.repr i_key, tl_old, m_tl, 1%Qp, Dynamic)).
               ss. oauto. }
             { ss. } }
           { instantiate (1:=10). oauto. }
-          iPoseProof (offset_dup with "hd_ofs") as "[hd_ofs hd_ofs']".
-          ss. iSplitL "INV hd_ofs' hd_liv"; iFrame.
+          iPoseProof (offset_dup with "tl_ofs") as "[tl_ofs tl_ofs']".
+          ss. iSplitL "INV tl_ofs' tl_liv"; iFrame.
           { iSplit; ss. iExists _,_. iSplit; ss. }
+          clear ret_src.
           iIntros (st_src9 st_tgt9 ret_src ret_tgt0) "[INV [POST %]]".
-          iDestruct "POST" as (i_ptr) "[[% hd_addr'] hd_liv]".
+          iDestruct "POST" as (i_ptr) "[[% tl_addr'] tl_liv]".
           rewrite H4. iExists _. iSplit; ss. clear H4 H3.
-          iCombine "hd_point_item hd_addr" as "hd".
-          iPoseProof (replace_meta_to_alive with "hd") as "[hd_point_item hd_addr]".
-          iCombine "hd_addr' hd_addr" as "hd_addr".
-          iPoseProof (capture_unique with "hd_addr") as "%".
-          clarify. iDestruct "hd_addr" as "[_ hd_addr]".
+          iCombine "tl_point_item tl_addr" as "tl".
+          iPoseProof (replace_meta_to_alive with "tl") as "[tl_point_item tl_addr]".
+          iCombine "tl_addr' tl_addr" as "tl_addr".
+          iPoseProof (capture_unique with "tl_addr") as "%".
+          clarify. iDestruct "tl_addr" as "[_ tl_addr]".
 
           hred_r. unhide. remove_tau. unhide. hred_r. unhide. remove_tau.
 
@@ -858,7 +859,7 @@ Section PROOF.
           replace (pred _) with blk0 by nia.
           erewrite SKINCLGD; et. hred_r. ss.
           change (Vlong (Int64.repr _)) with Vnullptr.
-          destruct (Z.lxor i_hd i_key =? 0)%Z eqn:?.
+          destruct (Z.lxor i_tl i_key =? 0)%Z eqn:?.
           (* case: decrypt value is zero *)
           ** iDestruct "next_next_info" as "%". clarify.
              apply Z.eqb_eq in Heqb. apply Z.lxor_eq in Heqb.
@@ -880,7 +881,7 @@ Section PROOF.
              hred_r. unhide. remove_tau. des_ifs_safe. hred_r. rewrite Heq.
              clear Heq. hred_r. rewrite get_co. hred_r. rewrite co_co_members.
              ss. hred_r. destruct Vnullptr eqn:?; clarify. rewrite <- Heqv.
-             clear Heqv i. 
+             clear Heqv i n0.
              replace (Coqlib.align _ _) with 8%Z by et. hred_r.
              iApply isim_ccallU_store; ss; oauto.
              iPoseProof (offset_dup with "new_ofs") as "[new_ofs new_ofs']".
@@ -899,17 +900,17 @@ Section PROOF.
              destruct (Ptrofs.eq_dec) eqn:?; clarify. clear e Heqs.
              replace (pred _) with blk1 by nia.
              erewrite SKINCLGD; et. hred_r.
-             iCombine "hd_point_item hd_point_key" as "hd_point".
+             iCombine "tl_point_item tl_point_key" as "tl_point".
              change (Val.addl tl_old (Vptrofs _)) 
-               with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (encode_val Mint64 (Vlong hd_long)))))).
-             iPoseProof (points_to_collect with "hd_point") as "hd_point".
+               with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (encode_val Mint64 (Vlong tl_long)))))).
+             iPoseProof (points_to_collect with "tl_point") as "tl_point".
              iApply isim_ccallU_mfree; ss; oauto.
-             iSplitL "INV hd_point hd_liv hd_ofs".
+             iSplitL "INV tl_point tl_liv tl_ofs".
              { iFrame. iExists _,_. iFrame. iPureIntro. ss. }
              iIntros (st_src12 st_tgt12) "INV".
 
              hred_r. unhide. remove_tau.
-             pose proof (decode_encode_val_general (Vlong hd_long) Mint64 Mint64).
+             pose proof (decode_encode_val_general (Vlong tl_long) Mint64 Mint64).
              unfold decode_encode_val in H3. rewrite H3. clear H3.
 
              hred_r. hred_l. iApply isim_choose_src. iExists _.
@@ -919,7 +920,7 @@ Section PROOF.
              iPoseProof (points_to_collect with "new_point") as "new_point". 
              iSplit; ss. 
              rewrite unfold_frag_xorlist.
-             destruct lreturn; cycle 1.
+             destruct l_next_reversed; cycle 1.
              { destruct (Val.eq Vnullptr p_next) eqn:?.
                - iPoseProof (captured_pointer_notnull with "new_addr") as "%".
                  clarify.
@@ -937,13 +938,25 @@ Section PROOF.
              iPoseProof (capture_offset_comm with "new_addr'") as "comm'".
              iPoseProof ("comm" with "new_point") as "new_point".
              iPoseProof ("comm'" with "new_ofs'") as "new_ofs".
-             ss. iExists _,_,tl_old,tl_old,_,_.
+             destruct lnext.
+             { apply (f_equal length) in Heql_reversed.
+               rewrite rev_length in Heql_reversed. ss. }
+             destruct lnext; cycle 1.
+             { apply (f_equal length) in Heql_reversed.
+               rewrite rev_length in Heql_reversed. ss. }
+
+             change [Vlong hd_long; v] with ([Vlong hd_long] ++ [v]) in Heql_reversed.
+             rewrite rev_unit in Heql_reversed.
+             change [Vlong hd_long] with ([] ++ [Vlong hd_long]) in Heql_reversed.
+             rewrite rev_unit in Heql_reversed. clarify.
+
+             ss. iExists _,_,hd_old,hd_old,_,_.
              iSplitL "hd_handler_point tl_handler_point hd_handler_ofs tl_handler_ofs new_addr".
-             { iFrame. iSplitL. iSplitR "new_addr".
+             { iFrame. iSplitR "new_addr". iSplitR.
                { iPureIntro. clarify. }
+               { unfold null_or_int. iLeft. ss. }
                { unfold null_or_int. iRight.
-                 iExists _. iSplit; ss. iExists _. iFrame. }
-               { unfold null_or_int. iLeft. ss. } }
+                 iExists _. iSplit; ss. iExists _. iFrame. } }
              { iExists _,_,_. iFrame. instantiate (2:=0%Z).
                change (Vptrofs (Ptrofs.repr 0)) with Vnullptr.
                iFrame. simpl. rewrite m_new_size. ss. }
