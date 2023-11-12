@@ -594,54 +594,81 @@ Section PROOF.
              rewrite H4. iSplit; ss. admit "capture_refl".
       + pose proof (Int.eq_spec from_tail Int.zero). rewrite Heqb in H3.
         clear Heqb. clarify. unfold vlist_delete in del_spc.
-        destruct Val.eq eqn:? in del_spc; ss; clarify. clear Heqs e.
+        Opaque last. Opaque removelast. Opaque rev.
+        destruct Val.eq eqn:? in del_spc; ss. 
+        { clear Heqs. inv e. clarify. }
+        clear Heqs. clarify.
+        iAssert (full_xorlist 1 hd_old tl_old (Vlong hd_long :: lnext))
+                  with "[hd_point next_info LIST hd_ofs hd_liv]" as "LIST".
+        { unfold full_xorlist. rewrite (unfold_frag_xorlist 1 Vnullptr).
+          destruct Val.eq; clarify.
+          iExists _,_,_. iFrame. rewrite m_hd_size.
+          iPureIntro. ss. }
+        iPoseProof (rev_xorlist with "LIST") as "LIST".
+        remember (rev (Vlong hd_long :: lnext)) as l_reversed.
+        destruct l_reversed.
+        { exfalso. apply (f_equal length) in Heql_reversed. ss.
+          rewrite rev_length in Heql_reversed. ss. }
+        rename l_reversed into l_next_reversed.
+        ss.  destruct v; try solve [iDestruct "LIST" as "%"; clarify].
+        destruct Val.eq eqn:?; ss. 
+        rename i into tl_long.
+        clear hd_handler_ptr p_next i_next m_hd m_hd_size hd_old_ptr e Heqs.
+        iDestruct "LIST" as (p_next m_tl i_next)
+          "[[[[[tl_point tl_ofs] tl_liv] %] next_info] LIST]".
+        rename H4 into m_tl_size.
+        iPoseProof (decode_encode_ptr with "tl_ofs") as "%".
+        rename H4 into tl_old_ptr.
+        
+        (* simulation mimics head case starts from here *)
         unhide. remove_tau. unhide. remove_tau.
-        rewrite hd_handler_ptr. hred_r. 
+        iPoseProof (points_to_is_ptr with "tl_handler_point") as "%".
+        rewrite H4. rename H4 into tl_handler_ptr. hred_r.
         iApply isim_ccallU_load; ss; oauto.
-        iPoseProof (offset_dup with "hd_handler_ofs") as "[hd_handler_ofs hd_handler_ofs']".
-        iSplitL "INV hd_handler_point hd_handler_ofs"; iFrame.
+        iPoseProof (offset_dup with "tl_handler_ofs") as "[tl_handler_ofs tl_handler_ofs']".
+        iSplitL "INV tl_handler_point tl_handler_ofs"; iFrame.
         { iExists _. iFrame. iPureIntro. rewrite encode_val_length. et. }
-        iIntros (st_src2 st_tgt2) "[INV hd_handler_point]".
+        iIntros (st_src2 st_tgt2) "[INV tl_handler_point]".
         remove_tau. unhide. remove_tau. unhide. remove_tau.
 
-        rewrite hd_old_ptr.
-        iPoseProof (points_to_is_ptr with "hd_point") as "%".
-        rewrite H3. rename H3 into hd_real_ptr.
-        hred_r. rewrite hd_real_ptr. hred_r. rewrite get_co.
+        rewrite tl_old_ptr.
+        iPoseProof (points_to_is_ptr with "tl_point") as "%".
+        rewrite H4. rename H4 into tl_real_ptr.
+        hred_r. rewrite tl_real_ptr. hred_r. rewrite get_co.
         hred_r. rewrite co_co_members. ss. hred_r.
-        iPoseProof (points_to_split with "hd_point")
-          as "[hd_point_item hd_point_key]".
-        iPoseProof (offset_dup with "hd_ofs") as "[hd_ofs hd_ofs']".
+        iPoseProof (points_to_split with "tl_point")
+          as "[tl_point_item tl_point_key]".
+        iPoseProof (offset_dup with "tl_ofs") as "[tl_ofs tl_ofs']".
         iApply isim_ccallU_load; ss; oauto.
-        iSplitL "INV hd_point_item hd_ofs'"; iFrame.
+        iSplitL "INV tl_point_item tl_ofs'"; iFrame.
         { replace (Coqlib.align 0 _) with 0%Z by et.
-          replace (Val.addl _ _) with hd_old by admit "".
+          replace (Val.addl _ _) with tl_old by admit "".
           iExists _. iFrame. iPureIntro. split; et.
           exists 0. ss. }
-        iIntros (st_src3 st_tgt3) "[INV hd_point_item]".
+        iIntros (st_src3 st_tgt3) "[INV tl_point_item]".
         replace (Coqlib.align 0 _) with 0%Z by et.
-        replace (Val.addl _ (Vptrofs (Ptrofs.repr 0))) with hd_old by admit "".
+        replace (Val.addl _ (Vptrofs (Ptrofs.repr 0))) with tl_old by admit "".
 
         hred_r. remove_tau. unhide. remove_tau. unhide. remove_tau.
         unhide. remove_tau. 
         hexploit SKINCLENV.
         { instantiate (2:="decrypt"). ss. }
         i. des. ss. rewrite FIND. rename FIND into decrypt_loc.
-        hred_r. rewrite hd_real_ptr. hred_r. rewrite hd_real_ptr. hred_r.
+        hred_r. rewrite tl_real_ptr. hred_r. rewrite tl_real_ptr. hred_r.
         rewrite get_co. hred_r.
         rewrite co_co_members. ss. hred_r.
         replace (Coqlib.align _ _) with 8%Z by et.
 
         iApply isim_ccallU_load; ss; oauto.
-        iPoseProof (offset_dup with "hd_ofs") as "[hd_ofs hd_ofs']".
-        iSplitL "INV hd_point_key hd_ofs'"; iFrame.
-        { iExists _. iSplitL "hd_ofs'".
-          { iApply offset_slide; et. rewrite m_hd_size.
+        iPoseProof (offset_dup with "tl_ofs") as "[tl_ofs tl_ofs']".
+        iSplitL "INV tl_point_key tl_ofs'"; iFrame.
+        { iExists _. iSplitL "tl_ofs'".
+          { iApply offset_slide; et. rewrite m_tl_size.
             vm_compute (size_chunk Mptr). nia. }
           iPureIntro. unfold Mptr, Vptrofs. rewrite ptr64.
           rewrite encode_val_length.
           split; et. exists 1. nia. }
-        iIntros (st_src4 st_tgt4) "[INV hd_point_key]".
+        iIntros (st_src4 st_tgt4) "[INV tl_point_key]".
 
         hred_r. unfold Mptr at 8 9. rewrite ptr64.
         rewrite decode_encode_ofs. des_ifs_safe.
@@ -662,22 +689,22 @@ Section PROOF.
         ss. iSplitL "INV"; iFrame.
         { iSplit; ss. iExists _. iPureIntro. split; ss. }
         iIntros (st_src5 st_tgt5 ret_src ret_tgt) "[INV [% %]]".
-        rewrite H3. clear H3. iExists _. iSplit; ss. clarify.
+        rewrite H4. clear H4 H5. iExists _. iSplit; ss. clarify.
 
         hred_r. unhide. remove_tau. unhide. hred_r. unhide. remove_tau.
-        rewrite hd_handler_ptr. hred_r. des_ifs_safe. rewrite <- Heq.
+        rewrite tl_handler_ptr. hred_r. des_ifs_safe. rewrite <- Heq.
         clear Heq i. hred_r.
 
         iApply isim_ccallU_store; ss; oauto.
-        iPoseProof (offset_dup with "hd_handler_ofs'") as "[hd_handler_ofs hd_handler_ofs']".
-        iSplitL "INV hd_handler_point hd_handler_ofs'"; iFrame.
+        iPoseProof (offset_dup with "tl_handler_ofs'") as "[tl_handler_ofs tl_handler_ofs']".
+        iSplitL "INV tl_handler_point tl_handler_ofs'"; iFrame.
         { iExists _,_. iFrame. iPureIntro. split; et.
           rewrite encode_val_length. ss. }
-        iIntros (st_src6 st_tgt6) "[INV hd_handler_point]".
+        iIntros (st_src6 st_tgt6) "[INV tl_handler_point]".
 
         hred_r. unhide. remove_tau. unhide. remove_tau.
         replace (Vlong (Int64.repr _)) with Vnullptr by et.
-        destruct lreturn.
+        destruct l_next_reversed.
         (* case: singleton list && delete from head *)
         * ss. iDestruct "LIST" as "%". des. clarify.
           destruct (i_next =? 0)%Z eqn: X; cycle 1.
@@ -692,44 +719,52 @@ Section PROOF.
           
           hred_r. des_ifs_safe. clear Heq.
           unhide. remove_tau.
-          iPoseProof (points_to_is_ptr with "tl_handler_point") as "%".
-          rewrite H3. rename H3 into tl_handler_ptr. hred_r.
+          iPoseProof (points_to_is_ptr with "hd_handler_point") as "%".
+          rewrite H4. rename H4 into hd_handler_ptr. hred_r.
           replace (Vlong (Int64.repr _)) with Vnullptr by et.
 
           iApply isim_ccallU_store; ss; oauto.
-          iPoseProof (offset_dup with "tl_handler_ofs") as "[tl_handler_ofs tl_handler_ofs']".
-          iSplitL "INV tl_handler_point tl_handler_ofs"; iFrame.
+          iPoseProof (offset_dup with "hd_handler_ofs") as "[hd_handler_ofs hd_handler_ofs']".
+          iSplitL "INV hd_handler_point hd_handler_ofs"; iFrame.
           { iExists _,_. iFrame. iPureIntro. split; et.
             rewrite encode_val_length. ss. }
-          iIntros (st_src8 st_tgt8) "[INV tl_handler_point]".
+          iIntros (st_src8 st_tgt8) "[INV hd_handler_point]".
 
           hred_r. unhide. remove_tau.
           hexploit SKINCLENV.
           { instantiate (2:="free"). ss. }
           i. des. ss. rewrite FIND. rename FIND into free_loc. hred_r.
+          clear H3.
 
-          iPoseProof (liveness_ptr with "hd_ofs") as "%".
+          iPoseProof (liveness_ptr with "tl_ofs") as "%".
           unfold cast_to_ptr in H3. rewrite ptr64 in H3.
           rewrite H3. rename H3 into hd_old_cast. hred_r.
           des_ifs_safe.
           replace (pred _) with blk0 by nia.
           erewrite SKINCLGD; et. hred_r. ss.
-          iCombine "hd_point_item hd_point_key" as "hd_point".
-          replace (Val.addl tl_old (Vlong _)) 
-            with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (inj_bytes (encode_int 8 (Int64.unsigned hd_long))))))) by et.
-          iPoseProof (points_to_collect with "hd_point") as "hd_point".
+          iCombine "tl_point_item tl_point_key" as "tl_point".
+          replace (Val.addl hd_old (Vlong _)) 
+            with (Val.addl hd_old (Vptrofs (Ptrofs.repr (strings.length (inj_bytes (encode_int 8 (Int64.unsigned tl_long))))))) by et.
+          iPoseProof (points_to_collect with "tl_point") as "tl_point".
           iApply isim_ccallU_mfree; ss; oauto.
-          iSplitL "INV hd_point hd_liv hd_ofs".
+          iSplitL "INV tl_point tl_liv tl_ofs".
           { iFrame. iExists _,_. iFrame.
             iPureIntro. ss. }
           iIntros (st_src9 st_tgt9) "INV".
 
           hred_r. unhide. remove_tau.
-          pose proof (decode_encode_val_general (Vlong hd_long) Mint64 Mint64).
+          pose proof (decode_encode_val_general (Vlong tl_long) Mint64 Mint64).
           unfold decode_encode_val in H3. rewrite H3. clear e H3.
           
           hred_r. hred_l. iApply isim_choose_src. iExists _.
           iApply isim_ret. iFrame. iSplit; ss.
+          destruct lnext; cycle 1.
+          { apply (f_equal length) in Heql_reversed.
+            rewrite rev_length in Heql_reversed. ss. }
+          assert (tl_long = hd_long).
+          { change [Vlong hd_long] with ([] ++ [Vlong hd_long]) in Heql_reversed.
+            rewrite rev_unit in Heql_reversed. clarify. }
+          rewrite H3. clear Heql_reversed H3 tl_long.
           iExists _,_,_,_,_,_. iFrame; ss. 
           iSplit; ss. iSplitL.
           { iPureIntro. clarify. }
