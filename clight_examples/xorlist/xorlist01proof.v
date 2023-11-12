@@ -1276,7 +1276,7 @@ Section PROOF.
       ("add", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure add_spec))
       ("add", cfunU (decomp_func (Sk.canon sk) ce f_add)).
   Proof.
-    econs; ss. red.
+    (* econs; ss. red.
 
     unfold prog in ce. unfold mkprogram in ce.
     destruct (build_composite_env').
@@ -1299,7 +1299,7 @@ Section PROOF.
     unfold Sk.incl_env in SKINCLENV.
     hexploit SKINCLENV.
     { instantiate (2:="malloc"). ss. }
-    i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r.
+    i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r. *)
 
     (* des_ifs. hred_r.
     replace (pred _) with blk by nia.
@@ -1421,16 +1421,14 @@ Section PROOF.
       ss. *)
   Admitted.
 
-
-
-
   Lemma sim_search :
     sim_fnsem wf top2
       ("search", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure search_spec))
       ("search", cfunU (decomp_func (Sk.canon sk) ce f_search)).
   Proof.
   Admitted.
-  End FUN.
+
+  End SIMFUNS.
 
   Opaque Sk.canon.
 
@@ -1453,5 +1451,6 @@ Section PROOF.
     - apply sim_encrypt; et.
     Unshelve. exact tt.
   Qed.
+
 End PROOF.
 
