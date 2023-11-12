@@ -116,8 +116,7 @@ Section PROOF.
     hred_r. replace (Vlong _) with Vnullptr by et.
     destruct linput.
     (* case: nil list *)
-    - admit "".
-      (* unfold vlist_delete in del_spc. ss.
+    - unfold vlist_delete in del_spc. ss.
       unfold full_xorlist, frag_xorlist at 1.
       iDestruct "LIST" as "%". des. clarify.
       unfold Mptr. rewrite ptr64.
@@ -130,8 +129,16 @@ Section PROOF.
       unhide. remove_tau. unhide. remove_tau.
       hred_l. iApply isim_choose_src.
       iExists _. iApply isim_ret.
-      iFrame. iSplit; ss. iExists _,_,_,_,_,_. iFrame.
-      destruct (Val.eq) in del_spc; ss; clarify. *)
+      iFrame. iSplit; ss.
+      destruct (Val.eq) in del_spc; ss; clarify; ss.
+      + iExists _,_,_,_,_,_. iFrame.
+        iSplit; ss. iSplitL. iSplitL.
+        { iPureIntro. clarify. }
+        all: iLeft; iPureIntro; et.
+      + iExists _,_,_,_,_,_. iFrame.
+        iSplit; ss. iSplitL. iSplitL.
+        { iPureIntro. clarify. }
+        all: iLeft; iPureIntro; et.
     (* case: not nil list *)
     - unfold full_xorlist. rewrite unfold_frag_xorlist.
       rename linput into lnext.
@@ -241,8 +248,7 @@ Section PROOF.
         replace (Vlong (Int64.repr _)) with Vnullptr by et.
         destruct lreturn.
         (* case: singleton list && delete from head *)
-        * admit "".
-          (* ss. iDestruct "LIST" as "%". des. clarify.
+        * ss. iDestruct "LIST" as "%". des. clarify.
           destruct (i_next =? 0)%Z eqn: X; cycle 1.
           { iDestruct "next_info" as (m_next) "next_capture".
             iPoseProof (captured_pointer_notnull with "next_capture") as "%".
@@ -293,7 +299,10 @@ Section PROOF.
           
           hred_r. hred_l. iApply isim_choose_src. iExists _.
           iApply isim_ret. iFrame. iSplit; ss.
-          iExists _,_,_,_. iFrame; ss.  *)
+          iExists _,_,_,_,_,_. iFrame; ss. 
+          iSplit; ss. iSplitL.
+          { iPureIntro. clarify. }
+          unfold null_or_int. iLeft. iPureIntro. et.
         (* case: list length with more than 1 && delete from head *)
         * ss. destruct v; try solve [iDestruct "LIST" as "%"; clarify].
           iPoseProof (has_offset_notnull with "hd_ofs") as "%".
@@ -472,6 +481,7 @@ Section PROOF.
              { iExists _,_,_. iFrame. instantiate (2:=0%Z).
                change (Vptrofs (Ptrofs.repr 0)) with Vnullptr.
                iFrame. simpl. rewrite m_new_size. ss. }
+          (* case: decrypt value is not zero *)
           ** iDestruct "next_next_info" as (m_next_next) "next_next_info".
              destruct lreturn.
              { ss. iDestruct "LIST" as "%". des. clarify.
@@ -576,12 +586,12 @@ Section PROOF.
                iPoseProof (captured_address_not_zero with "new_next_addr_store") as "%".
                destruct (i_keyhd =? 0)%Z eqn: ?.
                { apply Z.eqb_eq in Heqb0. exfalso. clarify. }
-               { admit "". } }
+               { admit "capture_trans". } }
              iPoseProof (captured_address_not_zero with "new_addr") as "%".
              destruct Val.eq.
              { rewrite e in H5. clarify. }
              iExists _,_,_,_,_. iFrame.
-             rewrite H4. iSplit; ss. admit "".
+             rewrite H4. iSplit; ss. admit "capture_refl".
       + admit "".
     Unshelve. all: et.
   Qed.

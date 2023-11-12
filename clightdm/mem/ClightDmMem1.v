@@ -243,6 +243,22 @@ Section RULES.
   Proof.
   Admitted.
 
+  Lemma capture_trans
+      vaddr m i j
+    :
+      vaddr (≃_m) i ** (Vptrofs (Ptrofs.repr i)) (≃_m) j
+      ⊢ vaddr (≃_m) j.
+  Proof.
+  Admitted.
+
+  Lemma capture_refl
+      m i
+    :
+      ∃ vaddr, vaddr (≃_m) i
+      ⊢ (Vptrofs (Ptrofs.repr i)) (≃_m) i.
+  Proof.
+  Admitted.
+
   Lemma offset_slide
       vaddr m ofs k
       (INBOUND: ofs + k ≤ m.(sz))
