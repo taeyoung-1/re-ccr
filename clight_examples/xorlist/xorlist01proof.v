@@ -962,7 +962,7 @@ Section PROOF.
                iFrame. simpl. rewrite m_new_size. ss. }
           (* case: decrypt value is not zero *)
           ** iDestruct "next_next_info" as (m_next_next) "next_next_info".
-             destruct lreturn.
+             destruct l_next_reversed.
              { ss. iDestruct "LIST" as "%". des. clarify.
                iPoseProof (captured_pointer_notnull with "next_next_info") as "%".
                clarify. }
@@ -978,7 +978,7 @@ Section PROOF.
              { eapply fn_has_spec_in_stb; et.
                { eapply STBINCL. stb_tac. unfold xorStb.
                  unseal "stb". ss. }
-               { ss. et. instantiate (1:=inr (inr (inl (_,_,_,_)))).
+               { ss. et. instantiate (1:=inr (inl (_,_,_,_))).
                  ss. oauto. }
                { ss. } }
              { instantiate (1:=9). oauto. }
@@ -991,10 +991,10 @@ Section PROOF.
              { iSplit; ss. iExists _. iSplit; ss.
                instantiate (1:=0%Z).
                replace (Vptrofs (Ptrofs.xor _ _))
-                with (Vptrofs (Ptrofs.repr (Z.lxor i_hd i_key))) by admit "".
+                with (Vptrofs (Ptrofs.repr (Z.lxor i_tl i_key))) by admit "".
                iApply "new_next_ofs'". }
              iIntros (st_src10 st_tgt10 ret_src0 ret_tgt1) "[INV [POST %]]".
-             iDestruct "POST" as (i_keyhd) "[[% new_next_addr_store] new_next_liv]".
+             iDestruct "POST" as (i_keytl) "[[% new_next_addr_store] new_next_liv]".
              rewrite H6. clear H6 H5. iExists _. iSplit; ss.
 
              hred_r. unhide. remove_tau.
@@ -1021,17 +1021,17 @@ Section PROOF.
              destruct (Ptrofs.eq_dec) eqn:?; clarify. clear e Heqs.
              replace (pred _) with blk1 by nia.
              erewrite SKINCLGD; et. hred_r.
-             iCombine "hd_point_item hd_point_key" as "hd_point".
+             iCombine "tl_point_item tl_point_key" as "tl_point".
              change (Val.addl tl_old (Vptrofs _)) 
-               with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (encode_val Mint64 (Vlong hd_long)))))).
-             iPoseProof (points_to_collect with "hd_point") as "hd_point".
+               with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (encode_val Mint64 (Vlong tl_long)))))).
+             iPoseProof (points_to_collect with "tl_point") as "tl_point".
              iApply isim_ccallU_mfree; ss; oauto.
-             iSplitL "INV hd_point hd_liv hd_ofs".
+             iSplitL "INV tl_point tl_liv tl_ofs".
              { iFrame. iExists _,_. iFrame. iPureIntro. ss. }
              iIntros (st_src12 st_tgt12) "INV".
 
              hred_r. unhide. remove_tau.
-             pose proof (decode_encode_val_general (Vlong hd_long) Mint64 Mint64).
+             pose proof (decode_encode_val_general (Vlong tl_long) Mint64 Mint64).
              unfold decode_encode_val in H5. rewrite H5. clear H5.
 
              hred_r. hred_l. iApply isim_choose_src. iExists _.
@@ -1053,6 +1053,10 @@ Section PROOF.
              iPoseProof (capture_unique with "new") as "%".
              iDestruct "new" as "[_ new_addr]".
              clarify.
+             (* yet updated *)
+
+             iPoseProof (rev_xorlist with "LIST") as "LIST".
+
              iExists _,_,_,_,_,_. iFrame.
              instantiate(1:=tl_old).
              iSplitL "".
@@ -1063,7 +1067,7 @@ Section PROOF.
              rewrite m_new_size. iSplitL "new_next_addr new_next_addr_store".
              { iSplit; ss.
                iPoseProof (captured_address_not_zero with "new_next_addr_store") as "%".
-               destruct (i_keyhd =? 0)%Z eqn: ?.
+               destruct (i_keytl =? 0)%Z eqn: ?.
                { apply Z.eqb_eq in Heqb0. exfalso. clarify. }
                { admit "capture_trans". } }
              iPoseProof (captured_address_not_zero with "new_addr") as "%".
