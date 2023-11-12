@@ -472,9 +472,119 @@ Section PROOF.
              { iExists _,_,_. iFrame. instantiate (2:=0%Z).
                change (Vptrofs (Ptrofs.repr 0)) with Vnullptr.
                iFrame. simpl. rewrite m_new_size. ss. }
-          **
+          ** iDestruct "next_next_info" as (m_next_next) "next_next_info".
+             destruct lreturn.
+             { ss. iDestruct "LIST" as "%". des. clarify.
+               iPoseProof (captured_pointer_notnull with "next_next_info") as "%".
+               clarify. }
+             ss. destruct v; try solve [iDestruct "LIST" as "%"; clarify].
+             rename i into next_next_long.
+             iPoseProof (captured_pointer_notnull with "new_addr") as "%".
+             destruct Val.eq; clarify.
+             iDestruct "LIST" as (p_next_next_next m_new' m_next_next' i_next' i_key_next)
+              "[[[[[[new_next_point new_next_ofs] new_next_liv] %] new_addr'] n3_info] LIST]".
+             iCombine "new_next_point next_next_info" as "n2".
+             iPoseProof (replace_meta_to_alive with "n2") as "[new_next_point new_next_addr]".
+             iApply isim_ccallU_pure; et.
+             { eapply fn_has_spec_in_stb; et.
+               { eapply STBINCL. stb_tac. unfold xorStb.
+                 unseal "stb". ss. }
+               { ss. et. instantiate (1:=inr (inr (inl (_,_,_,_)))).
+                 ss. oauto. }
+               { ss. } }
+             { instantiate (1:=9). oauto. }
+             ss.
+             iPoseProof (offset_dup with "new_next_ofs") as "[new_next_ofs' new_next_ofs]".
+             iPoseProof (capture_dup with "new_next_addr") as "[new_next_addr' new_next_addr]".
+             iPoseProof (capture_offset_comm with "new_next_addr'") as "comm".
+             iPoseProof ("comm" with "new_next_ofs'") as "new_next_ofs'".
+             iSplitL "INV new_next_liv new_next_ofs'"; iFrame.
+             { iSplit; ss. iExists _. iSplit; ss.
+               instantiate (1:=0%Z).
+               replace (Vptrofs (Ptrofs.xor _ _))
+                with (Vptrofs (Ptrofs.repr (Z.lxor i_hd i_key))) by admit "".
+               iApply "new_next_ofs'". }
+             iIntros (st_src10 st_tgt10 ret_src0 ret_tgt1) "[INV [POST %]]".
+             iDestruct "POST" as (i_keyhd) "[[% new_next_addr_store] new_next_liv]".
+             rewrite H6. clear H6 H5. iExists _. iSplit; ss.
 
-  Admitted.
+             hred_r. unhide. remove_tau.
+             des_ifs_safe. hred_r. rewrite Heq. clear Heq.
+             hred_r. rewrite get_co. hred_r. rewrite co_co_members.
+             ss. hred_r. des_ifs_safe. rewrite <- Heq. clear Heq i.
+             hred_r.
+             change (Coqlib.align _ _) with 8%Z.
+             iApply isim_ccallU_store; ss; oauto.
+             iPoseProof (offset_dup with "new_ofs") as "[new_ofs new_ofs']".
+             iSplitL "INV new_point_key new_ofs"; iFrame.
+             { iExists _,_. iFrame. rewrite encode_val_length. 
+               iSplitR "new_ofs".
+               { iPureIntro. instantiate (1:=(0+8)%Z). split; et. exists 1. et. }
+               iApply offset_slide; et. rewrite m_new_size. vm_compute (size_chunk Mptr).
+               nia. }
+             iIntros (st_src11 st_tgt11) "[INV next_point_key]".
+
+             hred_r. unhide. remove_tau.
+             hexploit SKINCLENV.
+             { instantiate (2:="free"). ss. }
+             i. des. ss. rewrite FIND. rename FIND into free_loc. hred_r. 
+             rewrite hd_old_cast. hred_r.
+             destruct (Ptrofs.eq_dec) eqn:?; clarify. clear e Heqs.
+             replace (pred _) with blk1 by nia.
+             erewrite SKINCLGD; et. hred_r.
+             iCombine "hd_point_item hd_point_key" as "hd_point".
+             change (Val.addl tl_old (Vptrofs _)) 
+               with (Val.addl tl_old (Vptrofs (Ptrofs.repr (strings.length (encode_val Mint64 (Vlong hd_long)))))).
+             iPoseProof (points_to_collect with "hd_point") as "hd_point".
+             iApply isim_ccallU_mfree; ss; oauto.
+             iSplitL "INV hd_point hd_liv hd_ofs".
+             { iFrame. iExists _,_. iFrame. iPureIntro. ss. }
+             iIntros (st_src12 st_tgt12) "INV".
+
+             hred_r. unhide. remove_tau.
+             pose proof (decode_encode_val_general (Vlong hd_long) Mint64 Mint64).
+             unfold decode_encode_val in H5. rewrite H5. clear H5.
+
+             hred_r. hred_l. iApply isim_choose_src. iExists _.
+             iApply isim_ret. iFrame.
+             iCombine "new_point_item next_point_key" as "new_point".
+             change 8%Z with (Z.of_nat (strings.length (encode_val Mint64 (Vlong next_long)))).
+             iPoseProof (points_to_collect with "new_point") as "new_point".
+             iSplit; ss. 
+
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr_rep]".
+             iPoseProof (capture_pointto_comm with "new_addr_rep") as "comm".
+             iPoseProof ("comm" with "new_point") as "new_point".
+             iCombine "new_point new_addr'" as "new".
+             iPoseProof (replace_meta_to_alive with "new") as "[new_point new_addr']".
+             iPoseProof (capture_dup with "new_addr") as "[new_addr new_addr_rep]".
+             iPoseProof (capture_pointto_comm with "new_addr_rep") as "comm".
+             iPoseProof ("comm" with "new_point") as "new_point".
+             iCombine "new_addr new_addr'" as "new".
+             iPoseProof (capture_unique with "new") as "%".
+             iDestruct "new" as "[_ new_addr]".
+             clarify.
+             iExists _,_,_,_,_,_. iFrame.
+             instantiate(1:=tl_old).
+             iSplitL "".
+             { iSplitL. iSplitL. iSplit; ss.
+               { unfold null_or_int. iLeft. iPureIntro. ss. }
+               { unfold null_or_int. iLeft. iPureIntro. ss. } }
+             iExists p_new,_,_. iFrame.
+             rewrite m_new_size. iSplitL "new_next_addr new_next_addr_store".
+             { iSplit; ss.
+               iPoseProof (captured_address_not_zero with "new_next_addr_store") as "%".
+               destruct (i_keyhd =? 0)%Z eqn: ?.
+               { apply Z.eqb_eq in Heqb0. exfalso. clarify. }
+               { admit "". } }
+             iPoseProof (captured_address_not_zero with "new_addr") as "%".
+             destruct Val.eq.
+             { rewrite e in H5. clarify. }
+             iExists _,_,_,_,_. iFrame.
+             rewrite H4. iSplit; ss. admit "".
+      + admit "".
+    Unshelve. all: et.
+  Qed.
 
   Lemma sim_encrypt :
     sim_fnsem wf top2
