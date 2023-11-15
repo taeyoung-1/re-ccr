@@ -6,8 +6,8 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ConvC2ITree.
-Require Import Clight_Mem0.
+Require Import ClightDmExprgen.
+Require Import ClightDmMem0.
 
 Set Implicit Arguments.
 
@@ -24,11 +24,11 @@ Section MATCH.
 
 
   (* global env is fixed when src program is fixed *)
-  Variable sk : Sk.t.
+  Variable sk : Sk.sem.
   Variable tge : Genv.t Clight.fundef type.
 
   (* composite env should be fixed when src program is fixed*)
-  Variable ce : composite_env.
+  Variable ce : comp_env.
 
   (* ModSem should be fixed with src too *)
   Variable ms : ModSemL.t.
@@ -36,7 +36,7 @@ Section MATCH.
   (* should never appear *)
   Definition dummy_blk : positive := 1%positive.
 
-  Definition le_dec (p1 p2 : positive) : { Pos.le p1 p2 } + { not (Pos.le p1 p2) }. 
+  Definition le_dec (p1 p2 : positive) : { Pos.le p1 p2 } + { not (Pos.le p1 p2) }.
   Proof.
     destruct (p1 <=? p2)%positive eqn: E.
     - left. eapply Pos.leb_le; et.
@@ -75,33 +75,37 @@ Section MATCH.
     | _ => mv
     end.
 
+  Definition gdmap : clightdm_globaldata -> option (globdef fundef type).
+  Admitted.
+
+
   Variant match_ge : Prop :=
   | match_ge_intro
       (WFSK: Sk.wf sk)
       (MGE: forall id idx, SkEnv.id2blk (Sk.load_skenv sk) (string_of_ident id) = Some idx -> Genv.find_symbol tge id = Some (map_blk (Pos.of_succ_nat idx)))
-      (ELEM: forall s n gd, nth_error sk n = Some (s, gd↑) -> Genv.find_def tge (map_blk (Pos.of_succ_nat n)) = Some gd)
+      (ELEM: forall s n gd, nth_error sk n = Some (s, gd) -> Genv.find_def tge (map_blk (Pos.of_succ_nat n)) = gdmap gd)
     :
       match_ge.
 
-  Variant match_le : temp_env -> temp_env -> Prop :=
+  Variant match_le : ClightDmExprgen.temp_env -> temp_env -> Prop :=
   | match_le_intro
       sle tle 
-      (ML: forall id sv, Maps.PTree.get id sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
+      (ML: forall id sv, alist_find (string_of_ident id) sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
     :
       match_le sle tle.
 
-  Definition map_env_entry (entry: ident * (Values.block * type)) :=
-    let '(id, (b, ty)) := entry in
-    (id, (map_blk b, ty)).
+  Definition map_env_entry (entry: string * (Values.block * type)) :=
+    let '(s, (b, ty)) := entry in
+    (ident_of_string s, (map_blk b, ty)).
 
-  Variant match_e : env -> env -> Prop :=
+  Variant match_e : ClightDmExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
-      (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry (Maps.PTree.elements se)))
+      (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry se))
     :
       match_e se te.
   
-  Lemma env_match_some e te id b ty (ME: match_e e te) :
+  (* Lemma env_match_some e te id b ty (ME: match_e e te) :
     e ! id = Some (b, ty) -> te ! id = Some (map_blk b, ty).
   Proof.
     i. apply PTree.elements_correct in H. inv ME.
@@ -117,12 +121,12 @@ Section MATCH.
     rewrite in_map_iff in E. des. destruct x. 
     apply PTree.elements_complete in E0. unfold map_env_entry in *.
     destruct p0. clarify.
-  Qed.
+  Qed. *)
 
   Definition map_entry (entry1 entry2: Values.block * type) : Prop :=
     entry1 = (let (b, ty) := entry2 in (map_blk b, ty)).
 
-  Lemma match_env_same e te (ME: match_e e te) 
+  (* Lemma match_env_same e te (ME: match_e e te) 
     : 
   Maps.PTree.elements te = List.map map_env_entry (Maps.PTree.elements e).
   Proof.
@@ -139,7 +143,7 @@ Section MATCH.
       induction H; ss. des. f_equal; et. unfold map_env_entry.
       unfold map_entry in *. des_ifs. ss. clarify. rewrite <- H1.
       destruct a1. et. 
-  Qed.
+  Qed. *)
 
   Variant match_mem : Memory.Mem.mem -> Memory.Mem.mem -> Prop :=
   | match_mem_intro

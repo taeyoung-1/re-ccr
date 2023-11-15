@@ -7,7 +7,7 @@ Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
 
-Require Import Clightlight2ClightMatch.
+Require Import ClightDm2ClightMatch.
 
 From compcert Require Import Csharpminor.
 

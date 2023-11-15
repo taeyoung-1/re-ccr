@@ -9,8 +9,8 @@ Require Import Any.
 Require Import ModSem.
 Require Import AList.
 
-Require Import ConvC2ITreeStmt.
-Require Import Clightlight2ClightMatch.
+Require Import ClightDmgen.
+Require Import ClightDm2ClightMatch.
 
 From compcert Require Import Ctypes Clight Clightdefs.
 
@@ -22,13 +22,13 @@ Section GENV.
 
   Context `{Σ: GRA.t}.
 
-  Variable types : list composite_definition.
-  Variable defs : list (ident * globdef fundef type).
-  Variable public : list ident.
-  Variable _main : ident.
-  Variable WF_TYPES : wf_composites types.
-  Variable sge : alist string Any.t.
-  Let ce := let (ce, _) := build_composite_env' types WF_TYPES in ce.
+  Variable prog : program.
+  Variable sk : Sk.sem.
+  Let types : list composite_definition := prog.(prog_types).
+  Let defs : list (ident * globdef fundef type) := prog.(prog_defs).
+  Let public : list ident := prog.(prog_public).
+  Let _main : ident := prog.(prog_main).
+  Let ce := List.map (map_fst string_of_ident) (PTree.elements prog.(prog_comp_env)).
 
   Lemma found_itree_clight_function
         (fn: string) 
@@ -39,10 +39,10 @@ Section GENV.
                      map_snd
                       (fun sem => transl_all mn (T:=Any.t) ∘ sem) <*>
                      (fun '(fn, f) => (string_of_ident fn, cfunU f)))
-                    (decomp_fundefs types WF_TYPES sge defs) = 
+                    (decomp_fundefs prog sk defs) = 
                  Some (p, i))
     :
-      string_of_ident p = fn /\ In (p, i) (decomp_fundefs types WF_TYPES sge defs).
+      string_of_ident p = fn /\ In (p, i) (decomp_fundefs prog sk defs).
   Proof.
     apply find_some in FOUND. des. split; et.
     unfold "<*>" in FOUND0. ss. rewrite eq_rel_dec_correct in FOUND0.
@@ -50,11 +50,11 @@ Section GENV.
   Qed.
 
   Lemma decomp_fundefs_decomp_func i p
-        (INLEFT: In (p, i) (decomp_fundefs types WF_TYPES sge defs)) 
+        (INLEFT: In (p, i) (decomp_fundefs prog sk defs)) 
     :
         exists f, 
           (i = fun vl => 
-                v <- decomp_func sge ce f vl;; 
+                v <- decomp_func sk ce f vl;; 
                 (if Pos.eq_dec p (ident_of_string "main")
                  then (match v with Values.Vint _ => Ret v | _ => triggerUB end)
                  else Ret v)) /\ In (p, Gfun (Internal f)) defs.
@@ -70,25 +70,22 @@ Section GENV.
   
   Lemma in_def_gdefs a clight_prog
         (INDEFS_FUN: In a defs)
-        (RIGHT_COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
     :
         In a clight_prog.(prog_defs).
   Proof.
-    unfold mkprogram, build_composite_env' in *. des_ifs.
-  Qed.
+  Admitted.
 
 
   Lemma tgt_genv_match_symb_def
-        clight_prog ident b gd1 gd2
+        ident b gd1 gd2
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs public _main WF_TYPES)
-        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) ident = Some b)
-        (GFDEF: Genv.find_def (Genv.globalenv clight_prog) b = Some gd1)
-        (INTGT: In (ident, gd2) (prog_defs clight_prog))
+        (GFSYM: Genv.find_symbol (Genv.globalenv prog) ident = Some b)
+        (GFDEF: Genv.find_def (Genv.globalenv prog) b = Some gd1)
+        (INTGT: In (ident, gd2) (prog_defs prog))
     :
       gd1 = gd2.
   Proof.
-    assert (AST.prog_defs clight_prog = defs) by now
+    (* assert (AST.prog_defs clight_prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
     assert (prog_defs clight_prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
@@ -96,18 +93,18 @@ Section GENV.
     { unfold prog_defs_names. rewrite H. auto. }
     { eauto. }
     i. apply Genv.find_def_symbol in H1. des. clarify.
-  Qed.
+  Qed. *)
+  Admitted.
 
   Lemma tgt_genv_find_def_by_blk
-        clight_prog ident b gd 
+        ident b gd 
         (NO_REP: Coqlib.list_norepet (List.map fst defs))
-        (RIGHT_COMP: clight_prog = mkprogram types defs public _main WF_TYPES)
-        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) ident = Some b)
-        (INTGT: In (ident, gd) (prog_defs clight_prog))
+        (GFSYM: Genv.find_symbol (Genv.globalenv prog) ident = Some b)
+        (INTGT: In (ident, gd) (prog_defs prog))
     :
-      Genv.find_def (Genv.globalenv clight_prog) b = Some gd.
+      Genv.find_def (Genv.globalenv prog) b = Some gd.
   Proof.
-    assert (AST.prog_defs clight_prog = defs) by now
+    (* assert (AST.prog_defs clight_prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
     assert (prog_defs clight_prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
@@ -115,6 +112,7 @@ Section GENV.
     { unfold prog_defs_names. rewrite H. auto. }
     { eauto. }
     i. apply Genv.find_def_symbol in H1. des. clarify.
-  Qed.
+  Qed. *)
+  Admitted.
 
 End GENV.

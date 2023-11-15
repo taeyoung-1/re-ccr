@@ -147,10 +147,10 @@ Section PROP.
   Definition disjoint (m m0: metadata) : Prop :=
     m.(blk) <> m0.(blk).
   
-  Definition valid (m: metadata) (vaddr: val) (ofs: ptrofs) : Prop :=
+  Definition valid (m: metadata) (ofs: ptrofs) : Prop :=
     Ptrofs.unsigned ofs < m.(sz).
 
-  Definition weak_valid (m: metadata) (vaddr: val) (ofs: ptrofs) : Prop :=
+  Definition weak_valid (m: metadata) (ofs: ptrofs) : Prop :=
     Ptrofs.unsigned ofs ≤ m.(sz).
 
 End PROP.
@@ -827,48 +827,10 @@ Section RULES.
       des. clarify.
   Qed.
 
-  Lemma capture_neq
-      vaddr0 vaddr1 i0 i1 m0 m1 q0 q1 ofs0 ofs1 tg0 tg1
-    : 
-      ⌜m0 #^ m1 ⌝ ** valid m0 vaddr0 ofs0 ** valid m1 vaddr1 ofs1 ** live_ q0# (m0, tg0) ** live_ q1# (m1, tg1)
-      ** vaddr0 (≃_m0) i0 ** vaddr1 (≃_m1) i1 ⊢ ⌜i0 <> i1⌝.
-  Proof.
-  Admitted.
-
-
-
-  (* Lemma captured_address_not_zero
-      vaddr m i
-    :
-      vaddr (≃_m) i ⊢ ⌜Vptrofs i <> Vnullptr⌝.
-  Proof.
-  Admitted.
-
-  Lemma captured_pointer_notnull
-      vaddr m i
-    :
-      vaddr (≃_m) i ⊢ ⌜Vnullptr <> vaddr⌝.
-  Proof.
-  Admitted.
-
-  Lemma has_offset_notnull
-      vaddr m ofs
-    :
-      vaddr ⊨m# ofs ⊢ ⌜Vnullptr <> vaddr⌝.
-  Proof.
-  Admitted.
-
-  Lemma points_to_notnull
-      vaddr m q mvs
-    :
-      vaddr ↦m#q≻ mvs ⊢ ⌜Vnullptr <> vaddr⌝.
-  Proof.
-  Admitted. *)
-
   Lemma replace_meta_to_alive
       vaddr m0 m1 q mvs i
     :
-      vaddr ↦m0#q≻ mvs ** vaddr (≃_m1) i ⊢ vaddr ↦m0#q≻ mvs ** vaddr (≃_m0) i.
+      vaddr (↦_m0,q) mvs ** vaddr (≃_m1) i ⊢ vaddr (↦_m0,q) mvs ** vaddr (≃_m0) i.
   Proof.
   Admitted.
 
@@ -891,31 +853,39 @@ Section RULES.
 
   Lemma points_to_is_ptr v m q mvs
     : 
-      v ↦m#q≻ mvs ⊢ ⌜is_ptr_val v = true⌝.
+      v (↦_m,q) mvs ⊢ ⌜is_ptr_val v = true⌝.
   Proof.
-    iIntros "A". unfold points_to, has_offset.
+    iIntros "A". unfold points_to, _has_offset.
     destruct v; ss; des_ifs_safe;
     iDestruct "A" as "[A B]"; clarify;
-    iDestruct "B" as (ofs) "[B [C %]]"; clarify.
+    iDestruct "B" as (ofs) "[[[B C] %] %]"; clarify.
+    iDestruct "C" as "[_ %]". clarify.
   Qed.
 
-  Lemma decode_encode_ptr v m ofs 
+  Lemma decode_encode_ptr v m tg q ofs 
     : 
-      v ⊨m# ofs ⊢ ⌜decode_val Mptr (encode_val Mptr v) = v⌝.
+      v (⊨_m,tg,q) ofs ⊢ ⌜decode_val Mptr (encode_val Mptr v) = v⌝.
   Proof.
     unfold Mptr. des_ifs.
     pose proof (decode_encode_val_general v Mint64 Mint64).
     unfold decode_encode_val in H3.
-    iIntros "A". unfold has_offset.
-    destruct v; try solve [iDestruct "A" as "[A %]"; clarify].
-    rewrite H3. et.
+    iIntros "A". unfold has_offset, _has_offset.
+    destruct v; try solve [iDestruct "A" as "[A [A' %]]"; clarify];
+    des_ifs; rewrite H3; et.
   Qed.
 
-  Lemma add_null_r v m ofs: 
-      v ⊨m# ofs ⊢ ⌜Val.addl v (Vptrofs Ptrofs.zero) = v⌝.
+  Lemma add_null_r v m tg q ofs: 
+      v (⊨_m,tg,q) ofs ⊢ ⌜Val.addl v (Vptrofs Ptrofs.zero) = v⌝.
   Proof.
-  Admitted.
-    
+    iIntros "A". unfold has_offset, _has_offset.
+    des_ifs; try solve [iDestruct "A" as "[A [A' %]]"; clarify].
+    - iPureIntro. ss. unfold Vptrofs. des_ifs.
+      change (Ptrofs.to_int64 _) with Int64.zero. 
+      rewrite Int64.add_zero. et.
+    - iPureIntro. ss. unfold Vptrofs. des_ifs.
+      rewrite Ptrofs.of_int64_to_int64; et.
+      rewrite Ptrofs.add_zero. et.
+  Qed.
 
 End RULES.
 
@@ -931,11 +901,10 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = n↑⌝),
                     (fun vret => ∃ m vaddr,
-                                 ⌜vret = (m.(blk))↑ /\ m.(sz) = Z.of_nat n 
+                                 ⌜vret = (m.(blk))↑ /\ m.(sz) = Z.of_nat n
                                  /\ Z.of_nat n ≤ Ptrofs.max_unsigned⌝
-                                 ** vaddr ↦m#1≻ List.repeat Undef n
-                                 ** vaddr ⊨m# Ptrofs.zero
-                                 ** live_ 1# (m, Local))
+                                 ** vaddr (↦_m,1) List.repeat Undef n
+                                 ** vaddr (⊨_m,Local, 1) Ptrofs.zero)
     )))%I.
 
   Definition sfree_spec: fspec :=
@@ -944,22 +913,22 @@ Section SPEC.
                   (fun varg => ∃ m mvs vaddr,
                                 ⌜varg = (m.(blk), m.(sz))↑
                                 /\ Z.of_nat (List.length mvs) = m.(sz)⌝
-                                ** vaddr ↦m#1≻ mvs
-                                ** vaddr ⊨m# Ptrofs.zero 
-                                ** live_ 1# (m, Local)),
+                                ** vaddr (↦_m,1) mvs
+                                ** vaddr (⊨_m,Local,1) Ptrofs.zero),
                   (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
   Definition load_spec: fspec :=
-    (mk_simple (fun '(chunk, vaddr, m, q, mvs) => (
+    (mk_simple (fun '(chunk, vaddr, m, tg, q0, ofs, q1, mvs) => (
                     (ord_pure 0%nat),
-                    (fun varg => ∃ ofs, ⌜varg = (chunk, vaddr)↑
+                    (fun varg => ⌜varg = (chunk, vaddr)↑
                                  /\ List.length mvs = size_chunk_nat chunk
                                  /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)⌝
-                                 ** vaddr ⊨m# ofs
-                                 ** vaddr ↦m#q≻ mvs),
+                                 ** vaddr (⊨_m,tg,q0) ofs
+                                 ** vaddr (↦_m,q1) mvs),
                     (fun vret => ∃ v, ⌜vret = v↑ /\ decode_val chunk mvs = v⌝
-                                 ** vaddr ↦m#q≻ mvs)
+                                 ** vaddr (⊨_m,tg,q0) ofs
+                                 ** vaddr (↦_m,q1) mvs)
     )))%I.
 
   (* Definition loadbytes_spec: fspec :=
@@ -972,16 +941,17 @@ Section SPEC.
 
   Definition store_spec: fspec :=
     (mk_simple
-      (fun '(chunk, vaddr, m, v_new) => (
+      (fun '(chunk, vaddr, m, ofs, tg, q, v_new) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ mvs_old ofs, ⌜varg = (chunk, vaddr, v_new)↑
+            (fun varg => ∃ mvs_old, ⌜varg = (chunk, vaddr, v_new)↑
                          /\ List.length mvs_old = size_chunk_nat chunk
                          /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)⌝
-                         ** vaddr ⊨m# ofs
-                         ** vaddr ↦m#1≻ mvs_old),
+                         ** vaddr (⊨_m,tg,q) ofs
+                         ** vaddr (↦_m,1) mvs_old),
             (fun vret => ∃ mvs_new, ⌜vret = tt↑
                          /\ encode_val chunk v_new = mvs_new⌝
-                         ** vaddr ↦m#1≻ mvs_new)
+                         ** vaddr (⊨_m,tg,q) ofs
+                         ** vaddr (↦_m,1) mvs_new)
     )))%I.
 
   (* Definition storebytes_spec: fspec :=
@@ -1015,82 +985,74 @@ Section SPEC.
           )%I.
 
   Definition cmp_ptr_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m, q, tg) => (
+      fun '(vaddr, m, tg, q, ofs) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, Vnullptr, vaddr)↑⌝
-                         ** weak_valid m vaddr ofs
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (Ceq, Vnullptr, vaddr)↑ /\ weak_valid m ofs⌝
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ⌜vret = false↑⌝ 
-                         ** live_ q# (m, tg))
+                         ** vaddr (⊨_m,tg,q) ofs)
           )%I.
 
   Definition cmp_ptr_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m, q, tg) => (
+      fun '(vaddr, m, tg, q, ofs) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, Vnullptr, vaddr)↑⌝
-                         ** weak_valid m vaddr ofs
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (Cne, Vnullptr, vaddr)↑ /\ weak_valid m ofs⌝
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ⌜vret = true↑⌝ 
-                         ** live_ q# (m, tg))
+                         ** vaddr (⊨_m,tg,q) ofs)
           )%I.
 
   Definition cmp_ptr_hoare3 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m, q, tg) => (
+      fun '(vaddr, m, tg, q, ofs) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Ceq, vaddr, Vnullptr)↑⌝
-                         ** weak_valid m vaddr ofs
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (Ceq, vaddr, Vnullptr)↑ /\ weak_valid m ofs⌝
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ⌜vret = false↑⌝ 
-                         ** live_ q# (m, tg))
+                         ** vaddr (⊨_m,tg,q) ofs)
           )%I.
 
   Definition cmp_ptr_hoare4 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m, q, tg) => (
+      fun '(vaddr, m, tg, q, ofs) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = (Cne, vaddr, Vnullptr)↑⌝
-                         ** weak_valid m vaddr ofs
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (Cne, vaddr, Vnullptr)↑ /\ weak_valid m ofs⌝
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ⌜vret = true↑⌝ 
-                         ** live_ q# (m, tg))
+                         ** vaddr (⊨_m,tg,q) ofs)
           )%I.
 
   Definition cmp_ptr_hoare5 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(c, m, ofs0, ofs1, q, tg) => (
+      fun '(c, vaddr0, vaddr1, m, ofs0, ofs1, q0, q1, tg) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (c, vaddr0, vaddr1)↑⌝
-                         ** weak_valid m vaddr0 ofs0
-                         ** weak_valid m vaddr1 ofs1
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (c, vaddr0, vaddr1)↑ /\ weak_valid m ofs0 /\ weak_valid m ofs1⌝
+                         ** vaddr0 (⊨_m,tg,q0) ofs0
+                         ** vaddr1 (⊨_m,tg,q1) ofs1),
             (fun vret => ⌜vret = (cmp_ofs c (Ptrofs.unsigned ofs0) (Ptrofs.unsigned ofs1))↑⌝
-                         ** live_ q# (m, tg))
+                         ** vaddr0 (⊨_m,tg,q0) ofs0
+                         ** vaddr1 (⊨_m,tg,q1) ofs1)
           )%I.
 
   Definition cmp_ptr_hoare6 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m0, q0, tg0, m1, q1, tg1) => (
+      fun '(vaddr0, vaddr1, m0, m1, ofs0, ofs1, q0, q1, tg0, tg1) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1 ofs0 ofs1, ⌜varg = (Ceq, vaddr0, vaddr1)↑
-                         /\ m0 #^ m1⌝
-                         ** valid m0 vaddr0 ofs0
-                         ** valid m1 vaddr1 ofs1
-                         ** live_ q0# (m0, tg0)
-                         ** live_ q1# (m1, tg1)),
+            (fun varg => ⌜varg = (Ceq, vaddr0, vaddr1)↑ /\ m0 #^ m1
+                         /\ valid m0 ofs0 /\ valid m1 ofs1⌝
+                         ** vaddr0 (⊨_m0,tg0,q0) ofs0
+                         ** vaddr1 (⊨_m1,tg1,q1) ofs1),
             (fun vret => ⌜vret = false↑⌝ 
-                         ** live_ q0# (m0, tg0)
-                         ** live_ q1# (m1, tg1))
+                         ** vaddr0 (⊨_m0,tg0,q0) ofs0
+                         ** vaddr1 (⊨_m1,tg1,q1) ofs1)
           )%I.
 
   Definition cmp_ptr_hoare7 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(m0, q0, tg0, m1, q1, tg1) => (
+      fun '(vaddr0, vaddr1, m0, m1, ofs0, ofs1, q0, q1, tg0, tg1) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1 ofs0 ofs1, ⌜varg = (Cne, vaddr0, vaddr1)↑
-                         /\ m0 #^ m1⌝
-                         ** valid m0 vaddr0 ofs0
-                         ** valid m1 vaddr1 ofs1
-                         ** live_ q0# (m0, tg0)
-                         ** live_ q1# (m1, tg1)),
+            (fun varg => ⌜varg = (Cne, vaddr0, vaddr1)↑ /\ m0 #^ m1
+                         /\ valid m0 ofs0 /\ valid m1 ofs1⌝
+                         ** vaddr0 (⊨_m0,tg0,q0) ofs0
+                         ** vaddr1 (⊨_m1,tg1,q1) ofs1),
             (fun vret => ⌜vret = true↑⌝ 
-                         ** live_ q0# (m0, tg0)
-                         ** live_ q1# (m1, tg1))
+                         ** vaddr0 (⊨_m0,tg0,q0) ofs0
+                         ** vaddr1 (⊨_m1,tg1,q1) ofs1)
           )%I.
 
   Definition cmp_ptr_spec: fspec :=
@@ -1107,26 +1069,25 @@ Section SPEC.
 
   Definition sub_ptr_spec : fspec :=
     (mk_simple
-      (fun '(size, m, ofs0, ofs1, q, tg) => (
+      (fun '(size, vaddr0, vaddr1, m, ofs0, ofs1, q0, q1, tg) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr0 vaddr1, ⌜varg = (size, vaddr0, vaddr1)↑
-                         /\ 0 < size ≤ Ptrofs.max_signed⌝
-                         ** weak_valid m vaddr0 ofs0
-                         ** weak_valid m vaddr1 ofs1
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = (size, vaddr0, vaddr1)↑ /\ 0 < size ≤ Ptrofs.max_signed
+                         /\ weak_valid m ofs0 /\ weak_valid m ofs1⌝
+                         ** vaddr0 (⊨_m,tg,q0) ofs0
+                         ** vaddr1 (⊨_m,tg,q1) ofs1),
             (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size)))↑⌝
-                         ** live_ q# (m, tg))
+                         ** vaddr0 (⊨_m,tg,q0) ofs0
+                         ** vaddr1 (⊨_m,tg,q1) ofs1)
     )))%I.
 
   Definition non_null_spec: fspec :=
     (mk_simple
-      (fun '(m, q, tg) => (
+      (fun '(vaddr, m, q, tg, ofs) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ vaddr ofs, ⌜varg = vaddr↑⌝
-                         ** weak_valid m vaddr ofs
-                         ** live_ q# (m, tg)),
+            (fun varg => ⌜varg = vaddr↑ /\ weak_valid m ofs⌝
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ⌜vret = true↑⌝ 
-                         ** live_ q# (m, tg))
+                         ** vaddr (⊨_m,tg,q) ofs)
     )))%I.
 
   (* heap malloc free *)
@@ -1135,9 +1096,8 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = [Vptrofs n]↑ /\ Ptrofs.unsigned n > 0⌝),
                     (fun vret => ∃ m vaddr, ⌜vret = vaddr↑ /\ m.(sz) = Ptrofs.unsigned n⌝
-                                 ** vaddr ↦m#1≻ List.repeat Undef (Z.to_nat (Ptrofs.unsigned n))
-                                 ** vaddr ⊨m# Ptrofs.zero
-                                 ** live_ 1# (m, Dynamic))
+                                 ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat (Ptrofs.unsigned n))
+                                 ** vaddr (⊨_m,Dynamic,1) Ptrofs.zero)
     )))%I.
 
   Definition mfree_spec: fspec :=
@@ -1145,15 +1105,14 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ∃ m mvs vaddr,
                                  ⌜varg = [vaddr]↑ /\ Z.of_nat (List.length mvs) = m.(sz)⌝
-                                 ** vaddr ↦m#1≻ mvs
-                                 ** vaddr ⊨m# Ptrofs.zero
-                                 ** live_ 1# (m, Dynamic)),
+                                 ** vaddr (↦_m,1) mvs
+                                 ** vaddr (⊨_m,Dynamic,1) Ptrofs.zero),
                     (fun vret => ⌜vret = Vundef↑⌝)
     )))%I.
 
   Definition memcpy_resource (vaddr vaddr': val) (m_src m_dst: metadata) (mvs_src mvs_dst: list memval) : iProp :=
-    if Val.eq vaddr' vaddr then vaddr ↦m_dst#1≻ mvs_dst
-    else vaddr' ↦m_src#1≻ mvs_src ** vaddr ↦m_dst#1≻ mvs_dst.
+    if Val.eq vaddr' vaddr then vaddr (↦_m_dst,1) mvs_dst
+    else vaddr' (↦_m_src,1) mvs_src ** vaddr (↦_m_dst,1) mvs_dst.
 
   Definition memcpy_spec: fspec :=
     (mk_simple
@@ -1179,11 +1138,10 @@ Section SPEC.
       fun '(vaddr, m, q, ofs, tg) => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = [vaddr]↑⌝
-                         ** vaddr ⊨m# ofs
-                         ** live_ q# (m, tg)),
+                         ** vaddr (⊨_m,tg,q) ofs),
             (fun vret => ∃ i, ⌜vret = (Vptrofs i)↑⌝
-                         ** live_ q# (m, tg)
-                         ** vaddr (≃_m) (Ptrofs.unsigned i))
+                         ** vaddr (⊨_m,tg,q) ofs
+                         ** vaddr (≃_m) i)
           )%I.
 
   Definition capture_spec: fspec :=

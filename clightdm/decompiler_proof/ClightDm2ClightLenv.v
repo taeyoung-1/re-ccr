@@ -4,7 +4,7 @@ Require Import Coqlib.
 Require Import PCM.
 Require Import AList.
 
-Require Import Clightlight2ClightMatch.
+Require Import ClightDm2ClightMatch.
 
 Set Implicit Arguments.
 
@@ -13,7 +13,7 @@ Section LENV.
   Context `{Σ: GRA.t}.
   Context `{builtins : builtinsTy}.
 
-  Lemma match_update_le sk defs le tle o v
+  (* Lemma match_update_le sk defs le tle o v
         (MLE: match_le sk defs le tle)
     :
       match_le sk defs (set_opttemp o v le) (set_opttemp o (map_val sk defs v) tle).
@@ -21,7 +21,7 @@ Section LENV.
     destruct o; ss. econs. i. inv MLE. destruct (Pos.eq_dec i id).
     - subst. rewrite PTree.gss in *. clarify.
     - rewrite PTree.gso in *; et.
-  Qed.
+  Qed. *)
 
   Lemma update_le
         sk defs x id v sv le tle

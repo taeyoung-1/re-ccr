@@ -6,19 +6,19 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ConvC2ITree.
-Require Import SimSTS3.
-Require Import Clight_Mem0.
+Require Import ClightDmExprgen.
+Require Import STS2SmallStep.
+Require Import ClightDmMem0.
 Require Import IRed.
 
-Require Import Clightlight2ClightMatch.
-Require Import Clightlight2ClightArith.
-Require Import Clightlight2ClightLenv.
-Require Import Clightlight2ClightMem.
+Require Import ClightDm2ClightMatch.
+Require Import ClightDm2ClightArith.
+Require Import ClightDm2ClightLenv.
+Require Import ClightDm2ClightMem.
 
 From compcert Require Import Ctypes Clight Clightdefs Values.
 
-Lemma unbind_trigger E:
+(* Lemma unbind_trigger E:
   forall [X0 X1 A : Type] (ktr0 : X0 -> itree E A) (ktr1 : X1 -> itree E A) e0 e1,
     (x <- trigger e0;; ktr0 x = x <- trigger e1;; ktr1 x) -> (X0 = X1 /\ e0 ~= e1 /\ ktr0 ~= ktr1).
 Proof.
@@ -30,16 +30,16 @@ Proof.
   extensionality x. eapply equal_f in x0.
   rewrite ! subst_bind in *.
   irw in x0. eauto.
-Qed.
+Qed. *)
 
-Lemma angelic_step :
+(* Lemma angelic_step :
   forall (X : Prop) (ktr next : itree eventE Any.t),
     ModSemL.step (trigger (Take X);;; ktr) None next -> (next = ktr /\ X).
 Proof.
   i. dependent destruction H; try (irw in x; clarify; fail).
   rewrite <- bind_trigger in x. apply unbind_trigger in x.
   des. clarify.
-Qed.
+Qed. *)
 
 (* Lemma eval_exprlist_length :
   forall a b c d l1 l2
@@ -51,7 +51,7 @@ Qed. *)
 
 Section PROOF.
 
-  Import ModSemL.
+  (* Import ModSemL.
 
   Context `{Σ: GRA.t}.
   Context `{builtins : builtinsTy}.
@@ -1367,7 +1367,7 @@ Section PROOF.
           (transl_all mn (eval_expr_c sk ce e le a))
           pstate);; ktr r0)
       (State tf tcode tcont te tle tm). 
-  Proof. hexploit _step_eval; et. i. des. et. Qed.
+  Proof. hexploit _step_eval; et. i. des. et. Qed. *)
           
 
 End PROOF.

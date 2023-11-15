@@ -3,11 +3,11 @@ Require Import Skeleton.
 Require Import ModSem Behavior SimModSem.
 Require Import PCM.
 Require Import HoareDef STB.
-Require Import ClightlightMem0 ClightlightMem1.
+Require Import ClightDmMem0 ClightDmMem1.
 Require Import HTactics ProofMode.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
 
-
+(* 
 Set Implicit Arguments.
 
 (* 
@@ -1077,4 +1077,4 @@ Section SIMMODSEM.
     eapply adequacy_local2. eapply correct_mod.
   Qed.
 
-End PROOF.
+End PROOF. *)

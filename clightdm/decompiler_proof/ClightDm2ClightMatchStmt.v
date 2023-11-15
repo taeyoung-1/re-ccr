@@ -1,4 +1,5 @@
 From compcert Require Import Globalenvs Smallstep AST Integers Events Behaviors Errors Memory Values Maps.
+From compcert Require Import Ctypes Clight Clightdefs Globalenvs.
 Require Import Coqlib.
 Require Import ITreelib.
 Require Import Skeleton.
@@ -6,15 +7,14 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ConvC2ITree.
-Require Import ConvC2ITreeStmt.
-Require Import Clight_Mem0.
+Require Import ClightDmgen.
+Require Import ClightDmExprgen.
+Require Import ClightDmMem0.
 
 Set Implicit Arguments.
 
-From compcert Require Import Ctypes Clight Clightdefs Globalenvs.
 
-Require Import Clightlight2ClightMatch.
+Require Import ClightDm2ClightMatch.
 
 Import Genv.
 
@@ -27,11 +27,11 @@ Section MATCH.
   Local Open Scope Z.
 
   (* global env is fixed when src program is fixed *)
-  Variable sk : Sk.t.
+  Variable sk : Sk.sem.
   Variable tge : Genv.t Clight.fundef type.
 
   (* composite env should be fixed when src program is fixed*)
-  Variable ce : composite_env.
+  Variable ce : comp_env.
 
   (* ModSem should be fixed with src too *)
   Variable ms : ModSemL.t.
@@ -46,7 +46,7 @@ Section MATCH.
 
   Definition itree_of_code (mn: string) (retty: type) (code: statement) (e: env) (le: temp_env) 
     : stateT p_state (itree eventE) runtime_env 
-      := Es_to_eventE ms mn (decomp_stmt sk ce retty code e le).
+      := Es_to_eventE ms mn (decomp_stmt sk ce xH retty code e le).
 
   Definition ktree_of_cont_itree (mn: string) (cont_itr: runtime_env -> itr_t)
     : p_state * runtime_env -> itree eventE (p_state * runtime_env) 
@@ -68,10 +68,10 @@ Section MATCH.
   Definition kstop_itree (ncr: runtime_env) : itree Es val := 
     let '(e, le, optb, optv) := ncr in
       '(_, _, _, optv') <- (itree_of_cont_pop 
-                              (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, optv)) 
+                              (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
                               triggerUB 
                               triggerUB 
-                              (tau;;free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, Some Vundef)))
+                              (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef)))
                               optb optv;; 
       v <- optv'?;; (match v with | Vint _ => Ret v | _ => triggerUB end).
 
@@ -145,7 +145,7 @@ Section MATCH.
                             (Ret (e, le, None, optv)) 
                             (tau;;Ret (e, le, optb, None)) 
                             (tau;;Ret (e, le, optb, None)) 
-                            (tau;;decomp_stmt sk ce retty code e le)) optb optv))
+                            (tau;;decomp_stmt sk ce xH retty code e le)) optb optv))
       (NEXT: match_cont retty mn next cont)
     :
       match_cont retty mn (fun x => y <- cont_itree x;; next y) (Kseq code cont)
@@ -156,17 +156,17 @@ Section MATCH.
                             (Ret (e, le, None, optv)) 
                             (tau;;Ret (e, le, None, None)) 
                             (* this is for break *)
-                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
+                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce xH retty code2 e le);;
                               match ov2 with
                               | Some v2 => Ret (e2, le2, None, v2)
-                              | None => tau;;_sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                              | None => tau;;_sloop_itree xH e2 le2 (fun p => decomp_stmt sk ce p retty code1) (fun p => decomp_stmt sk ce p retty code2)
                                       (* this is for loop unfold tau *)
                               end)
-                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce retty code2 e le);;
+                            ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce xH retty code2 e le);;
                                                 (* this is for skip *)
                               match ov2 with
                               | Some v2 => Ret (e2, le2, None, v2)
-                              | None => tau;;_sloop_itree e2 le2 (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                              | None => tau;;_sloop_itree xH e2 le2 (fun p => decomp_stmt sk ce p retty code1) (fun p => decomp_stmt sk ce p retty code2)
                                         (* this is for loop unfold tau *)
                               end)) optb optv))
       (NEXT: match_cont retty mn next cont) 
@@ -186,7 +186,7 @@ Section MATCH.
                             end);;
                           match ov2 with
                           | Some v2 => Ret (e, le, None, v2)
-                          | None => tau;;_sloop_itree e le (decomp_stmt sk ce retty code1) (decomp_stmt sk ce retty code2)
+                          | None => tau;;_sloop_itree xH e le (fun p => decomp_stmt sk ce p retty code1) (fun p => decomp_stmt sk ce p retty code2)
                           end))
       (NEXT: match_cont retty mn next cont) 
     :
@@ -200,11 +200,11 @@ Section MATCH.
                         (fun '(e, le, optb, optv) => 
                           '(_, _, _, optv') <-
                             (itree_of_cont_pop
-                              (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, optv)) 
+                              (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
                               triggerUB
                               triggerUB
-                              (tau;;free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
-                          v <- optv'?;; tau;; Ret (e', set_opttemp optid v le', None, None))) 
+                              (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
+                          v <- optv'?;; tau;; Ret (e', (match optid with Some id => alist_add (string_of_ident id) v le' | None => le' end), None, None))) 
                                       (* this is for modsem *)
       (CONT_ENV_MATCH: match_e sk tge e' te')
       (CONT_LENV_MATCH: match_le sk tge le' tle')
@@ -213,15 +213,15 @@ Section MATCH.
       match_cont retty mn_callee (fun x => y <- cont_itree x;; next y) (Kcall optid f te' tle' cont).
 
   Definition fnsem_has_internal := 
-    forall s f, In (s, (Gfun (Internal f) (V:=type))↑) sk ->
-    exists mn,
+    forall s t, In (ident_of_string s, inr (Gfun (CInternal t) (V:=type))) sk ->
+    exists mn f,
     alist_find s ms.(ModSemL.fnsems)
        = Some (fun '(optmn, a) => transl_all mn (cfunU (decomp_func (eff := Es) sk ce f) (optmn, a))).
 
   Variant match_states : itree eventE Any.t -> Clight.state -> Prop :=
   | match_states_intro
       tf pstate e te le tle tcode m tm tcont mn itr_code itr_cont itr
-      (MGE: match_ge sk tge)
+      (MGE: match_ge sk tge ce ms)
       (ME: match_e sk tge e te)
       (ML: match_le sk tge le tle)
       (PSTATE: pstate "Mem"%string = m↑)
