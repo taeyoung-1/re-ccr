@@ -98,7 +98,8 @@ Section PROP.
     | Vptr b ofs =>
       OwnM (_has_size m.(blk) m.(sz))
       ** ∃ a, OwnM (_has_base m.(blk) a)
-      ** ⌜b = m.(blk) /\ ofs = Ptrofs.sub i a⌝
+      ** ⌜b = m.(blk) /\ ofs = Ptrofs.sub i a
+         /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
     | Vint i' => if Archi.ptr64 then False
                  else ⌜i = Ptrofs.of_int i'⌝
     | Vlong i' => if Archi.ptr64 then ⌜i = Ptrofs.of_int64 i'⌝
@@ -127,6 +128,7 @@ Section PROP.
     OwnM (_has_size m.(blk) m.(sz))
     ** ∃ ofs, OwnM (_points_to m.(blk) (Ptrofs.unsigned ofs) mvs q)
     ** _has_offset vaddr m ofs
+    ** ⌜Ptrofs.unsigned ofs + length mvs ≤ m.(sz)⌝
     ** match vaddr with
        | Vptr b ofs'  =>
           ⌜Ptrofs.unsigned ofs + length mvs ≤ Ptrofs.max_unsigned⌝
@@ -203,7 +205,7 @@ Section RULES.
       iFrame. iExists _. iFrame. iPureIntro. des. clarify. split; et.
       rewrite Ptrofs.of_int64_to_int64; et.
       do 2 rewrite Ptrofs.sub_add_opp. do 2 rewrite Ptrofs.add_assoc.
-      rewrite (Ptrofs.add_commut k). et.
+      rewrite (Ptrofs.add_commut k). split; et.
   Qed.
 
   Lemma capture_unique
@@ -405,8 +407,8 @@ Section RULES.
     - iIntros "A". unfold points_to.
       iDestruct "A" as "[B A]".
       iPoseProof (_has_size_dup with "B") as "[Y T]".
-      des_ifs; iDestruct "A" as (ofs) "[[A B] %]"; des; clarify.
-      + unfold _has_offset. des_ifs. iDestruct "B" as "[B %]".
+      des_ifs; iDestruct "A" as (ofs) "[[[A B] %] %]"; des; clarify.
+      + unfold _has_offset. des_ifs. iDestruct "B" as "[? %]".
         clarify.
       + iPoseProof (_offset_dup with "B") as "[C D]".
         replace (_points_to (blk m) (Ptrofs.unsigned ofs) mvs (q0+q1)%Qp)
@@ -428,8 +430,8 @@ Section RULES.
         iSplitL "A Y D"; iFrame; iExists _; iFrame; et.
     - iIntros "A". unfold points_to.
       iDestruct "A" as "[[A B] [C D]]".
-      iDestruct "B" as (ofs0) "[[E G] F]".
-      iDestruct "D" as (ofs1) "[[H I] J]".
+      iDestruct "B" as (ofs0) "[[[E G] %] F]".
+      iDestruct "D" as (ofs1) "[[[H I] %] J]".
       iCombine "I G" as "T".
       iPoseProof (_has_offset_unique with "T") as "%".
       clarify.
@@ -444,7 +446,7 @@ Section RULES.
         2:{ unfold _points_to. unfold Auth.white. ur. ur. ur.
             f_equal. apply func_ext. i. apply func_ext. i. ur.
             unfold __points_to. des_ifs. }
-        iCombine "E H" as "?". iFrame.
+        iCombine "E H" as "?". iFrame. ss.
       + iSplitL "A"; ss. iDestruct "T" as "[T T']".
         iExists _. iFrame.
         replace (_points_to (blk m) (Ptrofs.unsigned ofs0) mvs (q0+q1)%Qp)
@@ -453,7 +455,7 @@ Section RULES.
         2:{ unfold _points_to. unfold Auth.white. ur. ur. ur.
             f_equal. apply func_ext. i. apply func_ext. i. ur.
             unfold __points_to. des_ifs. }
-        iCombine "E H" as "?". iFrame.
+        iCombine "E H" as "?". iFrame. ss.
   Qed.
 
   Lemma _allocated_disjoint
@@ -512,8 +514,8 @@ Section RULES.
     iDestruct "A" as "[A B]".
     des_ifs; try solve [iDestruct "B" as (ofs) "[_ %]"; clarify].
     - iDestruct "B" as (ofs) "[B %]".
-      unfold _has_offset. des_ifs. iDestruct "B" as "[_ [_ %]]". clarify.
-    - iDestruct "B" as (ofs) "[[B C] %]".
+      unfold _has_offset. des_ifs. iDestruct "B" as "[[_ [_ %]] _]". clarify.
+    - iDestruct "B" as (ofs) "[[[B C] %] %]".
       des. clarify.
       iPoseProof (_has_size_dup with "A") as "[A A']".
       iPoseProof (_offset_dup with "C") as "[C C']".
@@ -556,7 +558,9 @@ Section RULES.
         rewrite (Int64.unsigned_repr (length _)).
         2:{ change Int64.max_unsigned with Ptrofs.max_unsigned. nia. }
         iDestruct "C" as "[? C]". iFrame.
-        iDestruct "C" as (a) "[C %]". des. 
+        iDestruct "C" as (a) "[C %]". des.
+        iSplit.
+        2:{ iPureIntro. nia. }
         iExists _. iFrame. iPureIntro.
         split; et. rewrite Int64.unsigned_repr; try nia.
         rewrite Ptrofs.unsigned_repr in *; try nia.
@@ -570,7 +574,7 @@ Section RULES.
       2:{ change Int64.max_unsigned with Ptrofs.max_unsigned. nia. }
       rewrite Int64.unsigned_repr; try nia.
       change Int64.max_unsigned with Ptrofs.max_unsigned. nia.
-    - iDestruct "B" as (ofs) "[[B C] %]".
+    - iDestruct "B" as (ofs) "[[[B C] %] %]".
       iPoseProof (_has_size_dup with "A") as "[A A']".
       iPoseProof (_offset_dup with "C") as "[C C']".
       replace (_points_to (blk m) (Ptrofs.unsigned ofs) (mvs0 ++ mvs1) q)
@@ -601,8 +605,8 @@ Section RULES.
       iFrame.
       iSplitL "C'".
       { unfold _has_offset. iDestruct "C'" as "[? %]". iFrame.
-        iPureIntro. des. clarify. split; et.
-        rewrite app_length in *.
+        iPureIntro. des. clarify. rewrite app_length in *.
+        split; try nia.
         unfold Vptrofs in *.
         des_ifs. rewrite Ptrofs.of_int64_to_int64; et. 
         unfold Ptrofs.add.
@@ -622,8 +626,8 @@ Section RULES.
     iIntros "[A B]". unfold points_to.
     iDestruct "A" as "[A' A]".
     iDestruct "B" as "[B' B]".
-    iDestruct "A" as (ofs0) "[[A C] H]".
-    iDestruct "B" as (ofs1) "[[B D] J]".
+    iDestruct "A" as (ofs0) "[[[A C] %] H]".
+    iDestruct "B" as (ofs1) "[[[B D] %] J]".
     des_ifs.
     - iDestruct "H" as "%".
       iDestruct "J" as "%".
@@ -664,12 +668,12 @@ Section RULES.
       unfold Vptrofs in *. des_ifs.
       unfold Ptrofs.add, Ptrofs.to_int64, Int64.add in *. 
       rewrite (Ptrofs.unsigned_repr (length mvs0)) in *.
-      2,3: destruct ofs0; ss; nia.
+      2,3,4: destruct ofs0; ss; nia.
       rewrite (Int64.unsigned_repr (length mvs0)) in *.
       2: change Int64.max_unsigned with Ptrofs.max_unsigned;
            destruct i; ss; nia.
       rewrite Ptrofs.unsigned_repr in *.
-      2:{ destruct ofs0; ss. nia. }
+      2,3: destruct ofs0; ss; nia.
       rewrite (Int64.unsigned_repr) in *.
       2: change Int64.max_unsigned with Ptrofs.max_unsigned;
            destruct i; ss; nia.
@@ -713,25 +717,115 @@ Section RULES.
       unfold Vptrofs in *. des_ifs.
       unfold Ptrofs.add, Ptrofs.to_int64, Int64.add in *. 
       rewrite (Ptrofs.unsigned_repr (length mvs0)) in *.
-      2: destruct ofs0; ss; nia.
+      2,3: destruct ofs0; ss; nia.
       rewrite Ptrofs.unsigned_repr in *.
-      2:{ destruct ofs0; ss. nia. }
+      2,3: destruct ofs0; ss; nia.
       rewrite app_length in *. nia.
   Qed.
 
-  Lemma capture_offset_comm
+  Lemma _capture_offset_comm
       vaddr i m ofs
     : 
       vaddr (≃_m) i ⊢ vaddr ⊨m# ofs ∗-∗ Vptrofs i ⊨m# ofs.
   Proof.
-  Admitted.
+    iIntros "A".
+    iSplit; iIntros "B"; unfold _has_offset; des_ifs.
+    - iDestruct "B" as "[B C]". iFrame.
+      unfold captured_to. des_ifs.
+      iDestruct "A" as "%". clarify.
+      iDestruct "C" as "[A B]".
+      iFrame. 
+      iDestruct "B" as (a) "[A %]".
+      iExists _. iFrame. iPureIntro. des. clarify. split; et.
+      unfold Vptrofs in *. des_ifs. rewrite Ptrofs.of_int64_to_int64; et.
+    - iDestruct "B" as "[B %]". iFrame.
+      des. clarify.
+      unfold Vptrofs in *. des_ifs. rewrite Ptrofs.of_int64_to_int64; et.
+    - iDestruct "B" as "[B C]". iFrame.
+      unfold captured_to. des_ifs.
+      iDestruct "A" as "%". clarify.
+      iDestruct "C" as "[A B]".
+      iFrame. 
+      iDestruct "B" as (a) "[A %]".
+      iExists _. iFrame. iPureIntro. des. clarify. split; et.
+      unfold Vptrofs in *. des_ifs. rewrite Ptrofs.of_int64_to_int64; et.
+    - iDestruct "B" as "[B C]". iFrame.
+      unfold captured_to.
+      iDestruct "A" as "[A A']".
+      iDestruct "C" as "[C B]".
+      iDestruct "B" as (a) "[B %]".
+      iDestruct "A'" as (a0) "[A' %]".
+      des. clarify.
+      iCombine "A' B" as "A'".
+      iOwnWf "A'" as wfc.
+      ur in wfc. specialize (wfc (blk m)). ur in wfc.
+      unfold _has_base in *. des_ifs.
+      iPureIntro. des. clarify. split; et.
+      unfold Vptrofs in *. des_ifs. rewrite Ptrofs.of_int64_to_int64; et.
+  Qed.
 
   Lemma capture_pointto_comm
       vaddr i m q mvs
     : 
-      vaddr (≃_m) i ⊢ vaddr ↦m#q≻ mvs ∗-∗ Vptrofs i ↦m#q≻ mvs.
+      vaddr (≃_m) i ⊢ vaddr (↦_m,q) mvs ∗-∗ Vptrofs i (↦_m,q) mvs.
   Proof.
-  Admitted.
+    iIntros "A".
+    iSplit; iIntros "B"; unfold points_to; des_ifs. 
+    - iDestruct "B" as "[B C]". iFrame.
+      iDestruct "C" as (ofs) "[[C D] %]".
+      unfold Vptrofs in *. ss. des_ifs.
+      iDestruct "A" as "%".
+      des. clarify. iExists _. iSplitR "".
+      { iSplitL "C"; ss.
+        rewrite Ptrofs.to_int64_of_int64; et. }
+      iPureIntro. rewrite Ptrofs.to_int64_of_int64; et.
+    - iDestruct "B" as "[B C]". iFrame.
+      iDestruct "C" as (ofs) "[[[C D] %] %]".
+      unfold Vptrofs in *. des_ifs.
+      iExists _. iSplit.
+      { iPoseProof (_capture_offset_comm with "A") as "A".
+        iPoseProof ("A" with "D") as "D". iFrame. ss. }
+      unfold captured_to.
+      iDestruct "A" as "[A B]".
+      iDestruct "B" as (a) "[B %]".
+      des. clarify.
+      unfold _has_offset.
+      iDestruct "D" as "[D %]".
+      des. clarify.
+      iPureIntro. split; et.
+      replace (Int64.unsigned (Ptrofs.to_int64 i)) with (Ptrofs.unsigned i).
+      2:{ unfold Ptrofs.to_int64. rewrite Int64.unsigned_repr; et.
+          change Int64.max_unsigned with Ptrofs.max_unsigned.
+          apply Ptrofs.unsigned_range_2. }
+      assert (Ptrofs.unsigned (Ptrofs.sub i a) + Ptrofs.unsigned a + length mvs ≤ Ptrofs.max_unsigned) by nia.
+      assert (Ptrofs.unsigned i ≤ Ptrofs.unsigned (Ptrofs.sub i a) + Ptrofs.unsigned a); try nia.
+      unfold Ptrofs.sub.
+      destruct (classic (0 ≤ Ptrofs.unsigned i - Ptrofs.unsigned a ≤ Ptrofs.max_unsigned)).
+      { rewrite Ptrofs.unsigned_repr; nia. }
+      pose proof (Ptrofs.unsigned_range_2 i).
+      pose proof (Ptrofs.unsigned_range_2 a).
+      assert (Ptrofs.unsigned i ≤ Ptrofs.unsigned a) by nia.
+      pose proof (Ptrofs.unsigned_range_2 (Ptrofs.repr (Ptrofs.unsigned i - Ptrofs.unsigned a))).
+      nia.
+    - iDestruct "B" as "[B C]". iFrame.
+      iDestruct "C" as (ofs) "[[C D] %]".
+      unfold Vptrofs in *. ss. des_ifs.
+      iDestruct "A" as "%".
+      des. clarify. iExists _. iSplitR "".
+      { iSplitL "C"; ss.
+        rewrite Ptrofs.to_int64_of_int64; et. }
+      iPureIntro. rewrite Ptrofs.to_int64_of_int64 in H5; et.
+    - iDestruct "B" as "[B C]". iFrame.
+      iDestruct "C" as (ofs) "[[[C D] %] %]".
+      unfold Vptrofs in *. des_ifs.
+      iExists _. iSplit.
+      { iPoseProof (_capture_offset_comm with "A") as "A".
+        iPoseProof ("A" with "D") as "D". iFrame. ss. }
+      unfold captured_to.
+      iDestruct "A" as "[A B]".
+      iDestruct "B" as (a) "[B %]".
+      des. clarify.
+  Qed.
 
   Lemma capture_neq
       vaddr0 vaddr1 i0 i1 m0 m1 q0 q1 ofs0 ofs1 tg0 tg1
