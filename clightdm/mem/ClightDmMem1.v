@@ -9,7 +9,7 @@ Require Import PCM IPM.
 Require Import HoareDef STB.
 Require Import ClightDmExprgen.
 Require Import ClightDmgen.
-From compcertip Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
+From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.
 

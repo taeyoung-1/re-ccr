@@ -1,5 +1,5 @@
 From Coq Require Import String List ZArith.
-From compcertip Require Import Coqlib Integers Floats AST Ctypes Cop Clight Clightdefs.
+From compcert Require Import Coqlib Integers Floats AST Ctypes Cop Clight Clightdefs.
 Import Clightdefs.ClightNotations.
 Local Open Scope Z_scope.
 Local Open Scope string_scope.
@@ -15,7 +15,7 @@ Module Info.
   Definition abi := "standard".
   Definition bitsize := 64.
   Definition big_endian := false.
-  Definition source_file := "../intptr/CCR/clight_examples/xorlist/src/xorlist.c".
+  Definition source_file := "../CCR/clight_examples/xorlist/src/xorlist.c".
   Definition normalized := false.
 End Info.
 
@@ -122,13 +122,17 @@ Definition f_encrypt := {|
   fn_params := ((_prev, (tptr (Tstruct __Node noattr))) ::
                 (_next, (tptr (Tstruct __Node noattr))) :: nil);
   fn_vars := nil;
-  fn_temps := nil;
+  fn_temps := ((_t'2, (tptr (Tstruct __Node noattr))) ::
+               (_t'1, (tptr (Tstruct __Node noattr))) :: nil);
   fn_body :=
-(Sreturn (Some (Ebinop Oxor
-                 (Ecast (Etempvar _prev (tptr (Tstruct __Node noattr)))
-                   tlong)
-                 (Ecast (Etempvar _next (tptr (Tstruct __Node noattr)))
-                   tlong) tlong)))
+(Ssequence
+  (Ssequence
+    (Sbuiltin (Some _t'1) EF_capture (Tcons (tptr tvoid) Tnil)
+      ((Etempvar _prev (tptr (Tstruct __Node noattr))) :: nil))
+    (Sbuiltin (Some _t'2) EF_capture (Tcons (tptr tvoid) Tnil)
+      ((Etempvar _next (tptr (Tstruct __Node noattr))) :: nil)))
+  (Sreturn (Some (Ebinop Oxor (Etempvar _t'1 tlong) (Etempvar _t'2 tlong)
+                   tlong))))
 |}.
 
 Definition f_decrypt := {|
@@ -137,12 +141,14 @@ Definition f_decrypt := {|
   fn_params := ((_key, tlong) :: (_ptr, (tptr (Tstruct __Node noattr))) ::
                 nil);
   fn_vars := nil;
-  fn_temps := nil;
+  fn_temps := ((_t'1, (tptr (Tstruct __Node noattr))) :: nil);
   fn_body :=
-(Sreturn (Some (Ecast
-                 (Ebinop Oxor (Etempvar _key tlong)
-                   (Ecast (Etempvar _ptr (tptr (Tstruct __Node noattr)))
-                     tlong) tlong) (tptr (Tstruct __Node noattr)))))
+(Ssequence
+  (Sbuiltin (Some _t'1) EF_capture (Tcons (tptr tvoid) Tnil)
+    ((Etempvar _ptr (tptr (Tstruct __Node noattr))) :: nil))
+  (Sreturn (Some (Ecast
+                   (Ebinop Oxor (Etempvar _key tlong) (Etempvar _t'1 tlong)
+                     tlong) (tptr (Tstruct __Node noattr))))))
 |}.
 
 Definition f_add := {|

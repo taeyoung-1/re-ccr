@@ -8,7 +8,7 @@ Require Import Any.
 Require Import ModSem.
 Require Import ModSemE.
 Require Import ClightDmMem1.
-From compcertip Require Export Ctypes Values AST Memdata Integers.
+From compcert Require Export Ctypes Values AST Memdata Integers.
 
 Set Implicit Arguments.
 

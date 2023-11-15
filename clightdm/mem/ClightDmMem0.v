@@ -8,9 +8,9 @@ Require Import ModSem.
 Require Import AList.
 Require Import ClightDmExprgen.
 
-From compcertip Require Import
+From compcert Require Import
      AST Maps Globalenvs Memory Values ValuesAux Linking Integers.
-From compcertip Require Import
+From compcert Require Import
      Ctypes Clight Clightdefs.
 Import Clightdefs.ClightNotations.
 

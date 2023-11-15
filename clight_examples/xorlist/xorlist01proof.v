@@ -18,7 +18,7 @@ Require Import xorlist0.
 Require Import xorlist1.
 Require Import PtrofsArith.
 From Coq Require Import Program.
-From compcertip Require Import Clightdefs.
+From compcert Require Import Clightdefs.
 
 Section LEMMA.
 

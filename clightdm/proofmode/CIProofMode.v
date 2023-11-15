@@ -5,7 +5,7 @@ Require Import PCM IPM.
 Require Import HoareDef STB.
 Require Export HSim IProofMode.
 Require Import ClightDmMem1.
-From compcertip Require Import AST Values Integers Memdata.
+From compcert Require Import AST Values Integers Memdata.
 
 Section MEM.
 
@@ -721,7 +721,7 @@ Section MEM.
 End MEM.
 
 Require Import ClightDmgen.
-From compcertip Require Import Ctypes Clightdefs.
+From compcert Require Import Ctypes Clightdefs.
 
 Global Opaque captured_to.
 Global Opaque has_offset.

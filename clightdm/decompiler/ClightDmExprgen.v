@@ -9,9 +9,9 @@ Require Import Any.
 Require Import ModSem.
 Require Import AList.
 
-From compcertip Require Import
+From compcert Require Import
      AST Maps Globalenvs Memory Values Linking Integers.
-From compcertip Require Import
+From compcert Require Import
      Ctypes Clight Clightdefs.
 
 

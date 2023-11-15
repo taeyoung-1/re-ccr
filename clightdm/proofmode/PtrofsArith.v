@@ -1,7 +1,7 @@
 Require Import Coqlib.
 Require Import ProofMode.
 From Coq Require Import Program.
-From compcertip Require Import Values Integers Clightdefs.
+From compcert Require Import Values Integers Clightdefs.
 
   Lemma ptrofs_max : Archi.ptr64 = true -> Int64.max_unsigned = Ptrofs.max_unsigned.
   Proof. des_ifs_safe. Qed.

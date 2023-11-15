@@ -89,7 +89,7 @@ End SkEnv.
 
 Require Import Orders.
 Require Import PCM.
-From compcertip Require Import Maps Clightdefs.
+From compcert Require Import Maps Clightdefs.
 
 Module Sk.
   Class ld: Type := mk {
