@@ -278,12 +278,11 @@ Section RULES.
   Qed.
 
   Lemma capture_refl
-      m i
+      m i vaddr
     :
-      (∃ vaddr, vaddr (≃_m) i)
-      ⊢ (Vptrofs i) (≃_m) i.
+      vaddr (≃_m) i ⊢ (Vptrofs i) (≃_m) i.
   Proof.
-    iIntros "A". iDestruct "A" as (vaddr) "A".
+    iIntros "A".
     unfold captured_to. des_ifs.
     - unfold Vptrofs in Heq0. des_ifs. iDestruct "A" as "%". clarify.
       rewrite Ptrofs.of_int64_to_int64; et.
@@ -864,29 +863,22 @@ Section RULES.
   Proof.
   Admitted.
 
-  Definition cast_to_ptr (v: val) : itree Es val :=
-    match v with
-    | Vptr _ _ => Ret v
-    | Vint _ => if Archi.ptr64 then triggerUB else Ret v
-    | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
-    | _ => triggerUB
-    end.
-
-  Lemma _offset_ptr v m ofs
+  Lemma _offset_ptr {eff} {K:eventE -< eff} v m ofs
     : 
-      v ⊨m# ofs ⊢ ⌜cast_to_ptr v = Ret v⌝.
+      v ⊨m# ofs ⊢ ⌜@cast_to_ptr eff K v = Ret v⌝.
   Proof.
     iIntros "A". unfold has_offset.
     destruct v; ss; des_ifs_safe;
     iDestruct "A" as "[A %]"; clarify.
   Qed.
 
-  Lemma offset_cast_ptr v m tg q ofs
+  Lemma offset_cast_ptr {eff} {K:eventE -< eff} v m tg q ofs
     : 
-      v (⊨_m,tg,q) ofs ⊢ ⌜cast_to_ptr v = Ret v⌝.
+      v (⊨_m,tg,q) ofs ⊢ ⌜@cast_to_ptr eff K v = Ret v⌝.
   Proof.
     iIntros "[_ A]".
-    iPoseProof (_offset_ptr with "A") as "%". ss.
+    iPoseProof (_offset_ptr with "A") as "%".
+    iPureIntro. unfold cast_to_ptr. ss.
   Qed.
 
   Lemma points_to_is_ptr v m q mvs

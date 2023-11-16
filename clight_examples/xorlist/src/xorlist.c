@@ -22,7 +22,7 @@ void add(node** hd_handler, node** tl_handler, long item, bool at_tail) {
 
     if (hd == NULL) {
         entry->link = 0;
-        *hd_handler = *tl_handler = entry;
+        *hd_handler = *tl_handler = (intptr_t) entry;
     } else if (at_tail) {
         entry->link = encrypt(tl, NULL);
         node* tl_prev = decrypt(tl->link, NULL);

@@ -79,10 +79,12 @@ Section PROP.
     ** hd_hdl (⊨_m_hd_hdl,tg_hd_hdl,q) ofs_hd_hdl
     ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_hd_hdl)%Z⌝
     ** p_hd (≃_m_hd) i_hd
+    ** ⌜i_hd = Ptrofs.zero -> p_hd = Vnullptr⌝
     ** tl_hdl (↦_m_tl_hdl,q) (encode_val Mptr p_tl)
     ** tl_hdl (⊨_m_tl_hdl,tg_tl_hdl,q) ofs_tl_hdl
     ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_tl_hdl)%Z⌝
     ** p_tl (≃_m_tl) i_tl
+    ** ⌜i_tl = Ptrofs.zero -> p_tl = Vnullptr⌝
     ** frag_xorlist q Ptrofs.zero i_hd i_tl Ptrofs.zero xs)%I.
 
   (* Example xorlist_example1 q p1 p2 p3 m1 m2 m3 i1 i2 i3:

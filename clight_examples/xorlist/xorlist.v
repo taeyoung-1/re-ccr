@@ -15,7 +15,7 @@ Module Info.
   Definition abi := "standard".
   Definition bitsize := 64.
   Definition big_endian := false.
-  Definition source_file := "../CCR/clight_examples/xorlist/src/xorlist.c".
+  Definition source_file := "clight_examples/xorlist/src/xorlist.c".
   Definition normalized := false.
 End Info.
 
@@ -115,6 +115,7 @@ Definition _t'5 : ident := 132%positive.
 Definition _t'6 : ident := 133%positive.
 Definition _t'7 : ident := 134%positive.
 Definition _t'8 : ident := 135%positive.
+Definition _t'9 : ident := 136%positive.
 
 Definition f_encrypt := {|
   fn_return := tlong;
@@ -162,10 +163,11 @@ Definition f_add := {|
                (_hd, (tptr (Tstruct __Node noattr))) ::
                (_tl, (tptr (Tstruct __Node noattr))) ::
                (_tl_prev, (tptr (Tstruct __Node noattr))) ::
-               (_hd_next, (tptr (Tstruct __Node noattr))) :: (_t'8, tlong) ::
-               (_t'7, (tptr (Tstruct __Node noattr))) :: (_t'6, tlong) ::
-               (_t'5, tlong) :: (_t'4, (tptr (Tstruct __Node noattr))) ::
-               (_t'3, tlong) :: (_t'2, (tptr (Tstruct __Node noattr))) ::
+               (_hd_next, (tptr (Tstruct __Node noattr))) :: (_t'9, tlong) ::
+               (_t'8, (tptr (Tstruct __Node noattr))) :: (_t'7, tlong) ::
+               (_t'6, tlong) :: (_t'5, (tptr (Tstruct __Node noattr))) ::
+               (_t'4, tlong) :: (_t'3, (tptr (Tstruct __Node noattr))) ::
+               (_t'2, (tptr (Tstruct __Node noattr))) ::
                (_t'1, (tptr tvoid)) :: nil);
   fn_body :=
 (Ssequence
@@ -200,23 +202,26 @@ Definition f_add := {|
               (Econst_int (Int.repr 0) tint))
             (Ssequence
               (Ssequence
-                (Sset _t'2
-                  (Ecast (Etempvar _entry (tptr (Tstruct __Node noattr)))
-                    (tptr (Tstruct __Node noattr))))
+                (Ssequence
+                  (Sbuiltin (Some _t'2) EF_capture (Tcons (tptr tvoid) Tnil)
+                    ((Etempvar _entry (tptr (Tstruct __Node noattr))) :: nil))
+                  (Sset _t'3
+                    (Ecast (Etempvar _t'2 tlong)
+                      (tptr (Tstruct __Node noattr)))))
                 (Sassign
                   (Ederef
                     (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
                     (tptr (Tstruct __Node noattr)))
-                  (Etempvar _t'2 (tptr (Tstruct __Node noattr)))))
+                  (Etempvar _t'3 (tptr (Tstruct __Node noattr)))))
               (Sassign
                 (Ederef
                   (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
                   (tptr (Tstruct __Node noattr)))
-                (Etempvar _t'2 (tptr (Tstruct __Node noattr))))))
+                (Etempvar _t'3 (tptr (Tstruct __Node noattr))))))
           (Sifthenelse (Etempvar _at_tail tbool)
             (Ssequence
               (Ssequence
-                (Scall (Some _t'3)
+                (Scall (Some _t'4)
                   (Evar _encrypt (Tfunction
                                    (Tcons (tptr (Tstruct __Node noattr))
                                      (Tcons (tptr (Tstruct __Node noattr))
@@ -228,10 +233,10 @@ Definition f_add := {|
                   (Efield
                     (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
                       (Tstruct __Node noattr)) _link tlong)
-                  (Etempvar _t'3 tlong)))
+                  (Etempvar _t'4 tlong)))
               (Ssequence
                 (Ssequence
-                  (Scall (Some _t'4)
+                  (Scall (Some _t'5)
                     (Evar _decrypt (Tfunction
                                      (Tcons tlong
                                        (Tcons (tptr (Tstruct __Node noattr))
@@ -244,10 +249,10 @@ Definition f_add := {|
                      (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
                      nil))
                   (Sset _tl_prev
-                    (Etempvar _t'4 (tptr (Tstruct __Node noattr)))))
+                    (Etempvar _t'5 (tptr (Tstruct __Node noattr)))))
                 (Ssequence
                   (Ssequence
-                    (Scall (Some _t'5)
+                    (Scall (Some _t'6)
                       (Evar _encrypt (Tfunction
                                        (Tcons (tptr (Tstruct __Node noattr))
                                          (Tcons
@@ -260,7 +265,7 @@ Definition f_add := {|
                       (Efield
                         (Ederef (Etempvar _tl (tptr (Tstruct __Node noattr)))
                           (Tstruct __Node noattr)) _link tlong)
-                      (Etempvar _t'5 tlong)))
+                      (Etempvar _t'6 tlong)))
                   (Sassign
                     (Ederef
                       (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
@@ -268,7 +273,7 @@ Definition f_add := {|
                     (Etempvar _entry (tptr (Tstruct __Node noattr)))))))
             (Ssequence
               (Ssequence
-                (Scall (Some _t'6)
+                (Scall (Some _t'7)
                   (Evar _encrypt (Tfunction
                                    (Tcons (tptr (Tstruct __Node noattr))
                                      (Tcons (tptr (Tstruct __Node noattr))
@@ -279,10 +284,10 @@ Definition f_add := {|
                   (Efield
                     (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
                       (Tstruct __Node noattr)) _link tlong)
-                  (Etempvar _t'6 tlong)))
+                  (Etempvar _t'7 tlong)))
               (Ssequence
                 (Ssequence
-                  (Scall (Some _t'7)
+                  (Scall (Some _t'8)
                     (Evar _decrypt (Tfunction
                                      (Tcons tlong
                                        (Tcons (tptr (Tstruct __Node noattr))
@@ -295,10 +300,10 @@ Definition f_add := {|
                      (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
                      nil))
                   (Sset _hd_next
-                    (Etempvar _t'7 (tptr (Tstruct __Node noattr)))))
+                    (Etempvar _t'8 (tptr (Tstruct __Node noattr)))))
                 (Ssequence
                   (Ssequence
-                    (Scall (Some _t'8)
+                    (Scall (Some _t'9)
                       (Evar _encrypt (Tfunction
                                        (Tcons (tptr (Tstruct __Node noattr))
                                          (Tcons
@@ -311,7 +316,7 @@ Definition f_add := {|
                       (Efield
                         (Ederef (Etempvar _hd (tptr (Tstruct __Node noattr)))
                           (Tstruct __Node noattr)) _link tlong)
-                      (Etempvar _t'8 tlong)))
+                      (Etempvar _t'9 tlong)))
                   (Sassign
                     (Ederef
                       (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))

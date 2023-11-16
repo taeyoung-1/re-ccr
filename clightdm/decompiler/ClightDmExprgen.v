@@ -601,15 +601,17 @@ Section EVAL_EXPR_COMP.
     end
   .
 
+  Definition cast_to_ptr (v: val) : itree eff val :=
+    match v with
+    | Vptr _ _ => Ret v
+    | Vint _ => if Archi.ptr64 then triggerUB else Ret v
+    | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
+    | _ => triggerUB
+    end.
+
   Definition sem_cast_c v t1 t2: itree eff val :=
     match Cop.classify_cast t1 t2 with
-    | Cop.cast_case_pointer2int | Cop.cast_case_pointer =>
-      match v with
-      | Vptr _ _ => Ret v
-      | Vint _ => if Archi.ptr64 then triggerUB else Ret v
-      | Vlong _ => if Archi.ptr64 then Ret v else triggerUB
-      | _ => triggerUB
-      end
+    | Cop.cast_case_pointer2int | Cop.cast_case_pointer => cast_to_ptr v
     | Cop.cast_case_i2i sz2 si2 =>
       match v with
       | Vint i => Ret (Vint (Cop.cast_int_int sz2 si2 i))
