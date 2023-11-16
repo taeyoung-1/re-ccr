@@ -41,51 +41,54 @@ Section PROP.
     | _ => None
     end.
 
+    Definition ptr_equiv (p q: val) : iProp :=
+    (⌜p = q⌝ 
+    ∨ (∃ i, ⌜q = Vptrofs i⌝ ** ∃ m, p (≃_m) i)
+    ∨ (∃ i, ⌜p = Vptrofs i⌝ ** ∃ m, q (≃_m) i))%I.
+
      (* is_xorlist represents the figure below    *)
      (*    ll_h                              ll_t *)
      (*     |                                 |   *)
      (*     v                                 v   *)
      (* xs  - - - - - - - - - - - - - - - - - -   *)
 
-  Fixpoint frag_xorlist (q: Qp) (hd_prev hd tl tl_next: ptrofs) (xs : list val) {struct xs} : iProp :=
+  Fixpoint frag_xorlist (q: Qp) (hd_prev hd tl tl_next: val) (xs : list val) {struct xs} : iProp :=
     match xs with
-    | [] => ⌜hd_prev = tl /\ hd = tl_next⌝
+    | [] => ptr_equiv hd_prev tl ** ⌜ hd = tl_next⌝
     | Vlong a :: xs' =>
-        ∃ m_hd hd_next,
+        ∃ i_prev i_next m_prev m_hd,
           ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
-          ** (Vptrofs hd) (⊨_m_hd,Dynamic,q) Ptrofs.zero
-          ** (Vptrofs hd) (↦_m_hd,q) (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.xor hd_prev hd_next)))
-          ** frag_xorlist q hd hd_next tl tl_next xs'
+          ** hd_prev (≃_m_prev) i_prev
+          ** hd (⊨_m_hd,Dynamic,q) Ptrofs.zero
+          ** hd (↦_m_hd,q) (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.xor i_prev i_next)))
+          ** frag_xorlist q hd (Vptrofs i_next) tl tl_next xs'
     | _ => False
     end%I.
 
-  Lemma unfold_frag_xorlist (q: Qp) (hd_prev hd tl tl_next: ptrofs) (xs : list val) :
+  Lemma unfold_frag_xorlist (q: Qp) (hd_prev hd tl tl_next: val) (xs : list val) :
   frag_xorlist q hd_prev hd tl tl_next xs =
     match xs with
-    | [] => ⌜hd_prev = tl /\ hd = tl_next⌝
+    | [] => ptr_equiv hd_prev tl ** ⌜ hd = tl_next⌝
     | Vlong a :: xs' =>
-        ∃ m_hd hd_next,
+        ∃ i_prev i_next m_prev m_hd,
           ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
-          ** (Vptrofs hd) (⊨_m_hd,Dynamic,q) Ptrofs.zero
-          ** (Vptrofs hd) (↦_m_hd,q) (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.xor hd_prev hd_next)))
-          ** frag_xorlist q hd hd_next tl tl_next xs'
+          ** hd_prev (≃_m_prev) i_prev
+          ** hd (⊨_m_hd,Dynamic,q) Ptrofs.zero
+          ** hd (↦_m_hd,q) (encode_val Mint64 (Vlong a) ++ encode_val Mptr (Vptrofs (Ptrofs.xor i_prev i_next)))
+          ** frag_xorlist q hd (Vptrofs i_next) tl tl_next xs'
     | _ => False
     end%I.
   Proof. des_ifs. Qed.
 
   Definition full_xorlist q hd_hdl tl_hdl xs : iProp :=
-    (∃ m_hd_hdl m_tl_hdl m_hd m_tl p_hd p_tl i_hd i_tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl,
-    hd_hdl (↦_m_hd_hdl,q) (encode_val Mptr p_hd)
+    (∃ m_hd_hdl m_tl_hdl hd tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl,
+    hd_hdl (↦_m_hd_hdl,q) (encode_val Mptr hd)
     ** hd_hdl (⊨_m_hd_hdl,tg_hd_hdl,q) ofs_hd_hdl
     ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_hd_hdl)%Z⌝
-    ** p_hd (≃_m_hd) i_hd
-    ** ⌜i_hd = Ptrofs.zero -> p_hd = Vnullptr⌝
-    ** tl_hdl (↦_m_tl_hdl,q) (encode_val Mptr p_tl)
+    ** tl_hdl (↦_m_tl_hdl,q) (encode_val Mptr tl)
     ** tl_hdl (⊨_m_tl_hdl,tg_tl_hdl,q) ofs_tl_hdl
     ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_tl_hdl)%Z⌝
-    ** p_tl (≃_m_tl) i_tl
-    ** ⌜i_tl = Ptrofs.zero -> p_tl = Vnullptr⌝
-    ** frag_xorlist q Ptrofs.zero i_hd i_tl Ptrofs.zero xs)%I.
+    ** frag_xorlist q Vnullptr hd tl Vnullptr xs)%I.
 
   (* Example xorlist_example1 q p1 p2 p3 m1 m2 m3 i1 i2 i3:
   (p1 ↦m1#q≻ (encode_val Mint64 (Vlong Int64.one) ++ encode_val Mint64 (Vptrofs (Ptrofs.repr i2)))
@@ -331,7 +334,8 @@ Section SPEC.
             (ord_pure 1%nat),
             (fun varg => ⌜varg = [left_ptr; Vnullptr]↑⌝
                          ** left_ptr (⊨_m_l,tg_l,q_l) ofs_l),
-            (fun vret => ∃ i_l, ⌜vret = (Vptrofs (Ptrofs.repr i_l))↑⌝
+            (fun vret => ∃ i_l, ⌜vret = (Vptrofs i_l)↑⌝
+                         ** left_ptr (≃_ m_l) i_l
                          ** left_ptr (⊨_m_l,tg_l,q_l) ofs_l))%I.
 
   Definition encrypt_hoare3 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
@@ -423,18 +427,16 @@ Section SPEC.
         (fun varg => ⌜varg = [hd_handler; tl_handler; Vint from_tail; Vlong index]↑
                      /\ check_inbound xs (Vint from_tail) (Vlong index) = Some idx⌝
                      ** full_xorlist q hd_handler tl_handler xs),
-        (fun vret => ∃ mid mid_prev m_hd_hdl m_tl_hdl p_hd p_tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl m_hd m_tl i_hd i_tl,
+        (fun vret => ∃ mid mid_prev m_hd_hdl m_tl_hdl p_hd p_tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl,
                      ⌜vret = mid↑⌝
                      ** hd_handler (↦_m_hd_hdl,q) (encode_val Mptr p_hd)
                      ** hd_handler (⊨_m_hd_hdl,tg_hd_hdl,q) ofs_hd_hdl
                      ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_hd_hdl)%Z⌝
-                     ** p_hd (≃_m_hd) i_hd
                      ** tl_handler (↦_m_tl_hdl,q) (encode_val Mptr p_tl)
                      ** tl_handler (⊨_m_tl_hdl,tg_tl_hdl,q) ofs_tl_hdl
                      ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_tl_hdl)%Z⌝
-                     ** p_tl (≃_m_tl) i_tl
-                     ** frag_xorlist q mid_prev mid i_tl Ptrofs.zero (drop idx xs)
-                     ** frag_xorlist q Ptrofs.zero i_hd mid_prev mid (firstn idx xs))
+                     ** frag_xorlist q mid_prev mid p_tl Vnullptr (drop idx xs)
+                     ** frag_xorlist q Vnullptr p_hd mid_prev mid (firstn idx xs))
     )))%I.
 
   (* sealed *)

@@ -861,7 +861,29 @@ Section RULES.
     :
       vaddr (↦_m0,q) mvs ** vaddr (≃_m1) i ⊢ vaddr (↦_m0,q) mvs ** vaddr (≃_m0) i.
   Proof.
-  Admitted.
+    iIntros "[A B]".
+    unfold points_to, captured_to.
+    des_ifs.
+    - iFrame.
+    - iDestruct "A" as "[A A']".
+      iDestruct "B" as "[B B']".
+      iDestruct "A'" as (ofs) "[[[C C'] %] %]".
+      unfold _has_offset. 
+      iDestruct "C'" as "[C' %]".
+      des. clarify.
+      iDestruct "B'" as (a) "[B' %]".
+      des. clarify. rewrite H5.
+      iAssert ⌜m0 = m1⌝ as "%".
+      { iCombine "A B" as "D". iOwnWf "D" as wfc.
+        iPureIntro.
+        ur in wfc. specialize (wfc (blk m1)).
+        ur in wfc. unfold _has_size in wfc.
+        des_ifs. destruct m0. destruct m1. ss. clarify. }
+      clarify. iFrame.
+      iSplitL "C".
+      { iExists _. iFrame. ss. }
+      iExists _. iFrame. ss.
+  Qed.
 
   Lemma _offset_ptr {eff} {K:eventE -< eff} v m ofs
     : 
