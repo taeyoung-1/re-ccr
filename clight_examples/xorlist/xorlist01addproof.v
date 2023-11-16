@@ -71,45 +71,54 @@ Section PROOF.
       ("add", fun_to_tgt "xorlist" (GlobalStb (Sk.canon sk)) (mk_pure add_spec))
       ("add", cfunU (decomp_func (Sk.canon sk) ce f_add)).
   Proof.
-    (* econs; ss. red.
+    Opaque encode_val.
+    econs; ss. red.
 
     unfold prog in ce. unfold mkprogram in ce.
-    destruct (build_composite_env').
+    destruct (build_composite_env'). ss.
     get_composite ce e.
-
-    apply isim_fun_to_tgt; auto. i; ss.
-    unfold decomp_func, function_entry_c. ss.
-    init_hide.
-
-    iIntros "[INV PRE]". des_ifs_safe. ss.
-    iDestruct "PRE" as "[PRE %]".
-    iDestruct "PRE" as (hd_old tl_old) "[[[% HD] TL] LIST]".
-    ss. clarify. ss. hred_r. unhide. remove_tau. unhide.
-    remove_tau. unhide.
-
-    des_ifs_safe. remove_tau.
 
     dup SKINCL. rename SKINCL0 into SKINCLENV.
     apply Sk.incl_incl_env in SKINCLENV.
     unfold Sk.incl_env in SKINCLENV.
+    pose proof Sk.sk_incl_gd as SKINCLGD.
+
+    apply isim_fun_to_tgt; auto.
+    unfold f_delete. i; ss.
+    unfold decomp_func, function_entry_c. ss.
+    let H := fresh "HIDDEN" in
+    set (H := hide 1).
+
+    iIntros "[INV PRE]". des_ifs_safe. ss.
+    iDestruct "PRE" as "[[% PRE] %]".
+    des. clarify. hred_r. unhide. hred_r. unhide.
+    remove_tau. unhide. remove_tau.
+    rename v into hd_hdl.
+    rename v0 into tl_hdl.
+    rename l into lfull.
+    rename i into at_tail.
+    rename i0 into item.
+
     hexploit SKINCLENV.
     { instantiate (2:="malloc"). ss. }
-    i. des. ss. rewrite FIND. hred_r. des_ifs_safe. hred_r. *)
+    i. des. ss. rewrite FIND. rename FIND into malloc_loc.
+    hred_r. des_ifs_safe. rename Heq2 into get_co.
+    rename Heq1 into ptr64. rewrite <- Heq0.
+    clear Heq e Heq0 i. hred_r.
 
-    (* des_ifs. hred_r.
     replace (pred _) with blk by nia.
-    erewrite sk_incl_gd; et. hred_r.
-    rewrite <- Heq3.
-    iApply isim_apc. iExists (Some (10%nat : Ord.t)).
+    erewrite SKINCLGD; et.
+    hred_r. ss.
+    iApply isim_apc. iExists (Some (20%nat : Ord.t)).
+    rewrite co_co_sizeof.
+    
     iApply isim_ccallU_malloc; ss; oauto.
     iSplitL "INV"; iFrame.
-    { rewrite co_co_sizeof. ss. }
-    iIntros (st_src0 st_tgt0 vaddr m1) "[INV [[% PTO] ALIVE]]".
-    rewrite co_co_sizeof in *.
-    autorewrite with ptrArith in *.
-    2,3: set Ptrofs.max_unsigned; vm_compute in z; nia.
+    { iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 p_new m_new) "[INV [[% new_point] new_ofs]]".
+    set (Z.to_nat _) as si. vm_compute in si. unfold si. clear si.
 
-    hred_r. remove_tau. unhide. remove_tau.
+    hred_r. unhide. remove_tau. 
     iPoseProof (liveness_ptr with "ALIVE") as "%".
     unfold cast_to_ptr in H4. des_ifs_safe.
     rewrite H4. hred_r. remove_tau. unhide.
@@ -213,7 +222,7 @@ Section PROOF.
       iFrame. iSplit; ss. iExists _, _. iFrame. iSplit; ss.
       unfold vlist_add. destruct (Val.eq _ _); ss.
       + destruct Val.eq; clarify. iExists _, _, _, _, _, _. iFrame. iSplit; ss. 
-      ss. *)
+      ss.
   Admitted.
 
   End SIMFUNS.

@@ -504,6 +504,24 @@ Section RULES.
       iSplitL "A"; iFrame.
   Qed.
 
+  Lemma offset_ownership
+      vaddr m tg q0 q1 ofs
+    :
+      ⊢ vaddr (⊨_ m, tg, (q0 + q1)%Qp) ofs  ∗-∗ (vaddr (⊨_ m, tg, q0) ofs ** vaddr (⊨_ m, tg, q1) ofs).
+  Proof.
+    iIntros. iSplit.
+    - iIntros "A". unfold has_offset.
+      iDestruct "A" as "[A A']".
+      iPoseProof (_allocated_ownership with "A") as "[? ?]".
+      iPoseProof (_offset_dup with "A'") as "[? ?]".
+      iFrame.
+    - iIntros "A". unfold has_offset.
+      iDestruct "A" as "[[A B] [A' B']]".
+      iCombine "A A'" as "A".
+      iPoseProof (_allocated_ownership with "A") as "?".
+      iFrame.
+  Qed.
+
   Lemma points_to_split
       vaddr mvs0 mvs1 m q
     : 
@@ -619,7 +637,6 @@ Section RULES.
   Lemma points_to_collect
       vaddr mvs0 mvs1 m q
     : 
-      
       vaddr (↦_m,q) mvs0 ** (Val.addl vaddr (Vptrofs (Ptrofs.repr (Z.of_nat (List.length mvs0)))) (↦_m,q) mvs1)
       ⊢ vaddr (↦_m,q) (mvs0 ++ mvs1).
   Proof.
@@ -764,6 +781,19 @@ Section RULES.
       unfold Vptrofs in *. des_ifs. rewrite Ptrofs.of_int64_to_int64; et.
   Qed.
 
+  Lemma capture_offset_comm
+      vaddr i m tg q ofs
+    : 
+      vaddr (≃_m) i ⊢ vaddr (⊨_m,tg,q) ofs ∗-∗ Vptrofs i (⊨_m,tg,q) ofs.
+  Proof.
+    iIntros "A".
+    iPoseProof (_capture_offset_comm with "A") as "A".
+    iSplit.
+    - iIntros "[B C]". iPoseProof ("A" with "C") as "?". iFrame.
+    - iIntros "[B C]". iPoseProof ("A" with "C") as "?". iFrame.
+  Qed.
+
+
   Lemma capture_pointto_comm
       vaddr i m q mvs
     : 
@@ -842,13 +872,21 @@ Section RULES.
     | _ => triggerUB
     end.
 
-  Lemma liveness_ptr v m ofs
+  Lemma _offset_ptr v m ofs
     : 
       v ⊨m# ofs ⊢ ⌜cast_to_ptr v = Ret v⌝.
   Proof.
     iIntros "A". unfold has_offset.
     destruct v; ss; des_ifs_safe;
     iDestruct "A" as "[A %]"; clarify.
+  Qed.
+
+  Lemma offset_cast_ptr v m tg q ofs
+    : 
+      v (⊨_m,tg,q) ofs ⊢ ⌜cast_to_ptr v = Ret v⌝.
+  Proof.
+    iIntros "[_ A]".
+    iPoseProof (_offset_ptr with "A") as "%". ss.
   Qed.
 
   Lemma points_to_is_ptr v m q mvs
