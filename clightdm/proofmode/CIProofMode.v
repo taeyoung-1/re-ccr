@@ -32,30 +32,30 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** 
-                  (∀ st_src st_tgt vaddr m,
-                      ((inv_with le I w0 st_src st_tgt)
-                        ** (⌜m.(sz) = Z.of_nat n /\ n ≤ Z.to_nat Ptrofs.max_unsigned⌝ ** vaddr ↦m#1≻ List.repeat Undef n ** vaddr ⊨m# 0 ** live_ 1# (m, Local)))
-                      -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (m.(blk)))))
+        ** ⌜(Z.of_nat n ≤ Ptrofs.max_unsigned)%Z⌝
+
+        ** (∀ st_src st_tgt vaddr m,
+            ((inv_with le I w0 st_src st_tgt)
+            ** (⌜m.(sz) = Z.of_nat n⌝ ** vaddr (↦_m,1) List.repeat Undef n ** vaddr (⊨_m,Local,1) Ptrofs.zero))
+
+            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (m.(blk)))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "salloc" n >>= ktr_tgt)).
   Proof.
-    (* iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
       { ss. }
       { ss. } }
-    instantiate (1:=n).
-    ss.
-    iSplitL "H0".
-    { iSplit; ss. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [RES %]]".
-    iDestruct "RES" as (b vaddr) "[[[% STR] LIV] PTR]".
+    instantiate (1:=n). ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss. iSplit; ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as (m vaddr) "[[[% ?] ?] ?]".
     des. clarify.
-    iExists _. iSplit; ss; et.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_sfree
         o stb w0 fuel1
@@ -70,38 +70,41 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ m mvl vaddr, vaddr ↦m#1≻ mvl ** vaddr ⊨m# 0 ** live_ 1# (m, Local) ** ⌜m.(blk) = b /\ m.(sz) = size /\ Z.of_nat (List.length mvl) = m.(sz)⌝)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt tt)))
+        ** (∃ m mvs vaddr, 
+           ⌜m.(blk) = b /\ m.(sz) = size /\ Z.of_nat (List.length mvs) = m.(sz)⌝
+           ** vaddr (↦_m,1) mvs
+           ** vaddr (⊨_m,Local,1) Ptrofs.zero)
+           
+        
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt))
+              
+            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt tt)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "sfree" (b, size) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs. }
-      { ss. des_ifs. } }
-    instantiate (1:=()).
+      { instantiate (1:=tt). ss. }
+      { ss. } }
     ss.
-    iSplitL "H0".
-    { iDestruct "H0" as "[INV PRE]". iFrame. iSplit; ss.
-      iDestruct "PRE" as (m mvl vaddr) "[[STR PTR] %]". des.
-      iExists _, _, _.
-      iFrame. rewrite H3. rewrite H4. rewrite H5. ss. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [% %]]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as (m mvs vaddr) "[[% ?] ?]".
+      des. clarify. iExists _,_,_. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? %]".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_load
         o stb w0 fuel1
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         r g f_src f_tgt st_src st_tgt
-        chunk vaddr m q mvs itr_src (ktr_tgt: val -> _)
+        chunk vaddr m tg q0 ofs q1 mvs itr_src (ktr_tgt: val -> _)
         fuel0
         (STBINCL: stb_incl (to_stb MemStb) stb)
         (DEPTH: ord_lt (ord_pure 0%nat) o)
@@ -109,36 +112,43 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ ofs, vaddr ↦m#q≻ mvs ** vaddr ⊨m# ofs ** ⌜List.length mvs = size_chunk_nat chunk /\ ((size_chunk chunk) | ofs)%Z⌝)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (vaddr ↦m#q≻ mvs)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (decode_val chunk mvs))))
+        ** (vaddr (↦_m,q1) mvs
+            ** vaddr (⊨_m,tg,q0) ofs 
+            ** ⌜List.length mvs = size_chunk_nat chunk
+               /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)%Z⌝)
+                  
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt) 
+             ** (vaddr (↦_m,q1) mvs
+                ** vaddr (⊨_m,tg,q0) ofs))
+
+             -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (decode_val chunk mvs))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "load" (chunk, vaddr) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs_safe. destruct p. ss. }
-      { ss. des_ifs_safe. destruct p. ss. } }
-    instantiate (1:=(chunk, vaddr, m, q, mvs)).
+      { instantiate (1:=(_, _, _, _, _, _, _, _)). ss. }
+      { ss. } }
     ss.
-    iSplitL "H0".
-    { iDestruct "H0" as "[INV [PRE %]]". iSplitL "INV"; et. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [RES %]]".
-    iDestruct "RES" as (v) "[% POST]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[[? ?] %]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as (v) "[[% ?] ?]".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_store
         o stb w0 fuel1
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         r g f_src f_tgt st_src st_tgt
-        m chunk vaddr v_new itr_src (ktr_tgt: unit -> _)
+        m chunk vaddr ofs tg q v_new itr_src (ktr_tgt: unit -> _)
         fuel0
         (STBINCL: stb_incl (to_stb MemStb) stb)
         (DEPTH: ord_lt (ord_pure 0%nat) o)
@@ -146,32 +156,37 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ mvs_old ofs, ⌜length mvs_old = size_chunk_nat chunk /\ ((size_chunk chunk) | ofs)%Z⌝
-                     ** vaddr ↦m#1≻ mvs_old
-                     ** vaddr ⊨m# ofs)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (vaddr ↦m#1≻ (encode_val chunk v_new))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt tt)))
+        ** (∃ mvs_old, 
+            ⌜length mvs_old = size_chunk_nat chunk
+            /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)%Z⌝
+            ** vaddr (↦_m,1) mvs_old
+            ** vaddr (⊨_m,tg,q) ofs)
+        
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+             ** (vaddr (↦_m,1) (encode_val chunk v_new)
+                ** vaddr (⊨_m,tg,q) ofs))
+
+            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt tt)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "store" (chunk, vaddr, v_new) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs_safe. destruct p0. ss. }
-      { ss. des_ifs_safe. destruct p0. ss. } }
-    instantiate (1:=(chunk, vaddr, m, v_new)).
+      { instantiate (1:=(_, _, _, _, _, _, _)). ss. }
+      { ss. } }
     ss.
-    iSplitL "H0".
-    { iDestruct "H0" as "[INV PRE]". iFrame. iSplit; ss.
-      iDestruct "PRE" as (mvs_old) "[% PRE]". iExists _. iSplit; ss. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [RES %]]".
-    iDestruct "RES" as (v) "[% POST]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as (mvs_old) "[[% ?] ?]".
+      des. clarify. iExists _. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as (mvs_new) "[[% ?] ?]".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr0
         o stb w0 fuel1
@@ -186,9 +201,11 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  **
-                  (∀ st_src st_tgt,
-                      (inv_with le I w0 st_src st_tgt) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (match c with Ceq | Cle | Cge => true | _ => false end))))
+        
+        ** (∀ st_src st_tgt,
+            (inv_with le I w0 st_src st_tgt)
+            
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (match c with Ceq | Cle | Cge => true | _ => false end))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (c, Vnullptr, Vnullptr) >>= ktr_tgt)).
   Proof.
     iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
@@ -216,35 +233,40 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (weak_valid m vaddr ofs ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
+        ** (⌜weak_valid m ofs⌝
+            ** vaddr (⊨_m,tg,q) ofs)
+        
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+              ** vaddr (⊨_m,tg,q) ofs)
+
+            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Ceq, Vnullptr, vaddr) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [% H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inl _)).
-        ss. unfold cmp_ptr_hoare1. des_ifs_safe. destruct p.
-        ss. }
-      { ss. unfold cmp_ptr_hoare1. des_ifs_safe. destruct p.
-        ss. } }
-    instantiate (1:=(vaddr, m, q, ofs, tg)).
-    ss. iSplitL "H0 H2".
-    - iFrame. iSplit; et. 
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[% AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inl (_, _, _, _, _))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[% ?]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[% ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr2
         o stb w0 fuel1
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         r g f_src f_tgt st_src st_tgt
-        vaddr m q tg itr_src (ktr_tgt: bool -> _)
+        vaddr m q tg ofs itr_src (ktr_tgt: bool -> _)
         fuel0
         (STBINCL: stb_incl (to_stb MemStb) stb)
         (DEPTH: ord_lt (ord_pure 0%nat) o)
@@ -252,28 +274,33 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ ofs, weak_valid m vaddr ofs ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
+        ** (⌜weak_valid m ofs⌝
+           ** vaddr (⊨_m,tg,q) ofs)
+                  
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt) 
+             ** (vaddr (⊨_m,tg,q) ofs))
+           
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Cne, Vnullptr, vaddr) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [% H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inl _))).
-        ss. unfold cmp_ptr_hoare2. des_ifs_safe. destruct p.
-        ss. }
-      { ss. unfold cmp_ptr_hoare2. des_ifs_safe. destruct p.
-        ss. } }
-    instantiate (1:=(vaddr, m, q, ofs, tg)).
-    ss. iSplitL "H0 H2".
-    - iFrame. iSplit; et. 
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[% AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inl (_, _, _, _, _)))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[% ?]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[% ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr3
         o stb w0 fuel1
@@ -288,28 +315,33 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (weak_valid m vaddr ofs ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
+        ** (⌜weak_valid m ofs⌝
+           ** vaddr (⊨_m,tg,q) ofs)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+             ** (vaddr (⊨_m,tg,q) ofs))
+             
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Ceq, vaddr, Vnullptr) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [% H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inr (inl _)))).
-        ss. unfold cmp_ptr_hoare3. des_ifs_safe. destruct p.
-        ss. }
-      { ss. unfold cmp_ptr_hoare3. des_ifs_safe. destruct p.
-        ss. } }
-    instantiate (1:=(vaddr, m, q, ofs, tg)).
-    ss. iSplitL "H0 H2".
-    - iFrame. iSplit; et. 
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[% AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inr (inl (_, _, _, _, _))))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[% ?]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[% ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr4
         o stb w0 fuel1
@@ -324,35 +356,40 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (weak_valid m vaddr ofs ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
+        ** (⌜weak_valid m ofs⌝
+           ** vaddr (⊨_m,tg,q) ofs)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt) 
+             ** (vaddr (⊨_m,tg,q) ofs))
+
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Cne, vaddr, Vnullptr) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [% H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inr (inr (inl _))))).
-        ss. unfold cmp_ptr_hoare4. des_ifs_safe. destruct p.
-        ss. }
-      { ss. unfold cmp_ptr_hoare4. des_ifs_safe. destruct p.
-        ss. } }
-    instantiate (1:=(vaddr, m, q, ofs, tg)).
-    ss. iSplitL "H0 H2".
-    - iFrame. iSplit; et. 
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[% AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inr (inr (inl (_,_,_,_,_)))))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[% ?]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[% ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr5
         o stb w0 fuel1
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         r g f_src f_tgt st_src st_tgt
-        vaddr0 vaddr1 c m ofs0 ofs1 q tg
+        vaddr0 vaddr1 c m ofs0 ofs1 q0 q1 tg
         itr_src (ktr_tgt: bool -> _)
         fuel0
         (STBINCL: stb_incl (to_stb MemStb) stb)
@@ -361,29 +398,37 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (weak_valid m vaddr0 ofs0 ** weak_valid m vaddr1 ofs1
-                      ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (cmp_ofs c ofs0 ofs1))))
+        ** (⌜weak_valid m ofs0 /\ weak_valid m ofs1⌝
+           ** vaddr0 (⊨_m,tg,q0) ofs0
+           ** vaddr1 (⊨_m,tg,q1) ofs1)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt) 
+             ** (vaddr0 (⊨_m,tg,q0) ofs0
+                ** vaddr1 (⊨_m,tg,q1) ofs1))
+              
+          -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (cmp_ofs c (Ptrofs.unsigned ofs0) (Ptrofs.unsigned ofs1)))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (c, vaddr0, vaddr1) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [[% H3] H2]] H1]". des. iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inr (inr (inr (inl _)))))).
-        ss. unfold cmp_ptr_hoare5. des_ifs_safe. destruct p0.
-        ss. }
-      { ss. unfold cmp_ptr_hoare5. des_ifs_safe. destruct p0.
-        ss. } }
-    instantiate (1:=(vaddr0, vaddr1, c, m, ofs0, ofs1, q0, q1, tg0, tg1)).
-    ss. iSplitL "H0 H2 H3".
-    - iFrame. iPureIntro. split; et.
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[[% AL'] AL] %]]".
-      rewrite H5. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inr (inr (inr (inl (_,_,_,_,_,_,_,_,_))))))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[[% ?] ?]".
+      instantiate (5:=vaddr1).
+      instantiate (9:=vaddr0).
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[[% ?] ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr6
         o stb w0 fuel1
@@ -399,31 +444,37 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (⌜m0 #^ m1 ⌝
-                      ** valid m0 vaddr0 ofs0
-                      ** valid m1 vaddr1 ofs1
-                      ** live_ q0# (m0, tg0)
-                      ** live_ q1# (m1, tg1))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q0# (m0, tg0) ** live_ q1# (m1, tg1))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
+        ** (⌜m0 #^ m1 /\ valid m0 ofs0 /\ valid m1 ofs1 ⌝
+           ** vaddr0 (⊨_m0,tg0,q0) ofs0
+           ** vaddr1 (⊨_m1,tg1,q1) ofs1)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+             ** (vaddr0 (⊨_m0,tg0,q0) ofs0
+                ** vaddr1 (⊨_m1,tg1,q1) ofs1))
+
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt false)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Ceq, vaddr0, vaddr1) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [[% H3] H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inr (inr (inr (inr (inl _))))))).
-        ss. unfold cmp_ptr_hoare6. des_ifs. }
-      { ss. unfold cmp_ptr_hoare6. des_ifs. } }
-    instantiate (1:=(vaddr0, m0, ofs0, q0, tg0, vaddr1, m1, ofs1, q1, tg1)).
-    ss. iSplitL "H0 H2 H3".
-    - iFrame. iSplit; et. iExists _, _.
-      iFrame. iPureIntro. split; et.
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[[% AL'] AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inr (inr (inr (inr (inl (_,_,_,_,_,_,_,_,_,_)))))))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[[% ?] ?]".
+      instantiate (5:=vaddr1).
+      instantiate (9:=vaddr0).
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[[% ?] ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_cmp_ptr7
         o stb w0 fuel1
@@ -439,37 +490,45 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (⌜m0 #^ m1 ⌝
-                      ** valid m0 vaddr0 ofs0 ** valid m1 vaddr1 ofs1
-                      ** live_ q0# (m0, tg0)
-                      ** live_ q1# (m1, tg1))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q0# (m0, tg0) ** live_ q1# (m1, tg1))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
+         ** (⌜m0 #^ m1 /\ valid m0 ofs0 /\ valid m1 ofs1⌝
+            ** vaddr0 (⊨_m0,tg0,q0) ofs0
+            ** vaddr1 (⊨_m1,tg1,q1) ofs1)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+             ** (vaddr0 (⊨_m0,tg0,q0) ofs0
+                ** vaddr1 (⊨_m1,tg1,q1) ofs1))
+              
+              
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "cmp_ptr" (Cne, vaddr0, vaddr1) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [[% H3] H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate(1:=inr (inr (inr (inr (inr (inr (inr _))))))).
-        ss. unfold cmp_ptr_hoare7. des_ifs. }
-      { ss. unfold cmp_ptr_hoare7. des_ifs. } }
-    instantiate (1:=(vaddr0, m0, ofs0, q0, tg0, vaddr1, m1, ofs1, q1, tg1)).
-    ss. iSplitL "H0 H2 H3".
-    - iFrame. iSplit; et. iExists _, _.
-      iFrame. iPureIntro. split; et.
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[[% AL'] AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=inr (inr (inr (inr (inr (inr (inr (_,_,_,_,_,_,_,_,_,_)))))))). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[[% ?] ?]".
+      instantiate (5:=vaddr1).
+      instantiate (9:=vaddr0).
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[[% ?] ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_sub_ptr
         o stb w0 fuel1
         R_src R_tgt
         (Q: Any.t -> Any.t -> R_src -> R_tgt -> iProp)
         r g f_src f_tgt st_src st_tgt
-        size vaddr0 vaddr1 m ofs0 ofs1 q tg
+        size vaddr0 vaddr1 m ofs0 ofs1 q0 q1 tg
         itr_src (ktr_tgt: val -> _)
         fuel0
         (STBINCL: stb_incl (to_stb MemStb) stb)
@@ -478,27 +537,38 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (⌜(0 < size ≤ Ptrofs.max_signed)%Z⌝
-                      ** weak_valid m vaddr0 ofs0 ** weak_valid m vaddr1 ofs1
-                      ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (Vptrofs (Ptrofs.repr (Z.div (ofs0 - ofs1) size))))))
+         ** (⌜(0 < size ≤ Ptrofs.max_signed)%Z
+             /\ weak_valid m ofs0 /\ weak_valid m ofs1⌝
+            ** vaddr0 (⊨_m,tg,q0) ofs0
+            ** vaddr1 (⊨_m,tg,q1) ofs1)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+            ** vaddr0 (⊨_m,tg,q0) ofs0
+            ** vaddr1 (⊨_m,tg,q1) ofs1)
+                
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (Vptrofs (Ptrofs.repr (Z.div (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size))))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "sub_ptr" (size, vaddr0, vaddr1) >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [[% H3] H2]] H1]". des. iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs. }
-      { ss. des_ifs. } }
-    instantiate (1:= (vaddr0, vaddr1, size, m, ofs0, ofs1, q0, q1, tg0, tg1)).
-    ss. iSplitL "H0 H2 H3".
-    - iFrame. iPureIntro. splits; et.
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[[% AL'] AL] %]]".
-      rewrite H7. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=(_,_,_,_,_,_,_,_,_)). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[[% ?] ?]".
+      instantiate (5:=vaddr1).
+      instantiate (9:=vaddr0).
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[[% ?] ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_non_null
         o stb w0 fuel1
@@ -514,25 +584,33 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (weak_valid m vaddr ofs ** live_ q# (m, tg))
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
+        ** (⌜weak_valid m ofs⌝
+            ** vaddr (⊨_m,tg,q) ofs)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+             ** vaddr (⊨_m,tg,q) ofs)
+
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt true)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "non_null?" vaddr >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 [% H2]] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs. }
-      { ss. des_ifs. } }
-    instantiate (1:= (vaddr, m, q, ofs, tg)).
-    ss. iSplitL "H0 H2".
-    - iFrame. iPureIntro. splits; et.
-    - iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-      iDestruct "H0" as "[INV [[% AL] %]]".
-      rewrite H4. iExists _. iSplit; et; iApply "H1"; iFrame.
-  Qed. *)
-  Admitted.
+      { instantiate (1:=(_,_,_,_,_)). ss. }
+      { ss. } }
+    ss.
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "[% ?]".
+      des. clarify. iFrame. iPureIntro. ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "[% ?]".
+    des. clarify.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. 
+  Qed.
 
   Lemma isim_ccallU_malloc
         o stb w0 fuel1
@@ -547,29 +625,34 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** ⌜(Ptrofs.unsigned n > 0)%Z⌝
-                  **
-                  (∀ st_src st_tgt vaddr m,
-                      ((inv_with le I w0 st_src st_tgt) ** (⌜m.(sz) = Ptrofs.unsigned n⌝ ** vaddr ↦m#1≻ List.repeat Undef (Z.to_nat (Ptrofs.unsigned n)) ** vaddr ⊨m# 0 ** live_ 1# (m, Dynamic))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt vaddr)))
+        ** ⌜(Ptrofs.unsigned n > 0)%Z⌝
+
+        ** (∀ st_src st_tgt vaddr m,
+            ((inv_with le I w0 st_src st_tgt)
+            ** (⌜m.(sz) = Ptrofs.unsigned n⌝
+                ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat (Ptrofs.unsigned n))
+                ** vaddr (⊨_m,Dynamic,1) Ptrofs.zero)) 
+                    
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt vaddr)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "malloc" [Vptrofs n] >>= ktr_tgt)).
-  (* Proof.
-    iIntros "[[H0 %] H1]". iApply isim_ccallU_pure; et.
+  Proof.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
       { ss. }
       { ss. } }
-    instantiate (1:=n).
     ss.
-    iSplitL "H0".
-    { iSplit; ss. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [RES %]]".
-    iDestruct "RES" as (b vaddr) "[[[% STR] LIV] PTR]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as "%".
+      des. clarify. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as (m vaddr) "[[% ?] ?]".
     des. clarify.
-    iExists _. iSplit; ss; et.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iExists _. iSplit; ss.
+    iApply "POST". iFrame. ss.
+  Qed.
 
   Lemma isim_ccallU_mfree
         o stb w0 fuel1
@@ -584,29 +667,34 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ m mvl, vaddr ↦m#1≻ mvl ** vaddr ⊨m# 0 ** live_ 1# (m, Dynamic) ** ⌜Z.of_nat (List.length mvl) = m.(sz)⌝)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
+        ** (∃ m mvs, ⌜Z.of_nat (List.length mvs) = m.(sz)⌝
+           ** vaddr (↦_m,1) mvs
+           ** vaddr (⊨_m,Dynamic,1) Ptrofs.zero)
+                  
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)) 
+            
+        -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "free" [vaddr] >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 H2] H1]". iDestruct "H2" as (m mvl) "[[H2 H3]%]".
-    iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. des_ifs. }
-      { ss. des_ifs. } }
-    instantiate (1:=()).
+      { instantiate (1:=tt). ss. }
+      { ss. } }
     ss.
-    iSplitL "H0 H2 H3".
-    { iFrame. iSplit; ss. iExists _, _, _. iFrame. iSplit; ss. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [% %]]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss.
+      iDestruct "PRE" as (m mvs) "[[% ?] ?]".
+      iExists _,_,_. iFrame.
+      des. clarify. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as "%".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "H1". iFrame. 
-  Qed. *)
-  Admitted.
+    iApply "POST". iFrame.
+  Qed.
 
   Lemma isim_ccallU_memcpy
         o stb w0 fuel1
@@ -621,13 +709,17 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** (∃ mvs_src, ⌜List.length mvs_src = List.length mvs_dst
-                     /\ List.length mvs_dst = sz
-                     /\ (al | sz)%Z⌝
-                     ** memcpy_resource vaddr_dst vaddr_src m_src m_dst mvs_src mvs_dst)
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt) ** (memcpy_resource vaddr_dst vaddr_src m_src m_dst mvs_dst mvs_dst)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
+         ** (∃ mvs_src,
+             ⌜List.length mvs_src = List.length mvs_dst
+             /\ List.length mvs_dst = sz
+             /\ (al | sz)%Z⌝
+            ** memcpy_resource vaddr_dst vaddr_src m_src m_dst mvs_src mvs_dst)
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt)
+            ** (memcpy_resource vaddr_dst vaddr_src m_src m_dst mvs_dst mvs_dst))
+              
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vundef)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "memcpy" (al, sz, [vaddr_dst; vaddr_src]) >>= ktr_tgt)).
   Proof.
     iIntros "[[H0 H2] H1]".
@@ -659,9 +751,11 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  **
-                  (∀ st_src st_tgt,
-                      ((inv_with le I w0 st_src st_tgt)) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vnullptr)))
+
+        ** (∀ st_src st_tgt,
+            ((inv_with le I w0 st_src st_tgt))
+            
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt Vnullptr)))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "capture" [Vnullptr] >>= ktr_tgt)).
   Proof.
     iIntros "[H0 H1]". iApply isim_ccallU_pure; et.
@@ -693,30 +787,31 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-                  ** vaddr ⊨m# ofs ** live_ q# (m, tg)
-                  **
-                  (∀ st_src st_tgt i,
-                      (((inv_with le I w0 st_src st_tgt) ** (live_ q# (m, tg) ** vaddr (≃_m) (Ptrofs.unsigned i))) -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (Vptrofs i)))))
+         ** ( vaddr (⊨_m,tg,q) ofs)
+
+        ** (∀ st_src st_tgt i,
+            (((inv_with le I w0 st_src st_tgt)
+              ** (vaddr (⊨_m,tg,q) ofs 
+                  ** vaddr (≃_m) i))
+            
+           -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (Vptrofs i)))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "capture" [vaddr] >>= ktr_tgt)).
   Proof.
-    (* iIntros "[[H0 H2] H1]". iApply isim_ccallU_pure; et.
+    iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
     { eapply fn_has_spec_in_stb; et.
       { eapply STBINCL. stb_tac. ss. }
-      { ss. instantiate (1:= inr _).
-        ss. unfold capture_hoare2. des_ifs_safe. destruct p. ss. }
-      { ss. unfold capture_hoare2. des_ifs_safe. destruct p. ss. } }
-    instantiate (1:=(vaddr, m, q, ofs, tg)).
+      { instantiate (1:=inr (_,_,_,_,_)). ss. }
+      { ss. } }
     ss.
-    iSplitL "H0 H2".
-    { iFrame. iPureIntro. et. }
-    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "H0".
-    iDestruct "H0" as "[INV [RES %]]".
-    iDestruct "RES" as (i) "[[% POST'] POST]".
+    iSplitL "INV PRE".
+    { iFrame. iSplit; ss. }
+    iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
+    iDestruct "POST'" as "[? [POST' %]]".
+    iDestruct "POST'" as (i) "[[% ?] ?]".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "H1". iSplitL "INV"; iFrame.
-  Qed. *)
-  Admitted.
+    iApply "POST". iFrame. 
+  Qed.
 
 End MEM.
 
