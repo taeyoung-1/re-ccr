@@ -42,9 +42,10 @@ Section PROP.
     end.
 
     Definition ptr_equiv (p q: val) : iProp :=
-    (⌜p = q⌝ 
-    ∨ (∃ i, ⌜q = Vptrofs i⌝ ** ∃ m, p (≃_m) i)
-    ∨ (∃ i, ⌜p = Vptrofs i⌝ ** ∃ m, q (≃_m) i))%I.
+    (⌜p = q⌝ ∨ (∃ i m1 m2, p (≃_m1) i ** q (≃_m2) i))%I.
+
+    Definition xor_live (p: val) (q: Qp) : iProp :=
+    (⌜p = Vnullptr⌝ ∨ ∃ m, p (⊨_m,Dynamic,q) Ptrofs.zero)%I.
 
      (* is_xorlist represents the figure below    *)
      (*    ll_h                              ll_t *)
@@ -54,7 +55,7 @@ Section PROP.
 
   Fixpoint frag_xorlist (q: Qp) (hd_prev hd tl tl_next: val) (xs : list val) {struct xs} : iProp :=
     match xs with
-    | [] => ptr_equiv hd_prev tl ** ⌜ hd = tl_next⌝
+    | [] => (ptr_equiv hd_prev tl ** ptr_equiv hd tl_next)
     | Vlong a :: xs' =>
         ∃ i_prev i_next m_prev m_hd,
           ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
@@ -68,7 +69,7 @@ Section PROP.
   Lemma unfold_frag_xorlist (q: Qp) (hd_prev hd tl tl_next: val) (xs : list val) :
   frag_xorlist q hd_prev hd tl tl_next xs =
     match xs with
-    | [] => ptr_equiv hd_prev tl ** ⌜ hd = tl_next⌝
+    | [] => (ptr_equiv hd_prev tl ** ptr_equiv hd tl_next)
     | Vlong a :: xs' =>
         ∃ i_prev i_next m_prev m_hd,
           ⌜m_hd.(sz) = (size_chunk Mint64 + size_chunk Mptr)%Z⌝
@@ -186,126 +187,135 @@ Section PROP.
     { simpl. iPureIntro. ss. }
   Qed. *)
     
-  Lemma split_xorlist q p_hd_prev p_hd p_tl p_tl_next xs0 xs1
-    : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1)
-      ⊢ ∃ mid mid_next, frag_xorlist q p_hd_prev p_hd mid mid_next xs0 ** frag_xorlist q mid mid_next p_tl p_tl_next xs1.
+  Lemma capture_unique'
+      vaddr m1 m2 i j
+    :
+      vaddr (≃_m1) i ** vaddr (≃_m2) j ⊢ ⌜i = j⌝.
   Proof.
-    (* revert q p_hd_prev p_hd p_tl p_tl_next xs1.
-    induction xs0; i; ss.
-    - iIntros "A". iExists _,_. iSplit; et.
-    - iIntros "A". des_ifs.
-      + iDestruct "A" as (p_next m_hd i_next) "[PTO NXT]".
-        iDestruct "PTO" as "[PTO RES]". clarify.
-        iPoseProof (IHxs0 with "NXT") as (mid mid_next) "[NXT0 NXT1]".
-        des_ifs.
-        * apply Z.eqb_eq in Heq. clarify.
-          iDestruct "RES" as "%". clarify.
-          iExists _,_. iFrame.
-          iExists _,_,_. iFrame. ss.
-        * iDestruct "RES" as (m_next) "NXT_CAP". clarify.
-          iExists _,_. iFrame.
-          iExists _,_,_. iFrame. rewrite Heq.
-          iExists _. iFrame.
-      + iDestruct "A" as (p_next m_prev m_hd i_prev i_key) "[PTO NXT]".
-        iDestruct "PTO" as "[[PTO CAP_PREV] RES]".
-        iPoseProof (IHxs0 with "NXT") as (mid mid_next) "[NXT0 NXT1]".
-        des_ifs.
-        * iDestruct "RES" as "%". apply Z.eqb_eq in Heq. clarify.
-          iExists _,_. iFrame.
-          iExists _,_,_,_,_. iFrame. rewrite Heq.
-          ss.
-        * iDestruct "RES" as (m_next) "NXT_CAP".
-          iExists _,_. iFrame.
-          iExists _,_,_,_,_. iFrame. rewrite Heq.
-          iExists _. iFrame.
-  Qed. *)
+    iIntros "[A B]".
+    unfold captured_to.
+    des_ifs.
+    - admit.
+    - iDestruct "A" as "[A A']".
+      iDestruct "A'" as (a) "[A' %]".
+      iDestruct "B" as "[B B']".
+      iDestruct "B'" as (c) "[B' %]".
+      des. clarify. rewrite H4.
+      iCombine "A' B'" as "C".
+      iOwnWf "C" as wfc.
+      iPureIntro. ur in wfc. specialize (wfc (blk m2)).
+      ur in wfc.
+      Transparent _has_base.
+       unfold _has_base in *.
+       des_ifs.
+       admit.
   Admitted.
 
-  Lemma concat_xorlist q p_hd_prev p_hd p_tl p_tl_next mid mid_next xs0 xs1
-    : frag_xorlist q p_hd_prev p_hd mid mid_next xs0 ** frag_xorlist q mid mid_next p_tl p_tl_next xs1
-      ⊢ frag_xorlist q p_hd_prev p_hd p_tl p_tl_next (xs0 ++ xs1).
+
+  Lemma equiv_trans p q r
+    : ptr_equiv p q ** ptr_equiv q r 
+    ⊢ ptr_equiv p r.
   Proof.
-    (* revert q p_hd_prev p_hd p_tl p_tl_next mid mid_next xs1.
-    induction xs0; i; ss.
-    - iIntros "[% A]". des. clarify.
-    - iIntros "A". des_ifs; try solve [iDestruct "A" as "[% A]"; clarify].
-      + iDestruct "A" as "[PTO NXT1]". 
-        iDestruct "PTO" as (p_next m_hd i_next) "[[PTO RES] NXT0]".
-        clarify. iCombine "NXT0 NXT1" as "NXT".
-        iPoseProof (IHxs0 with "NXT") as "NXT".
-        des_ifs.
-        * apply Z.eqb_eq in Heq. clarify.
-          iDestruct "RES" as "%". clarify.
-          iExists _,_,_. iFrame. ss.
-        * iDestruct "RES" as (m_next) "NXT_CAP".
-          iExists _,_,_. iFrame. rewrite Heq.
-          iExists _. iFrame.
-      + iDestruct "A" as "[PTO NXT1]". 
-        iDestruct "PTO" as (p_next m_prev m_hd i_prev i_key) "[[[PTO CAP_PREV] RES] NXT]".
-        clarify. iCombine "NXT NXT1" as "NXT".
-        iPoseProof (IHxs0 with "NXT") as "NXT".
-        des_ifs.
-        * iDestruct "RES" as "%". apply Z.eqb_eq in Heq. clarify.
-          iExists _,_,_,_,_. iFrame. rewrite Heq.
-          ss.
-        * iDestruct "RES" as (m_next) "NXT_CAP".
-          iExists _,_,_,_,_. iFrame. rewrite Heq.
-          iExists _. iFrame.
-  Qed. *)
+    iIntros "[[%|A] [%|B]]".
+    - clarify. iLeft. ss.
+    - iDestruct "B" as (i m1 m2) "[A B]". iRight. clarify.
+      iExists _,_,_. iFrame.
+    - iDestruct "A" as (i m1 m2) "[A B]". iRight. clarify.
+      iExists _,_,_. iFrame.
+    - iDestruct "A" as (i m1 m2) "[A A']". 
+      iDestruct "B" as (i' m1' m2') "[B B']". 
+      iCombine "A' B" as "A'".
+      iPoseProof (capture_unique' with "A'") as "%".
+      clarify. iRight. iExists _,_,_. iFrame.
+  Qed.
+
+  Lemma equiv_capture p q f i m
+    : 
+      ptr_equiv p q ** xor_live q f ** q (≃_m) i
+      ⊢ (∃ m, p (≃_m) i) ** xor_live q f.
+  Proof.
+    (* iIntros "[[[%|a] [%|l]] cap]".
+    - iExists _. clarify.
+    - iExists _. clarify. 
+    - clarify.
+      iDestruct "a" as (i0 m0) "[p n]".
+      replace i with Ptrofs.zero by admit.
+      replace i0 with Ptrofs.zero by admit.
+      iExists _. et.
+    - iDestruct "a" as (i0 m0) "[p q]".
+      iDestruct "l" as (m1) "l".
+      iCombine "l q" as "c".
+      iPoseProof (replace_meta_to_alive_offset with "c") as "[l q]".
+      iCombine "l cap" as "c".
+      iPoseProof (replace_meta_to_alive_offset with "c") as "[l cap]".
+      iCombine "q cap" as "c".
+      iPoseProof (capture_unique with "c") as "%".
+      clarify.
+      iExists _. et. *)
   Admitted.
 
-  Lemma rev_xorlist q p_hd_prev p_hd p_tl p_tl_next xs
-    : frag_xorlist q p_hd_prev p_hd p_tl p_tl_next xs
-      ⊢ frag_xorlist q p_tl_next p_tl p_hd p_hd_prev (rev xs).
+  (* Lemma equiv_comm' p f q :
+    xor_live p f ** ptr_equiv p q ⊢ xor_live q f.
   Proof.
-    (* revert q p_hd_prev p_hd p_tl p_tl_next.
+    iIntros "[[%|A] [%|B]]".
+    - clarify. iLeft. ss.
+    - iDestruct "B" as (i m1 m2) "[B B']".
+      clarify. replace i with Ptrofs.zero by admit. *)
+
+  Lemma alive_door p m tg f:
+      p (⊨_m,tg,f) Ptrofs.zero 
+      ⊢ p (⊨_m,tg,f) Ptrofs.zero ** (∀q m' tg' f', (q (⊨_m',tg',f') Ptrofs.zero ** ptr_equiv p q) -* ⌜p = q⌝).
+  Proof.
+  Admitted.
+
+  Lemma concat_xorlist q hd_prev hd tl tl_next mid mid_next xs0 xs1 :
+      frag_xorlist q hd_prev hd mid mid_next xs0 ** frag_xorlist q mid mid_next tl tl_next xs1
+      ⊢ ∃ hd_prev' hd' tl_next' tl', ptr_equiv hd_prev hd_prev' ** ptr_equiv hd hd' ** ptr_equiv tl_next tl_next' ** ptr_equiv tl tl' ** frag_xorlist q hd_prev' hd' tl' tl_next' (xs0 ++ xs1).
+  Proof.
+    revert q hd_prev hd tl tl_next mid mid_next xs1.
+    induction xs0; i; ss.
+    - iIntros "[[A B] C]".
+      destruct xs1. 
+      + ss. iExists _,_. iFrame. admit.
+      + ss. destruct v; try solve [iDestruct "C" as "%"; clarify].
+        iDestruct "C" as (i_prev i_next m_prev m_hd) "[[[[% mid_addr] mid_ofs] mid_point] C]".
+        iExists mid, mid_next, tl_next, tl.
+        iSplitL "A B". { admit. }
+        iExists _,_,_,_. iFrame. ss.
+    - iIntros "[A B]".
+      destruct a; try solve [iDestruct "A" as "%"; clarify].
+      iDestruct "A" as (i_prev i_next m_prev m_hd) "[[[[% prev_addr] hd_ofs] hd_point] A]".
+      destruct xs0.
+      + admit.
+      + ss. destruct v; try solve [iDestruct "A" as "%"; clarify].
+        iDestruct "A" as (i_prev' i_next' m_prev' m_hd') "[[[[% hd_addr] next_ofs] next_point] C]".
+        iPoseProof (alive_door with "next_ofs") as "[next_ofs door]".
+        iAssert (frag_xorlist q hd (Vptrofs i_next) mid mid_next (Vlong i0 :: xs0))
+          with "[C next_point next_ofs hd_addr]" as "LIST".
+        { ss. iExists _,_,_,_. iFrame. ss. }
+        iCombine "LIST B" as "C".
+        iPoseProof (IHxs0 with "C") as "C".
+        iDestruct "C" as (hd' hd_next' tl_next' tl') "[[[[equiv1 equiv2] equiv3] equiv4] C]".
+        iDestruct "C" as (? ? ? ?) "[[[[% hd_addr] next_ofs] next_point] C]".
+        iCombine "next_ofs equiv2" as "T".
+        iAssert (⌜Vptrofs i_next = hd_next'⌝)%I with "[door T]" as "%".
+        { iApply "door". ss. }
+        iExists hd_prev,hd,tl_next',tl'. 
+        iSplitL "". { admit. }
+        iExists _,_,_,_. 
+        iSplitL "prev_addr hd_ofs hd_point".
+        { iFrame. ss. }
+        iExists _,_,_,_. iSplitR "C". 2:{ rewrite H6. iFrame. } 
+        rewrite H6. iFrame. iDestruct "T" as "[T T']". iFrame.
+  Admitted.
+
+
+  Lemma rev_xorlist q hd tl xs
+    : frag_xorlist q Vnullptr hd tl Vnullptr xs
+      ⊢ frag_xorlist q Vnullptr tl hd Vnullptr (rev xs).
+  Proof.
+    revert q hd tl.
     induction xs; i; ss.
-    - iIntros "%". des. iPureIntro. clarify.
-    - iIntros "A". destruct a; try solve [iDestruct "A" as "%"; clarify].
-      destruct Val.eq eqn:?.
-      + iDestruct "A" as (p_next m_hd i_next) 
-          "[[[[[hd_point hd_ofs] hd_liv] %] next_info] NEXT]".
-        iPoseProof (IHxs with "NEXT") as "NEXT".
-        iApply concat_xorlist. iFrame.
-        ss. destruct (i_next =? 0)%Z eqn: ?.
-        * iDestruct "next_info" as "%". clarify.
-          destruct Val.eq; clarify. clear e Heqs.
-          iExists _,_,_.
-          rewrite H3. iFrame. iSplit; ss.
-          rewrite Heqb. iPureIntro. et.
-        * iDestruct "next_info" as (m_next) "next_info".
-          iPoseProof (captured_pointer_notnull with "next_info") as "%".
-          destruct (Val.eq Vnullptr p_next); clarify. clear H4 n.
-          iExists _,_,_,_,_.
-          rewrite H3. iFrame. 
-          rewrite Z.lxor_nilpotent. simpl.
-          iPureIntro. et.
-      + iDestruct "A" as (p_next m_prev m_hd i_prev i_next) 
-          "[[[[[[hd_point hd_ofs] hd_liv] %] hd_prev_addr] next_info] NEXT]".
-        iPoseProof (IHxs with "NEXT") as "NEXT".
-        iApply concat_xorlist. iFrame.
-        ss. destruct (Z.lxor i_prev i_next =? 0)%Z eqn: ?.
-        * iDestruct "next_info" as "%". clarify.
-          destruct (Val.eq Vnullptr Vnullptr); clarify. clear e Heqs.
-          rewrite Z.eqb_eq in Heqb. apply Z.lxor_eq in Heqb. clarify.
-          iPoseProof (captured_address_not_zero with "hd_prev_addr") as "%".
-          iExists _,_,_.
-          rewrite H3. iFrame. iSplit; ss. iSplit; ss.
-          destruct (i_next =? 0)%Z eqn: ?.
-          { apply Z.eqb_eq in Heqb. clarify. }
-          iExists _. iFrame.
-        * iDestruct "next_info" as (m_next) "next_info".
-          iPoseProof (captured_pointer_notnull with "next_info") as "%".
-          destruct (Val.eq Vnullptr p_next); clarify. clear H4 n0.
-          iExists _,_,_,_,_.
-          rewrite H3. iFrame. iSplit; ss. iSplit; ss.
-          rewrite Z.lxor_assoc. rewrite Z.lxor_nilpotent.
-          rewrite Z.lxor_0_r. 
-          iPoseProof (captured_address_not_zero with "hd_prev_addr") as "%".
-          destruct (i_prev =? 0)%Z eqn: ?.
-          { apply Z.eqb_eq in Heqb0. clarify. }
-          iExists _. iFrame.
-  Qed. *)
   Admitted.
 
 End PROP.

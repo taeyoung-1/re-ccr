@@ -18,7 +18,7 @@ Inductive tag :=
 | Local
 | Unfreeable.
 
-Record metadata := { blk : block; sz : Z }.
+Record metadata := { blk : block; sz : Z; asdf: sz > 0 }.
 
 Let _pointstoRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
 Let _allocatedRA: URA.t := (block ==> (Consent.t tag))%ra.
@@ -856,7 +856,30 @@ Section RULES.
       des. clarify.
   Qed.
 
-  Lemma replace_meta_to_alive
+  Lemma pointto_offset_notnull 
+      vaddr m tg q ofs mvs
+    : 
+      (vaddr (↦_m,q) mvs ∨ vaddr (⊨_m,tg,q) ofs) ⊢ ⌜vaddr <> Vnullptr⌝.
+  Proof.
+  Admitted.
+
+  Lemma valid_ofs_same_meta
+      vaddr m m' tg tg' q q' ofs ofs'
+    : 
+      vaddr (⊨_m,tg,q) ofs ** vaddr (⊨_m',tg',q') ofs' ** ⌜valid m ofs /\ valid m' ofs'⌝
+       ⊢ ⌜m = m' /\ tg = tg' /\ ofs = ofs'⌝.
+  Proof.
+  Admitted.
+
+  Lemma same_addr_point_comm
+      vaddr vaddr' m m' q i mvs
+    : 
+      vaddr (≃_m) i ** vaddr' (≃_m) i ** vaddr (↦_m', q) mvs
+       ⊢ vaddr (↦_m', q) mvs.
+  Proof.
+  Admitted.
+
+  Lemma replace_meta_to_alive_point
       vaddr m0 m1 q mvs i
     :
       vaddr (↦_m0,q) mvs ** vaddr (≃_m1) i ⊢ vaddr (↦_m0,q) mvs ** vaddr (≃_m0) i.
@@ -882,6 +905,33 @@ Section RULES.
       clarify. iFrame.
       iSplitL "C".
       { iExists _. iFrame. ss. }
+      iExists _. iFrame. ss.
+  Qed.
+
+  Lemma replace_meta_to_alive_offset
+      vaddr m0 m1 q tg ofs i
+    :
+      vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m1) i ⊢ vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m0) i.
+  Proof.
+    iIntros "[A B]".
+    unfold has_offset, captured_to.
+    des_ifs.
+    - iFrame.
+    - iDestruct "A" as "[A A']".
+      iDestruct "B" as "[B B']".
+      unfold _has_offset.
+      iDestruct "A'" as "[A' %]".
+      des. clarify.
+      iDestruct "B'" as (a) "[B' %]".
+      des. clarify. rewrite H3.
+      iAssert ⌜m0 = m1⌝ as "%".
+      { iCombine "A' B" as "D". iOwnWf "D" as wfc.
+        iPureIntro.
+        ur in wfc. specialize (wfc (blk m1)).
+        ur in wfc. unfold _has_size in wfc.
+        des_ifs. destruct m0. destruct m1. ss. clarify. }
+      clarify. Opaque metadata_alive.
+      iFrame. iSplit; ss.
       iExists _. iFrame. ss.
   Qed.
 
