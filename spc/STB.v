@@ -87,13 +87,13 @@ Section HEADER.
   Context `{Σ: GRA.t}.
 
   Definition fspec_weaker (fsp_src fsp_tgt: fspec): Prop :=
-    forall x_src mn,
+    forall x_src,
     exists x_tgt,
       (<<MEASURE: ord_weaker (fsp_tgt.(measure) x_tgt) (fsp_src.(measure) x_src)>>) ∧
       (<<PRE: forall arg_src arg_tgt,
-          (fsp_src.(precond) mn x_src arg_src arg_tgt) ⊢ #=> (fsp_tgt.(precond) mn x_tgt arg_src arg_tgt)>>) ∧
+          (fsp_src.(precond) x_src arg_src arg_tgt) ⊢ #=> (fsp_tgt.(precond) x_tgt arg_src arg_tgt)>>) ∧
       (<<POST: forall ret_src ret_tgt,
-          (fsp_tgt.(postcond) mn x_tgt ret_src ret_tgt) ⊢ #=> (fsp_src.(postcond) mn x_src ret_src ret_tgt)>>)
+          (fsp_tgt.(postcond) x_tgt ret_src ret_tgt) ⊢ #=> (fsp_src.(postcond) x_src ret_src ret_tgt)>>)
   .
 
   Global Program Instance fspec_weaker_PreOrder: PreOrder fspec_weaker.

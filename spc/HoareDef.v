@@ -91,22 +91,22 @@ Section PROOF.
   Context {Σ: GRA.t}.
   Let GURA: URA.t := GRA.to_URA Σ.
   Local Existing Instance GURA.
-  Variable S : Type.
+  (* Variable S : Type. *)
 
-  Definition mput E `{sE (S * Σ)-< E} `{eventE -< E} (mr: Σ) : itree E unit :=
+  Definition mput {S} E `{sE (S * Σ)-< E} `{eventE -< E} (mr: Σ) : itree E unit :=
     '(mp, _)<- trigger (sGet id);;
     trigger (sPut (mp, mr))
   .
 
-  Definition mget E `{sE (S * Σ) -< E} `{eventE -< E}: itree E Σ :=
+  Definition mget {S} E `{sE (S * Σ) -< E} `{eventE -< E}: itree E Σ :=
     '(_, mr) <- trigger (sGet id);; Ret mr
   .
 
-  Definition pupdate E `{sE (S * Σ)-<E} `{eventE -< E} {X} (run: S -> S * X) : itree E X :=
+  Definition pupdate {S} E `{sE (S * Σ)-<E} `{eventE -< E} {X} (run: S -> S * X) : itree E X :=
     trigger (SUpdate (fun '(x, mr) => ((fst (run x), mr), snd (run x))))
   .
 
-  Definition ASSUME (Cond: Any.t -> Any.t -> iProp) (valp: Any.t): stateT Σ (itree (Es (S * Σ))) Any.t :=
+  Definition ASSUME {S} (Cond: Any.t -> Any.t -> iProp) (valp: Any.t): stateT Σ (itree (Es (S * Σ))) Any.t :=
     fun fr =>
       '(cres, ctx) <- trigger (Take (Σ * Σ));;
       mr <- mget;;
@@ -116,7 +116,7 @@ Section PROOF.
       Ret (ctx, valv)
   .
 
-  Definition ASSERT (Cond: Any.t -> Any.t -> iProp) (valv: Any.t): stateT Σ (itree (Es (S * Σ))) Any.t :=
+  Definition ASSERT {S} (Cond: Any.t -> Any.t -> iProp) (valv: Any.t): stateT Σ (itree (Es (S * Σ))) Any.t :=
     fun ctx =>
       '(cres, fr, mr) <- trigger (Choose (Σ * Σ * Σ));;
       mput mr;;;
@@ -128,6 +128,7 @@ Section PROOF.
 
 
   Definition HoareCall
+             {S}
              (tbr: bool)
              (ord_cur: ord)
              (fsp: fspec):
@@ -362,7 +363,7 @@ Section CANCEL.
   Definition handle_hCallE_tgt (ord_cur: ord): hCallE ~> stateT (Σ) (itree (Es (S * Σ))) :=
     fun _ '(hCall tbr fn varg_src) 'ctx =>
       f <- (stb fn)ǃ;;
-      HoareCall _ tbr ord_cur f fn varg_src ctx
+      HoareCall tbr ord_cur f fn varg_src ctx
   .
 
   Definition handle_sE_tgt : (sE S) ~> itree (Es (S * Σ)) :=
@@ -393,7 +394,7 @@ Section CANCEL.
              (Q: X -> Any.t -> Any_tgt -> iProp)
              (body: (Any.t) -> itree (hEs S) Any.t): Any_tgt -> itree (Es (S * Σ)) Any_tgt := fun varg_tgt =>
     x <- trigger (Take X);;
-    '(ctx, varg_src) <- (ASSUME S (P x) varg_tgt ε);;
+    '(ctx, varg_src) <- (ASSUME (P x) varg_tgt ε);;
 
     let ord_cur := D x in
     '(ctx, vret_src) <- interp_hCallE_tgt
@@ -404,7 +405,7 @@ Section CANCEL.
                               | _ => body varg_src
                               end)) ctx;;
 
-    '(_, vret_tgt) <- (ASSERT S (Q x) vret_src ctx);;
+    '(_, vret_tgt) <- (ASSERT (Q x) vret_src ctx);;
     Ret vret_tgt
   .
   
@@ -430,7 +431,7 @@ If this feature is needed; we can extend it then. At the moment, I will only all
              (P: X -> Any.t -> Any_tgt -> iProp):
     Any_tgt -> itree (Es (S * Σ)) ((Σ) * (X * Any.t)) := fun varg_tgt =>
     x <- trigger (Take X);;
-    '(ctx, varg_src) <- (ASSUME S (P x) varg_tgt ε);;
+    '(ctx, varg_src) <- (ASSUME (P x) varg_tgt ε);;
     Ret (ctx, (x, varg_src))
   .
 
@@ -438,7 +439,7 @@ If this feature is needed; we can extend it then. At the moment, I will only all
              {X: Type}
              (Q: X -> Any.t -> Any_tgt -> iProp):
     X -> ((Σ) * Any.t) -> itree (Es (S * Σ)) Any_tgt := fun x '(ctx, vret_src) =>
-    '(_, vret_tgt) <- (ASSERT S (Q x) vret_src ctx);;
+    '(_, vret_tgt) <- (ASSERT (Q x) vret_src ctx);;
     Ret vret_tgt
   .
 
@@ -947,10 +948,10 @@ End SMod.
 Section AUX.
 
 Context `{Σ: GRA.t}.
-Variable S: Type.
+(* Variable S: Type. *)
 (* itree reduction *)
 Lemma interp_tgt_bind
-      (R T: Type)
+      (S R T: Type)
       (s : itree (hCallE +' sE S +' eventE) R) (k : R -> itree (hCallE +' sE S +' eventE) T)
       stb o ctx
   :
@@ -962,7 +963,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_tau stb o ctx
-      (U: Type)
+      (S U: Type)
       (t : itree (Es' S) U)
   :
     (interp_hCallE_tgt stb o (Tau t) ctx)
@@ -973,7 +974,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_ret stb o ctx
-      (U: Type)
+      (S U: Type)
       (t: U)
       (* (r := {| _observe := @RetF (Es' S) _ _ t |}) *)
   :
@@ -985,7 +986,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_triggerp stb o ctx
-      (R: Type)
+      (S R: Type)
       (i: sE S R)
   :
     (interp_hCallE_tgt stb o (trigger i) ctx)
@@ -996,21 +997,21 @@ Proof.
 Qed.
 
 Lemma interp_tgt_triggere stb o (ctx: Σ)
-      (R: Type)
+      (S R: Type)
       (i: eventE R)
-      (t := ITree.trigger (@subevent eventE (Es' S) _ _ i))
+      (* (t := ITree.trigger (@subevent eventE (Es' S) _ _ i)) *)
       (* (t' := ITree.trigger (@subevent eventE (Es (S * Σ)) _ _ i)) *)
 
   :
-    (interp_hCallE_tgt stb o t ctx)
+    (interp_hCallE_tgt stb o (trigger i: itree (Es' S) R) ctx)
     =
     (trigger i >>= (fun r => tau;; Ret (ctx, r))).
 Proof. 
-  unfold interp_hCallE_tgt. unfold t. rewrite interp_state_trigger. cbn. grind.
+  unfold interp_hCallE_tgt. rewrite interp_state_trigger. cbn. grind.
 Qed.
 
 Lemma interp_tgt_hcall stb o ctx
-      (R: Type)
+      (S R: Type)
       (i: hCallE R)
   :
     (interp_hCallE_tgt stb o (trigger i: itree (Es' S) R) ctx)
@@ -1021,7 +1022,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_triggerUB stb o ctx
-      (R: Type)
+      (S R: Type)
   :
     (interp_hCallE_tgt stb o (triggerUB: itree (Es' S) R) ctx)
     =
@@ -1031,7 +1032,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_triggerNB stb o ctx
-      (R: Type)
+      (S R: Type)
   :
     (interp_hCallE_tgt stb o (triggerNB: itree (Es' S) R) ctx)
     =
@@ -1041,7 +1042,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_unwrapU stb o ctx
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hCallE_tgt stb o (@unwrapU (hCallE +' (sE S) +' eventE) _ _ i) ctx)
@@ -1060,7 +1061,7 @@ Proof.
 Qed.
 
 Lemma interp_tgt_unwrapN stb o ctx
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hCallE_tgt stb o (@unwrapN (hCallE +' (sE S) +' eventE) _ _ i) ctx)
@@ -1078,7 +1079,7 @@ Proof.
   }
 Qed.
 
-Lemma interp_tgt_assume stb o ctx
+Lemma interp_tgt_assume stb o ctx S
       P
   :
     (interp_hCallE_tgt stb o (assume P: itree (Es' S) _) ctx)
@@ -1089,7 +1090,7 @@ Proof.
   unfold assume. rewrite interp_tgt_bind. rewrite interp_tgt_triggere. grind. eapply interp_tgt_ret.
 Qed.
 
-Lemma interp_tgt_guarantee stb o ctx
+Lemma interp_tgt_guarantee stb o ctx S
       P
   :
     (interp_hCallE_tgt stb o (guarantee P: itree (Es' S) _) ctx)
@@ -1099,7 +1100,7 @@ Proof.
   unfold guarantee. rewrite interp_tgt_bind. rewrite interp_tgt_triggere. grind. eapply interp_tgt_ret.
 Qed.
 
-Lemma interp_tgt_ext stb o ctx
+Lemma interp_tgt_ext stb o ctx S
       R (itr0 itr1: itree (Es' S) R)
       (EQ: itr0 = itr1)
   :
@@ -1135,12 +1136,12 @@ End AUX.
 Section AUX.
 
 Context `{Σ: GRA.t}.
-Variable stb: gname -> option fspec.
-Variable S: Type.
+(* Variable stb: gname -> option fspec. *)
+(* Variable S: Type. *)
 
 (* itree reduction *)
 Lemma interp_mid_bind
-      (R T: Type)
+      (S R T: Type) (stb: gname -> option fspec)
       (s : itree (hCallE +' (sE S) +' eventE) R) (k : R -> itree (hCallE +' (sE S) +' eventE) T)
       o
   :
@@ -1152,7 +1153,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_tau o
-      (U: Type)
+      (S U: Type) (stb: gname -> option fspec)
       (t : itree (Es' S) U)
   :
     (interp_hCallE_mid stb o (Tau t))
@@ -1163,7 +1164,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_ret o
-      (U: Type)
+      (S U: Type) (stb: gname -> option fspec)
       (t: U)
   :
     ((interp_hCallE_mid stb o (Ret t: itree (Es' S) _)))
@@ -1174,7 +1175,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_triggerp o
-      (R: Type)
+      (S R: Type) (stb: gname -> option fspec)
       (i: (sE S) R)
   :
     (interp_hCallE_mid stb o (trigger i))
@@ -1186,8 +1187,8 @@ Proof.
 Qed.
 
 Lemma interp_mid_triggere o
-      (R: Type)
-      (i: eventE R)
+      (S R: Type) (stb: gname -> option fspec)
+      (i: eventE R) 
   :
     (interp_hCallE_mid stb o (trigger i: itree (Es' S) _))
     =
@@ -1198,7 +1199,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_hcall o
-      (R: Type)
+      (S R: Type) (stb: gname -> option fspec)
       (i: hCallE R)
   :
     (interp_hCallE_mid stb o (trigger i: itree (Es' S) _))
@@ -1210,7 +1211,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_triggerUB o
-      (R: Type)
+      (S R: Type) (stb: gname -> option fspec)
   :
     (interp_hCallE_mid stb o (triggerUB: itree (Es' S) _))
     =
@@ -1220,7 +1221,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_triggerNB o
-      (R: Type)
+      (S R: Type) stb
   :
     (interp_hCallE_mid stb o (triggerNB: itree (Es' S) _))
     =
@@ -1230,7 +1231,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_unwrapU o
-      (R: Type)
+      (S R: Type) stb
       (i: option R)
   :
     (interp_hCallE_mid stb o (@unwrapU (hCallE +' (sE S) +' eventE) _ _ i))
@@ -1249,7 +1250,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_unwrapN o
-      (R: Type)
+      (S R: Type) stb
       (i: option R)
   :
     (interp_hCallE_mid stb o (@unwrapN (hCallE +' (sE S) +' eventE) _ _ i))
@@ -1268,7 +1269,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_assume o
-      P
+      S P stb
   :
     (interp_hCallE_mid stb o (assume P: itree (Es' S) _))
     =
@@ -1279,7 +1280,7 @@ Proof.
 Qed.
 
 Lemma interp_mid_guarantee o
-      P
+      S P stb
   :
     (interp_hCallE_mid stb o (guarantee P: itree (Es' S) _))
     =
@@ -1288,7 +1289,7 @@ Proof.
   unfold guarantee. rewrite interp_mid_bind. rewrite interp_mid_triggere. grind. eapply interp_mid_ret.
 Qed.
 
-Lemma interp_mid_ext o
+Lemma interp_mid_ext o S stb
       R (itr0 itr1: itree (Es' S) R)
       (EQ: itr0 = itr1)
   :
@@ -1323,11 +1324,11 @@ Global Program Instance interp_hCallE_mid_rdb `{Σ: GRA.t}: red_database (mk_box
 Section AUX.
 
 Context `{Σ: GRA.t}.
-Variable stb: gname -> option fspec.
-Variable S: Type.
+(* Variable (stb: gname -> option fspec). *)
+(* Variable S: Type. *)
 (* itree reduction *)
 Lemma interp_mid2_bind
-      (R T: Type)
+      (S R T: Type)
       (s : itree (hCallE +' (sE S) +' eventE) R) (k : R -> itree (hCallE +' (sE S) +' eventE) T)
   :
     (interp_hCallE_mid2 (s >>= k))
@@ -1338,7 +1339,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_tau
-      (U: Type)
+      (S U: Type)
       (t : itree (Es' S) U)
   :
     (interp_hCallE_mid2 (Tau t))
@@ -1349,7 +1350,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_ret
-      (U: Type)
+      (S U: Type)
       (t: U)
   :
     ((interp_hCallE_mid2 (Ret t: itree (Es' S) _)))
@@ -1360,7 +1361,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_triggerp
-      (R: Type)
+      (R S: Type)
       (i: (sE S) R)
   :
     (interp_hCallE_mid2 (trigger i))
@@ -1372,7 +1373,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_triggere
-      (R: Type)
+      (S R: Type)
       (i: eventE R)
   :
     (interp_hCallE_mid2 (trigger i: itree (Es' S) _))
@@ -1384,8 +1385,8 @@ Proof.
 Qed.
 
 Lemma interp_mid2_hcall
-      (R: Type)
-      (i: hCallE R)
+      (S R: Type) 
+      (i: hCallE R) 
   :
     (interp_hCallE_mid2 (trigger i: itree (Es' S) _))
     =
@@ -1396,7 +1397,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_triggerUB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hCallE_mid2 (triggerUB: itree (Es' S) _))
     =
@@ -1406,7 +1407,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_triggerNB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hCallE_mid2 (triggerNB: itree (Es' S) _))
     =
@@ -1416,7 +1417,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_unwrapU
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hCallE_mid2 (@unwrapU (hCallE +' (sE S) +' eventE) _ _ i))
@@ -1435,7 +1436,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_unwrapN
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hCallE_mid2 (@unwrapN (hCallE +' (sE S) +' eventE) _ _ i))
@@ -1454,7 +1455,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_assume
-      P
+      S P 
   :
     (interp_hCallE_mid2 (assume P: itree (Es' S) _))
     =
@@ -1465,7 +1466,7 @@ Proof.
 Qed.
 
 Lemma interp_mid2_guarantee
-      P
+      S P
   :
     (interp_hCallE_mid2 (guarantee P: itree (Es' S) _))
     =
@@ -1474,8 +1475,8 @@ Proof.
   unfold guarantee. rewrite interp_mid2_bind. rewrite interp_mid2_triggere. grind. eapply interp_mid2_ret.
 Qed.
 
-Lemma interp_mid2_ext
-      R (itr0 itr1: itree (Es' S) R)
+Lemma interp_mid2_ext 
+      S R (itr0 itr1: itree (Es' S) R)
       (EQ: itr0 = itr1)
   :
     (interp_hCallE_mid2 itr0)
@@ -1511,10 +1512,10 @@ Global Program Instance interp_hCallE_mid2_rdb `{Σ: GRA.t}: red_database (mk_bo
 Section AUX.
 
 Context `{Σ: GRA.t}.
-Variable S: Type.
+(* Variable S: Type. *)
 (* itree reduction *)
 Lemma interp_src_bind
-      (R T: Type)
+      (S R T: Type)
       (s : itree (hEs S) R) (k : R -> itree (hEs S) T)
   :
     (interp_hEs_src (s >>= k))
@@ -1525,7 +1526,7 @@ Proof.
 Qed.
 
 Lemma interp_src_tau
-      (U: Type)
+      (S U: Type)
       (t : itree (hEs S) U)
   :
     (interp_hEs_src (Tau t))
@@ -1536,7 +1537,7 @@ Proof.
 Qed.
 
 Lemma interp_src_ret
-      (U: Type)
+      (S U: Type)
       (t: U)
   :
     ((interp_hEs_src (Ret t: itree (hEs S) _)))
@@ -1547,7 +1548,7 @@ Proof.
 Qed.
 
 Lemma interp_src_triggerp
-      (R: Type)
+      (S R: Type)
       (i: (sE S) R)
   :
     (interp_hEs_src (trigger i))
@@ -1559,7 +1560,7 @@ Proof.
 Qed.
 
 Lemma interp_src_triggere
-      (R: Type)
+      (S R: Type)
       (i: eventE R)
   :
     (interp_hEs_src (trigger i: itree (hEs S) _))
@@ -1571,7 +1572,7 @@ Proof.
 Qed.
 
 Lemma interp_src_call
-      (R: Type)
+      (S R: Type)
       (i: callE R)
   :
     (interp_hEs_src (trigger i: itree (hEs S) _))
@@ -1583,7 +1584,7 @@ Proof.
 Qed.
 
 Lemma interp_src_hapc
-      (R: Type)
+      (S R: Type)
       (i: hAPCE R)
   :
     (interp_hEs_src (trigger i: itree (hEs S) _))
@@ -1595,7 +1596,7 @@ Proof.
 Qed.
 
 Lemma interp_src_triggerUB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hEs_src (triggerUB: itree (hEs S) _))
     =
@@ -1605,7 +1606,7 @@ Proof.
 Qed.
 
 Lemma interp_src_triggerNB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hEs_src (triggerNB: itree (hEs S) _))
     =
@@ -1615,7 +1616,7 @@ Proof.
 Qed.
 
 Lemma interp_src_unwrapU
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hEs_src (@unwrapU (hEs S) _ _ i))
@@ -1634,7 +1635,7 @@ Proof.
 Qed.
 
 Lemma interp_src_unwrapN
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hEs_src (@unwrapN (hEs S) _ _ i))
@@ -1653,7 +1654,7 @@ Proof.
 Qed.
 
 Lemma interp_src_assume
-      P
+      S P
   :
     (interp_hEs_src (assume P: itree (hEs S) _))
     =
@@ -1664,7 +1665,7 @@ Proof.
 Qed.
 
 Lemma interp_src_guarantee
-      P
+      S P
   :
     (interp_hEs_src (guarantee P: itree (hEs S) _))
     =
@@ -1674,7 +1675,7 @@ Proof.
 Qed.
 
 Lemma interp_src_ext
-      R (itr0 itr1: itree (hEs S) R)
+      S R (itr0 itr1: itree (hEs S) R)
       (EQ: itr0 = itr1)
   :
     (interp_hEs_src itr0)
@@ -1708,10 +1709,10 @@ End AUX.
 Section AUX.
 
 Context `{Σ: GRA.t}.
-Variable S: Type.
+(* Variable S: Type. *)
 (* itree reduction *)
 Lemma interp_hEs_tgt_bind
-      (R T: Type)
+      (S R T: Type)
       (s : itree (hEs S) R) (k : R -> itree (hEs S) T)
   :
     (interp_hEs_tgt (s >>= k))
@@ -1722,7 +1723,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_tau
-      (U: Type)
+      (S U: Type)
       (t : itree (hEs S) U)
   :
     (interp_hEs_tgt (Tau t))
@@ -1733,7 +1734,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_ret
-      (U: Type)
+      (S U: Type)
       (t: U)
   :
     ((interp_hEs_tgt (Ret t: itree (hEs S) _)))
@@ -1744,7 +1745,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_triggerp
-      (R: Type)
+      (S R: Type)
       (i: (sE S) R)
   :
     (interp_hEs_tgt (trigger i))
@@ -1756,7 +1757,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_triggere
-      (R: Type)
+      (S R: Type)
       (i: eventE R)
   :
     (interp_hEs_tgt (trigger i: itree (hEs S) _))
@@ -1768,7 +1769,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_call
-      (R: Type)
+      (S R: Type)
       (i: callE R)
   :
     (interp_hEs_tgt (trigger i: itree (hEs S) _))
@@ -1780,7 +1781,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_hapc
-      (R: Type)
+      (S R: Type)
       (i: hAPCE R)
   :
     (interp_hEs_tgt (trigger i: itree (hEs S) _))
@@ -1792,7 +1793,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_triggerUB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hEs_tgt (triggerUB: itree (hEs S) _))
     =
@@ -1802,7 +1803,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_triggerNB
-      (R: Type)
+      (S R: Type)
   :
     (interp_hEs_tgt (triggerNB: itree (hEs S) _))
     =
@@ -1812,7 +1813,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_unwrapU
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hEs_tgt (@unwrapU (hEs S) _ _ i))
@@ -1831,7 +1832,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_unwrapN
-      (R: Type)
+      (S R: Type)
       (i: option R)
   :
     (interp_hEs_tgt (@unwrapN (hEs S) _ _ i))
@@ -1850,7 +1851,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_assume
-      P
+      S P
   :
     (interp_hEs_tgt (assume P: itree (hEs S) _))
     =
@@ -1861,7 +1862,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_guarantee
-      P
+      S P
   :
     (interp_hEs_tgt (guarantee P: itree (hEs S) _))
     =
@@ -1871,7 +1872,7 @@ Proof.
 Qed.
 
 Lemma interp_hEs_tgt_ext
-      R (itr0 itr1: itree (hEs S) R)
+      S R (itr0 itr1: itree (hEs S) R)
       (EQ: itr0 = itr1)
   :
     (interp_hEs_tgt itr0)

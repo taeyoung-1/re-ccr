@@ -6,6 +6,7 @@ From ITree Require Export
      Events.MapDefault
      Events.State
      Events.StateFacts
+     Interp.TranslateFacts
      EqAxiom
 .
 From ExtLib Require Export

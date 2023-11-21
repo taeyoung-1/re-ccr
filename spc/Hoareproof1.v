@@ -2,7 +2,6 @@ Require Import Coqlib.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
-Import ModSemL.
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
@@ -89,37 +88,41 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
-  Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
+  Let sk: Sk.t := Sk.add Sk.unit (SMod.sk md).
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
-  Let mss: list SModSem.t := (List.map ((flip SMod.get_modsem) sk) mds).
-  Let sbtb: list (gname * fspecbody) := (List.flat_map (SModSem.fnsems) mss).
-  Let _stb: list (gname * fspec) := List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) sbtb.
+  Let ms: SModSem.t := SMod.get_modsem md sk.
+  Let sbtb := SModSem.fnsems ms.
+  Let _stb := fun fn => match (sbtb fn) with
+                      | None => None
+                      | Some fsb => Some (fsb_fspec fsb)
+                      end
+  .
 
   Variable stb: gname -> option fspec.
   Hypothesis STBCOMPLETE:
-    forall fn fsp (FIND: alist_find fn _stb = Some fsp), stb fn = Some fsp.
+    forall fn fsp (FIND: _stb fn = Some fsp), stb fn = Some fsp.
   Hypothesis STBSOUND:
-    forall fn (FIND: alist_find fn _stb = None),
+    forall fn (FIND: _stb fn = None),
       (<<NONE: stb fn = None>>) \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
 
-  Let mds_mid2: list Mod.t := List.map (SMod.to_mid2 stb) mds.
-  Let mds_mid: list Mod.t := List.map (SMod.to_mid stb) mds.
+  Let md_mid2: Mod.t := SMod.to_mid2 stb md.
+  Let md_mid: Mod.t := SMod.to_mid stb md.
 
 
 
   Let W: Type := p_state.
   (* Let wf: Ord.t -> W -> W -> Prop := top3. *)
 
-  Opaque EventsL.interp_Es.
+  Opaque interp_Es.
 
-  Let ms_mid2: ModSemL.t := ModL.enclose (Mod.add_list mds_mid2).
-  Let ms_mid: ModSemL.t := ModL.enclose (Mod.add_list mds_mid).
+  Let ms_mid2: ModSem.t := Mod.enclose md_mid2.
+  Let ms_mid: ModSem.t := Mod.enclose md_mid.
 
-  Let p_mid2 := ModSemL.prog ms_mid2.
-  Let p_mid := ModSemL.prog ms_mid.
+  Let p_mid2 := ModSem.prog ms_mid2.
+  Let p_mid := ModSem.prog ms_mid.
 
   Ltac _step tac :=
     match goal with
@@ -168,24 +171,21 @@ Section CANCEL.
   Ltac steps := repeat (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
   Ltac steps_strong := repeat (mred; try (_step ltac:(guclo simg_indC_spec)); des_ifs_safe).
 
-  Lemma stb_find_iff_aux fn
+   Lemma stb_find_iff_aux fn
     :
-      ((<<NONE: alist_find fn _stb = None>>) /\
-       (<<FINDSRC: alist_find fn (fnsems ms_mid2) = None>>) /\
-       (<<FINDMID: alist_find fn (fnsems ms_mid) = None>>)) \/
+      ((<<NONE: _stb fn = None>>) /\
+       (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn = None>>) /\
+       (<<FINDMID: ms_mid.(ModSem.fnsems) fn = None>>)) \/
 
-      (exists md (f: fspecbody),
-          (<<SOME: alist_find fn _stb = Some (f: fspec)>>) /\
-          (<<FINDSRC: alist_find fn (fnsems ms_mid2) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn
-                                 (SMod.get_modsem md sk))
-                              ∘ fun_to_mid2 (fsb_body f))>>) /\
-          (<<FINDMID: alist_find fn (fnsems ms_mid) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn
-                                 (SMod.get_modsem md sk))
-                              ∘ fun_to_mid stb (fsb_body f))>>)).
+      (exists md (f: fspecbody (SMod.get_modsem md sk).(SModSem.state)) 
+      (f1: fspecbody ms_mid.(ModSem.state)) (f2: fspecbody ms_mid2.(ModSem.state)),
+      (* (exists md (f: fspecbody (ModSem.state ms_mid) ), *)
+
+          (<<SOME: _stb fn = Some (fsb_fspec f)>>) /\
+          (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn =
+                      Some (fun_to_mid2 (fsb_body (f2)))>>) /\
+          (<<FINDMID: ms_mid.(ModSem.fnsems) fn =
+                      Some (fun_to_mid stb (fsb_body (f1))) >>)).
   Proof.
     unfold ms_mid2, ms_mid, mds_mid, mds_mid2, SMod.to_mid2, SMod.to_mid.
     rewrite SMod.transl_fnsems. rewrite SMod.transl_fnsems. fold sk.
@@ -199,6 +199,7 @@ Section CANCEL.
     { right. esplits; et. }
   Qed.
 
+  (*
   Lemma stb_find_iff fn
     :
       ((<<NONE: stb fn = None>> \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>)) /\
@@ -221,15 +222,15 @@ Section CANCEL.
     hexploit (stb_find_iff_aux fn). i. des.
     { left. esplits; et. }
     { right. esplits; et. }
-  Qed.
+  Qed. *)
 
   Let adequacy_type_aux__APC:
-    forall at_most o0 mn
+    forall at_most o0
            st_src0 st_tgt0
     ,
-      simg (fun (st_src1: p_state * unit) '(st_tgt1, x) => st_tgt1 = st_tgt0)
+      simg (fun (st_src1: ms_mid2.(ModSem.state) * unit) '(st_tgt1, x) => st_tgt1 = st_tgt0)
            false false (Ret (st_src0, tt))
-           (EventsL.interp_Es p_mid (transl_all mn (interp_hCallE_mid stb (ord_pure o0) (_APC at_most))) st_tgt0)
+           (interp_Es p_mid ((interp_hCallE_mid stb (ord_pure o0) (_APC _ at_most))) st_tgt0)
   .
   Proof.
     ginit.
@@ -239,10 +240,89 @@ Section CANCEL.
     pattern fuel. eapply well_founded_induction. { eapply wf_opair_lt. } clear fuel.
     intros fuel IH. i.
 
-    rewrite unfold_APC. steps.
+    rewrite unfold_APC. 
+    (* steps. (* Anomaly "in retyping: Bad recursive type." Please report at http://coq.inria.fr/bugs/. *) *)
+    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
+    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind. 
+    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et. 
+    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau. 
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite interp_Es_ret. rewrite bind_ret_l.
+
     destruct x.
     { steps. }
-    steps. hexploit (stb_find_iff s). i. des.
+    
+    (* (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
+    cbn; ired_both. (* Anomaly "in retyping: Bad recursive type." Please report at http://coq.inria.fr/bugs/. *)
+    *)
+    (* steps. *)
+    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
+    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind.
+    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite interp_Es_ret. rewrite bind_ret_l.
+
+    rewrite interp_mid_bind. rewrite interp_mid_guarantee. rewrite bind_bind.
+    rewrite interp_Es_bind. rewrite interp_Es_guarantee. rewrite bind_bind.
+    unfold guarantee. rewrite bind_bind.
+    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i. rewrite bind_ret_l.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite interp_Es_ret. rewrite bind_ret_l.
+    
+    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
+    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind.
+    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
+    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
+    rewrite interp_Es_ret. rewrite bind_ret_l.
+    destruct x1.
+    
+    rewrite interp_mid_bind. rewrite interp_mid_hcall. rewrite bind_bind.
+    rewrite interp_Es_bind. unfold handle_hCallE_mid. rewrite interp_Es_tau. rewrite bind_tau.
+    guclo simg_safe_spec. econs; et. 
+    rewrite interp_Es_bind. rewrite interp_Es_unwrapN. unfold unwrapN. des_ifs.
+    { rewrite bind_bind. rewrite bind_ret_l. rewrite bind_ret_l. rewrite interp_Es_bind. 
+      rewrite interp_Es_guarantee. unfold guarantee. rewrite bind_bind. rewrite bind_bind. rewrite bind_bind.
+      guclo simg_safe_spec. econs; et. i. rewrite bind_ret_l.
+      rewrite bind_tau. rewrite bind_tau.
+      guclo simg_safe_spec. econs; et.
+      guclo simg_safe_spec. econs; et.
+      rewrite bind_ret_l.
+      rewrite interp_Es_bind. rewrite interp_Es_bind. rewrite interp_Es_eventE. repeat (rewrite bind_bind).
+      guclo simg_safe_spec. econs; et. i.
+      rewrite bind_tau. rewrite bind_tau.
+      repeat (guclo simg_safe_spec; econs; et).
+      rewrite bind_ret_l. rewrite interp_Es_ret. rewrite bind_ret_l.
+      repeat (rewrite interp_Es_bind). rewrite interp_Es_eventE. repeat (rewrite bind_bind).
+      guclo simg_safe_spec. econs; et. i.
+      rewrite bind_tau. rewrite bind_tau.
+      repeat (guclo simg_safe_spec; econs; et). rewrite bind_ret_l.
+      rewrite interp_Es_ret. rewrite bind_ret_l.
+      rewrite interp_Es_callE. rewrite bind_tau. guclo simg_safe_spec. econs; et.
+      guclo simg_safe_spec.
+    }
+    guclo simg_safe_spec. 
+    
+
+    hexploit (stb_find_iff s). i. des.
     { rewrite NONE. steps. }
     { rewrite FIND. steps. exfalso. eapply x1; et. }
     rewrite STB. steps.

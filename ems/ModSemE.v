@@ -113,6 +113,7 @@ End EVENTSCOMMON.
 
 Section EVENTS.
 
+Section DEFINES.
   Variable S: Type.
   (* Variable st: Type.*)
 
@@ -124,7 +125,7 @@ Section EVENTS.
   | SUpdate (run : Any.t -> Any.t * Any.t) : sE Any.t
   . *)
 
-  Variant sE  (X : Type) : Type :=
+  Variant sE (X : Type) : Type :=
   | SUpdate (run : S -> S * X) : sE X
   .
   
@@ -227,11 +228,11 @@ Section EVENTS.
     '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
-
+End DEFINES.
   Lemma interp_Es_bind
-        A B
-        (itr: itree Es A) (ktr: A -> itree Es B)
-        (prog: callE ~> itree Es)
+        st A B
+        (itr: itree (Es st) A) (ktr: A -> itree (Es st) B)
+        (prog: callE ~> itree (Es st))
         st0
     :
       interp_Es prog (v <- itr ;; ktr v) st0 =
@@ -240,9 +241,10 @@ Section EVENTS.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_tau
-        (prog: callE ~> itree Es)
+        st
+        (prog: callE ~> itree (Es st))
         A
-        (itr: itree Es A)
+        (itr: itree (Es st) A)
         st0
     :
       interp_Es prog (tau;; itr) st0 = tau;; interp_Es prog itr st0
@@ -250,15 +252,15 @@ Section EVENTS.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_ret
-        T
+        st T
         prog st0 (v: T)
     :
-      interp_Es prog (Ret v) st0 = Ret (st0, v)
+      interp_Es prog (Ret v: itree (Es st) _) st0 = Ret (st0, v)
   .
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_callE
-        p st0 T
+        st p (st0: st) T
         (* (e: Es Σ) *)
         (e: callE T)
     :
@@ -267,10 +269,10 @@ Section EVENTS.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_sE
-        p st0
+        st p st0
         (* (e: Es Σ) *)
         T
-        (e: sE T)
+        (e: sE st T)
     :
       interp_Es p (trigger e) st0 =
       '(st1, r) <- handle_sE e st0;;
@@ -282,7 +284,7 @@ Section EVENTS.
   Qed.
 
   Lemma interp_Es_eventE
-        p st0
+        st p (st0: st)
         (* (e: Es Σ) *)
         T
         (e: eventE T)
@@ -295,7 +297,8 @@ Section EVENTS.
   Qed.
 
   Lemma interp_Es_triggerUB
-        (prog: callE ~> itree Es)
+        st
+        (prog: callE ~> itree (Es st))
         st0
         A
     :
@@ -306,7 +309,8 @@ Section EVENTS.
   Qed.
 
   Lemma interp_Es_triggerNB
-        (prog: callE ~> itree Es)
+        st
+        (prog: callE ~> itree (Es st))
         st0
         A
     :
