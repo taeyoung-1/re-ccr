@@ -6,8 +6,6 @@ Require Export AList.
 Require Import Skeleton.
 Require Import STS Behavior.
 Require Import Any.
-Require Import Permutation.
-Require Import Optics.
 
 Set Implicit Arguments.
 
@@ -258,36 +256,7 @@ Section INTERP.
 
 End INTERP.
 
-
-
-Section ADD.
-  Variable M1 M2 : t.
-
-  Definition emb_l : forall X, Es (state M1) X -> Es (state M1 * state M2) X  :=
-    lmap fstl.
-
-  Definition emb_r : forall X, Es (state M2) X -> Es (state M1 * state M2) X :=
-    lmap sndl.
-
-  Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
-    fun fn =>
-      match M1.(fnsems) fn, M2.(fnsems) fn with
-      | Some fn_body, None => Some (fun args => translate emb_l (fn_body args))
-      | None, Some fn_body => Some (fun args => translate emb_r (fn_body args))
-      | Some _, Some _ => Some (fun args => triggerUB)
-      | _, _ => None
-      end.
-
-  Definition add : t :=
-  {|
-    state := state M1 * state M2;
-    init_st := (init_st M1, init_st M2);
-    fnsems := add_fnsems;
-  |}.
-
-End ADD.
-
-Lemma itr_snd
+(* Lemma itr_snd
         (S0 S1 A: Type)
         (st0: S0) (st1: S1) (a: A)
         (itr0: itree eventE (S0 * A)) (itr1: itree eventE (S1 * A)) 
@@ -298,16 +267,10 @@ Lemma itr_snd
 .
 Proof. 
   simpl. rewrite I0, I1. unfold ITree.map. rewrite bind_ret_l. rewrite bind_ret_l. et.
-Qed.
-(* 
-Lemma add_fnsems_comm
-      ms0 ms1 fn
-:
-      (add_fnsems ms0 ms1 fn) = (add_fnsems ms1 ms0 fn)
-. *)
+Qed. *)
 
 
-Lemma interp_Es_vis
+(* Lemma interp_Es_vis
 T R st p (st0: st)
 (* (e: Es Σ) *)
 (c: callE T) (k: T -> itree (Es st) R)
@@ -317,7 +280,8 @@ interp_Es p (Vis (c|)%sum k) st0 = tau;; (interp_Es p (ITree.bind (p _ c) k) st0
 Proof. 
 unfold interp_Es, interp_sE.
 rewrite interp_mrec_bind. grind.
-Admitted. 
+Admitted.  *)
+
 (* f_equal. 
 
 Check interp_mrec_trigger.
@@ -325,7 +289,7 @@ change (` x : T <- ITree.trigger (c|)%sum;; k x) with (ITree.bind (ITree.trigger
 grind. Qed. *)
 
 
-
+(* 
 Context {CONF: EMSConfig}.
 
 Let add_comm_aux
@@ -350,27 +314,9 @@ Proof.
   - econs 4; et. pclearbot. right. eapply CIH; et.
   - econs 5; et. rr in STEP. des. rr. esplits; et.
   - econs 6; et. ii. exploit STEP; et. i; des. clarify.
-Qed.
-
-(* Lemma wf_comm
-      ms0 ms1
-  :
-    <<EQ: wf (add ms0 ms1) = wf (add ms1 ms0)>>
-.
-Proof.
-  assert (forall ms0 ms1, wf (add ms0 ms1) -> wf (add ms1 ms0)).
-  { i. inv H. econs; ss.
-    { rewrite List.map_app in *.
-      eapply nodup_comm; et. }
-    { rewrite List.map_app in *.
-      eapply nodup_comm; et. }
-  }
-  r. eapply prop_ext. split; i; auto.
 Qed. *)
 
-
-
-Theorem add_comm
+(* Theorem add_comm
         ms0 ms1
         (P0 P1: Prop) (IMPL: P1 -> P0)
         (* (WF: wf (add ms1 ms0)) *)
@@ -444,7 +390,7 @@ Proof.
     {
       admit.
     }
-Admitted.
+Admitted. *)
 
   (* revert ms0 ms1. pcofix CIH. i.
   pfold.
@@ -461,43 +407,6 @@ Admitted.
   
   
 Qed. *)
-
-Lemma add_assoc' ms0 ms1 ms2:
-  add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
-Proof. Admitted.
-  (* induction ms2; ss. unfold add. f_equal; ss.
-  { eapply app_assoc. }
-  { eapply app_assoc. }
-Qed. *)
-
-Lemma add_assoc_eq ms0 ms1 ms2
-  :
-    add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
-Proof. Admitted.
-  (* unfold add. ss. f_equal.
-  { apply List.app_assoc. }
-  { apply List.app_assoc. }
-Qed. *)
-
-Theorem add_assoc
-        ms0 ms1 ms2 P
-  :
-    <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) P) <1=
-            Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
-.
-Proof. 
-  rewrite add_assoc_eq. ss.
-Qed.
-
-Theorem add_assoc_rev
-        ms0 ms1 ms2 P
-  :
-    <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) P) <1=
-            Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
-.
-Proof.
-  rewrite add_assoc_eq. ss.
-Qed.
 
 End MODSEM.
 End ModSem.
@@ -520,158 +429,6 @@ Section MOD.
     get_modsem := fun _ => ModSem.mk tt↑ (fun _ => None);
     sk := Sk.unit;
   |}.
-
-(* End MOD. *)
-
-
-Section BEH.
-
-Context {CONF: EMSConfig}.
-
-(* Definition compile (md: t): semantics :=
-  ModSemL.compile_itree (ModSemL.initial_itr md.(enclose) (Some (wf md))). *)
-
-
-Definition compile (md: t): semantics :=
-  ModSem.compile_itree (ModSem.initial_itr md.(enclose) (Some (wf md))).
-
-
-(*** wf about modsem is enforced in the semantics ***)
-
-Definition add (md0 md1: t): t := {|
-  get_modsem := fun sk =>
-                  ModSem.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
-  sk := Sk.add md0.(sk) md1.(sk);
-|}
-.
-
-
-(* Definition add (md0 md1: t): t := {|
-  get_modsem := fun sk =>
-                  ModSemL.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
-  sk := Sk.add md0.(sk) md1.(sk);
-|}
-. *)
-
-Theorem add_comm
-        md0 md1
-  :
-    <<COMM: Beh.of_program (compile (add md0 md1)) <1= Beh.of_program (compile (add md1 md0))>>
-.
-Proof. Admitted.
-  (* ii. unfold compile in *.
-  destruct (classic (Sk.wf (sk (add md1 md0)))).
-  (* 2: { eapply ModSemL.initial_itr_not_wf. ss. } *)
-  ss. des. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
-  { apply Sk.wf_comm. auto. }
-  rewrite Sk.add_comm; et.
-  eapply ModSem.add_comm. [| |et].
-  { i. split; auto. unfold enclose. ss. rewrite Sk.add_comm; et.
-    inv H2. inv H3. econs; ss.
-    { rewrite List.map_app in *. eapply nodup_comm; et. }
-    { rewrite List.map_app in *. eapply nodup_comm; et. }
-  }
-  { rewrite Sk.add_comm; et. }
-Qed. *)
-
-
-
-Lemma add_assoc' ms0 ms1 ms2:
-  add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
-Proof.
-  unfold add. f_equal.
-  { extensionality skenv_link. ss. apply ModSem.add_assoc'. }
-  { ss. rewrite Sk.add_assoc. auto. }
-Qed.
-
-Theorem add_assoc
-        md0 md1 md2
-  :
-    <<COMM: Beh.of_program (compile (add md0 (add md1 md2))) =
-            Beh.of_program (compile (add (add md0 md1) md2))>>
-.
-Proof.
-  rewrite add_assoc'. ss.
-Qed.
-
-Theorem add_assoc_rev
-        md0 md1 md2
-  :
-    <<COMM: Beh.of_program (compile (add (add md0 md1) md2)) =
-            Beh.of_program (compile (add md0 (add md1 md2)))>>
-.
-Proof.
-  rewrite add_assoc'. ss.
-Qed.
-
-Lemma add_empty_r 
-      md
-  : 
-    << EMPTY: Beh.of_program (compile (add md empty)) =
-              Beh.of_program (compile md)>>
-.
-Proof. Admitted.
-
-Lemma add_empty_l 
-      md
-  : 
-    << EMPTY: Beh.of_program (compile (add empty md)) =
-              Beh.of_program (compile md)>>
-.
-Proof. Admitted.
-
-
-(* Lemma add_empty_r md: add md empty = md.
-Proof.
-  destruct md; ss.
-  unfold add, ModSem.add. f_equal; ss.
-  - extensionality skenv. destruct (get_modsem0 skenv); ss.
-    repeat rewrite app_nil_r. auto.
-  - eapply Sk.add_unit_r.
-Qed.
-
-Lemma add_empty_l md: add empty md = md.
-Proof.
-  destruct md; ss.
-  unfold add, ModSemL.add. f_equal; ss.
-  { extensionality skenv. destruct (get_modsem0 skenv); ss. }
-  { apply Sk.add_unit_l. }
-Qed. *)
-
-
-Definition add_list (xs: list t): t :=
-  fold_right add empty xs
-.
-
-(* Lemma add_list_single: forall (x: t), add_list [x] = x.
-Proof. ii; cbn. rewrite add_empty_r. refl. Qed. *)
-
-Definition add_list_cons
-          x xs
-        :
-          (add_list (x::xs) = (add x (add_list xs)))
-.
-Proof. ss. Qed.
-(* 
-Definition add_list_snoc
-          x xs
-        :
-          add_list (snoc xs x) = add (add_list xs) x
-.
-Proof. ginduction xs; ii; ss. Admitted. *)
-
-Definition add_list_snoc
-          x xs
-        :
-          << SNOC: Beh.of_program (compile (add_list (snoc xs x))) = 
-                   Beh.of_program (compile (add (add_list xs) x)) >>
-.
-Proof. Admitted.
-  (* ginduction xs; ii; ss.
-  { cbn. rewrite add_empty_l, add_empty_r. et. }
-  { cbn. rewrite <- add_assoc'.  r in IHxs. r. f_equal.}  *)
-
-End BEH.
 
 End MOD.
 End Mod.
@@ -708,7 +465,7 @@ End EVENTSCOMMON.
  
 
 
-
+(* 
 
 
 Module Equisatisfiability.
@@ -787,280 +544,8 @@ pqrname :=
   (*   | _ => triggerNB *)
   (*   end *)
   (* . *)
-End Equisatisfiability.
+End Equisatisfiability. *)
 
-
-Section REFINE.
-  Context `{Sk.ld}.
-
-   Definition refines {CONF: EMSConfig} (md_tgt md_src: Mod.t): Prop :=
-     (* forall (ctx: list Mod.t), Beh.of_program (ModL.compile (add_list (md_tgt :: ctx))) <1= *)
-     (*                           Beh.of_program (ModL.compile (add_list (md_src :: ctx))) *)
-     forall (ctx: list Mod.t), Beh.of_program (Mod.compile (Mod.add (Mod.add_list ctx) md_tgt)) <1=
-                               Beh.of_program (Mod.compile (Mod.add (Mod.add_list ctx) md_src))
-   .
-
-   Definition refines_strong (md_tgt md_src: Mod.t): Prop :=
-     forall {CONF: EMSConfig}, refines md_tgt md_src.
-
-
-   Section CONF.
-   Context {CONF: EMSConfig}.
-
-   Definition refines2 (md_tgt md_src: list Mod.t): Prop :=
-     forall (ctx: list Mod.t), Beh.of_program (Mod.compile (Mod.add (Mod.add_list ctx) (Mod.add_list md_tgt))) <1=
-                               Beh.of_program (Mod.compile (Mod.add (Mod.add_list ctx) (Mod.add_list md_src)))
-   .
-
-   
-   (* Global Program Instance refines2_PreOrder: PreOrder refines2.
-   Next Obligation.
-     ii. ss.
-   Qed.
-   Next Obligation.
-     ii. eapply H0 in PR. eapply H1 in PR. eapply PR.
-   Qed. *)
-
-   (*** vertical composition ***)
-   Global Program Instance refines_PreOrder: PreOrder refines.
-   Next Obligation. ii. ss. Qed.
-   Next Obligation. ii. eapply H1. eapply H0. ss. Qed.
-
-   Global Program Instance refines_strong_PreOrder: PreOrder refines_strong.
-   Next Obligation. ii. ss. Qed.
-   Next Obligation. ii. eapply H1. eapply H0. ss. Qed.
-
-
-
-   (*** horizontal composition ***)
-   Theorem refines_add
-         (md0_src md0_tgt md1_src md1_tgt: Mod.t)
-         (SIM0: refines md0_tgt md0_src)
-         (SIM1: refines md1_tgt md1_src)
-     :
-       <<SIM: refines (Mod.add md0_tgt md1_tgt) (Mod.add md0_src md1_src)>>
-   .
-   Proof. Admitted.
-(*    
-     ii. r in SIM0. r in SIM1.
-     (***
-ctx (a0 b0)
-(ctx a0) b0
-(ctx a0) b1
-      ***)
-     rewrite Mod.add_assoc in PR.
-     specialize (SIM1 (snoc ctx md0_tgt)). spc SIM1. rewrite Mod.add_list_snoc in SIM1.  eapply SIM1 in PR.
-     (***
-ctx (a0 b1)
-(a0 b1) ctx
-a0 (b1 ctx)
-(b1 ctx) a0
-      ***)
-     rewrite <- Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     rewrite <- Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     (***
-(b1 ctx) a1
-a1 (b1 ctx)
-(a1 b1) ctx
-ctx (a1 b1)
-      ***)
-     specialize (SIM0 (cons md1_src ctx)). spc SIM0. rewrite Mod.add_list_cons in SIM0. eapply SIM0 in PR.
-     eapply Mod.add_comm in PR.
-     rewrite Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     ss.
-   Qed. *)
-
-   Theorem refines_proper_r
-         (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
-         (SIM0: refines (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
-     :
-       <<SIM: refines (Mod.add (Mod.add_list mds0_tgt) (Mod.add_list ctx)) (Mod.add (Mod.add_list mds0_src) (Mod.add_list ctx))>>
-   .
-   Proof. Admitted.
-(*    
-     ii. r in SIM0. rename ctx into xs. rename ctx0 into ys.
-     (***
-ys + (tgt + xs)
-(tgt + xs) + ys
-tgt + (xs + ys)
-(xs + ys) + tgt
-      ***)
-     eapply Mod.add_comm in PR.
-     rewrite <- Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     (***
-(xs + ys) + src
-src + (xs + ys)
-(src + xs) + ys
-ys + (src + xs)
-      ***)
-     specialize (SIM0 (xs ++ ys)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
-     eapply Mod.add_comm in PR.
-     rewrite Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     ss.
-   Qed. *)
-
-   Theorem refines_proper_l
-         (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
-         (SIM0: refines (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
-     :
-       <<SIM: refines (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_tgt)) (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_src))>>
-   .
-   Proof. Admitted.
-     (* ii. r in SIM0. rename ctx into xs. rename ctx0 into ys.
-     (***
-ys + (xs + tgt)
-(ys + xs) + tgt
-(ys + xs) + src
-ys + (xs + src)
-      ***)
-     rewrite Mod.add_assoc' in PR.
-     specialize (SIM0 (ys ++ xs)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
-     rewrite <- Mod.add_assoc' in PR.
-     ss.
-   Qed.  *)
-
-   Definition refines_closed (md_tgt md_src: Mod.t): Prop :=
-     Beh.of_program (Mod.compile md_tgt) <1= Beh.of_program (Mod.compile md_src)
-   .
-
-   Global Program Instance refines_closed_PreOrder: PreOrder refines_closed.
-   Next Obligation. ii; ss. Qed.
-   Next Obligation. ii; ss. eapply H1. eapply H0. eauto. Qed.
-
-   Lemma refines_close: refines <2= refines_closed.
-   Proof. ii. specialize (PR nil). ss. unfold Mod.add_list in *. ss. rewrite ! Mod.add_empty_l in PR. eauto. Qed.
-
-   (*** horizontal composition ***)
-   Theorem refines2_add
-         (s0 s1 t0 t1: list Mod.t)
-         (SIM0: refines2 t0 s0)
-         (SIM1: refines2 t1 s1)
-     :
-       <<SIM: refines2 (t0 ++ t1) (s0 ++ s1)>>
-   .
-   Proof. Admitted.
-(*    
-     ii. r in SIM0. r in SIM1.
-     (***
-ctx (a0 b0)
-(ctx a0) b0
-(ctx a0) b1
-      ***)
-     rewrite Mod.add_list_app in PR.
-     rewrite Mod.add_assoc in PR.
-     specialize (SIM1 (ctx ++ t0)). spc SIM1. rewrite Mod.add_list_app in SIM1. eapply SIM1 in PR.
-     (***
-ctx (a0 b1)
-(a0 b1) ctx
-a0 (b1 ctx)
-(b1 ctx) a0
-      ***)
-     rewrite <- Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     rewrite <- Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     (***
-(b1 ctx) a1
-a1 (b1 ctx)
-(a1 b1) ctx
-ctx (a1 b1)
-      ***)
-     specialize (SIM0 (s1 ++ ctx)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
-     eapply Mod.add_comm in PR.
-     rewrite Mod.add_assoc' in PR.
-     eapply Mod.add_comm in PR.
-     rewrite ! Mod.add_list_app in *.
-     assumption.
-   Qed.  *)
-
-
-   Corollary refines2_pairwise
-             (mds0_src mds0_tgt: list Mod.t)
-             (FORALL: List.Forall2 (fun md_src md_tgt => refines2 [md_src] [md_tgt]) mds0_src mds0_tgt)
-     :
-       refines2 mds0_src mds0_tgt.
-   Proof.
-     induction FORALL; ss.
-     hexploit refines2_add.
-     { eapply H0. }
-     { eapply IHFORALL. }
-     i. ss.
-   Qed.
-
-   Lemma refines2_eq (mds0 mds1: list Mod.t)
-     :
-       refines2 mds0 mds1 <-> refines (Mod.add_list mds0) (Mod.add_list mds1).
-   Proof.
-     split.
-     { ii. eapply H0. auto. }
-     { ii. eapply H0. auto. }
-   Qed.
-
-   Lemma refines2_app mhd0 mhd1 mtl0 mtl1
-         (HD: refines2 mhd0 mhd1)
-         (TL: refines2 mtl0 mtl1)
-     :
-       refines2 (mhd0++mtl0) (mhd1++mtl1).
-   Proof. Admitted.
-(*    
-     eapply refines2_eq. rewrite ! Mod.add_list_app. etrans.
-     { eapply refines_proper_l. eapply refines2_eq. et. }
-     { eapply refines_proper_r. eapply refines2_eq. et. }
-   Qed. *)
-
-   Lemma refines2_cons mhd0 mhd1 mtl0 mtl1
-         (HD: refines2 [mhd0] [mhd1])
-         (TL: refines2 mtl0 mtl1)
-     :
-       refines2 (mhd0::mtl0) (mhd1::mtl1).
-   Proof.
-     eapply (refines2_app HD TL).
-   Qed.
-
-   End CONF.
-
-
-
-   (*** horizontal composition ***)
-   Theorem refines_strong_add
-         (md0_src md0_tgt md1_src md1_tgt: Mod.t)
-         (SIM0: refines_strong md0_tgt md0_src)
-         (SIM1: refines_strong md1_tgt md1_src)
-     :
-       <<SIM: refines_strong (Mod.add md0_tgt md1_tgt) (Mod.add md0_src md1_src)>>
-   .
-   Proof.
-     intros CONF. eapply (@refines_add CONF); et.
-   Qed.
-
-   Theorem refines_strong_proper_r
-         (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
-         (SIM0: refines_strong (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
-     :
-       <<SIM: refines_strong (Mod.add (Mod.add_list mds0_tgt) (Mod.add_list ctx)) (Mod.add (Mod.add_list mds0_src) (Mod.add_list ctx))>>
-   .
-   Proof.
-     intros CONF. eapply (@refines_proper_r CONF); et.
-   Qed.
-
-   Theorem refines_strong_proper_l
-         (mds0_src mds0_tgt: list Mod.t) (ctx: list Mod.t)
-         (SIM0: refines_strong (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
-     :
-       <<SIM: refines_strong (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_tgt)) (Mod.add (Mod.add_list ctx) (Mod.add_list mds0_src))>>
-   .
-   Proof.
-     intros CONF. eapply (@refines_proper_l CONF); et.
-   Qed.
-
-   Lemma refines_strong_refines {CONF: EMSConfig}: refines_strong <2= refines.
-   Proof. ii. eapply PR; et. Qed.
-End REFINE.
 
 
 Global Existing Instance Sk.gdefs.
@@ -1154,82 +639,4 @@ Section AUX.
       (mk_box interp_Es_ext)
   .
 
-  (* Do we still need trans_all? *)
-(* 
-  Lemma transl_all_unwrapU
-        mn R (r: option R)
-    :
-      transl_all mn (unwrapU r) = unwrapU r
-  .
-  Proof.
-    unfold unwrapU. des_ifs.
-    - rewrite transl_all_ret. grind.
-    - rewrite transl_all_triggerUB. unfold triggerUB. grind.
-  Qed.
-
-  Lemma transl_all_unwrapN
-        mn R (r: option R)
-    :
-      transl_all mn (unwrapN r) = unwrapN r
-  .
-  Proof.
-    unfold unwrapN. des_ifs.
-    - rewrite transl_all_ret. grind.
-    - rewrite transl_all_triggerNB. unfold triggerNB. grind.
-  Qed.
-
-  Lemma transl_all_assume
-        mn (P: Prop)
-    :
-      transl_all mn (assume P) = assume P;;; tau;; Ret (tt)
-  .
-  Proof.
-    unfold assume.
-    repeat (try rewrite transl_all_bind; try rewrite bind_bind). grind.
-    rewrite transl_all_eventE.
-    repeat (try rewrite transl_all_bind; try rewrite bind_bind). grind.
-    rewrite transl_all_ret.
-    refl.
-  Qed.
-
-  Lemma transl_all_guarantee
-        mn (P: Prop)
-    :
-      transl_all mn (guarantee P) = guarantee P;;; tau;; Ret (tt)
-  .
-  Proof.
-    unfold guarantee.
-    repeat (try rewrite transl_all_bind; try rewrite bind_bind). grind.
-    rewrite transl_all_eventE.
-    repeat (try rewrite transl_all_bind; try rewrite bind_bind). grind.
-    rewrite transl_all_ret.
-    refl.
-  Qed.
-
-  Lemma transl_all_ext
-        mn R (itr0 itr1: itree _ R)
-        (EQ: itr0 = itr1)
-    :
-      transl_all mn itr0 = transl_all mn itr1
-  .
-  Proof. subst; refl. Qed.
-
-  Global Program Instance transl_all_rdb: red_database (mk_box (@transl_all)) :=
-    mk_rdb
-      0
-      (mk_box transl_all_bind)
-      (mk_box transl_all_tau)
-      (mk_box transl_all_ret)
-      (mk_box transl_all_pE)
-      (mk_box transl_all_pE)
-      (mk_box transl_all_callE)
-      (mk_box transl_all_eventE)
-      (mk_box transl_all_triggerUB)
-      (mk_box transl_all_triggerNB)
-      (mk_box transl_all_unwrapU)
-      (mk_box transl_all_unwrapN)
-      (mk_box transl_all_assume)
-      (mk_box transl_all_guarantee)
-      (mk_box transl_all_ext)
-  . *)
 End AUX.
