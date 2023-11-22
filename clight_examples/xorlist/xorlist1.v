@@ -337,15 +337,144 @@ Section PROP.
       iFrame. clarify.
   Qed.
 
-  (* Lemma frag_xorlist_snoc m_hd mid_next' q i i_prev i_next hd_prev hd mid xs0 m_prev:
+  Lemma capture_ii m i1 i2 :
+    (Vptrofs i1) (≃_m) i2 ⊢ ⌜i1 = i2⌝.
+  Proof.
+    iIntros. rewrite Ptrofs.of_int64_to_int64 in H3; et.
+  Qed.
+
+  Lemma ofs_cap_same_meta b ofs m1 tg q ofs' m2 i :
+    (Vptr b ofs) (⊨_m1, tg, q) ofs' ** (Vptr b ofs) (≃_m2) i ⊢ ⌜m1 = m2⌝.
+  Proof.
+    iIntros "[[A B] C]".
+    unfold _has_offset. ss.
+    iDestruct "B" as "[B %]".
+    iDestruct "C" as "[C D]".
+    iDestruct "D" as (a) "[D %]".
+    des. clarify.
+    rewrite H4.
+    iCombine "C B" as "C".
+    iOwnWf "C" as wfc.
+    ur in wfc. specialize (wfc (blk m2)).
+    ur in wfc. Transparent _has_size. unfold _has_size in wfc.
+    des_ifs. Opaque _has_size. iPureIntro. destruct m1.
+    destruct m2. ss. clarify.
+    assert (asdf = asdf0).
+    { apply proof_irrel. }
+    rewrite H3. et.
+  Qed.
+
+  Lemma point_cap_same_meta b ofs m1 q mvs m2 i :
+    (Vptr b ofs) (↦_m1, q) mvs ** (Vptr b ofs) (≃_m2) i ⊢ ⌜m1 = m2⌝.
+  Proof.
+    iIntros "[[A B] C]".
+    iDestruct "B" as (ofs0) "[[[D [B %]] %] %]".
+    des. clarify.
+    unfold captured_to.
+    iDestruct "C" as "[C E]".
+    iDestruct "E" as (a) "[E %]".
+    des. clarify. rewrite H3.
+    iCombine "C B" as "C".
+    iOwnWf "C" as wfc.
+    ur in wfc. specialize (wfc (blk m2)).
+    ur in wfc. Transparent _has_size. unfold _has_size in wfc.
+    des_ifs. Opaque _has_size. iPureIntro. destruct m1.
+    destruct m2. ss. clarify.
+    assert (asdf = asdf0).
+    { apply proof_irrel. }
+    rewrite H3. et.
+  Qed.
+
+  Lemma equiv_ip_offset_comm i p m tg q ofs :
+    ptr_equiv (Vptrofs i) p ** p (⊨_m, tg, q) ofs
+    ⊢ (Vptrofs i) (⊨_m, tg, q) ofs.
+  Proof.
+    iIntros "[[%|A] B]".
+    - clarify.
+    - iDestruct "A" as (i0 m1 m2) "[A C]".
+      destruct p; try solve [unfold captured_to; des_ifs].
+      + iPoseProof (capture_ii with "A") as "%". clarify.
+        replace (Vlong i1) with (Vptrofs (Ptrofs.of_int64 i1)).
+        2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        iPoseProof (capture_ii with "C") as "%". clarify.
+      + iCombine "B C" as "C".
+        iPoseProof (ofs_cap_same_meta with "C") as "%".
+        clarify.
+        iDestruct "C" as "[B C]".
+        iPoseProof (capture_ii with "A") as "%".
+        clarify.
+        iPoseProof (capture_offset_comm with "C") as "C".
+        iApply "C". et.
+  Qed.
+
+  Lemma equiv_ip_pointto_comm i p m q mvs :
+    ptr_equiv (Vptrofs i) p ** p (↦_m, q) mvs 
+    ⊢ (Vptrofs i) (↦_m, q) mvs.
+  Proof.
+    iIntros "[[%|A] B]".
+    - clarify.
+    - iDestruct "A" as (i0 m1 m2) "[A C]".
+      destruct p; try solve [unfold captured_to; des_ifs].
+      + iPoseProof (capture_ii with "A") as "%". clarify.
+        replace (Vlong i1) with (Vptrofs (Ptrofs.of_int64 i1)).
+        2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        iPoseProof (capture_ii with "C") as "%". clarify.
+      + iCombine "B C" as "C".
+        iPoseProof (point_cap_same_meta with "C") as "%".
+        clarify.
+        iDestruct "C" as "[B C]".
+        iPoseProof (capture_ii with "A") as "%".
+        clarify.
+        iPoseProof (capture_pointto_comm with "C") as "C".
+        iApply "C". et.
+  Qed.
+
+  Lemma frag_xorlist_snoc m_hd mid_next' q i i_prev i_next hd_prev hd mid xs0 m_prev:
       sz m_hd = (8 + size_chunk Mptr)%Z ->
+      List.length xs0 > 0 ->
       mid_next' (⊨_m_hd, Dynamic, q) Ptrofs.zero
       ** mid_next' (↦_m_hd,
                    q) (inj_bytes (encode_int 8 (Int64.unsigned i)) ++
                        encode_val Mptr (Vptrofs (Ptrofs.xor i_prev i_next)))
       ** frag_xorlist q hd_prev hd mid mid_next' xs0
       ** mid (≃_m_prev) i_prev
-      ⊢ frag_xorlist q hd_prev hd mid_next (Vptrofs i_next) (xs0 ++ [Vlong i]). *)
+      ⊢ frag_xorlist q hd_prev hd mid_next' (Vptrofs i_next) (xs0 ++ [Vlong i]).
+  Proof.
+    ginduction xs0.
+    - i. ss. nia.
+    - i. destruct xs0.
+      + iIntros "[[[D C] B] A]". ss.
+        destruct a; try solve [iDestruct "B" as "%"; clarify].
+        iDestruct "B" as (i_prev0 i_next0 m_prev0 m_hd0) "[[[[% H] G] F] [E B]]".
+        iPoseProof (equiv_dup with "B") as "[B B']".
+        iCombine "B' D" as "D".
+        iPoseProof (equiv_ip_offset_comm with "D") as "D".
+        iPoseProof (equiv_dup with "B") as "[B B']".
+        iCombine "B' C" as "C".
+        iPoseProof (equiv_ip_pointto_comm with "C") as "C".
+        iExists _,_,_,_.
+        iSplitL "H G F".
+        { iFrame. clarify. }
+        iPoseProof (equiv_sym with "E") as "E".
+        iCombine "A E" as "E".
+        iPoseProof (equiv_rel with "E") as "E".
+        iDestruct "E" as (m) "e".
+        iExists _,_,_,_. iFrame.
+        iSplit; clarify. iApply equiv_refl.
+      + iIntros "[[[D C] B] A]".
+        replace ((a::v::xs0) ++ [Vlong i]) with (a:: ((v::xs0) ++ [Vlong i])) by et.
+        do 2 rewrite unfold_frag_xorlist.
+        destruct a; try solve [iDestruct "B" as "%"; clarify].
+        iDestruct "B" as (i_prev0 i_next0 m_prev0 m_hd0) "[[[[% H] G] F] E]".
+        iExists _,i_next0,_,_.
+        iSplitR "D C E A".
+        2:{ iApply IHxs0. 
+            - apply H3.
+            - ss. nia.
+            - iFrame. }
+        iFrame. clarify.
+  Qed.
+        
 
   Lemma concat_xorlist q hd_prev hd tl tl_next mid mid' mid_next mid_next' xs0 xs1 :
       frag_xorlist q hd_prev hd mid mid_next xs0
@@ -376,12 +505,6 @@ Section PROP.
       destruct a; try solve [iDestruct "A" as "[[[c %] b] a]"; clarify].
       iDestruct "A" as "[[[D C] B] A]".
       iDestruct "C" as (i_prev i_next m_prev m_hd) "[[[[% prev_addr] hd_ofs] hd_point] C]".
-      iApply IHxs1.
-      instantiate (1:= (Vptrofs i_next)).
-      iPoseProof (equiv_dup with "A") as "[A A']".
-      iFrame. 
-      iSplitL.
-      2:{ iApply equiv_refl. }
       iCombine "D A" as "A".
       iPoseProof (frag_xorlist_replace_next with "A") as "A".
       iPoseProof (equiv_sym with "B") as "B".
@@ -389,6 +512,25 @@ Section PROP.
       iPoseProof (equiv_rel with "B") as "B".
       clear m_prev.
       iDestruct "B" as (m_prev) "B".
+      destruct xs0.
+      + ss. iDestruct "A" as "[A A']".
+        iExists mid_next', tl.
+        iFrame. iSplitR. { iApply equiv_refl. }
+        iPoseProof (equiv_sym with "A") as "A".
+        iCombine "B A" as "A".
+        iPoseProof (equiv_rel with "A") as "A".
+        iDestruct "A" as (m) "A".
+        iExists _,_,_,_. iFrame.
+        clarify.
+      + iApply IHxs1.
+        iFrame. 
+        iSplitL. 2:{ iApply equiv_refl. }
+        iSplitL. 2:{ iApply equiv_refl. }
+        iApply frag_xorlist_snoc; et.
+        { ss. nia. }
+        iFrame.
+  Qed.
+
 
 (* 
       
