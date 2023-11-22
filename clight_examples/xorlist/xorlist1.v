@@ -211,6 +211,16 @@ Section PROP.
        admit.
   Admitted.
 
+  Lemma equiv_refl p
+    : ⊢ ptr_equiv p p.
+  Proof. iIntros. iLeft. clarify. Qed.
+
+  Lemma equiv_sym p q
+    : ptr_equiv p q ⊢ ptr_equiv q p.
+  Proof.
+    iIntros "[%|A]"; [iLeft; clarify|].
+    iDestruct "A" as (i m1 m2) "[A A']". iRight. iExists _,_,_. iFrame.
+  Qed.
 
   Lemma equiv_trans p q r
     : ptr_equiv p q ** ptr_equiv q r 
@@ -262,29 +272,81 @@ Section PROP.
     - iDestruct "B" as (i m1 m2) "[B B']".
       clarify. replace i with Ptrofs.zero by admit. *)
 
+  (* TODO: have to impove lemma *)
   Lemma alive_door p m tg f:
       p (⊨_m,tg,f) Ptrofs.zero 
       ⊢ p (⊨_m,tg,f) Ptrofs.zero ** (∀q m' tg' f', (q (⊨_m',tg',f') Ptrofs.zero ** ptr_equiv p q) -* ⌜p = q⌝).
   Proof.
   Admitted.
 
-  Lemma concat_xorlist q hd_prev hd tl tl_next mid mid_next xs0 xs1 :
-      frag_xorlist q hd_prev hd mid mid_next xs0 ** frag_xorlist q mid mid_next tl tl_next xs1
-      ⊢ ∃ hd_prev' hd' tl_next' tl', ptr_equiv hd_prev hd_prev' ** ptr_equiv hd hd' ** ptr_equiv tl_next tl_next' ** ptr_equiv tl tl' ** frag_xorlist q hd_prev' hd' tl' tl_next' (xs0 ++ xs1).
+  Lemma equiv_rel p q m i :
+      p (≃_m) i ** ptr_equiv p q
+      ⊢ ∃ m, q (≃_m) i.
   Proof.
-    revert q hd_prev hd tl tl_next mid mid_next xs1.
+    iIntros "[A [%|B]]".
+    - clarify. iExists _. iFrame.
+    - iDestruct "B" as (i0 m1 m2) "[B B']".
+      iCombine "A B" as "C".
+      iPoseProof (capture_unique' with "C") as "%".
+      clarify. iExists _. iFrame.
+  Qed.
+
+  Lemma frag_xorlist_replace q hd_prev hd_prev' hd tl tl_next xs:
+      frag_xorlist q hd_prev hd tl tl_next xs
+      ** ptr_equiv hd_prev hd_prev'
+      ⊢ frag_xorlist q hd_prev' hd tl tl_next xs.
+  Proof.
+    ginduction xs; i.
+    - ss. iIntros "[[A B] C]".
+      iPoseProof (equiv_sym with "C") as "C".
+      iCombine "C A" as "C".
+      iPoseProof (equiv_trans with "C") as "C".
+      iFrame.
+    - iIntros "[A B]". ss.
+      destruct a; try solve [iDestruct "A" as "%"; clarify].
+      iDestruct "A" as (i_prev i_next m_prev m_hd) "[[[[% hd_addr] hd_ofs] hd_point] LIST]".
+      iCombine "hd_addr B" as "hd".
+      iPoseProof (equiv_rel with "hd") as "hd".
+      iDestruct "hd" as (m) "hd_addr".
+      iExists _,_,_,_.
+      iFrame. clarify.
+  Qed.
+
+  Lemma concat_xorlist q hd_prev hd tl tl_next mid mid' mid_next mid_next' xs0 xs1 :
+      frag_xorlist q hd_prev hd mid mid_next xs0
+      ** frag_xorlist q mid' mid_next' tl tl_next xs1
+      ** ptr_equiv mid mid'
+      ** ptr_equiv mid_next mid_next'
+      ⊢ ∃ hd',
+        ptr_equiv hd hd'
+        ** frag_xorlist q hd_prev hd' tl tl_next (xs0 ++ xs1).
+  Proof.
+    revert q hd_prev hd tl tl_next mid mid' mid_next mid_next' xs1.
     induction xs0; i; ss.
-    - iIntros "[[A B] C]".
-      destruct xs1. 
-      + ss. iExists _,_. iFrame. admit.
-      + ss. destruct v; try solve [iDestruct "C" as "%"; clarify].
-        iDestruct "C" as (i_prev i_next m_prev m_hd) "[[[[% mid_addr] mid_ofs] mid_point] C]".
-        iExists mid, mid_next, tl_next, tl.
-        iSplitL "A B". { admit. }
-        iExists _,_,_,_. iFrame. ss.
-    - iIntros "[A B]".
+    - iIntros "[[[[A B] C] D] E]".
+      iCombine "B E" as "E".
+      iPoseProof (equiv_trans with "E") as "E".
+      iCombine "A D" as "D".
+      iPoseProof (equiv_trans with "D") as "D".
+      iExists _. iFrame.
+      iApply frag_xorlist_replace. iFrame.
+      iApply equiv_sym. et.
+    - iIntros "[[[A B] C] D]".
       destruct a; try solve [iDestruct "A" as "%"; clarify].
       iDestruct "A" as (i_prev i_next m_prev m_hd) "[[[[% prev_addr] hd_ofs] hd_point] A]".
+      destruct xs0.
+      + ss.
+      iCombine "A B" as "A".
+      iCombine "A C" as "A".
+      iCombine "A D" as "A".
+      iPoseProof (IHxs0 with "A") as "A".
+      iDestruct "A" as (hd_next) "[equiv A]".
+
+      destruct xs0.
+      + admit.
+      + ss. destruct v; try solve [iDestruct "A" as "%"; clarify].
+        iDestruct "A" as (i_prev' i_next' m_prev' m_hd') "[[[[% hd_addr] next_ofs] next_point] C]".
+        iPoseProof (alive_door with "next_ofs") as "[next_ofs door]".
       destruct xs0.
       + admit.
       + ss. destruct v; try solve [iDestruct "A" as "%"; clarify].
