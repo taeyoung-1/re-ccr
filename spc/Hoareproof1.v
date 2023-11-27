@@ -1,6 +1,7 @@
 Require Import Coqlib.
 Require Import STS.
 Require Import Behavior.
+Require Import ModSemProof.
 Require Import ModSem.
 Require Import Skeleton.
 Require Import PCM.
@@ -171,7 +172,7 @@ Section CANCEL.
   Ltac steps := repeat (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
   Ltac steps_strong := repeat (mred; try (_step ltac:(guclo simg_indC_spec)); des_ifs_safe).
 
-   Lemma stb_find_iff_aux fn
+   (* Lemma stb_find_iff_aux fn
     :
       ((<<NONE: _stb fn = None>>) /\
        (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn = None>>) /\
@@ -197,7 +198,7 @@ Section CANCEL.
     des.
     { left. esplits; et. }
     { right. esplits; et. }
-  Qed.
+  Qed. *)
 
   (*
   Lemma stb_find_iff fn
@@ -224,7 +225,7 @@ Section CANCEL.
     { right. esplits; et. }
   Qed. *)
 
-  Let adequacy_type_aux__APC:
+  (* Let adequacy_type_aux__APC:
     forall at_most o0
            st_src0 st_tgt0
     ,
@@ -298,7 +299,12 @@ Section CANCEL.
     rewrite interp_mid_bind. rewrite interp_mid_hcall. rewrite bind_bind.
     rewrite interp_Es_bind. unfold handle_hCallE_mid. rewrite interp_Es_tau. rewrite bind_tau.
     guclo simg_safe_spec. econs; et. 
-    rewrite interp_Es_bind. rewrite interp_Es_unwrapN. unfold unwrapN. des_ifs.
+    rewrite interp_Es_bind. rewrite interp_Es_unwrapN.
+    rewrite bind_bind. rewrite bind_bind.
+
+    
+
+    unfold unwrapN. des_ifs.
     { rewrite bind_bind. rewrite bind_ret_l. rewrite bind_ret_l. rewrite interp_Es_bind. 
       rewrite interp_Es_guarantee. unfold guarantee. rewrite bind_bind. rewrite bind_bind. rewrite bind_bind.
       guclo simg_safe_spec. econs; et. i. rewrite bind_ret_l.
@@ -336,9 +342,9 @@ Section CANCEL.
     i. ss. destruct vret_tgt as [? []]. destruct vret_src as [? []]. ss. des; subst.
     unfold idK. steps. eapply simg_flag_down.
     eapply IH; et. econs; et. right; split; et. refl.
-  Qed.
+  Qed. *)
 
-  Let adequacy_type_aux_APC:
+  (* Let adequacy_type_aux_APC:
     forall o0 st_src0 st_tgt0 mn
     ,
       simg (fun (st_src1: p_state * unit) '(st_tgt1, _) => st_tgt1 = st_tgt0)
@@ -352,11 +358,11 @@ Section CANCEL.
     gfinal. right.
     eapply adequacy_type_aux__APC.
     Unshelve. all: try exact 0.
-  Qed.
+  Qed. *)
 
-  Lemma idK_spec2: forall E A B (a: A) (itr: itree E B), itr = Ret a >>= fun _ => itr. Proof. { i. ired. ss. } Qed.
+  (* Lemma idK_spec2: forall E A B (a: A) (itr: itree E B), itr = Ret a >>= fun _ => itr. Proof. { i. ired. ss. } Qed. *)
 
-  Let adequacy_type_aux:
+  (* Let adequacy_type_aux:
     forall
       o0
       A (body: itree _ A) st_src0 st_tgt0 mn
@@ -417,9 +423,9 @@ Section CANCEL.
       eapply simg_progress_flag. gbase. eapply CIH. ss.
     }
     Unshelve. all: ss.
-  Qed.
+  Qed. *)
 
-  Lemma sk_eq:
+  (* Lemma sk_eq:
     ModL.sk (Mod.add_list mds_mid) = ModL.sk (Mod.add_list mds_mid2).
   Proof.
     unfold ms_mid, ms_mid2, mds_mid2, mds_mid, ModL.enclose.
@@ -452,34 +458,38 @@ Section CANCEL.
     rewrite ! Mod.add_list_fns. rewrite ! List.map_map. f_equal.
     f_equal. extensionality sm. ss. rewrite ! List.map_map. f_equal.
     extensionality fnsb. destruct fnsb as [fn sb]. ss.
-  Qed.
+  Qed. *)
 
   Context `{CONF: EMSConfig}.
   Definition midConf: EMSConfig := {| finalize := finalize; initial_arg := Any.pair ord_top↑ initial_arg |}.
   Theorem adequacy_type_m2m:
-    Beh.of_program (@ModL.compile _ midConf (Mod.add_list mds_mid)) <1=
-    Beh.of_program (ModL.compile (Mod.add_list mds_mid2)).
+    Beh.of_program (@ModAdd.compile _ midConf (md_mid)) <1=
+    Beh.of_program (ModAdd.compile (md_mid2)).
   Proof.
-    eapply adequacy_global_itree; ss.
+    eapply adequacy_global_itree; et.
     ginit.
     { eapply cpn7_wcompat; eauto with paco. }
-    unfold ModSemL.initial_itr, ModSemL.initial_itr. Local Opaque ModSemL.prog. ss.
+    unfold ModSem.initial_itr, ModSem.initial_itr. 
+    Local Opaque ModSem.prog. Local Opaque Mod.enclose. ss.
     unfold ITree.map. steps.
-    Local Transparent ModSemL.prog.
-    unfold ModSemL.prog at 4.
-    unfold ModSemL.prog at 2.
-    Local Opaque ModSemL.prog.
-    ss. steps_strong.
+    Local Transparent ModSem.prog.
+    unfold ModSem.prog at 4.
+    unfold ModSem.prog at 2.
+    Local Opaque ModSem.prog.
+    ss. steps_strong. 
     esplits; et.
-    { des. inv x. split.
+    rewrite ! interp_Es_bind. rewrite ! bind_bind.
+    rewrite ! interp_Es_unwrapU. rewrite ! bind_bind.
+    (* { des. inv x. split.
       { inv H. econs.
         { rewrite fns_eq. auto. }
         { pose proof initial_mrs_eq. unfold ms_mid, ms_mid2 in H.
           rewrite H. auto. }
       }
       { ss. rewrite sk_eq. auto. }
-    }
-    steps.
+    } *)
+    steps. 
+    
 
     (* stb main *)
     hexploit (stb_find_iff "main"). i. des.

@@ -1,7 +1,8 @@
 Require Import Coqlib.
 Require Import ITreelib.
 Require Import Skeleton.
-Require Import ModSem.
+Require Import ModSemProof.
+Require Import ModSem. (* Import order matters? *)
 Require Import Behavior.
 Require Import Relation_Definitions.
 
@@ -811,8 +812,8 @@ Hint Resolve sim_itree_mon: paco.
 Hint Resolve cpn11_wcompat: paco.
 
 Lemma self_sim_itree:
-  forall st st0 itr,
-    @sim_itree unit top2 st st false false tt (fun _ '(src, tgt) => src = tgt) (st0, itr) (st0, itr).
+  forall w st st0 itr,
+    @sim_itree unit top2 st st false false w (fun _ '(src, tgt) => src = tgt) (st0, itr) (st0, itr).
 Proof.
   ginit. gcofix CIH. i. ides itr.
   { gstep. eapply sim_itree_ret; ss. }
@@ -879,17 +880,12 @@ Lemma self_sim (ms: ModSem.t):
 Proof.
   econs; et.
   - instantiate (1:=fun (_ _: unit) => True). ss.
-  - instantiate (1:=(fun (_: unit) '(src, tgt) => src = tgt)). (* fun p => fst p = snd p *)
-    admit.
-    (* generalize (ModSem.fnsems ms). 
-    induction l; ii; ss.
-    econs; eauto. econs; ss. ii; clarify.
-    destruct w. exploit self_sim_itree; et. *)
+  - instantiate (1:=(fun (_: unit) '(src, tgt) => src = tgt)).
+    unfold sim_fnsem. ii. des_ifs.
+    unfold sim_fsem, respectful'. ii. destruct H, SIMMRS.
+    apply self_sim_itree.  
   - ss.
-Admitted.
-  (* Unshelve.
-all: try (exact 0).
-Qed. *)
+Qed.
 
 End ModSemPair.
 
@@ -922,7 +918,7 @@ Section SIMMOD.
 
   Context {CONF: EMSConfig}.
 
-  Lemma ModL_add_fnsems md0 md1 sk
+  Lemma Mod_add_fnsems md0 md1 sk
     :
       (ModSem.fnsems (Mod.get_modsem (Mod.add md0 md1) sk)) =
       ModSem.add_fnsems (Mod.get_modsem md0 sk) (Mod.get_modsem md1 sk).
@@ -985,14 +981,14 @@ Section ADEQUACY.
     (* Variable mn: mname. *)
     Variable world: Type.
     Let W: Type := (ms_src.(ModSem.state)) * (ms_tgt.(ModSem.state)). 
-    (* Variable wf: world -> W -> Prop.  *)
+    Variable wf: world -> W -> Prop. 
     (* Variable wf: world -> Any.t * Any.t -> Prop. *)
     Variable le: world -> world -> Prop.
 
     Hypothesis le_PreOrder: PreOrder le.
 
     Hypothesis fnsems_find_iff :
-      forall fn (wf: world -> W -> Prop),
+      forall fn,
         (<<NONE: ms_src.(ModSem.fnsems) fn = None>>) \/
         (* (exists (f: _ -> itree _ _),
             (* (<<MN: mn <> mn'>>) /\ *)
@@ -1005,7 +1001,7 @@ Section ADEQUACY.
 
 
     Variant g_lift_rel
-            (w0: world) (wf: world -> W -> Prop ) st_src0 st_tgt0: Prop :=
+            (w0: world) st_src0 st_tgt0: Prop :=
     | g_lift_rel_intro
         w1
         (LE: le w0 w1)
@@ -1016,7 +1012,7 @@ Section ADEQUACY.
     Variant my_r0:
       forall R0 R1 (RR: R0 -> R1 -> Prop), bool -> bool -> (itree eventE R0) -> (itree eventE R1) -> Prop :=
     | my_r0_intro
-        w0 (wf: world -> W -> Prop )
+        w0
         (st_src: Type := ms_src.(ModSem.state)) (st_tgt: Type := ms_tgt.(ModSem.state))
         (itr_src: itree (Es st_src) Any.t)(itr_tgt: itree (Es st_tgt) Any.t)
         st_src0 st_tgt0 o_src o_tgt
@@ -1024,32 +1020,12 @@ Section ADEQUACY.
         (* (STATE: forall mn' (MN: mn <> mn'), st_src mn' = st_tgt mn') *)
       :
         my_r0 (fun '(st_src, ret_src) '(st_tgt, ret_tgt) =>
-                  g_lift_rel w0 wf st_src st_tgt /\ ret_src = ret_tgt)
+                  g_lift_rel w0 st_src st_tgt /\ ret_src = ret_tgt)
               o_src o_tgt
               (interp_Es (ModSem.prog ms_src) (itr_src) st_src0)
               (interp_Es (ModSem.prog ms_tgt) (itr_tgt) st_tgt0)
     .
 
-    (* Variant my_r1:
-      forall R0 R1 (RR: R0 -> R1 -> Prop), bool -> bool -> (itree eventE R0) -> (itree eventE R1) -> Prop :=
-    | my_r1_intro
-        w0
-        (st_src: Type := ms_src.(ModSem.state)) (st_tgt: Type := ms_tgt.(ModSem.state))
-        st_src0 st_tgt0
-        (wf: world -> W -> Prop)
-        (* (MN: mn <> mn') *)
-        (SIM: g_lift_rel w0 wf st_src0 st_tgt0)
-        (itr_src: itree (Es st_src) Any.t)
-        (itr_tgt: itree (Es st_tgt) Any.t)
-      :
-        my_r1 (fun '(st_src0, ret_src) '(st_tgt0, ret_tgt) =>
-                 g_lift_rel w0 wf st_src0 st_tgt0 /\ ret_src = ret_tgt)
-              false false
-              (interp_Es (ModSem.prog ms_src) (itr_src) st_src0)
-              (interp_Es (ModSem.prog ms_tgt) (itr_tgt) st_tgt0)
-    . *)
-
-    (* Let my_r := my_r0 \7/ my_r1. *)
     Let sim_lift: my_r0 <7= simg.
     Proof.
       ginit.
@@ -1072,16 +1048,6 @@ Section ADEQUACY.
         - rr in RET. des. step. splits; auto. econs; et.
         - hexploit (fnsems_find_iff fn). i. des.
           { step. rewrite interp_Es_bind.  steps. rewrite NONE. unfold unwrapU, triggerUB. (* step.: coq bug?????? *) rewrite interp_Es_bind. step.  ss. }
-          (* { ired_both. step. rewrite interp_Es_bind. ired_both. steps. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
-            apply simg_progress_flag.
-            guclo bindC_spec. econs.
-            { gbase. eapply CIH. right. econs; ss. econs; et. refl. }
-            { i. ss. des. destruct vret_src, vret_tgt. des; clarify. inv SIM0.
-              hexploit K; et. i. des. pclearbot. ired_both. ired_both. guclo simg_safe_spec. econs. et; i.
-
-              step. gbase. eapply CIH. left. econs; et.
-            }
-          } *)
           { hexploit (SIM (varg) (varg)); et. i. des. ired_both. 
             steps. rewrite interp_Es_bind. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
             apply simg_progress_flag.
@@ -1105,97 +1071,42 @@ Section ADEQUACY.
         - steps. destruct run. steps. eapply IH; eauto.
         - eapply simg_progress_flag. gbase. eapply CIH. econs; eauto.
     Qed.
-    (* my_r1 ??? *)
-      (* { destruct H. ides itr.
-        { steps. split; et. }
-        { steps. eapply simg_progress_flag. gbase. eapply CIH. right. econs; et. }
-        rewrite <- ! bind_trigger. destruct e.
-        { resub. destruct c. hexploit (fnsems_find_iff fn). i. des.
-          { steps. rewrite NONE. unfold unwrapU, triggerUB. step. ss. }
-          { inv SIM. steps. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
-            guclo bindC_spec. econs.
-            { eapply simg_progress_flag. gbase. eapply CIH.
-              right. econs; ss. econs; et. }
-            { i. ss. des. destruct vret_src, vret_tgt. des; clarify.
-              steps. eapply simg_progress_flag.
-              gbase. eapply CIH. right. econs; et. }
-          }
-          { inv SIM. hexploit (SIM0 (Some mn', args) (Some mn', args)); et. i. des.
-            steps. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
-            guclo bindC_spec. econs.
-            { eapply simg_progress_flag. gbase. eapply CIH. left. econs; ss. et. }
-            { i. ss. destruct vret_src, vret_tgt. des; clarify.
-              steps. eapply simg_progress_flag. gbase. eapply CIH. right. econs; et.
-              inv SIM. econs.
-              { etrans; et. }
-              { et. }
-              { et. }
-            }
-          }
-        }
-        destruct s.
-        { resub. destruct p.
-          { steps. eapply simg_progress_flag.
-            gbase. eapply CIH. right. econs; et.
-            inv SIM. econs; et.
-            { unfold update. des_ifs. }
-            { ii. unfold update. des_ifs. et. }
-          }
-          { steps. eapply simg_progress_flag.
-            gbase. eapply CIH. right.
-            replace (st_tgt mn') with (st_src mn'); et.
-            { econs; et. }
-            { inv SIM. et. }
-          }
-        }
-        { resub. destruct e.
-          { steps. force. exists x. steps. eapply simg_progress_flag.
-            gbase. eapply CIH; et. right. econs; et.
-          }
-          { steps. force. exists x. steps. eapply simg_progress_flag.
-            gbase. eapply CIH; et. right. econs; et.
-          }
-          { steps. subst. eapply simg_progress_flag.
-            gbase. eapply CIH; et. right. econs; et. }
-        }
-      }
-    Qed. *)
-
+ 
     Context `{CONF: EMSConfig}.
 
-    (* Hypothesis INIT:
-      exists w, g_lift_rel w (ModSem.initial_p_state ms_src) (ModSem.initial_p_state ms_tgt). *)
+    Hypothesis INIT:
+      exists w, g_lift_rel w (ModSem.init_st ms_src) (ModSem.init_st ms_tgt).
 
     Lemma adequacy_local_aux (P Q: Prop)
+          (* (wf: world -> W -> Prop)  *)
           (WF: Q -> P)
       :
         (Beh.of_program (ModSem.compile ms_tgt (Some P)))
         <1=
         (Beh.of_program (ModSem.compile ms_src (Some Q))).
-    Proof. Admitted.
-      (* eapply adequacy_global_itree; ss.
-      hexploit INIT. i. des. ginit.
+    Proof. 
+      eapply adequacy_global_itree; ss.
+      hexploit INIT. i. 
+      des. ginit.
       { eapply cpn7_wcompat; eauto with paco. }
-      unfold ModSem.initial_itr, assume.
-      hexploit (fnsems_find_iff "main"). i. des.
+      unfold ModSem.initial_itr, assume. generalize "main" as fn. i.
+      hexploit (fnsems_find_iff fn). i. des.
       { steps. unshelve esplits; et. unfold ITree.map, unwrapU, triggerUB. steps.
-        rewrite NONE. steps. ss. }
-      { steps. unshelve esplits; et. unfold ITree.map, unwrapU. steps.
-        rewrite SRC. rewrite TGT.
-        steps. force. esplits; et. steps.
-        guclo bindC_spec. econs.
-        { eapply simg_progress_flag. gfinal. right. eapply sim_lift. right. econs; et. }
-        { i. destruct vret_src, vret_tgt. des; clarify. steps. }
-      }
-      { inv H. hexploit (SIM (None, initial_arg) (None, initial_arg)); et. i. des.
+        rewrite NONE. steps. ss. grind.
+        rewrite ! interp_Es_bind. grind.
+        rewrite interp_Es_eventE. grind.
+        gstep. econs; et. i. destruct x0. }
+      { 
+        inv H. 
+        hexploit (SIM (initial_arg) (initial_arg)) ; et; cycle 1. i. des.
         steps. force. esplits; et.
-        steps. unfold ITree.map, unwrapU. steps.
+        steps. unfold ITree.map, unwrapU.
+        rewrite ! interp_Es_bind. rewrite ! bind_bind.
         rewrite SRC. rewrite TGT. steps. guclo bindC_spec. econs.
-        { eapply simg_flag_down. gfinal. right. eapply sim_lift. left. econs; et. }
+        { eapply simg_flag_down. gfinal. right. eapply sim_lift. econs; et. }
         { i. destruct vret_src, vret_tgt. des; clarify. steps. }
       }
-      Unshelve. all: try exact 0.
-    Qed. *)
+    Qed.
   End SEMPAIR.
 
   Theorem adequacy_local_strong md_src md_tgt
@@ -1203,46 +1114,73 @@ Section ADEQUACY.
     :
       <<CR: (refines_strong md_tgt md_src)>>
   .
-  Proof. Admitted.
-    (* ii. unfold Mod.compile, Mod.enclose in *.
-    destruct (classic (Mod.wf (Mod.add (Mod.add_list ctx) md_src))).
+  Proof. 
+  (* Admitted. *)
+    ii. unfold ModAdd.compile, Mod.enclose in *.
+    destruct (classic (Mod.wf (ModAdd.add (ModAdd.add_list ctx) md_src))).
     2:{ eapply ModSem.compile_not_wf. ss. }
-    pose (sk_tgt := (Mod.sk (Mod.add (Mod.add_list ctx) md_tgt))).
-    pose (sk_src := (Mod.sk (Mod.add (Mod.add_list ctx) md_src))).
+    pose (sk_tgt := (Mod.sk (Mod.add (ModAdd.add_list ctx) md_tgt))).
+    pose (sk_src := (Mod.sk (Mod.add (ModAdd.add_list ctx) md_src))).
     assert (SKEQ: sk_tgt = sk_src).
     { unfold sk_src, sk_tgt. ss. f_equal.
       inv SIM. auto. }
-    rr in H. unfold Mod.enclose in *. fold sk_src in H. des. inv WF.
-    rename SK into SKWF.
-    rename wf_fnsems into FNWF.
-    rename wf_initial_mrs into MNWF.
+    rr in H.
+    (* unfold Mod.enclose in *. fold sk_src in H. des. inv WF. *)
+    (* rename SK into SKWF. *)
+    (* rename wf_fnsems into FNWF. *)
+    (* rename wf_initial_mrs into MNWF. *)
     inv SIM. hexploit (sim_modsem (Sk.canon sk_tgt)).
     { etrans; [|eapply Sk.sort_incl]. ss. ii. eapply in_or_app. auto. }
-    { ss. fold sk_src in SKWF. rewrite SKEQ. clear - SKWF.
+    { ss. 
+      (* fold sk_src in SKWF.  *)
+      rewrite SKEQ. 
+      (* clear - SKWF. *)
       unfold Sk.wf in *. ss. eapply Permutation.Permutation_NoDup; [|et].
       eapply Permutation.Permutation_map. eapply Sk.SkSort.sort_permutation. }
-    i. inv H. des.
-    assert (WFTGT: Mod.wf (Mod.add (Mod.add_list ctx) md_tgt)).
-    { rr. unfold Mod.enclose. fold sk_src sk_tgt.
-      rewrite SKEQ in *. split; auto. econs.
-      { clear MNWF.
-        match goal with
+    i. inv H0. des.
+    assert (WFTGT: Mod.wf (Mod.add (ModAdd.add_list ctx) md_tgt)).
+    { rr. 
+      unfold Mod.enclose.
+      match goal with
         | H: NoDup ?l0 |- NoDup ?l1 => replace l1 with l0
         end; auto. ss.
-        rewrite ! List.map_app. f_equal. rewrite ! List.map_map.
-        eapply Forall2_eq. eapply Forall2_apply_Forall2; et.
-        i. destruct a, b. inv H. ss.
-      }
-      { clear FNWF.
-        match goal with
-        | H: NoDup ?l0 |- NoDup ?l1 => replace l1 with l0
-        end; auto. ss.
-        rewrite ! List.map_app. f_equal. ss.
-        rewrite sim_mn. auto.
-      }
+        rewrite sim_sk. et.
     }
+    (* simpl in PR. rewrite <- sim_sk in PR.    *)
+
+    generalize (Mod.get_modsem (ModAdd.add (ModAdd.add_list ctx) md_src) (Sk.canon (Mod.sk (ModAdd.add (ModAdd.add_list ctx) md_src)))) as ms_src.
+    generalize (Mod.get_modsem (ModAdd.add (ModAdd.add_list ctx) md_tgt) (Sk.canon (Mod.sk (ModAdd.add (ModAdd.add_list ctx) md_tgt)))) as ms_tgt.
+    i.
+
     eapply adequacy_local_aux in PR; et.
-    { ss. ii. fold sk_src sk_tgt. rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs.
+    
+    { ss. ii.
+      (* previous version is proved by second branch (exists mn, ... ) which doesn't exists anymore *)
+    
+      fold sk_src sk_tgt. 
+      esplits. 
+      generalize (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_src))
+      (Mod.get_modsem md_src (Sk.sort sk_src)) fn) as o_src. 
+      generalize (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_tgt))
+      (Mod.get_modsem md_tgt (Sk.sort sk_tgt)) fn) as o_tgt.
+      
+      i. destruct (ModSem.fnsems ms_src fn); cycle 1.
+      - left. et.
+      - right.
+      
+      
+      exists i. destruct o_tgt; cycle 1. 
+        + eexists. splits; et.  
+        + exists i0. splits; et.
+          unfold sim_fsem, respectful'. ii.
+
+      (* - right. destruct (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_tgt))
+        (Mod.get_modsem md_tgt (Sk.sort sk_tgt)) fn).
+        + exists i. exists i0. splits; et.
+          unfold sim_fsem, respectful'. i. inv H0.
+     *)
+    
+    rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs.
       { eapply alist_find_some in Heq.
         rewrite Mod.add_list_fnsems in Heq.
         rewrite <- fold_right_app_flat_map in Heq. ss.
@@ -1288,7 +1226,7 @@ Section ADEQUACY.
         ss. rewrite ! alist_find_app_o. des_ifs_safe.
         rewrite <- SKEQ. ss. rewrite ! eq_rel_dec_correct. des_ifs. }
     }
-  Qed. *)
+  Qed.
 
   Context {CONF: EMSConfig}.
 

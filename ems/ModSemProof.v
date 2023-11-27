@@ -48,12 +48,50 @@ T R st p (st0: st)
 (* (e: Es Σ) *)
 (c: callE T) (k: T -> itree (Es st) R)
 :
-interp_Es p (Vis (c|)%sum k) st0 = tau;; (interp_Es p (ITree.bind (p _ c) k) st0) 
+interp_Es p (Vis (c|)%sum k) st0 = tau;; (interp_Es p ((p _ c) >>= k) st0) 
 .
-Proof. 
+Proof.
+
 unfold interp_Es, interp_sE.
 rewrite interp_mrec_bind. grind.
 Admitted. 
+
+Definition swap {A B} (p : A * B) : B * A :=
+  (snd p, fst p).  
+  
+Variant _swap_ems R ms0 ms1: itree (Es ((state ms0) * (state ms1))) R -> itree (Es ((state ms1) * (state ms0))) R -> Prop :=
+| swap_ems_l it itl itr 
+  (ITL: itl = translate (emb_l ms0 ms1) it )
+  (ITR: itr = translate (emb_r ms1 ms0) it )
+  : _swap_ems ms0 ms1 itl itr
+(* | swap_ems_r it itl itr 
+  (ITL: itl = translate (emb_r ms0 ms1) it )
+  (ITR: itr = translate (emb_l ms1 ms0) it )
+  : swap_ems ms0 ms1 itl itr *)
+.
+
+Definition swap_ems R ms0 ms1 itl itr := 
+  @_swap_ems R ms0 ms1 itl itr \/ @_swap_ems R ms1 ms0 itr itl.
+
+Check simg.
+
+Lemma simg_map R0 R1 RR R0' R1' RR' f_src f_tgt itl itr (f0: R0 -> R0') (f1: R1 -> R1')
+      (SIM: @simg R0 R1 RR f_src f_tgt itl itr)
+      (IMPL: forall r0 r1, RR r0 r1 -> RR' (f0 r0) (f1 r1): Prop)
+:
+      @simg R0' R1' RR' f_src f_tgt (f0 <$> itl) (f1 <$> itr)
+.
+Proof.
+  revert_until RR'.
+  pcofix CIH. i.
+  punfold SIM. induction SIM; s.
+  - erewrite ! (bisimulation_is_eq _ _ (map_ret _ _)). eauto with paco.
+  - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
+    pfold. apply simg_syscall. i. right. eapply CIH; et.
+    specialize (SIM _ _ EQ). pclearbot. et.
+    (* edestruct SIM; et. inv H. *)
+
+Admitted.
 
 
 Context {CONF: EMSConfig}.
@@ -82,6 +120,7 @@ Proof.
   - econs 6; et. ii. exploit STEP; et. i; des. clarify.
 Qed.
 
+
 Theorem add_comm
         ms0 ms1
         (P0 P1: Prop) (IMPL: P1 -> P0)
@@ -99,22 +138,187 @@ Proof.
 
 
   unfold compile. red. apply adequacy_global_itree; et.
-  ginit. apply cpn7_wcompat. apply simg_mon.
-  unfold initial_itr, assume. generalize "main" as fn. i.
-  rewrite ! bind_bind. 
-  guclo simg_indC_spec. eapply simg_indC_takeL; et. i. 
-  guclo simg_indC_spec. eapply simg_indC_takeR; et. exists x.
-  rewrite ! bind_ret_l. gcofix CIH.
+
+  (* ginit. { apply cpn7_wcompat. apply simg_mon. } *)
+  unfold initial_itr, assume. i.
+  rewrite ! bind_bind.
+  pfold. apply simg_takeL; et. i. apply simg_takeR; et. exists x.
+  apply simg_progress; et.
+  rewrite ! bind_ret_l.
+  left. 
+
+  generalize (Call "main" initial_arg) as e.
+  assert (REL: swap (init_st (add ms1 ms0)) = init_st (add ms0 ms1)).
+  { unfold init_st. et. }
+  revert REL.
+  generalize (Any.t) as X.
+  generalize (init_st (add ms1 ms0)) as stl.
+  generalize (init_st (add ms0 ms1)) as str.
+  i. eapply simg_map.
+  2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ swap (fst r0) = fst r1)).
+       i. apply H0.   }
+  revert_until x.
+  ginit. { i. apply cpn7_wcompat. apply simg_mon. }  
+  gcofix CIH. i.
+
+  assert (REL': swap_ems _ _ (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)).
+  { destruct e. s. unfold add_fnsems. des_ifs.
+    - grind. left. econs.   admit. admit.
+    - grind. red. eauto using _swap_ems.
+    - grind. red. eauto using _swap_ems.
+    - grind. admit.
+  }
+  revert REL'.
+  generalize (prog (add ms1 ms0) e) as itl.
+  generalize (prog (add ms0 ms1) e) as itr.
+
+  gcofix CIH'. i.
+
+  destruct REL'.
+
+  - inv H0. rewrite (itree_eta_ it).
+    destruct (observe it). clear it.
+    + erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+      rewrite ! interp_Es_ret.
+      gstep. apply simg_ret. et. 
+    + erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
+      rewrite ! interp_Es_tau.  
+      gstep. apply simg_tauL; et. apply simg_tauR; et. 
+      apply simg_progress; et.
+      gfinal. left. eapply CIH'. left. eauto using _swap_ems.
+    + erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+      destruct e0.
+      * rewrite <- ! bind_trigger, ! interp_Es_bind.
+        pattern (@interp_Es (prod (state ms1) (state ms0)) X0 (@prog (add ms1 ms0))
+        (@ITree.trigger (Es (prod (state ms1) (state ms0))) X0
+           (@emb_l ms1 ms0 X0 (@inl1 callE (sum1 (sE (state ms1)) eventE) X0 c))) stl).
+        pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+        (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+           (@emb_r ms0 ms1 X0 (@inl1 callE (sum1 (sE (state ms1)) eventE) X0 c)))
+        (@swap (state ms1) (state ms0) stl)).
+        setoid_rewrite interp_Es_callE.
+        setoid_rewrite interp_Es_callE.
+        rewrite ! bind_tau.
+        gstep. apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        rewrite <- ! interp_Es_bind.
+
+
+        gfinal. left. eapply CIH'.
+        left.
+        -- destruct c. s. unfold add_fnsems. des_ifs.
+          ++ grind. econs. instantiate (1 := triggerUB).
+             ** admit.
+             ** admit.
+          ++ grind. erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+             econs; et.
+          ++ grind. erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+          econs; et.
+
+
+        assert (REL': swap_ems _ _ (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)).
+        { destruct e. s. unfold add_fnsems. des_ifs.
+          - grind. left. econs.   admit. admit.
+          - grind. red. eauto using _swap_ems.
+          - grind. red. eauto using _swap_ems.
+          - grind. admit.
+        }
+
+        Check interp_Es_bind.
+        guclo bindC_spec. econs.
+        --
+          Check (ITree.trigger (emb_l ms1 ms0 (c|)%sum)).
+        setoid_rewrite xxx.
+           (* set (xxx := interp_Es_callE). *)
+           specialize (xxx (state (add ms1 ms0)) (prog (add ms1 ms0)) stl X0 c).
+           setoid_rewrite (xxx (state (add ms1 ms0)) (prog (add ms1 ms0)) stl X0 c).
+
+
+
+        set (xxx := interp_Es_callE).
+        specialize (xxx (state (add ms1 ms0)) (prog (add ms1 ms0)) stl).
+        unfold trigger in xxx. unfold ITree.trigger. Set Printing All.
+        unfold subevent in xxx.
+        unfold emb_l, lmap. rewrite xxx.
+        unfold resum, ReSum_inl, ">>>" in xxx.
+        setoid_rewrite xxx.
+        guclo bindC_spec. econs.
+        -- setoid_rewrite interp_Es_callE.
+           gstep. apply simg_tauL; et. apply simg_tauR; et.
+           apply simg_progress; et.
+           gfinal. left. eapply CIH. et.
+        -- i. destruct vret_src, vret_tgt; ss. destruct SIM. subst.
+           
+           
+
+       set (xxx := @interp_Es_bind).
+        specialize (xxx (state (add ms1 ms0)) _ (Any.t) (trigger (c))).
+        Search bind_trigger.
+        unfold trigger in xxx. unfold Subevent.vis in xxx.
+        rewrite xxx.
+       set (xxx := @interp_Es_callE ).
+        specialize (xxx _ (prog (add ms1 ms0)) stl ).
+      Print ITree.trigger. Print subevent. 
+      erewrite (@interp_Es_callE _ _ _ _ (subevent _ c)).
+      
+      rewrite ! interp_Es_vis.
+
+
+      Lemma interp_Es_callE
+      st p (st0: st) T
+      (* (e: Es Σ) *)
+      (e: callE T)
+  :
+    interp_Es p (trigger e) st0 = tau;; (interp_Es p (p _ e) st0)
+.
+Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
+
+    Check translate_ret. gstep.
+
+  destruct e. s. unfold add_fnsems.
+
+  
+  generalize (prog ())
+
+  destruct e.
+
+
+  gstep. simpl. unfold add_fnsems.
+
   unfold "<$>". simpl. unfold ITree.map.
+
   rewrite ! interp_Es_bind. rewrite ! bind_bind.
   unfold unwrapU, add_fnsems. 
+  
+  
   des_ifs.
+  
 
   - rewrite ! interp_Es_ret. grind. 
     rewrite interp_Es_triggerUB. unfold triggerUB. grind.
     gstep. econs; et. i. destruct x0.
   - rewrite ! interp_Es_ret. grind.
-    generalize (i1 initial_arg). gcofix CIH'. i.
+    generalize (i1 initial_arg).
+    generalize (init_st ms1, init_st ms0).
+    generalize (init_st ms0, init_st ms1).
+    gcofix CIH'. i.
+
+    (* guclo bindC_spec. econs; cycle 1.
+    { instantiate (1 := eq_snd). i. unfold eq_snd in SIM. rewrite SIM.
+      gstep. econs; et.  }
+    { rewrite (itree_eta_ i).
+      destruct (observe i); cycle 2.
+      - 
+      rewrite (bisimulation_is_eq _ _ (translate_vis (emb_r ms1 ms0) _ e k)).
+      rewrite (bisimulation_is_eq _ _ (translate_vis (emb_l ms0 ms1) _ e k)).
+      destruct e.
+      + unfold emb_r at 1. unfold emb_l at 1. unfold lmap.
+        rewrite ! interp_Es_vis. destruct c. grind.
+        gstep. econs; et. econs; et. econs; et.
+
+      } *)
+
+    (* apply simg_flag_down. generalize i.  gcofix CIH''. i.  *)
 
     rewrite (itree_eta_ i).
     destruct (observe i).
@@ -127,21 +331,73 @@ Proof.
       rewrite (bisimulation_is_eq _ _ (translate_tau (emb_r ms1 ms0) t0)).
       rewrite (bisimulation_is_eq _ _ (translate_tau (emb_l ms0 ms1) t0)).
       rewrite ! interp_Es_tau. rewrite ! bind_tau.
-      gstep. econs; et. econs; et. (* -> Can go back to gpaco without flag change? *) 
-      (* econs; et. gfinal. left. apply CIH'. *)
-      admit.
+      (* guclo simg_indC_spec. apply simg_indC_tauL; et.
+      guclo simg_indC_spec. apply simg_indC_tauR; et. *)
+      gstep. econs; et. econs; et.
+      econs; et. gfinal. left. apply CIH'.
     + (* Vis *)
       rewrite (bisimulation_is_eq _ _ (translate_vis (emb_r ms1 ms0) _ e k)).
       rewrite (bisimulation_is_eq _ _ (translate_vis (emb_l ms0 ms1) _ e k)).
+
       destruct e.
+      *
       * unfold emb_r at 1. unfold emb_l at 1. unfold lmap.
         rewrite ! interp_Es_vis. destruct c. grind.
-        guclo simg_indC_spec. apply simg_indC_tauL; et.
-        guclo simg_indC_spec. apply simg_indC_tauR; et.
+        gstep. econs; et. econs; et. econs; et.
+
+        guclo bindC_spec. econs.
+        -- unfold unwrapU.
+
+
+        (* rewrite ! interp_Es_bind.
+        rewrite ! interp_Es_unwrapU. rewrite ! bind_bind.
+        (* guclo bindC_spec. econs. *)
+        unfold unwrapU, add_fnsems. 
+        des_ifs.
+        -- grind. rewrite ! interp_Es_bind. rewrite ! interp_Es_triggerUB.
+           unfold triggerUB. gstep. grind. econs; et. i. inv x0.
+        -- grind. rewrite ! interp_Es_bind. grind.
+           generalize (i3 args) as i'. gcofix CIH''. i.
+           rewrite (itree_eta_ i').
+           destruct (observe i').
+           ++ rewrite (bisimulation_is_eq _ _ (translate_ret (emb_r ms1 ms0) r1)).
+              rewrite (bisimulation_is_eq _ _ (translate_ret (emb_l ms0 ms1) r1)).
+              rewrite ! interp_Es_ret. rewrite ! bind_ret_l. 
+              gfinal. left. eapply CIH'.
+           ++ rewrite (bisimulation_is_eq _ _ (translate_tau (emb_r ms1 ms0) t0)).
+              rewrite (bisimulation_is_eq _ _ (translate_tau (emb_l ms0 ms1) t0)).
+              rewrite ! interp_Es_tau. rewrite ! bind_tau.
+              gstep. econs; et. econs; et. econs; et. 
+              gfinal. left. apply CIH''.
+           ++ rewrite (bisimulation_is_eq _ _ (translate_vis (emb_r ms1 ms0) _ e k0)).
+              rewrite (bisimulation_is_eq _ _ (translate_vis (emb_l ms0 ms1) _ e k0)).
+              destruct e.
+              ** unfold emb_r at 1. unfold emb_l at 1. unfold lmap.
+                 rewrite ! interp_Es_vis. destruct c. grind.
+                 gstep. econs; et. econs; et. econs; et.
+           guclo bindC_spec. econs.
+           ++  
+        -- i. rewrite ! bind_ret_l. grind.
+
+        -- unfold unwrapU, add_fnsems. des_ifs.
+          ++ unfold triggerUB. rewrite <- bind_bind. gstep. econs.
+
+        -- unfold "<$>" in CIH. simpl in CIH. unfold ITree.map in CIH.
+          rewrite ! interp_Es_bind.
+           guclo bindC_spec. econs.
+           ++ gfinal. left.
+           rewrite ! interp_Es_bind. rewrite ! interp_Es_unwrapU. grind.
+           
+        (* apply bindC_spec. econs. *)
+
+        (* guclo simg_indC_spec. apply simg_indC_tauL; et.
+        guclo simg_indC_spec. apply simg_indC_tauR; et. 
+        gstep. *)
         unfold "<$>" in CIH. simpl in CIH. unfold ITree.map in CIH.
+        apply bindC_spec. econs. *)
 
 
-
+(* 
 
   destruct (fnsems ms0 fn); cycle 1. 
   { 
@@ -180,7 +436,7 @@ Proof.
         }
        } 
 
-  }
+  } *)
 
 
 
@@ -223,11 +479,12 @@ Proof.
         * unfold emb_l, emb_r, lmap. clear CIH'.
           rewrite ! interp_Es_vis. destruct c.
           gstep. grind. econs. gupaco.
-          apply eqit_clo_bind; et. Print eqit_bind_clo.
+          apply eqit_clo_bind; et.
+           (* Print eqit_bind_clo. *)
           econs.
           { admit. }
-          { admit. }
-        * admit.
+          {  admit. }
+        * admit. *)
 
        
           (* right. 
@@ -241,7 +498,7 @@ Proof.
           rewrite Y.
           Print Subevent.vis. Check subevent.
           rewrite Y.
-        rewrite (interp_Es_callE _ _ c) (emb_l ms1 ms0 (c|)%sum)). *)
+        rewrite (interp_Es_callE _ _ c) (emb_l ms1 ms0 (c|)%sum)).
 
     }
     {
