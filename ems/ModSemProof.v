@@ -43,23 +43,22 @@ End ADD.
 
 Section PROOF.
 
-Lemma interp_Es_vis
-T R st p (st0: st)
-(* (e: Es Σ) *)
-(c: callE T) (k: T -> itree (Es st) R)
-:
-interp_Es p (Vis (c|)%sum k) st0 = tau;; (interp_Es p ((p _ c) >>= k) st0) 
-.
-Proof.
-
-unfold interp_Es, interp_sE.
-rewrite interp_mrec_bind. grind.
-Admitted. 
 
 Definition swap {A B} (p : A * B) : B * A :=
   (snd p, fst p).  
   
-Variant _swap_ems R ms0 ms1: itree (Es ((state ms0) * (state ms1))) R -> itree (Es ((state ms1) * (state ms0))) R -> Prop :=
+Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
+  match es with
+  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t))))
+  | inr1 (inr1 x) => inr1 (inr1 x)
+  | inl1 y => inl1 y
+  end.
+
+Definition swap_ems {R A B} (itl: itree (Es (A*B)) R) (itr: itree (Es (B*A)) R) :=
+  itr = translate swap_Es itl.
+
+
+(* Variant _swap_ems R ms0 ms1: itree (Es ((state ms0) * (state ms1))) R -> itree (Es ((state ms1) * (state ms0))) R -> Prop :=
 | swap_ems_l it itl itr 
   (ITL: itl = translate (emb_l ms0 ms1) it )
   (ITR: itr = translate (emb_r ms1 ms0) it )
@@ -71,10 +70,25 @@ Variant _swap_ems R ms0 ms1: itree (Es ((state ms0) * (state ms1))) R -> itree (
 .
 
 Definition swap_ems R ms0 ms1 itl itr := 
-  @_swap_ems R ms0 ms1 itl itr \/ @_swap_ems R ms1 ms0 itr itl.
+  @_swap_ems R ms0 ms1 itl itr \/ @_swap_ems R ms1 ms0 itr itl. *)
 
-Check simg.
+Lemma swap_ems_prog X ms0 ms1 (e: callE X)
+:
+      swap_ems (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)
+.
+Proof.
+  destruct e. s. unfold unwrapU, add_fnsems. des_ifs.
+  - grind. unfold swap_ems. Set Printing All. unfold triggerUB.
+    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+    unfold trigger.
 
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    admit.
+  - grind. unfold swap_ems. 
+Admitted.
+
+
+(* Move to SimGlobal? *)
 Lemma simg_map R0 R1 RR R0' R1' RR' f_src f_tgt itl itr (f0: R0 -> R0') (f1: R1 -> R1')
       (SIM: @simg R0 R1 RR f_src f_tgt itl itr)
       (IMPL: forall r0 r1, RR r0 r1 -> RR' (f0 r0) (f1 r1): Prop)
@@ -84,18 +98,35 @@ Lemma simg_map R0 R1 RR R0' R1' RR' f_src f_tgt itl itr (f0: R0 -> R0') (f1: R1 
 Proof.
   revert_until RR'.
   pcofix CIH. i.
-  punfold SIM. induction SIM; s.
+  (* punfold SIM.  *)
+  induction SIM using simg_ind; s.
   - erewrite ! (bisimulation_is_eq _ _ (map_ret _ _)). eauto with paco.
   - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
     pfold. apply simg_syscall. i. right. eapply CIH; et.
-    specialize (SIM _ _ EQ). pclearbot. et.
+    (* specialize (SIM _ _ EQ). pclearbot. et. *)
     (* edestruct SIM; et. inv H. *)
-
-Admitted.
-
+  - erewrite ! (bisimulation_is_eq _ _ (map_tau _ _)).
+    pfold. apply simg_tauL; et. punfold IHSIM.
+  - erewrite ! (bisimulation_is_eq _ _ (map_tau _ _)). 
+    pfold. apply simg_tauR; et. punfold IHSIM.
+  - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
+    pfold. apply simg_chooseL; et. 
+    des. exists x. punfold IH.
+  - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
+    pfold. apply simg_chooseR; et.
+    i. exploit SIM. esplits. des. punfold IH.
+  - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
+    pfold. apply simg_takeL; et.
+    i. exploit SIM. esplits. des. punfold IH.
+  - erewrite ! (bisimulation_is_eq _ _ (map_bind _ _ _)).
+    pfold. apply simg_takeR; et.
+    des. exists x. punfold IH.
+  - pfold. apply simg_progress; et. right. eapply CIH; et.
+Qed.
 
 Context {CONF: EMSConfig}.
 
+(* Not used anymore *)
 Let add_comm_aux
     ms0 ms1 stl0 str0
     P
@@ -139,7 +170,6 @@ Proof.
 
   unfold compile. red. apply adequacy_global_itree; et.
 
-  (* ginit. { apply cpn7_wcompat. apply simg_mon. } *)
   unfold initial_itr, assume. i.
   rewrite ! bind_bind.
   pfold. apply simg_takeL; et. i. apply simg_takeR; et. exists x.
@@ -152,8 +182,9 @@ Proof.
   { unfold init_st. et. }
   revert REL.
   generalize (Any.t) as X.
-  generalize (init_st (add ms1 ms0)) as stl.
-  generalize (init_st (add ms0 ms1)) as str.
+  generalize (init_st (add ms1 ms0)) as stl0.
+  generalize (init_st (add ms0 ms1)) as str0.
+
   i. eapply simg_map.
   2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ swap (fst r0) = fst r1)).
        i. apply H0.   }
@@ -161,18 +192,135 @@ Proof.
   ginit. { i. apply cpn7_wcompat. apply simg_mon. }  
   gcofix CIH. i.
 
-  assert (REL': swap_ems _ _ (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)).
-  { destruct e. s. unfold add_fnsems. des_ifs.
-    - grind. left. econs.   admit. admit.
-    - grind. red. eauto using _swap_ems.
-    - grind. red. eauto using _swap_ems.
-    - grind. admit.
-  }
+  pose proof (swap_ems_prog ms0 ms1 e) as REL'.
+
+  (* assert (REL': swap_ems (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)). { apply swap_ems_prog. } *)
+
   revert REL'.
   generalize (prog (add ms1 ms0) e) as itl.
   generalize (prog (add ms0 ms1) e) as itr.
-
+  rewrite <- REL. (* generalize states with swap relation *)
+  generalize stl0 as stl. 
   gcofix CIH'. i.
+  inv REL'.
+  rewrite (itree_eta_ itl).
+  destruct (observe itl).
+  - (* Ret *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+    rewrite ! interp_Es_ret.
+    gstep. apply simg_ret. et.   
+  - (* Tau *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
+    rewrite ! interp_Es_tau.
+    gstep. apply simg_tauL; et. apply simg_tauR; et. 
+    apply simg_progress; et.
+    gfinal. left. eapply CIH'. ss.
+  - (* Vis *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    destruct e0 as [c|[s|e0]].
+    + (* callE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)) stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_callE.
+      setoid_rewrite interp_Es_callE.
+      rewrite ! bind_tau.
+      gstep. apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      rewrite <- ! interp_Es_bind.
+    
+      gfinal. left. eapply CIH'.
+      unfold swap_ems. erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      f_equal. apply swap_ems_prog.
+
+    + (* sE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0
+         (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))) stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0
+            (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_sE.
+      grind.
+      setoid_rewrite interp_Es_sE.
+      grind.
+      gstep. 
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      destruct stl. inv Heq1. rewrite H1 in Heq. inv Heq.
+      gfinal. left. eapply CIH'. unfold swap_ems. et.
+
+    + (* eventE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0)))
+      stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0))))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_eventE.
+      setoid_rewrite interp_Es_eventE.
+      grind. 
+      gstep.
+      destruct e0.
+      * (* Choose *)
+        apply simg_chooseR; et. i. apply simg_chooseL; et. exists x0.
+        grind.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+      * (* Take *)
+        apply simg_takeL; et. i. apply simg_takeR; et. exists x0.
+        grind.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+      * (* Syscall *)
+        apply simg_syscall. i. inv EQ.
+        grind. 
+        gstep.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+
+Qed.
+
+
+
+      
+
+gpaco7 _simg (cpn7 _simg) bot7 r (state (add ms1 ms0) * X)%type (state (add ms0 ms1) * X)%type
+(fun (r0 : state (add ms1 ms0) * X) (r1 : state (add ms0 ms1) * X) => snd r0 = snd r1 /\ swap (fst r0) = fst r1) false false
+(` x_ : state (add ms1 ms0) * X0 <- interp_Es (prog (add ms1 ms0)) (ITree.trigger (|s|)%sum) stl;;
+ (let (st1, v) := x_ in interp_Es (prog (add ms1 ms0)) (k v) st1))
+(` x_ : state ms0 * state ms1 * X0 <- interp_Es (prog (add ms0 ms1)) (ITree.trigger (swap_Es (|s|)%sum)) (swap stl);;
+ (let (st1, v) := x_ in interp_Es (prog (add ms0 ms1)) (translate swap_Es (k v)) st1))
+
+
+
+
+   ++ grind. erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      econs; et.
+   ++ grind. erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+   econs; et.
+
+  - admit.
+  - inv REL'.
 
   destruct REL'.
 
@@ -202,7 +350,6 @@ Proof.
         gstep. apply simg_tauL; et. apply simg_tauR; et.
         apply simg_progress; et.
         rewrite <- ! interp_Es_bind.
-
 
         gfinal. left. eapply CIH'.
         left.
