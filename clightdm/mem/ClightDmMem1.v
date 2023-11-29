@@ -152,7 +152,7 @@ Section PROP.
     eapply Build_metadata.
     instantiate (1:=0).
     instantiate (1:=None). ss.
-  Qed.
+  Defined.
 
   Definition disjoint (m m0: metadata) : Prop :=
     m.(blk) <> m0.(blk).
@@ -262,6 +262,60 @@ Section RULES.
         split; et. rewrite Ptrofs.of_int64_to_int64; et.
   Qed.
 
+  Lemma _has_offset_slide_rev
+      vaddr m ofs k
+    :
+      Val.addl vaddr (Vptrofs k) ⊨ m # (Ptrofs.add ofs k) ⊢ vaddr ⊨ m # ofs.
+  Proof.
+    destruct m. destruct blk0; cycle 1.
+    - unfold _has_offset. ss. des_ifs.
+      + iIntros "[A B]".
+        iDestruct "B" as (a) "[B %]".
+        iFrame. iExists a. iFrame.
+        iPureIntro.
+        des. split; clarify.
+        unfold Val.addl, Vptrofs in *.
+        des_ifs. rewrite <- ptrofs_int64_add in H3; et.
+        rewrite Ptrofs.sub_add_l in H3.
+        apply (f_equal (fun x => Ptrofs.add x (Ptrofs.neg k))) in H3.
+        rewrite Ptrofs.add_assoc in H3.
+        rewrite Ptrofs.add_assoc in H3.
+        rewrite Ptrofs.add_neg_zero in H3.
+        rewrite Ptrofs.add_zero in H3.
+        rewrite Ptrofs.add_zero in H3.
+        et.
+      + iIntros "[A %]". des; clarify.
+    - iIntros "A".
+      unfold _has_offset.
+      des_ifs; try solve [iDestruct "A" as "[A %]"; clarify].
+      + iDestruct "A" as "[? A]". iFrame.
+        iDestruct "A" as (a) "[? %]". iExists _. iFrame.
+        iPureIntro. des. clarify. split; clarify.
+        unfold Val.addl, Vptrofs in *.
+        des_ifs. rewrite <- ptrofs_int64_add in H3; et.
+        rewrite Ptrofs.sub_add_l in H3.
+        apply (f_equal (fun x => Ptrofs.add x (Ptrofs.neg k))) in H3.
+        rewrite Ptrofs.add_assoc in H3.
+        rewrite Ptrofs.add_assoc in H3.
+        rewrite Ptrofs.add_neg_zero in H3.
+        rewrite Ptrofs.add_zero in H3.
+        rewrite Ptrofs.add_zero in H3.
+        et.
+      + iDestruct "A" as "[A %]".
+        iFrame. iPureIntro. des. clarify.
+        ss. des_ifs. unfold Vptrofs in *. des_ifs.
+        split; et. rewrite Ptrofs.of_int64_to_int64 in Heq; et.
+        replace intrange0 with intrange in * by apply proof_irrel.
+        rewrite <- Heq2 in Heq.
+        apply (f_equal (fun x => Ptrofs.add x (Ptrofs.neg k))) in Heq.
+        rewrite Ptrofs.add_assoc in Heq.
+        rewrite Ptrofs.add_assoc in Heq.
+        rewrite Ptrofs.add_neg_zero in Heq.
+        rewrite Ptrofs.add_zero in Heq.
+        rewrite Ptrofs.add_zero in Heq.
+        et.
+  Qed.
+
   Lemma _has_offset_unique
       vaddr m ofs0 ofs1
     :
@@ -302,12 +356,22 @@ Section RULES.
   Lemma offset_slide
       vaddr m tg q ofs k
     :
-      vaddr (⊨_ m, tg, q) ofs ⊢ (Val.addl vaddr (Vptrofs k)) (⊨_ m,tg,q) (Ptrofs.add ofs k).
+       vaddr (⊨_ m, tg, q) ofs ⊢ (Val.addl vaddr (Vptrofs k)) (⊨_ m,tg,q) (Ptrofs.add ofs k).
   Proof.
-    destruct m. destruct blk0; cycle 1.
-    { ss. }
-    iIntros "[? A]".
-    unfold has_offset. iFrame. iApply _has_offset_slide. et.
+    iIntros "A".
+    destruct m. destruct blk0; ss. unfold has_offset. ss. 
+    iDestruct "A" as "[? A]". iFrame. iApply _has_offset_slide. et.
+  Qed.
+
+  Lemma offset_slide_rev
+      vaddr m tg q ofs k
+    :
+       (Val.addl vaddr (Vptrofs k)) (⊨_ m,tg,q) (Ptrofs.add ofs k) ⊢ vaddr (⊨_ m, tg, q) ofs.
+  Proof.
+    iIntros "A".
+    destruct m. destruct blk0; ss. unfold has_offset. ss. 
+    iDestruct "A" as "[? A]". iFrame. 
+    iApply _has_offset_slide_rev. et.
   Qed.
 
   Lemma offset_unique
@@ -589,6 +653,27 @@ Section RULES.
     iSplitL "A B"; iExists _; iFrame.
   Qed.
 
+  Lemma equiv_slide
+      p q m k
+    :
+       p (≃_m) q ⊢ (Val.addl p (Vptrofs k)) (≃_m) (Val.addl q (Vptrofs k)).
+  Proof.
+    iIntros "A". iDestruct "A" as (ofs) "[A A']". 
+    iExists _. iSplitL "A"; iApply _has_offset_slide; et.
+  Qed.
+
+  Lemma equiv_slide_rev
+      p q m k
+    :
+      (Val.addl p (Vptrofs k)) (≃_m) (Val.addl q (Vptrofs k)) ⊢ p (≃_m) q.
+  Proof.
+    iIntros "A". iDestruct "A" as (ofs) "[A A']". 
+    replace ofs with (Ptrofs.add (Ptrofs.add ofs (Ptrofs.neg k)) k).
+    2:{ rewrite Ptrofs.add_assoc. rewrite (Ptrofs.add_commut (Ptrofs.neg _)).
+        rewrite Ptrofs.add_neg_zero. rewrite Ptrofs.add_zero. et. }
+    iExists _. iSplitL "A"; iApply _has_offset_slide_rev; et.
+  Qed.
+
   Lemma capture_unique
       p m i j
     :
@@ -708,6 +793,21 @@ Section RULES.
     clarify.
   Qed.
 
+  Lemma null_equiv p
+    : 
+      Vnullptr (≃_m_null) p ⊢ ⌜p = Vnullptr⌝.
+  Proof.
+    iIntros "A". 
+    destruct p;
+      try solve [iDestruct "A" as (ofs) "[_ A]"; iDestruct "A" as "[? []]"].
+    - change Vnullptr with (Vptrofs Ptrofs.zero).
+      replace (Vlong i) with (Vptrofs (Ptrofs.of_int64 i)).
+      2:{ unfold Vptrofs. des_ifs. f_equal. apply Ptrofs.to_int64_of_int64; et. }
+      iPoseProof (equiv_ii_eq with "A") as "%".
+      rewrite H3. et.
+    - iDestruct "A" as (ofs) "[_ [_ %]]". des. clarify.
+  Qed.
+
   Lemma point_notnull 
       vaddr m q mvs
     : 
@@ -805,6 +905,22 @@ Section RULES.
     des_ifs; iDestruct "A" as "[_ [_ %]]"; clarify.
   Qed.
 
+  Lemma point_cast_ptr {eff} {K:eventE -< eff} v m q mvs
+    : 
+      v (↦_m,q) mvs ⊢ ⌜@cast_to_ptr eff K v = Ret v⌝.
+  Proof.
+    iIntros "A". unfold points_to.
+    destruct (blk m); clarify.
+    iDestruct "A" as "[_ A]".
+    iDestruct "A" as (ofs) "[[[_ ?] _] _]".
+    iApply _offset_ptr. et.
+  Qed.
+
+  Lemma ptrofs_cast_ptr {eff} {K:eventE -< eff} i
+    : 
+      @cast_to_ptr eff K (Vptrofs i) = Ret (Vptrofs i).
+  Proof. unfold cast_to_ptr. des_ifs. Qed.
+
   Lemma points_to_is_ptr v m q mvs
     : 
       v (↦_m,q) mvs ⊢ ⌜is_ptr_val v = true⌝.
@@ -816,7 +932,7 @@ Section RULES.
     iDestruct "C" as "[_ %]". clarify.
   Qed.
 
-  Lemma decode_encode_ptr v m tg q ofs 
+  Lemma decode_encode_ptr_ofs v m tg q ofs 
     : 
       v (⊨_m,tg,q) ofs ⊢ ⌜decode_val Mptr (encode_val Mptr v) = v⌝.
   Proof.
@@ -827,6 +943,19 @@ Section RULES.
     destruct v; try solve [iDestruct "A" as "[A [A' %]]"; clarify];
       des_ifs; rewrite H3; et.
     all: iDestruct "A" as "[_ [_ %]]"; clarify.
+  Qed.
+
+  Lemma decode_encode_ptr_equiv p m q
+    : 
+      p (≃_m) q ⊢ ⌜decode_val Mptr (encode_val Mptr p) = p⌝.
+  Proof.
+    unfold Mptr. des_ifs.
+    pose proof (decode_encode_val_general p Mint64 Mint64).
+    unfold decode_encode_val in H3.
+    iIntros "A". iDestruct "A" as (ofs) "[A _]".
+    destruct p; try solve [iDestruct "A" as "[? []]"].
+    - rewrite H3. et.
+    - des_ifs.
   Qed.
 
   Lemma add_null_r v m tg q ofs: 
