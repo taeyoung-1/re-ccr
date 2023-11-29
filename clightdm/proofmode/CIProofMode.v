@@ -34,11 +34,11 @@ Section MEM.
         (inv_with le I w0 st_src st_tgt
         ** ⌜(Z.of_nat n ≤ Ptrofs.max_unsigned)%Z⌝
 
-        ** (∀ st_src st_tgt vaddr m,
+        ** (∀ st_src st_tgt vaddr m b,
             ((inv_with le I w0 st_src st_tgt)
-            ** (⌜m.(sz) = Z.of_nat n⌝ ** vaddr (↦_m,1) List.repeat Undef n ** vaddr (⊨_m,Local,1) Ptrofs.zero))
+            ** (⌜m.(sz) = Z.of_nat n /\ m.(blk) = Some b⌝ ** vaddr (↦_m,1) List.repeat Undef n ** vaddr (⊨_m,Local,1) Ptrofs.zero))
 
-            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (m.(blk)))))
+            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt b )))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "salloc" n >>= ktr_tgt)).
   Proof.
     iIntros "[[INV PRE] POST]". iApply isim_ccallU_pure; et.
@@ -51,10 +51,10 @@ Section MEM.
     { iFrame. iSplit; ss. iSplit; ss. }
     iIntros (st_src0 st_tgt0 ret_src ret_tgt) "POST'".
     iDestruct "POST'" as "[? [POST' %]]".
-    iDestruct "POST'" as (m vaddr) "[[[% ?] ?] ?]".
+    iDestruct "POST'" as (m vaddr b) "[[[% %] ?] ?]".
     des. clarify.
     iExists _. iSplit; ss.
-    iApply "POST". iFrame. 
+    iApply "POST". iFrame. et.
   Qed.
 
   Lemma isim_ccallU_sfree
@@ -792,7 +792,7 @@ Section MEM.
         ** (∀ st_src st_tgt i,
             (((inv_with le I w0 st_src st_tgt)
               ** (vaddr (⊨_m,tg,q) ofs 
-                  ** vaddr (≃_m) i))
+                  ** vaddr (≃_m) (Vptrofs i)))
             
            -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt (Vptrofs i)))))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "capture" [vaddr] >>= ktr_tgt)).
@@ -818,10 +818,9 @@ End MEM.
 Require Import ClightDmgen.
 From compcert Require Import Ctypes Clightdefs.
 
-Global Opaque captured_to.
+Global Opaque equiv_prov.
 Global Opaque has_offset.
 Global Opaque points_to.
-Global Opaque metadata_alive.
 Global Opaque ccallU.
 Global Opaque get_sk.
 Global Opaque build_composite_env'.

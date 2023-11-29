@@ -11,6 +11,9 @@ Require Import ClightDmExprgen.
 Require Import ClightDmgen.
 From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
+(* TODO: 11/29 -- there are another design choices, make null pointer be a read-only pointer *)
+(* TODO: 11/29 -- disjoint resources should be implemented, and blockaddressRA should reject zero in 'Some b'   *)
+
 Set Implicit Arguments.
 
 Inductive tag :=
@@ -281,7 +284,7 @@ Section RULES.
       des. clarify.
   Qed.
 
-  Lemma _offset_dup
+  Lemma _has_offset_dup
       vaddr m ofs
     :
       vaddr ⊨m# ofs ⊢ vaddr ⊨m# ofs ** vaddr ⊨m# ofs.
@@ -343,11 +346,11 @@ Section RULES.
       iPoseProof (_has_size_dup with "B") as "[? ?]". iFrame.
       des_ifs; iDestruct "A" as (ofs) "[[[B A] %] %]"; des; clarify.
       + unfold _has_offset. des_ifs. iDestruct "A" as "[? %]"; clarify.
-      + iPoseProof (_offset_dup with "A") as "[C D]".
+      + iPoseProof (_has_offset_dup with "A") as "[C D]".
         rewrite _points_to_ownership.
         iDestruct "B" as "[A B]".
         iSplitL "A C"; iExists _; iFrame; et.
-      + iPoseProof (_offset_dup with "A") as "[C D]".
+      + iPoseProof (_has_offset_dup with "A") as "[C D]".
         rewrite _points_to_ownership.
         iDestruct "B" as "[A B]".
         iSplitL "A C"; iExists _; iFrame; et.
@@ -391,7 +394,7 @@ Section RULES.
       destruct (blk m); try solve [iDestruct "A" as "%"; clarify].
       rewrite _allocated_with_ownership.
       iDestruct "A" as "[[? ?] A]".
-      iPoseProof (_offset_dup with "A") as "[? ?]".
+      iPoseProof (_has_offset_dup with "A") as "[? ?]".
       iFrame.
     - iIntros "A". unfold has_offset.
       iDestruct "A" as "[A B]".
@@ -436,7 +439,7 @@ Section RULES.
     des_ifs; iDestruct "A" as (ofs) "[[[B A] %] %]"; des; clarify.
     - unfold _has_offset. des_ifs. iDestruct "A" as "[? %]"; clarify.
     - rewrite _points_to_content.
-      iPoseProof (_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "[? A]".
       iDestruct "B" as "[? B]".
       rewrite <- Heq.
       iSplitR "A B"; iExists _; iFrame.
@@ -458,7 +461,7 @@ Section RULES.
           rewrite (Int64.unsigned_repr); et. nia. }
         rewrite <- X0. nia.
     - rewrite _points_to_content.
-      iPoseProof (_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "[? A]".
       iDestruct "B" as "[? B]".
       rewrite <- Heq.
       iSplitR "A B"; iExists _; iFrame.
@@ -486,7 +489,7 @@ Section RULES.
     - unfold _has_offset. des_ifs. iDestruct "A" as "[? %]"; clarify.
     - iDestruct "B" as (ofs0) "[[[D B] %] %]"; des; clarify.
       rewrite <- Heq.
-      iPoseProof (_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "[? A]".
       iPoseProof (_has_offset_slide with "A") as "A".
       iCombine "A B" as "A".
       iPoseProof (_has_offset_unique with "A") as "%".
@@ -509,7 +512,7 @@ Section RULES.
       rewrite <- X0 in *. nia.
     - iDestruct "B" as (ofs0) "[[[D B] %] %]"; des; clarify.
       rewrite <- Heq.
-      iPoseProof (_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "[? A]".
       iPoseProof (_has_offset_slide with "A") as "A".
       iCombine "A B" as "A".
       iPoseProof (_has_offset_unique with "A") as "%".
@@ -532,13 +535,13 @@ Section RULES.
     iDestruct "A" as "[? A]".
     des_ifs; iDestruct "A" as (ofs) "[[[C A] %] %]"; des; clarify.
     - unfold _has_offset. des_ifs. iDestruct "A" as "[? %]"; clarify.
-    - iFrame. iPoseProof (_offset_dup with "A") as "[? A]".
-      iPoseProof (_offset_dup with "A") as "A".
+    - iFrame. iPoseProof (_has_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "A".
       iSplitR "A".
       + iExists _. iFrame. iPureIntro. nia.
       + iExists _. et.
-    - iFrame. iPoseProof (_offset_dup with "A") as "[? A]".
-      iPoseProof (_offset_dup with "A") as "A".
+    - iFrame. iPoseProof (_has_offset_dup with "A") as "[? A]".
+      iPoseProof (_has_offset_dup with "A") as "A".
       iSplitR "A".
       + iExists _. iFrame. iPureIntro. nia.
       + iExists _. et.
@@ -550,8 +553,8 @@ Section RULES.
     iIntros "A". unfold has_offset.
     destruct (blk m); try solve [iDestruct "A" as "%"; clarify].
     iDestruct "A" as "[? A]".
-    iPoseProof (_offset_dup with "A") as "[? A]".
-    iPoseProof (_offset_dup with "A") as "A".
+    iPoseProof (_has_offset_dup with "A") as "[? A]".
+    iPoseProof (_has_offset_dup with "A") as "A".
     iSplitR "A"; iFrame. iExists _. et.
   Qed.
 
@@ -581,8 +584,8 @@ Section RULES.
     unfold equiv_prov.
     iIntros "A".
     iDestruct "A" as (ofs) "[A B]".
-    iPoseProof (_offset_dup with "A") as "[A ?]".
-    iPoseProof (_offset_dup with "B") as "[B ?]".
+    iPoseProof (_has_offset_dup with "A") as "[A ?]".
+    iPoseProof (_has_offset_dup with "B") as "[B ?]".
     iSplitL "A B"; iExists _; iFrame.
   Qed.
 
@@ -623,17 +626,99 @@ Section RULES.
     rewrite Ptrofs.of_int64_to_int64 in Heq0; et.
   Qed.
 
-  (* TODO: have to impove lemma
-  Lemma alive_door p m tg f:
-      p (⊨_m,tg,f) Ptrofs.zero
-      ⊢ p (⊨_m,tg,f) Ptrofs.zero ** (∀q m' tg' f', (q (⊨_m',tg',f') Ptrofs.zero ** ptr_equiv p q) -* ⌜p = q⌝).
+  Lemma _ii_offset_eq i j ofs m :
+    Vptrofs i ⊨ m # ofs ** Vptrofs j ⊨ m # ofs ⊢ ⌜i = j⌝.
   Proof.
-  Admitted. *)
+    iIntros "[A B]".
+    unfold _has_offset. des_ifs.
+    iDestruct "A" as "[_ A]".
+    iDestruct "B" as "[_ B]".
+    iDestruct "A" as (a) "[A %]".
+    iDestruct "B" as (a') "[B %]".
+    iCombine "A B" as "C". iOwnWf "C" as wfc.
+    iPureIntro. ur in wfc. specialize (wfc (blk m)).
+    ur in wfc. unfold _has_base in *. 
+    des_ifs.
+    - admit "".
+    - admit "".
+  Qed.
 
-  Lemma pointto_offset_notnull 
-      vaddr m tg q ofs mvs
+  Lemma equiv_ii_eq i j m :
+    Vptrofs i (≃_m) Vptrofs j ⊢ ⌜i = j⌝.
+  Proof.
+    iIntros "A".
+    iDestruct "A" as (ofs) "A".
+    iApply _ii_offset_eq. et.
+  Qed.
+  
+  Lemma equiv_point_comm p q f m mvs :
+    p (≃_m) q ** p (↦_m,f) mvs ⊢ q (↦_m,f) mvs.
+  Proof.
+    iIntros "[A B]". unfold equiv_prov. iDestruct "A" as (ofs) "[A A']".
+    unfold points_to.
+    destruct (blk m); try solve [iDestruct "B" as "[]"].
+    iDestruct "B" as "[? B]". iFrame.
+    iDestruct "B" as (ofs0) "[[[B B'] %] C]".
+    iCombine "A B'" as "D".
+    iPoseProof (_has_offset_unique with "D") as "%". subst.
+    iPoseProof (_has_offset_dup with "A'") as "[A' A''']".
+    iDestruct "D" as "[_ A]".
+    iExists _. iFrame. iSplit; ss. 
+    destruct p; try solve [iDestruct "C" as "[]"].
+    - unfold _has_offset.
+      des_ifs; try solve [iDestruct "A" as "[A []]"].
+    - destruct q; try solve [iDestruct "A'" as "[? []]"].
+      + iCombine "A A'" as "A".
+        replace (Vlong i) with (Vptrofs (Ptrofs.of_int64 i)).
+        2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        replace (Vlong i0) with (Vptrofs (Ptrofs.of_int64 i0)).
+        2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        iPoseProof (_ii_offset_eq with "A") as "%". 
+        apply (f_equal Ptrofs.to_int64) in H4.
+        rewrite Ptrofs.to_int64_of_int64 in H4; et.
+        rewrite Ptrofs.to_int64_of_int64 in H4; et.
+        subst. et.
+      + iDestruct "C" as "%". des. clarify.
+    - iDestruct "C" as "%".
+      destruct q; try solve [iDestruct "A'" as "[? []]"]; ss.
+      unfold _has_offset. des_ifs.
+      iDestruct "A'" as "[_ A']".
+      iDestruct "A'" as (a) "[_ %]".
+      iPureIntro. split; et.
+      des. clarify.
+      assert (Ptrofs.unsigned (Ptrofs.sub (Ptrofs.of_int64 i0) a) + Ptrofs.unsigned a + strings.length mvs ≤ Ptrofs.max_unsigned)%Z by nia.
+      clear -H5.
+      assert (Ptrofs.add (Ptrofs.sub (Ptrofs.of_int64 i0) a) a = Ptrofs.of_int64 i0).
+      { rewrite Ptrofs.sub_add_opp. rewrite Ptrofs.add_assoc.
+        rewrite (Ptrofs.add_commut _ a). rewrite Ptrofs.add_neg_zero.
+        rewrite Ptrofs.add_zero. et. }
+      unfold Ptrofs.add in H.
+  Admitted.
+
+  Lemma equiv_offset_comm p q tg f m ofs :
+    p (≃_m) q ** p (⊨_m,tg,f) ofs ⊢ q (⊨_m,tg,f) ofs.
+  Proof.
+    iIntros "[A B]".
+    unfold equiv_prov.
+    iDestruct "A" as (ofs0) "[A A']".
+    unfold has_offset. des_ifs.
+    iDestruct "B" as "[? B]".
+    iFrame. iCombine "A B" as "C".
+    iPoseProof (_has_offset_unique with "C") as "%".
+    clarify.
+  Qed.
+
+  Lemma point_notnull 
+      vaddr m q mvs
     : 
-      (vaddr (↦_m,q) mvs ∨ vaddr (⊨_m,tg,q) ofs) ⊢ ⌜vaddr <> Vnullptr⌝.
+      vaddr (↦_m,q) mvs ⊢ ⌜vaddr <> Vnullptr⌝.
+  Proof.
+  Admitted.
+
+  Lemma offset_notnull 
+      vaddr m tg q ofs
+    : 
+      vaddr (⊨_m,tg,q) ofs ** ⌜valid m ofs⌝ ⊢ ⌜vaddr <> Vnullptr⌝.
   Proof.
   Admitted.
 
@@ -766,17 +851,18 @@ Section SPEC.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
+  (* input: Z, output: block *)
   Definition salloc_spec: fspec :=
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = n↑ /\ Z.of_nat n ≤ Ptrofs.max_unsigned⌝),
-                    (fun vret => ∃ m vaddr,
-                                 ⌜vret = (m.(blk))↑ /\ m.(sz) = Z.of_nat n
-                                 ⌝
+                    (fun vret => ∃ m vaddr b,
+                                 ⌜vret = b↑ /\ m.(blk) = Some b /\ m.(sz) = Z.of_nat n ⌝
                                  ** vaddr (↦_m,1) List.repeat Undef n
                                  ** vaddr (⊨_m,Local, 1) Ptrofs.zero)
     )))%I.
 
+  (* input: option block * Z, output: unit *)
   Definition sfree_spec: fspec :=
     (mk_simple (fun '() => (
                   (ord_pure 0%nat),
@@ -788,6 +874,7 @@ Section SPEC.
                   (fun vret => ⌜vret = tt↑⌝)
     )))%I.
 
+  (* input: chunk * val, output: val *)
   Definition load_spec: fspec :=
     (mk_simple (fun '(chunk, vaddr, m, tg, q0, ofs, q1, mvs) => (
                     (ord_pure 0%nat),
@@ -801,6 +888,7 @@ Section SPEC.
                                  ** vaddr (↦_m,q1) mvs)
     )))%I.
 
+  (* deprecated, maybe revive in bitfield at v3.11? *)
   (* Definition loadbytes_spec: fspec :=
     (mk_simple (fun '(vaddr, sz, q, mvs) => (
                     (ord_pure 0%nat),
@@ -809,6 +897,7 @@ Section SPEC.
                     (fun vret => ⌜vret = mvs↑⌝ ** vaddr ⊢q#> mvs)
     ))). *)
 
+  (* input: chunk * val * val, output: unit *)
   Definition store_spec: fspec :=
     (mk_simple
       (fun '(chunk, vaddr, m, ofs, tg, q, v_new) => (
@@ -824,6 +913,7 @@ Section SPEC.
                          ** vaddr (↦_m,1) mvs_new)
     )))%I.
 
+  (* deprecated, maybe revive in bitfield at v3.11? *)
   (* Definition storebytes_spec: fspec :=
     (mk_simple
       (fun '(vaddr, mvs_new) => (
@@ -833,6 +923,9 @@ Section SPEC.
                                     ** vaddr ⊢1#> mvs_old),
             (fun vret => ⌜vret = tt↑⌝ ** vaddr ⊢1#> mvs_new)
     )))%I. *)
+
+  (* group of cmp_ptr rules *)
+  (* input: comparison * val * val, output: bool *)
 
   Definition cmp_ofs (c: comparison) (ofs0 ofs1: Z) :=
     match c with
@@ -937,6 +1030,7 @@ Section SPEC.
       @ cmp_ptr_hoare7
     ).
 
+  (* input: Z * val * val, output: val *)
   Definition sub_ptr_spec : fspec :=
     (mk_simple
       (fun '(size, vaddr0, vaddr1, m, ofs0, ofs1, q0, q1, tg) => (
@@ -950,6 +1044,7 @@ Section SPEC.
                          ** vaddr1 (⊨_m,tg,q1) ofs1)
     )))%I.
 
+  (* input: val, output: bool *)
   Definition non_null_spec: fspec :=
     (mk_simple
       (fun '(vaddr, m, q, tg, ofs) => (
@@ -959,6 +1054,9 @@ Section SPEC.
             (fun vret => ⌜vret = true↑⌝ 
                          ** vaddr (⊨_m,tg,q) ofs)
     )))%I.
+
+  (* builtin-like functions of clight *)
+  (* input: list val, output: val *)
 
   (* heap malloc free *)
   Definition malloc_spec: fspec :=
@@ -980,6 +1078,7 @@ Section SPEC.
                     (fun vret => ⌜vret = Vundef↑⌝)
     )))%I.
 
+  (* memcpy *)
   Definition memcpy_resource (vaddr vaddr': val) (m_src m_dst: metadata) (mvs_src mvs_dst: list memval) : iProp :=
     if Val.eq vaddr' vaddr then vaddr (↦_m_dst,1) mvs_dst
     else vaddr' (↦_m_src,1) mvs_src ** vaddr (↦_m_dst,1) mvs_dst.
@@ -997,6 +1096,7 @@ Section SPEC.
             (fun vret => ⌜vret = Vundef↑⌝ ** memcpy_resource vaddr vaddr' m_src m_dst mvs_dst mvs_dst)
     )))%I.
 
+  (* capture *)
   Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '() => (
             (ord_pure 0%nat),

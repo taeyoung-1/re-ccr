@@ -240,8 +240,8 @@ Section SPEC.
             (fun vret => ∃ i_l i_r, ⌜vret = (Vptrofs (Ptrofs.xor i_l i_r))↑⌝
                          ** left_ptr (⊨_m_l,tg_l,q_l) ofs_l
                          ** right_ptr (⊨_m_r,tg_r,q_r) ofs_r
-                         ** left_ptr (≃_ m_l) i_l
-                         ** right_ptr (≃_ m_r) i_r))%I.
+                         ** left_ptr (≃_ m_l) (Vptrofs i_l)
+                         ** right_ptr (≃_ m_r) (Vptrofs i_r)))%I.
 
   Definition encrypt_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(left_ptr, m_l, ofs_l, tg_l, q_l) => (
@@ -249,7 +249,7 @@ Section SPEC.
             (fun varg => ⌜varg = [left_ptr; Vnullptr]↑⌝
                          ** left_ptr (⊨_m_l,tg_l,q_l) ofs_l),
             (fun vret => ∃ i_l, ⌜vret = (Vptrofs i_l)↑⌝
-                         ** left_ptr (≃_ m_l) i_l
+                         ** left_ptr (≃_ m_l) (Vptrofs i_l)
                          ** left_ptr (⊨_m_l,tg_l,q_l) ofs_l))%I.
 
   Definition encrypt_hoare3 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
@@ -258,7 +258,7 @@ Section SPEC.
             (fun varg => ⌜varg = [Vnullptr; right_ptr]↑⌝
                          ** right_ptr (⊨_m_r,tg_r,q_r) ofs_r),
             (fun vret => ∃ i_r, ⌜vret = (Vptrofs i_r)↑⌝
-                         ** right_ptr (≃_ m_r) i_r
+                         ** right_ptr (≃_ m_r) (Vptrofs i_r)
                          ** right_ptr (⊨_m_r,tg_r,q_r) ofs_r))%I.
 
   Definition encrypt_hoare4 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
@@ -282,7 +282,7 @@ Section SPEC.
                      ** ptr (⊨_m,tg,q) ofs),
         (fun vret => ∃ i_ptr, ⌜vret = (Vptrofs (Ptrofs.xor i_key i_ptr))↑⌝
                      ** ptr (⊨_m,tg,q) ofs
-                     ** ptr (≃_m) i_ptr))%I.
+                     ** ptr (≃_m) (Vptrofs i_ptr)))%I.
                      
   Definition decrypt_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(i_key) => (
@@ -341,7 +341,7 @@ Section SPEC.
         (fun varg => ⌜varg = [hd_handler; tl_handler; Vint from_tail; Vlong index]↑
                      /\ check_inbound xs (Vint from_tail) (Vlong index) = Some idx⌝
                      ** full_xorlist q hd_handler tl_handler xs),
-        (fun vret => ∃ mid mid_prev m_hd_hdl m_tl_hdl p_hd p_tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl,
+        (fun vret => ∃ mid mid_prev m_mid m_mid_prev m_hd_hdl m_tl_hdl p_hd p_tl ofs_hd_hdl ofs_tl_hdl tg_hd_hdl tg_tl_hdl,
                      ⌜vret = mid↑⌝
                      ** hd_handler (↦_m_hd_hdl,q) (encode_val Mptr p_hd)
                      ** hd_handler (⊨_m_hd_hdl,tg_hd_hdl,q) ofs_hd_hdl
@@ -349,8 +349,8 @@ Section SPEC.
                      ** tl_handler (↦_m_tl_hdl,q) (encode_val Mptr p_tl)
                      ** tl_handler (⊨_m_tl_hdl,tg_tl_hdl,q) ofs_tl_hdl
                      ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_tl_hdl)%Z⌝
-                     ** frag_xorlist q mid_prev mid p_tl Vnullptr (drop idx xs)
-                     ** frag_xorlist q Vnullptr p_hd mid_prev mid (firstn idx xs))
+                     ** frag_xorlist q m_null m_mid Vnullptr p_hd mid_prev mid (firstn idx xs)
+                     ** frag_xorlist q m_mid_prev m_null mid_prev mid p_tl Vnullptr (drop idx xs))
     )))%I.
 
   (* sealed *)
