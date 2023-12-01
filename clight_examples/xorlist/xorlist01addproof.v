@@ -191,8 +191,8 @@ Section PROOF.
     destruct lfull.
     (* case: nil list *)
     - 
-      admit "solved".
-      (* ss.
+      (* admit "solved". *)
+      ss.
       iDestruct "LIST" as "[NULL_tl NULL_hd]".
       iPoseProof (equiv_sym with "NULL_hd") as "NULL_hd". iPoseProof (null_equiv with "NULL_hd") as "%". subst.
 
@@ -243,7 +243,7 @@ Section PROOF.
       iPoseProof (equiv_refl_offset with "new_ofs") as "[new_ofs new_equiv]".
       iPoseProof (equiv_dup with "NULL_hd") as "[? ?]".
       iExists _,_,_. iFrame. rewrite Ptrofs.xor_zero_l. iFrame.
-      iSplit; ss. *)
+      iSplit; ss.
     - ss. destruct v; clarify. 
       iDestruct "LIST" as (i_prev i_next m_hd) "[[[[% prev_addr] hd_ofs] hd_point] LIST]".
       rename H3 into m_hd_size.
@@ -257,8 +257,8 @@ Section PROOF.
       destruct Int.eq eqn: is_head.
       (* not nil, head case *)
       + 
-        admit "solved".
-        (* ss.
+        (* admit "solved". *)
+        ss.
         unhide. hred_r. unhide. remove_tau. unhide. remove_tau.
         hexploit SKINCLENV.
         { instantiate (2:="encrypt"). ss. }
@@ -360,8 +360,8 @@ Section PROOF.
         destruct lfull; ss.
         (* case: singleton list && delete from head *)
         * 
-          admit "solved".
-          (* iDestruct "LIST" as "[hd_equiv null_equiv]".
+          (* admit "solved". *)
+          iDestruct "LIST" as "[hd_equiv null_equiv]".
           iPoseProof (equiv_sym with "null_equiv") as "null_equiv". iPoseProof (null_equiv with "null_equiv") as "%". rewrite H3 in *. clear H3.
 
           iApply isim_ccallU_pure; et.
@@ -431,7 +431,7 @@ Section PROOF.
           iPoseProof (equiv_trans with "hd_equiv") as "hd_equiv".
           iExists _,_,_. iFrame.
           change Vnullptr with (Vptrofs Ptrofs.zero) at 1. iFrame.
-          rewrite Ptrofs.xor_zero. iFrame. ss. *)
+          rewrite Ptrofs.xor_zero. iFrame. ss.
         * destruct v; clarify.
           iDestruct "LIST" as (i_hd' i_hd_nn m_next)
             "[[[[% hd_addr'] next_ofs] next_point] LIST]".
@@ -502,7 +502,7 @@ Section PROOF.
           iExists _,_,_. iFrame. iSplit; ss.
           iExists _,_,_. iFrame. iSplit; ss. 
           iApply equiv_refl_equiv.
-          iApply equiv_sym. et. *)
+          iApply equiv_sym. et.
       + 
         pose proof (Int.eq_spec at_tail Int.zero). rewrite is_head in H3.
         unfold vlist_add.
