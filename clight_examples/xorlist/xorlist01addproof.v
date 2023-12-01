@@ -256,7 +256,9 @@ Section PROOF.
       hred_r. des_ifs_safe. clear Heq. unhide. remove_tau.
       destruct Int.eq eqn: is_head.
       (* not nil, head case *)
-      + ss.
+      + 
+        admit "solved".
+        (* ss.
         unhide. hred_r. unhide. remove_tau. unhide. remove_tau.
         hexploit SKINCLENV.
         { instantiate (2:="encrypt"). ss. }
@@ -500,9 +502,268 @@ Section PROOF.
           iExists _,_,_. iFrame. iSplit; ss.
           iExists _,_,_. iFrame. iSplit; ss. 
           iApply equiv_refl_equiv.
+          iApply equiv_sym. et. *)
+      + 
+        pose proof (Int.eq_spec at_tail Int.zero). rewrite is_head in H3.
+        unfold vlist_add.
+        destruct Val.eq eqn:?.
+        { exfalso. clear - e H3. unfold Vzero in *. inv e. et. }
+        clear H3 Heqs n.
+        Local Opaque last. Local Opaque removelast. Local Opaque rev.
+        iAssert (frag_xorlist 1 m_null m_null Vnullptr hd tl Vnullptr (Vlong i :: lfull))
+                  with "[prev_addr hd_point hd_ofs LIST]" as "LIST". { ss. iExists _,_,_. iFrame. ss. }
+        iPoseProof (rev_xorlist with "LIST") as "LIST".
+        assert (len_sup: length (rev (Vlong i :: lfull)) ≥ 1).
+        { rewrite rev_length. ss. nia. }
+        revert len_sup. set (rev (Vlong i :: lfull)) as l.
+        replace (Vlong i :: lfull) with (rev (rev (Vlong i :: lfull))) by now rewrite rev_involutive; et.
+        unfold l. clear l. generalize (rev (Vlong i :: lfull)). clear i lfull.
+        i. destruct l; ss; try nia.
+        rename l into lnext. destruct v; clarify. rename i into tl_item.
+        iDestruct "LIST" as (i_tl_next i_tl_prev m_tl_old) "[[[[% tl_next_equiv] tl_ofs] tl_point] LIST]". rename H3 into m_tl_size.
+
+        unhide. hred_r. unhide. remove_tau. unhide. remove_tau.
+        hexploit SKINCLENV.
+        { instantiate (2:="encrypt"). ss. }
+        i. des. ss. rewrite FIND. rename FIND into encrypt_loc.
+        hred_r. rewrite cast_long; et. hred_r. des_ifs. clear e.
+        iPoseProof ((@offset_cast_ptr _ _ _ _ Es) with "tl_ofs") as "%".
+        rewrite H3. hred_r. rename H3 into tl_cast_ptr.
+
+        replace (pred _) with blk0 by nia.
+        erewrite SKINCLGD; et.
+        hred_r. ss.
+        replace (Vlong (Int64.repr _)) with Vnullptr by et.
+
+        iApply isim_ccallU_pure; et.
+        { eapply fn_has_spec_in_stb; et.
+          { eapply STBINCL. stb_tac. unfold xorStb.
+            unseal "stb". ss. }
+          { ss. instantiate (1:=inr (inl (_,_,_,_,_))).
+            ss. oauto. }
+          { ss. } }
+        { instantiate (1:=14). oauto. }
+
+        ss. iSplitL "INV tl_ofs". { iFrame. ss. }
+        iIntros (st_src5 st_tgt5 ret_src ret_tgt) "[INV [POST %]]".
+        iDestruct "POST" as (i_tl) "[[% tl_addr] tl_ofs]".
+        rewrite H4. iExists _. iSplit; ss. clear H3 H4.
+
+        hred_r. unhide. remove_tau.
+        rewrite new_is_point. hred_r.
+        rewrite new_is_point. hred_r.
+        rewrite co_co_members. ss. hred_r.
+        rewrite cast_ptrofs. hred_r.
+        replace (Coqlib.align _ _) with 8%Z by et.
+
+        iApply isim_ccallU_store; ss; oauto.
+        iSplitL "INV new_point_key new_ofs"; iFrame.
+        { iExists _. iFrame. iSplit; cycle 1.
+          { iApply offset_slide. ss. }
+          { iPureIntro. split; ss. exists 1. ss. } }
+        iIntros (st_src6 st_tgt6) "[INV [new_point_key new_ofs]]".
+
+        hred_r. unhide. remove_tau. unhide. hred_r. unhide. remove_tau.
+        hexploit SKINCLENV.
+        { instantiate (2:="decrypt"). ss. }
+        i. des. ss. rewrite FIND. rename FIND into decrypt_loc.
+        hred_r.
+        iPoseProof (points_to_is_ptr with "tl_point") as "%".
+        rewrite H3. rename H3 into tl_ptr.
+        hred_r. rewrite tl_ptr. hred_r.
+        rewrite co_co_members. ss. hred_r.
+        replace (Coqlib.align _ _) with 8%Z by et.
+
+        iPoseProof (points_to_split with "tl_point") as "[tl_point_item tl_point_key]".
+        iApply isim_ccallU_load; ss; oauto.
+        iSplitL "INV tl_point_key tl_ofs".
+        { iFrame. iSplit.
+          { iApply offset_slide. ss. }
+          { iPureIntro. split; ss. exists 1. ss. } }
+        iIntros (st_src7 st_tgt7) "[INV [tl_point_key tl_ofs]]".
+
+        unfold Mptr. rewrite ptr64.
+        rewrite decode_encode_ofs. hred_r.
+        rewrite cast_long; et. hred_r.
+        rewrite cast_ptrofs. hred_r.
+        des_ifs_safe. clear e.
+
+        replace (pred _) with blk1 by nia.
+        erewrite SKINCLGD; et.
+        hred_r. ss.
+        replace (Vlong (Int64.repr _)) with Vnullptr by et.
+
+        iApply isim_ccallU_pure; et.
+        { eapply fn_has_spec_in_stb; et.
+          { eapply STBINCL. stb_tac. unfold xorStb.
+            unseal "stb". ss. }
+          { ss. instantiate (1:=(inr _)).
+            ss. oauto. }
+          { ss. } }
+        { instantiate (1:=11). oauto. }
+
+        ss. iSplitL "INV".
+        { iFrame. ss. }
+        iIntros (st_src8 st_tgt8 ret_src0 ret_tgt0) "[INV [POST %]]".
+        iDestruct "POST" as "%". rewrite H4.
+        iExists _. iSplit; ss. clear H3 H4.
+
+        hred_r. unhide. remove_tau. unhide. hred_r. unhide. remove_tau.
+        unhide. remove_tau.
+        rewrite encrypt_loc. hred_r.
+        rewrite cast_ptrofs. hred_r.
+        rewrite new_cast_ptr. hred_r.
+        des_ifs. clear e. hred_r.
+        replace (pred _) with blk0 by nia.
+        erewrite SKINCLGD; et.
+        hred_r. ss.
+
+        iPoseProof (null_equiv with "tl_next_equiv") as "%".
+        apply null_zero in H3. subst. rewrite Ptrofs.xor_zero_l.
+        destruct lnext; ss.
+        (* case: singleton list && delete from head *)
+        * 
+          (* admit "solved". *)
+          iDestruct "LIST" as "[tl_equiv null_equiv]".
+          iPoseProof (equiv_sym with "null_equiv") as "null_equiv". iPoseProof (null_equiv with "null_equiv") as "%". rewrite H3 in *. clear H3.
+
+          iApply isim_ccallU_pure; et.
+          { eapply fn_has_spec_in_stb; et.
+            { eapply STBINCL. stb_tac. unfold xorStb.
+              unseal "stb". ss. }
+            { ss. instantiate (1:=(inr (inl (_,_,_,_,_)))).
+              ss. oauto. }
+            { ss. } }
+          { instantiate (1:=10). oauto. }
+
+          iPoseProof (offset_slide_rev with "new_ofs") as "new_ofs".
+          ss. iSplitL "INV new_ofs".
+          { iFrame. iPureIntro. ss. }
+          iIntros (st_src9 st_tgt9 ret_src1 ret_tgt1) "[INV [POST %]]".
+          iDestruct "POST" as (i_new) "[[% new_addr] new_ofs]".
+          rewrite H4. clear H3 H4.
+          iExists _. iSplit; ss.
+
+          hred_r. unhide. remove_tau.
+
+          iPoseProof (points_to_is_ptr with "tl_point_item") as "%".
+          rewrite H3. hred_r.
+          rewrite H3. hred_r.
+          rewrite co_co_members. ss. hred_r.
+          replace (Coqlib.align _ _) with 8%Z by et.
+          rewrite cast_ptrofs. hred_r.
+
+          iApply isim_ccallU_store; ss; oauto.
+          iSplitL "INV tl_point_key tl_ofs".
+          { iFrame. iExists _. iFrame.
+            iPureIntro. split; ss. exists 1. ss. }
+          iIntros (st_src10 st_tgt10) "[INV [tl_point_key tl_ofs]]".
+
+          hred_r. unhide. remove_tau.
+          rewrite tl_hdl_is_point. hred_r.
+          rewrite new_cast_ptr. hred_r.
+          iApply isim_ccallU_store; ss; oauto.
+          iSplitL "INV tl_hdl_point tl_hdl_ofs".
+          { iFrame. iExists _. iFrame. iPureIntro.
+            rewrite encode_val_length. ss. }
+          iIntros (st_src11 st_tgt11) "[INV [tl_hdl_point tl_hdl_ofs]]".
+
+          hred_r. remove_tau. hred_l. iApply isim_choose_src.
+          iExists _. iApply isim_ret.
+          iFrame. iSplit; ss. iSplit; ss.
+          iCombine "new_point_item new_point_key" as "new_point".
+          iCombine "tl_point_item tl_point_key" as "tl_point".
+          iPoseProof (points_to_collect with "new_point") as "new_point".
+          iPoseProof (points_to_collect with "tl_point") as "tl_point".
+          iPoseProof (offset_slide_rev with "tl_ofs") as "tl_ofs".
+
+          iExists _,_,_,_,_,_,_,_. iFrame. iSplit; ss.
+          change (snoc _ _) with (rev [Vlong item; Vlong tl_item]).
+          iApply rev_xorlist. ss.
+          iExists _,_,_. iFrame. rewrite Ptrofs.xor_zero_l. iFrame. iSplit; ss.
+          iPoseProof (equiv_dup with "tl_addr") as "[tl_addr tl_addr']".
+          iCombine "tl_addr' tl_point" as "tl_point".
+          iPoseProof (equiv_point_comm with "tl_point") as "tl_point".
+          iPoseProof (equiv_dup with "tl_addr") as "[tl_addr tl_addr']".
+          iCombine "tl_addr' tl_ofs" as "tl_ofs".
+          iPoseProof (equiv_offset_comm with "tl_ofs") as "tl_ofs".
+          iPoseProof (equiv_sym with "tl_addr") as "tl_addr".
+          iCombine "tl_addr tl_equiv" as "tl_equiv".
+          iPoseProof (equiv_trans with "tl_equiv") as "tl_equiv".
+          iExists _,_,_. iFrame. rewrite Ptrofs.xor_zero. iFrame. ss.
+        * destruct v; clarify.
+          iDestruct "LIST" as (i_tl' i_tl_nn m_next)
+            "[[[[% tl_addr'] next_ofs] next_point] LIST]".
+          iCombine "tl_addr' tl_addr" as "tl_addr".
+          iPoseProof (capture_unique with "tl_addr") as "%". subst.
+          iDestruct "tl_addr" as "[_ tl_addr]".
+          rename H3 into m_next_size.
+
+          iPoseProof (offset_slide_rev with "new_ofs") as "new_ofs".
+
+          iApply isim_ccallU_pure; et.
+          { eapply fn_has_spec_in_stb; et.
+            { eapply STBINCL. stb_tac. unfold xorStb.
+              unseal "stb". ss. }
+            { ss. instantiate (1:= (inl (_,_,_,_,_,_,_,_,_,_))).
+              ss. oauto. }
+            { ss. } }
+          { instantiate (1:=10). oauto. }
+
+          ss. iSplitL "INV new_ofs next_ofs".
+          { iSplit; ss. iSplit; ss. iSplitR "next_ofs"; ss. iFrame. ss. }
+          iIntros (st_src9 st_tgt9 ret_src1 ret_tgt1) "[INV [POST %]]".
+          iDestruct "POST" as (i_new i_next') "[[[[% new_ofs] next_ofs] new_equiv] next_equiv]".
+          rewrite H4. clear H3 H4.
+          iExists _. iSplit; ss.
+          iPoseProof (equiv_ii_eq with "next_equiv") as "%". symmetry in H3. subst.
+
+          hred_r. unhide. remove_tau.
+          rewrite tl_ptr. hred_r.
+          rewrite tl_ptr. hred_r.
+          rewrite co_co_members. ss. hred_r.
+          replace (Coqlib.align _ _) with 8%Z.
+          rewrite cast_ptrofs. hred_r.
+
+          iApply isim_ccallU_store; ss; oauto.
+          iSplitL "INV tl_point_key tl_ofs".
+          { iFrame. iExists _. iFrame. iPureIntro. split; ss. exists 1. ss. }
+          iIntros (st_src10 st_tgt10) "[INV [tl_point_key tl_ofs]]".
+
+          hred_r. unhide. remove_tau.
+          rewrite tl_hdl_is_point. hred_r.
+          rewrite new_cast_ptr. hred_r.
+
+          iApply isim_ccallU_store; ss; oauto.
+          iSplitL "INV tl_hdl_point tl_hdl_ofs".
+          { iFrame. iExists _. iFrame. iPureIntro. split; ss.
+            rewrite encode_val_length. ss. }
+          iIntros (st_src11 st_tgt11) "[INV [tl_hdl_point tl_hdl_ofs]]".
+
+          hred_r. remove_tau. 2: ss. hred_l. iApply isim_choose_src.
+          iExists _. iApply isim_ret. iSplit; ss. iSplit; ss. iSplit; ss.
+          iCombine "new_point_item new_point_key" as "new_point".
+          iCombine "tl_point_item tl_point_key" as "tl_point".
+          iPoseProof (points_to_collect with "new_point") as "new_point".
+          iPoseProof (points_to_collect with "tl_point") as "tl_point".
+          iPoseProof (offset_slide_rev with "tl_ofs") as "tl_ofs".
+          iPoseProof (equiv_dup with "tl_addr") as "[tl_addr tl_addr']".
+          iCombine "tl_addr' tl_point" as "tl_point".
+          iPoseProof (equiv_point_comm with "tl_point") as "tl_point".
+          iPoseProof (equiv_dup with "tl_addr") as "[tl_addr tl_addr']".
+          iCombine "tl_addr' tl_ofs" as "tl_ofs".
+          iPoseProof (equiv_offset_comm with "tl_ofs") as "tl_ofs".
+          replace (snoc _ _) with (rev (Vlong item :: Vlong tl_item :: Vlong i :: lnext)).
+          2:{ rewrite <- rev_involutive. f_equal.
+              rewrite rev_snoc. f_equal. rewrite rev_involutive. et. }
+          iExists _,_,_,_,_,_,_,_. iFrame. iSplit; ss.
+          iApply rev_xorlist. ss.
+          iExists _,_,_. iFrame. rewrite Ptrofs.xor_zero_l. iFrame. iSplit; ss.
+          iExists _,_,_. iFrame. iSplit; ss.
+          iExists _,_,_. iFrame. iSplit; ss. 
+          iApply equiv_refl_equiv.
           iApply equiv_sym. et.
-    +
-  Admitted.
+  Qed.
 
   End SIMFUNS.
 
