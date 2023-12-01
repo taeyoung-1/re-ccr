@@ -622,6 +622,15 @@ Section RULES.
     iSplitR "A"; iFrame. iExists _. et.
   Qed.
 
+  Lemma equiv_refl_equiv m p q
+    : p (≃_m) q ⊢ p (≃_m) p.
+  Proof.
+    iIntros "A". unfold equiv_prov.
+    iDestruct "A" as (ofs) "[A _]".
+    iPoseProof (_has_offset_dup with "A") as "[? ?]".
+    iExists _. iFrame.
+  Qed.
+
   Lemma equiv_sym p q m
     : p (≃_m) q ⊢ q (≃_m) p.
   Proof.

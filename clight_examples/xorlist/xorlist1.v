@@ -222,6 +222,27 @@ Section PROP.
         iApply IHl. { apply H3. } iFrame. 
   Qed.
 
+  Lemma xorlist_hd_ptr q m_prev m_next hd_prev hd tl tl_next xs
+    : frag_xorlist q m_prev m_next hd_prev hd tl tl_next xs ⊢ ⌜decode_val Mint64 (encode_val Mint64 hd) = hd⌝.
+  Proof.
+    destruct xs.
+    - ss. iIntros "[A B]". iApply decode_encode_ptr_equiv. et.
+    - ss. iIntros "A". destruct v; clarify.
+      iDestruct "A" as (i_prev i_next m_hd) "[[[_ A] _] _]". 
+      iApply decode_encode_ptr_ofs. et.
+  Qed.
+
+  Lemma xorlist_tl_ptr q m_prev m_next hd_prev hd tl tl_next xs
+    : frag_xorlist q m_prev m_next hd_prev hd tl tl_next xs ⊢ ⌜decode_val Mint64 (encode_val Mint64 tl) = tl⌝.
+  Proof.
+    ginduction xs; i; ss.
+    - iIntros "[A B]". iApply decode_encode_ptr_equiv. iApply equiv_sym. et.
+    - ss. iIntros "A". destruct a; clarify.
+      iDestruct "A" as (i_prev i_next m_hd) "[_ A]". 
+      iApply IHxs. et.
+  Qed.
+
+
 End PROP.
 
 Section SPEC.
