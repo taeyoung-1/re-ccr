@@ -46,33 +46,194 @@ Section PROOF.
 
 Definition swap {A B} (p : A * B) : B * A :=
   (snd p, fst p).  
-  
+
+Definition swap_state {A B X} (f: A * B -> (A * B) * X)  :=
+  (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t)).
+
+(* Definition map_sE S S' X (f: (S -> S * X) -> (S' -> S' * X))  (e: sE S X) := 
+  match e with
+  | SUpdate run => SUpdate (f run)
+  end. *)
+
 Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
+  match es with
+  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (swap_state f)))
+  | inr1 (inr1 x) => inr1 (inr1 x)
+  | inl1 y => inl1 y
+  end.  
+  
+(* Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
   match es with
   | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t))))
   | inr1 (inr1 x) => inr1 (inr1 x)
   | inl1 y => inl1 y
-  end.
+  end. *)
 
 Definition swap_ems {R A B} (itl: itree (Es (A*B)) R) (itr: itree (Es (B*A)) R) :=
   itr = translate swap_Es itl.
+
+
+Definition assoc {A B C} (p: A * (B * C)): A * B * C :=
+  ((fst p, fst (snd p)), snd (snd p))
+.
+
+Definition assoc_state {A B C X} (f: (A * (B * C)) -> (A * (B * C) * X)) :=
+  (fun '(a, b, c) => let '((a', (b', c')), t) := f (a, (b, c)) in ((a', b', c'), t)).
+
+Definition assoc_Es {A B C} T (es: Es (A * (B * C)) T) : Es (A * B * C) T :=
+  match es with
+  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (assoc_state f)))
+  | inr1 (inr1 x) => inr1 (inr1 x)
+  | inl1 y => inl1 y
+  end.
+
+Definition assoc_ems {R A B C} (itl: itree (Es (A * (B * C))) R) (itr: itree (Es (A * B * C)) R) :=
+  itr = translate assoc_Es itl. 
+
+Lemma translate_triggerUB A B T (f: forall T, Es A T -> Es B T) (g: forall T, (A -> A * T) -> (B -> B * T))
+      (F: f = (fun _ es => match es with
+                        | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (g _ run)))
+                        | inr1 (inr1 x) => inr1 (inr1 x)
+                        | inl1 y => inl1 y
+                 end))
+  :
+      @triggerUB _ T _ = translate f (@triggerUB _ T _)
+.
+Proof.
+  unfold triggerUB.
+  erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+  f_equal.
+  - unfold trigger. rewrite F.
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    repeat f_equal.
+    extensionality v. destruct v.
+  - extensionality v. destruct v.
+Qed. 
+
+
+(* Lemma translate_assoc_triggerUB A B C T
+  :
+      @triggerUB _ T _  = translate (@assoc_Es A B C) (@triggerUB _ T _).
+Proof.
+  unfold triggerUB.
+  erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+  f_equal.
+  - unfold trigger.
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    repeat f_equal.
+    extensionality v. destruct v.
+  - extensionality v. destruct v.
+Qed.  *)
+
+(* 
+Definition emb_run {S0 S1 S2} X (run: S1 * S2 -> S1 * S2 * X): (S0 * S1 * S2 -> S0 * S1 * S2 * X) :=
+  (fun '(s0, s1, s2) => (s0, fst (fst (run (s1, s2) )), snd (fst (run (s1, s2))), snd (run (s1, s2))))
+. *)
+
 
 Lemma swap_ems_prog X ms0 ms1 (e: callE X)
 :
       swap_ems (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)
 .
 Proof.
-  destruct e. s. unfold unwrapU, add_fnsems. des_ifs.
-  - grind. unfold swap_ems. Set Printing All. unfold triggerUB.
+  destruct e. s. unfold unwrapU, add_fnsems. 
+  des_ifs; grind; unfold swap_ems.
+  - eapply translate_triggerUB; ss.
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    f_equal.
+    unfold ">>>", Cat_IFun, emb_l, emb_r, lmap. 
+    extensionalities T es.
+    unfold swap_Es.
+    destruct es as [c|[s|e]]; et.
+    destruct s.
+    unfold map_lens. 
+    repeat (f_equal).
+    unfold swap_state. 
+    extensionality x. destruct x. et.
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    f_equal.
+    unfold ">>>", Cat_IFun, emb_l, emb_r, lmap. 
+    extensionalities T es. des_ifs.
+    destruct s0. s. 
+    repeat (f_equal).
+    unfold swap_state. 
+    extensionality x. destruct x. et.
+  - unfold triggerUB. grind.
     erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
-    Search eq_itree.
-    unfold trigger.
+    f_equal.
+    + unfold trigger.
+      erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+      repeat f_equal.
+      extensionality v. destruct v.
+    + extensionality v. destruct v.
+Qed.
 
-    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
-    admit.
-  - grind. unfold swap_ems. Search translate. 
-Admitted.
-
+Lemma assoc_ems_prog X ms0 ms1 ms2 (e: callE X)
+:
+  assoc_ems (prog (add ms0 (add ms1 ms2)) e) (prog (add (add ms0 ms1) ms2) e)
+.
+Proof.
+  destruct e. s. unfold unwrapU.
+  repeat (unfold add_fnsems; grind).
+  des_ifs; grind; unfold assoc_ems.
+  - eapply translate_triggerUB. ss. 
+  - eapply translate_triggerUB. ss.
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    eapply translate_triggerUB.
+    unfold ">>>".
+    unfold Cat_IFun.
+    extensionalities T es. des_ifs.
+    (* destruct es as [c|[s|e]]; unfold emb_r, lmap; et.
+    destruct s. s.
+    repeat f_equal.
+    unfold assoc_state. s. 
+    (* destruct SUpdate.  *)
+    extensionality x. destruct x, p. 
+    instantiate (1 := (fun _ run '(s0, s1, s2) => (s0, fst (fst (run (s1, s2) )), snd (fst (run (s1, s2))), snd (run (s1, s2))))).
+     s. unfold Lens.view. des_ifs. ss.
+    rewrite Heq. et. *)
+  - erewrite <- translate_triggerUB with (f:=assoc_Es); ss.
+    symmetry.
+    eapply translate_triggerUB.
+    unfold emb_l, lmap.
+    extensionalities T es. des_ifs.
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    f_equal.
+    unfold ">>>", Cat_IFun, emb_l, lmap.
+    extensionalities T es. des_ifs.
+    destruct s1. s.
+    repeat f_equal.
+    unfold assoc_state. s.
+    extensionality x. destruct x, p.
+    unfold lens_state. s. 
+    f_equal.
+    (* Set Printing All.  *)
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    f_equal.
+    unfold ">>>", Cat_IFun, emb_l, emb_r, lmap.
+    extensionalities T es. des_ifs.
+    destruct s2. s.
+    repeat f_equal.
+    extensionality x. destruct x, p. 
+    s. des_ifs.
+  - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+    f_equal.
+    unfold ">>>", Cat_IFun, emb_r, lmap.
+    extensionalities T es. des_ifs. 
+    destruct s0. s.
+    repeat f_equal. 
+    unfold assoc_state, lens_state.
+    extensionality x. destruct x, p. s.
+    f_equal.
+  - unfold triggerUB. grind.
+    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+    f_equal.
+    + unfold trigger.
+      erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+      repeat f_equal.
+      extensionality v. destruct v.
+    + extensionality v. destruct v.
+Qed.
 
 (* Move to SimGlobal? *)
 Lemma simg_map R0 R1 RR R0' R1' RR' f_src f_tgt itl itr (f0: R0 -> R0') (f1: R1 -> R1')
@@ -111,6 +272,154 @@ Proof.
 Qed.
 
 Context {CONF: EMSConfig}.
+
+
+(* Definition swap_state {A B X} (f: A * B -> (A * B) * X)  :=
+  (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t)).
+
+(* Definition map_sE S S' X (f: (S -> S * X) -> (S' -> S' * X))  (e: sE S X) := 
+  match e with
+  | SUpdate run => SUpdate (f run)
+  end. *)
+
+Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
+  match es with
+  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (swap_state f)))
+  | inr1 (inr1 x) => inr1 (inr1 x)
+  | inl1 y => inl1 y
+  end.   *)
+
+
+(* Definition trans_ems {R A B} f (itl: itree (Es A) R) (itr: itree (Es B) R) :=
+  itr = translate f itl.  *)
+
+(* Lemma add_prop_aux
+        msl msr stl0 str0
+        (f: state msl -> state msr)
+        (g: forall T, (Es (state msl) T) -> (Es (state msr) T))
+        (REL: f stl0 = str0)
+        (REL': forall T (itl: itree (Es (state msl)) T)  itr, itr = translate g itl)
+  :
+        forall e, 
+        paco7 _simg bot7 Any.t Any.t eq false false
+        (snd <$> interp_Es (prog msl) (prog msl e) stl0)
+        (snd <$> interp_Es (prog msr) (prog msr e) str0)
+.
+Proof.
+  generalize (Any.t) as X. i.
+  eapply simg_map.
+  2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ f (fst r0) = fst r1)).
+  i. apply H. }
+  revert_until msr.
+  ginit. { i. apply cpn7_wcompat. apply simg_mon. }
+  i.    
+  assert (R: prog msr e = translate g (prog msl e)). { apply REL'. }
+  revert R. 
+  generalize (prog msl e) as itl.
+  generalize (prog msr e) as itr. 
+  rewrite <- REL.
+  generalize stl0 as stl.
+  gcofix CIH. i.
+  inv R.
+  rewrite (itree_eta_ itl).
+  destruct (observe itl).
+  - (* Ret *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+    rewrite ! interp_Es_ret.
+    gstep. apply simg_ret. et.   
+  - (* Tau *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
+    rewrite ! interp_Es_tau.
+    gstep. apply simg_tauL; et. apply simg_tauR; et. 
+    apply simg_progress; et.
+    gfinal. left. eapply CIH. ss.
+    - (* Vis *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    destruct e0 as [c|[s|e0]].
+    + (* callE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      Set Printing All. 
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)) stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_callE.
+      setoid_rewrite interp_Es_callE.
+      rewrite ! bind_tau.
+      gstep. apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      rewrite <- ! interp_Es_bind.
+    
+      gfinal. left. eapply CIH'.
+      unfold swap_ems. erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      f_equal. apply swap_ems_prog.
+
+    + (* sE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0
+         (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))) stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0
+            (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_sE.
+      grind.
+      setoid_rewrite interp_Es_sE.
+      grind.
+      gstep. 
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      destruct stl. inv Heq1. rewrite H1 in Heq. inv Heq.
+      gfinal. left. eapply CIH'. unfold swap_ems. et.
+
+    + (* eventE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
+      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0)))
+      stl).
+      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
+      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
+         (@swap_Es (state ms1) (state ms0) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0))))
+      (@swap (state ms1) (state ms0) stl)).
+      setoid_rewrite interp_Es_eventE.
+      setoid_rewrite interp_Es_eventE.
+      grind. 
+      gstep.
+      destruct e0.
+      * (* Choose *)
+        apply simg_chooseR; et. i. apply simg_chooseL; et. exists x0.
+        grind.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+      * (* Take *)
+        apply simg_takeL; et. i. apply simg_takeR; et. exists x0.
+        grind.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+      * (* Syscall *)
+        apply simg_syscall. i. inv EQ.
+        grind. 
+        gstep.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_tauL; et. apply simg_tauR; et.
+        apply simg_progress; et.
+        gfinal. left. apply CIH'. unfold swap_ems. et.
+  
+
+Admitted.
+
+*)
 
 Theorem add_comm
         ms0 ms1
@@ -261,7 +570,8 @@ Proof.
 Qed.
 
 
-Lemma add_assoc' ms0 ms1 ms2:
+
+(* Lemma add_assoc' ms0 ms1 ms2:
   add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
 Proof. Admitted.
   (* induction ms2; ss. unfold add. f_equal; ss.
@@ -276,7 +586,287 @@ Proof. Admitted.
   (* unfold add. ss. f_equal.
   { apply List.app_assoc. }
   { apply List.app_assoc. }
-Qed. *)
+Qed. *) *)
+
+
+(* TODO: Define aux for both comm / assoc. *)
+Lemma add_assoc_aux
+        ms0 ms1 ms2
+  :
+        paco7 _simg bot7 Any.t Any.t eq false false
+        (snd <$> interp_Es (prog (add (add ms0 ms1) ms2)) (prog (add (add ms0 ms1) ms2) (Call "main" initial_arg)) (init_st (add (add ms0 ms1) ms2)))
+        (snd <$> interp_Es (prog (add ms0 (add ms1 ms2))) (prog (add ms0 (add ms1 ms2)) (Call "main" initial_arg)) (init_st (add ms0 (add ms1 ms2))))
+.
+Proof.
+  generalize (Call "main" initial_arg) as e.
+  assert (REL: assoc (init_st (add ms0 (add ms1 ms2))) = init_st (add (add ms0 ms1) ms2)).
+  { unfold init_st. et. }
+  revert REL.
+
+  generalize (Any.t) as X.
+  generalize (init_st (add (add ms0 ms1) ms2)) as stl0.
+  generalize (init_st (add ms0 (add ms1 ms2))) as str0.
+
+  i. eapply simg_map.
+  2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ fst r0 = (assoc (fst r1)))).
+       i. apply H. }
+    
+  revert_until ms2.
+  ginit. { i. apply cpn7_wcompat. apply simg_mon. }
+  gcofix CIH. i.
+
+  pose proof (assoc_ems_prog ms0 ms1 ms2 e) as REL'.
+  revert REL'.
+
+  generalize (prog (add (add ms0 ms1) ms2) e) as itl.
+  generalize (prog (add ms0 (add ms1 ms2)) e) as itr.
+  rewrite <- REL.
+  generalize str0 as str.
+
+  gcofix CIH'. i.
+  inv REL'.
+    
+  rewrite (itree_eta_ itr).
+  destruct (observe itr).
+
+  - (* Ret *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+    rewrite ! interp_Es_ret.
+    gstep. apply simg_ret. et.
+  - (* Tau *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
+    rewrite ! interp_Es_tau.
+    gstep. apply simg_tauL; et. apply simg_tauR; et. 
+    apply simg_progress; et.
+    gfinal. left. eapply CIH'. ss.
+  - (* Vis *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    destruct e0 as [c|[s|e0]].
+    + (* call E *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+         (@assoc_Es (state ms0) (state ms1) (state ms2) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)))
+      (@assoc (state ms0) (state ms1) (state ms2) str)).
+      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)) str).
+      setoid_rewrite interp_Es_callE.
+      setoid_rewrite interp_Es_callE.
+      rewrite ! bind_tau.
+      gstep. apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      rewrite <- ! interp_Es_bind.
+    
+      gfinal. left. eapply CIH'.
+      unfold assoc_ems. erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      f_equal. apply assoc_ems_prog.
+    + (* sE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+         (@assoc_Es (state ms0) (state ms1) (state ms2) X0
+            (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))))
+      (@assoc (state ms0) (state ms1) (state ms2) str)).
+      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0
+         (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))) str).
+      setoid_rewrite interp_Es_sE.
+      grind.
+      setoid_rewrite interp_Es_sE.
+      grind.
+      gstep. 
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      destruct str. destruct s4. inv Heq1.
+      (* rewrite H0 in Heq. *)
+      assert (SSS: (s, x) = (s1, (s0, s3), x0)). { rewrite <- H0, <- Heq. et. }
+      inv SSS.
+      gfinal. left.
+      replace (s1, s0, s3) with (assoc (s1, (s0, s3))); et.
+      eapply CIH'. unfold assoc_ems. et.
+  + (* eventE *)
+    rewrite <- ! bind_trigger, ! interp_Es_bind.
+    (* Set Printing All. *)
+    pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+    (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+       (@assoc_Es (state ms0) (state ms1) (state ms2) X0
+          (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inr1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 e0))))
+    (@assoc (state ms0) (state ms1) (state ms2) str)).
+    pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+    (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0
+       (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inr1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 e0))) str).
+    setoid_rewrite interp_Es_eventE.
+    setoid_rewrite interp_Es_eventE.
+    grind.
+    gstep.
+    destruct e0.
+    * (* Choose *)
+      apply simg_chooseR; et. i. apply simg_chooseL; et. exists x.
+      grind.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+    * (* Take *)
+      apply simg_takeL; et. i. apply simg_takeR; et. exists x.
+      grind.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+    * (* Syscall *)
+      apply simg_syscall. i. inv EQ.
+      grind. 
+      gstep.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+Qed. 
+
+Lemma add_assoc_rev_aux
+        ms0 ms1 ms2
+  :
+        paco7 _simg bot7 Any.t Any.t eq false false
+        (snd <$> interp_Es (prog (add ms0 (add ms1 ms2))) (prog (add ms0 (add ms1 ms2)) (Call "main" initial_arg)) (init_st (add ms0 (add ms1 ms2))))
+        (snd <$> interp_Es (prog (add (add ms0 ms1) ms2)) (prog (add (add ms0 ms1) ms2) (Call "main" initial_arg)) (init_st (add (add ms0 ms1) ms2)))
+.
+Proof.
+  generalize (Call "main" initial_arg) as e.
+  assert (REL: assoc (init_st (add ms0 (add ms1 ms2))) = init_st (add (add ms0 ms1) ms2)).
+  { unfold init_st. et. }
+  revert REL.
+
+  generalize (Any.t) as X.
+  generalize (init_st (add ms0 (add ms1 ms2))) as stl0.
+  generalize (init_st (add (add ms0 ms1) ms2)) as str0.
+
+  i. eapply simg_map.
+  2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ assoc (fst r0) = fst r1)).
+       i. apply H. }
+    
+  revert_until ms2.
+  ginit. { i. apply cpn7_wcompat. apply simg_mon. }
+  gcofix CIH. i.
+
+  pose proof (assoc_ems_prog ms0 ms1 ms2 e) as REL'.
+  revert REL'.
+
+  generalize (prog (add ms0 (add ms1 ms2)) e) as itl.
+  generalize (prog (add (add ms0 ms1) ms2) e) as itr.
+  rewrite <- REL.
+  generalize stl0 as stl.
+
+  gcofix CIH'. i.
+  inv REL'.
+    
+  rewrite (itree_eta_ itl).
+  destruct (observe itl).
+
+  - (* Ret *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+    rewrite ! interp_Es_ret.
+    gstep. apply simg_ret. et.
+  - (* Tau *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
+    rewrite ! interp_Es_tau.
+    gstep. apply simg_tauL; et. apply simg_tauR; et. 
+    apply simg_progress; et.
+    gfinal. left. eapply CIH'. ss.
+  - (* Vis *)
+    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    destruct e0 as [c|[s|e0]].
+    + (* callE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)) stl).
+      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+         (@assoc_Es (state ms0) (state ms1) (state ms2) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)))
+      (@assoc (state ms0) (state ms1) (state ms2) stl)).
+      setoid_rewrite interp_Es_callE.
+      setoid_rewrite interp_Es_callE.
+      rewrite ! bind_tau.
+      gstep. apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      rewrite <- ! interp_Es_bind.
+    
+      gfinal. left. eapply CIH'.
+      unfold assoc_ems. erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      f_equal. apply assoc_ems_prog.
+    + (* sE *)
+      rewrite <- ! bind_trigger, ! interp_Es_bind.
+      (* Set Printing All. *)
+      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0
+         (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))) stl).
+      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+         (@assoc_Es (state ms0) (state ms1) (state ms2) X0
+            (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))))
+      (@assoc (state ms0) (state ms1) (state ms2) stl)).
+
+      setoid_rewrite interp_Es_sE.
+      grind.
+      setoid_rewrite interp_Es_sE.
+      grind.
+      gstep. 
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      destruct stl. destruct s4. inv Heq1.
+      (* rewrite H0 in Heq. *)
+      assert (SSS: (s, x) = (s1, (s0, s3), x0)). { rewrite <- H0, <- Heq. et. }
+      inv SSS.
+      gfinal. left.
+      replace (s1, s0, s3) with (assoc (s1, (s0, s3))); et.
+      eapply CIH'. unfold assoc_ems. et.
+  + (* eventE *)
+    rewrite <- ! bind_trigger, ! interp_Es_bind.
+    Set Printing All.
+
+    pattern  (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
+    (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0
+       (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inr1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 e0))) stl).
+    pattern  (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
+    (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
+       (@assoc_Es (state ms0) (state ms1) (state ms2) X0
+          (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inr1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 e0))))
+    (@assoc (state ms0) (state ms1) (state ms2) stl)).
+
+    setoid_rewrite interp_Es_eventE.
+    setoid_rewrite interp_Es_eventE.
+    grind.
+    gstep.
+    destruct e0.
+    * (* Choose *)
+      apply simg_chooseR; et. i. apply simg_chooseL; et. exists x.
+      grind.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+    * (* Take *)
+      apply simg_takeL; et. i. apply simg_takeR; et. exists x.
+      grind.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+    * (* Syscall *)
+      apply simg_syscall. i. inv EQ.
+      grind. 
+      gstep.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_tauL; et. apply simg_tauR; et.
+      apply simg_progress; et.
+      gfinal. left. apply CIH'. unfold assoc_ems. et.
+Qed.
+
 
 Theorem add_assoc
         ms0 ms1 ms2 P
@@ -285,17 +875,37 @@ Theorem add_assoc
             Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
 .
 Proof. 
-  rewrite add_assoc_eq. ss.
+
+  unfold compile. red. apply adequacy_global_itree; et.
+  unfold initial_itr, assume. 
+  destruct P.
+  - rewrite ! bind_bind. pfold.
+    apply simg_takeL; et. i. apply simg_takeR; et. exists x.
+    apply simg_progress; et.
+    rewrite ! bind_ret_l.
+    left. apply add_assoc_aux.
+  - rewrite ! bind_ret_l. apply add_assoc_aux.
 Qed.
+
+
+
 
 Theorem add_assoc_rev
         ms0 ms1 ms2 P
   :
-    <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) P) <1=
-            Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
+    <<COMM: Beh.of_program (compile (add (add ms0 ms1) ms2) P) <1=
+            Beh.of_program (compile (add ms0 (add ms1 ms2)) P)>>
 .
 Proof.
-  rewrite add_assoc_eq. ss.
+  unfold compile. red. apply adequacy_global_itree; et.
+  unfold initial_itr, assume. 
+  destruct P.
+  - rewrite ! bind_bind. pfold.
+    apply simg_takeL; et. i. apply simg_takeR; et. exists x.
+    apply simg_progress; et.
+    rewrite ! bind_ret_l.
+    left. apply add_assoc_rev_aux.
+  - rewrite ! bind_ret_l. apply add_assoc_rev_aux.
 Qed.
 
 End PROOF.
@@ -332,27 +942,54 @@ Definition add (md0 md1: t): t := {|
   sk := Sk.add md0.(sk) md1.(sk);
 |}
 . *)
+(* 
+Lemma enclose_eq md0 md1 ms0 ms1
+    (ENCL0: enclose md0 = ms0)
+    (ENCL1: enclose md1 = ms1)
+  :
+    enclose (add md0 md1) = (ModSem.add ms0 ms1)
+.
+Proof.
+  unfold enclose, get_modsem. simpl in *. f_equal.
+  - unfold enclose in *.   *)
+
+
 
 Theorem add_comm
         md0 md1
   :
     <<COMM: Beh.of_program (compile (add md0 md1)) <1= Beh.of_program (compile (add md1 md0))>>
 .
-Proof. Admitted.
-  (* ii. unfold compile in *.
+Proof.
+(* Admitted. *)
+  unfold compile. red. apply adequacy_global_itree; et.
+  unfold ModSem.initial_itr, assume.
+  
+  rewrite ! bind_bind.
+  pfold. apply simg_takeL; et. i.
+   apply simg_takeR; et.
+  assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))). { apply Sk.wf_comm. et. }
+  exists SK.
+  apply simg_progress; et.
+  rewrite ! bind_ret_l.
+  left.
+  (* May need a lemma about enclose: 
+      enclose (add md0 md1) = add ms0 ms1
+  *)
+  unfold enclose.
+
+
+
+ii. unfold compile in *.
   destruct (classic (Sk.wf (sk (add md1 md0)))).
   (* 2: { eapply ModSemL.initial_itr_not_wf. ss. } *)
   ss. des. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
   { apply Sk.wf_comm. auto. }
   rewrite Sk.add_comm; et.
-  eapply ModSem.add_comm. [| |et].
-  { i. split; auto. unfold enclose. ss. rewrite Sk.add_comm; et.
-    inv H2. inv H3. econs; ss.
-    { rewrite List.map_app in *. eapply nodup_comm; et. }
-    { rewrite List.map_app in *. eapply nodup_comm; et. }
-  }
-  { rewrite Sk.add_comm; et. }
-Qed. *)
+  eapply ModSemAdd.add_comm; [|et].
+  { i. auto. }
+  {  }
+Qed.
 
 
 

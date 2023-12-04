@@ -631,9 +631,12 @@ Section SIM.
     { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs; eauto. }
   Qed.
 
-  Definition respectful' := fun (A B C D: Type) (R: A -> B -> Prop) (R': C -> D -> Prop) (f: A -> C) (g: B -> D) => forall x y, R x y -> R' (f x) (g y).
+  Definition respectful' := 
+    fun (A B C D: Type) (R: A -> B -> Prop) (R': C -> D -> Prop) (f: A -> C) (g: B -> D) 
+    => forall x y, R x y -> R' (f x) (g y).
 
-  Definition sim_fsem {st_src st_tgt} (wf: world -> st_src * st_tgt -> Prop): (Any.t -> itree (Es st_src) Any.t) -> (Any.t -> itree (Es st_tgt) Any.t) -> Prop :=
+  Definition sim_fsem {st_src st_tgt} (wf: world -> st_src * st_tgt -> Prop): 
+  (Any.t -> itree (Es st_src) Any.t) -> (Any.t -> itree (Es st_tgt) Any.t) -> Prop :=
     (respectful' eq (fun it_src it_tgt => forall w mrs_src mrs_tgt
     (SIMMRS: wf w (mrs_src, mrs_tgt)), 
     sim_itree false false w wf (mrs_src, it_src) (mrs_tgt, it_tgt)
@@ -1109,6 +1112,8 @@ Section ADEQUACY.
     Qed.
   End SEMPAIR.
 
+
+  (*  *)
   Theorem adequacy_local_strong md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
     :
@@ -1116,15 +1121,18 @@ Section ADEQUACY.
   .
   Proof. 
   (* Admitted. *)
-    ii. unfold ModAdd.compile, Mod.enclose in *.
-    destruct (classic (Mod.wf (ModAdd.add (ModAdd.add_list ctx) md_src))).
+    ii. revert PR.
+    generalize (ModAdd.add_list ctx) as CTX.
+    clear ctx. ii.
+    unfold ModAdd.compile, Mod.enclose in *.
+    destruct (classic (Mod.wf (ModAdd.add (CTX) md_src))).
     2:{ eapply ModSem.compile_not_wf. ss. }
-    pose (sk_tgt := (Mod.sk (Mod.add (ModAdd.add_list ctx) md_tgt))).
-    pose (sk_src := (Mod.sk (Mod.add (ModAdd.add_list ctx) md_src))).
+    pose (sk_tgt := (Mod.sk (Mod.add (CTX) md_tgt))).
+    pose (sk_src := (Mod.sk (Mod.add (CTX) md_src))).
     assert (SKEQ: sk_tgt = sk_src).
     { unfold sk_src, sk_tgt. ss. f_equal.
       inv SIM. auto. }
-    rr in H.
+    (* rr in H. *)
     (* unfold Mod.enclose in *. fold sk_src in H. des. inv WF. *)
     (* rename SK into SKWF. *)
     (* rename wf_fnsems into FNWF. *)
@@ -1138,30 +1146,33 @@ Section ADEQUACY.
       unfold Sk.wf in *. ss. eapply Permutation.Permutation_NoDup; [|et].
       eapply Permutation.Permutation_map. eapply Sk.SkSort.sort_permutation. }
     i. inv H0. des.
-    assert (WFTGT: Mod.wf (Mod.add (ModAdd.add_list ctx) md_tgt)).
-    { rr. 
-      unfold Mod.enclose.
+    assert (WFTGT: Mod.wf (Mod.add (CTX) md_tgt)).
+    { rr. ss. 
       match goal with
         | H: NoDup ?l0 |- NoDup ?l1 => replace l1 with l0
-        end; auto. ss.
-        rewrite sim_sk. et.
+      end; auto. ss.
+      rewrite sim_sk. et.
     }
     (* simpl in PR. rewrite <- sim_sk in PR.    *)
-
-    generalize (Mod.get_modsem (ModAdd.add (ModAdd.add_list ctx) md_src) (Sk.canon (Mod.sk (ModAdd.add (ModAdd.add_list ctx) md_src)))) as ms_src.
-    generalize (Mod.get_modsem (ModAdd.add (ModAdd.add_list ctx) md_tgt) (Sk.canon (Mod.sk (ModAdd.add (ModAdd.add_list ctx) md_tgt)))) as ms_tgt.
-    i.
+(* 
+    generalize (Mod.get_modsem (ModAdd.add (CTX) md_src) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_src)))) as ms_src.
+    generalize (Mod.get_modsem (ModAdd.add (CTX) md_tgt) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_tgt)))) as ms_tgt.
+    i. *)
 
     eapply adequacy_local_aux in PR; et.
     
     { ss. ii.
       (* previous version is proved by second branch (exists mn, ... ) which doesn't exists anymore *)
     
-      fold sk_src sk_tgt. 
+      fold sk_src sk_tgt.
+      revert_until SKEQ.
+      pattern (Sk.sort sk_tgt) at 1.
+      rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs.
+
       esplits. 
-      generalize (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_src))
+      generalize (ModSem.add_fnsems (Mod.get_modsem (CTX) (Sk.sort sk_src))
       (Mod.get_modsem md_src (Sk.sort sk_src)) fn) as o_src. 
-      generalize (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_tgt))
+      generalize (ModSem.add_fnsems (Mod.get_modsem (CTX) (Sk.sort sk_tgt))
       (Mod.get_modsem md_tgt (Sk.sort sk_tgt)) fn) as o_tgt.
       
       i. destruct (ModSem.fnsems ms_src fn); cycle 1.
@@ -1174,7 +1185,7 @@ Section ADEQUACY.
         + exists i0. splits; et.
           unfold sim_fsem, respectful'. ii.
 
-      (* - right. destruct (ModSem.add_fnsems (Mod.get_modsem (ModAdd.add_list ctx) (Sk.sort sk_tgt))
+      (* - right. destruct (ModSem.add_fnsems (Mod.get_modsem (CTX) (Sk.sort sk_tgt))
         (Mod.get_modsem md_tgt (Sk.sort sk_tgt)) fn).
         + exists i. exists i0. splits; et.
           unfold sim_fsem, respectful'. i. inv H0.
