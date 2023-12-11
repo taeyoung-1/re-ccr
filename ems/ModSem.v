@@ -10,7 +10,7 @@ Require Import Any.
 Set Implicit Arguments.
 
 
-Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
+Class EMSConfig := { finalize: oAny -> oAny; initial_arg: oAny }.
 
 
 
@@ -18,24 +18,27 @@ Module ModSem.
 Section MODSEM.
 
   Record t: Type := mk {
-    state : Type;
-    init_st : state;
-    fnsems : gname -> option (Any.t -> itree (Es state) Any.t)
+    init_st : oAny;
+    fnsems : gname -> option (oAny -> itree Es oAny)
   }
   .
 
   Program Definition wrap_fun {E} `{eventE -< E} A R 
         (f: ktree E A R):
-    ktree E Any.t Any.t :=
+    ktree E oAny oAny :=
     fun arg =>
-      arg <- unwrapU (arg↓);;
-      ret <- (f arg);; Ret ret↑
+      match arg with
+      | Some arg => 
+          (arg <- unwrapU (arg↓);;
+           ret <- (f arg);; Ret (Some ret↑))
+      | None => Ret None
+      end
   .
 
   Fixpoint get_fnsems {E} `{eventE -< E}
-          (fnsems: list (gname * (ktree E Any.t Any.t)))
+          (fnsems: list (gname * (ktree E oAny oAny)))
           (fn: gname):
-    option (ktree E Any.t Any.t) :=
+    option (ktree E oAny oAny) :=
     match fnsems with
     | [] => None
     | (fn_hd, body_hd)::tl =>
@@ -47,7 +50,7 @@ Section INTERP.
 
   Variable ms: t.
 
-  Definition prog: callE ~> itree (Es (state ms)) :=
+  Definition prog: callE ~> itree Es :=
     fun _ '(Call fn args) =>
       sem <- (fnsems ms fn)?;;
       rv <- (sem args);;
@@ -56,14 +59,14 @@ Section INTERP.
 
   Context `{CONF: EMSConfig}.
 
-  Definition initial_itr (P: option Prop): itree eventE Any.t :=
+  Definition initial_itr (P: option Prop): itree eventE oAny :=
     match P with
     | None => Ret tt
     | Some P' => assume (<<WF: P'>>)
     end;;; 
     snd <$> interp_Es prog (prog (Call "main" initial_arg)) (init_st ms).
 
-  Let state: Type := itree eventE Any.t.
+  Let state: Type := itree eventE oAny.
 
   Definition state_sort (st0: state): sort :=
     match (observe st0) with
@@ -216,7 +219,7 @@ Section INTERP.
   Qed.
 
 
-  Program Definition compile_itree: itree eventE Any.t -> semantics :=
+  Program Definition compile_itree: itree eventE oAny -> semantics :=
     fun itr =>
       {|
         STS.state := state;
@@ -415,6 +418,8 @@ End ModSem.
 Module Mod.
 Section MOD.
   Context `{Sk.ld}.
+  Context {CONF: EMSConfig}.
+  
 
   Record t: Type := mk {
     get_modsem: Sk.t -> ModSem.t;
@@ -426,9 +431,12 @@ Section MOD.
   Definition wf (md: t): Prop := <<SK: Sk.wf (md.(sk))>>.
 
   Definition empty: t := {|
-    get_modsem := fun _ => ModSem.mk tt↑ (fun _ => None);
+    get_modsem := fun _ => ModSem.mk None (fun _ => None);
     sk := Sk.unit;
   |}.
+
+  Definition compile (md: t): semantics :=
+    ModSem.compile_itree (ModSem.initial_itr md.(enclose) (Some (wf md))).  
 
 End MOD.
 End Mod.
@@ -452,100 +460,35 @@ Section EVENTSCOMMON.
   Context `{HasCallE: callE -< E}.
   Context `{HasEventE: eventE -< E}.
 
-  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓ǃ;; Ret vret.
-  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := vret <- trigger (Call fn varg↑);; vret <- vret↓?;; Ret vret.
+  Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := 
+    vret <- trigger (Call fn (Some varg↑));; 
+    match vret with
+    | Some r => r <- r↓ǃ;; Ret r
+    | None => triggerNB
+    end.
+  Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := 
+    vret <- trigger (Call fn (Some varg↑));;
+    match vret with
+    | Some r => r <- r↓?;; Ret r
+    | None => triggerUB
+    end.
 
-  Definition cfunN {X Y} (body: X -> itree E Y): Any.t-> itree E Any.t :=
-    fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
-  Definition cfunU {X Y} (body: X -> itree E Y): Any.t -> itree E Any.t :=
-    fun varg => varg <- varg↓?;; vret <- body varg;; Ret vret↑.
+  Definition cfunN {X Y} (body: X -> itree E Y): oAny -> itree E oAny :=
+    fun varg => 
+    match varg with
+    | Some varg => varg <- varg↓ǃ;; vret <- body varg;; Ret (Some vret↑)
+    | None => Ret None
+    end.
+  Definition cfunU {X Y} (body: X -> itree E Y): oAny -> itree E oAny :=
+    fun varg => 
+    match varg with
+    | Some varg => varg <- varg↓?;; vret <- body varg;; Ret (Some vret↑)
+    | None => Ret None
+    end. 
 
 End EVENTSCOMMON.
 
  
-
-
-(* 
-
-
-Module Equisatisfiability.
-  Inductive pred: Type :=
-  | true
-  | false
-  | meta (P: Prop)
-
-  | disj: pred -> pred -> pred
-  | conj: pred -> pred -> pred
-  | neg: pred -> pred
-  | impl: pred -> pred -> pred
-
-  | univ (X: Type): (X -> pred) -> pred
-  | exst (X: Type): (X -> pred) -> pred
-  .
-
-  (*** https://en.wikipedia.org/wiki/Negation_normal_form ***)
-  Fixpoint embed (p: pred): itree eventE unit :=
-    match p with
-    | true => triggerUB
-    | false => triggerNB
-    | meta P => guarantee P
-
-    | disj p0 p1 => b <- trigger (Choose _);; if (b: bool) then embed p0 else embed p1
-    | conj p0 p1 => b <- trigger (Take _);; if (b: bool) then embed p0 else embed p1
-    | neg p =>
-      match p with
-      | meta P => assume P
-      | _ => triggerNB (*** we are assuming negation normal form ***)
-      end
-    | impl _ _ => triggerNB (*** we are assuming negation normal form ***)
-
-    | @univ X k => x <- trigger (Take X);; embed (k x)
-    | @exst X k => x <- trigger (Choose X);; embed (k x)
-    end
-  .
-
-  (*** TODO: implication --> function call? ***)
-  (***
-P -> Q
-~=
-pname :=
-  embed P
-
-pqname :=
-  (call pname) (finite times);;
-  embed Q
-
-
-
-
-(P -> Q) -> R
-~=
-pname :=
-  embed P
-
-pqname :=
-  (call pname) (finite times);;
-  embed Q
-
-pqrname :=
-  (call pqname) (finite times);;
-  embed R
-   ***)
-
-  (* Fixpoint embed (p: pred) (is_pos: bool): itree eventE unit := *)
-  (*   match p with *)
-  (*   | true => triggerUB *)
-  (*   | false => triggerNB *)
-  (*   | meta P => guarantee P *)
-  (*   | disj p0 p1 => b <- trigger (Choose _);; if (b: bool) then embed p0 is_pos else embed p1 is_pos *)
-  (*   | conj p0 p1 => b <- trigger (Take _);; if (b: bool) then embed p0 is_pos else embed p1 is_pos *)
-  (*   | @univ X k => x <- trigger (Take X);; embed (k x) is_pos *)
-  (*   | @exst X k => x <- trigger (Choose X);; embed (k x) is_pos *)
-  (*   | _ => triggerNB *)
-  (*   end *)
-  (* . *)
-End Equisatisfiability. *)
-
 
 
 Global Existing Instance Sk.gdefs.
@@ -558,7 +501,7 @@ Global Opaque Sk.load_skenv.
 
 (*** TODO: Move to ModSem.v ***)
 Lemma interp_Es_unwrapU
-      S prog R (st0: S) (r: option R)
+      prog R st0 (r: option R)
   :
     interp_Es prog (unwrapU r) st0 = r <- unwrapU r;; Ret (st0, r)
 .
@@ -569,7 +512,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_unwrapN
-      S prog R (st0: S) (r: option R)
+      prog R st0 (r: option R)
   :
     interp_Es prog (unwrapN r) st0 = r <- unwrapN r;; Ret (st0, r)
 .
@@ -580,7 +523,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_assume
-      S prog (st0: S) (P: Prop)
+      prog st0 (P: Prop)
   :
     interp_Es prog (assume P) st0 = assume P;;; tau;; tau;; Ret (st0, tt)
 .
@@ -594,7 +537,7 @@ Proof.
 Qed.
 
 Lemma interp_Es_guarantee
-      S prog (st0: S) (P: Prop)
+      prog st0 (P: Prop)
   :
     interp_Es prog (guarantee P) st0 = guarantee P;;; tau;; tau;; Ret (st0, tt)
 .
@@ -614,7 +557,7 @@ Qed.
 Require Import Red IRed.
 Section AUX.
   Lemma interp_Es_ext
-        S prog R (itr0 itr1: itree _ R) (st0: S)
+        prog R (itr0 itr1: itree _ R) st0
     :
       itr0 = itr1 -> interp_Es prog itr0 st0 = interp_Es prog itr1 st0
   .

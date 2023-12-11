@@ -17,13 +17,14 @@ Import ModSem.
 Section ADD.
   Variable M1 M2 : t.
 
-  Definition emb_l : forall X, Es (state M1) X -> Es (state M1 * state M2) X  :=
+  Definition emb_l : forall T, Es T -> Es T :=
     lmap fstl.
 
-  Definition emb_r : forall X, Es (state M2) X -> Es (state M1 * state M2) X :=
+  Definition emb_r : forall T, Es T -> Es T :=
     lmap sndl.
 
-  Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
+
+  Definition add_fnsems : gname -> option (oAny -> itree _ oAny) :=
     fun fn =>
       match M1.(fnsems) fn, M2.(fnsems) fn with
       | Some fn_body, None => Some (fun args => translate emb_l (fn_body args))
@@ -32,10 +33,17 @@ Section ADD.
       | _, _ => None
       end.
 
+  Definition add_state st1 st2 : oAny :=
+    match st1, st2 with
+    | Some st1, Some st2 => Some (Any.pair st1 st2)
+    | Some st1, None => Some st1
+    | None, Some st2 => Some st2
+    | None, None => None
+    end.
+
   Definition add : t :=
   {|
-    state := state M1 * state M2;
-    init_st := (init_st M1, init_st M2);
+    init_st := add_state (init_st M1) (init_st M2);
     fnsems := add_fnsems;
   |}.
 
@@ -43,54 +51,71 @@ End ADD.
 
 Section PROOF.
 
+Definition swap oab: oAny :=
+  match oab with
+  | Some oab => match Any.split oab with
+            | Some (a, b) => Some (Any.pair b a)
+            | None => Some oab
+            end
+  | None => None
+  end.
 
-Definition swap {A B} (p : A * B) : B * A :=
-  (snd p, fst p).  
+Definition swap_state {X} (f: oAny -> oAny * X)  :=
+  (fun oba => let '(oab', t) := f (swap oba) in ((swap oab'), t)).
 
-Definition swap_state {A B X} (f: A * B -> (A * B) * X)  :=
-  (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t)).
-
-(* Definition map_sE S S' X (f: (S -> S * X) -> (S' -> S' * X))  (e: sE S X) := 
-  match e with
-  | SUpdate run => SUpdate (f run)
-  end. *)
-
-Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
+Definition swap_Es T (es: Es T) : Es T :=
   match es with
   | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (swap_state f)))
   | inr1 (inr1 x) => inr1 (inr1 x)
   | inl1 y => inl1 y
   end.  
   
-(* Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
-  match es with
-  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t))))
-  | inr1 (inr1 x) => inr1 (inr1 x)
-  | inl1 y => inl1 y
-  end. *)
-
-Definition swap_ems {R A B} (itl: itree (Es (A*B)) R) (itr: itree (Es (B*A)) R) :=
+Definition swap_ems {R} (itl: itree Es R) (itr: itree Es R) :=
   itr = translate swap_Es itl.
 
+(* Definition assoc oa'bc: oAny :=
+  match oa'bc with
+  | Some a'bc => 
+    match Any.split a'bc with
+    | Some (a, bc) => 
+      match Any.split bc with
+      | Some (b, c) => Some (Any.pair (Any.pair a b) c)
+      | None => Some (a'bc)
+      end
+    | None => Some (a'bc)
+    end
+  | None => None
+  end. *)
 
-Definition assoc {A B C} (p: A * (B * C)): A * B * C :=
-  ((fst p, fst (snd p)), snd (snd p))
-.
+Definition assoc oab'c: oAny :=
+  match oab'c with
+  | Some ab'c => 
+    match Any.split ab'c with
+    | Some (ab, c) => 
+      match Any.split ab with
+      | Some (a, b) => Some (Any.pair a (Any.pair b c))
+      | None => Some (ab'c)
+      end
+    | None => Some (ab'c)
+    end
+  | None => None
+  end.  
 
-Definition assoc_state {A B C X} (f: (A * (B * C)) -> (A * (B * C) * X)) :=
-  (fun '(a, b, c) => let '((a', (b', c')), t) := f (a, (b, c)) in ((a', b', c'), t)).
+Definition assoc_state {X} (f: oAny -> oAny * X) :=
+  (fun oa'bc => let '(oab'c, t) := f (assoc oa'bc) in (assoc oab'c, t)).
 
-Definition assoc_Es {A B C} T (es: Es (A * (B * C)) T) : Es (A * B * C) T :=
+Definition assoc_Es T (es: Es T) : Es T :=
   match es with
   | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (assoc_state f)))
   | inr1 (inr1 x) => inr1 (inr1 x)
   | inl1 y => inl1 y
   end.
 
-Definition assoc_ems {R A B C} (itl: itree (Es (A * (B * C))) R) (itr: itree (Es (A * B * C)) R) :=
+  
+Definition assoc_ems {R} (itl: itree Es R) (itr: itree Es R) :=
   itr = translate assoc_Es itl. 
 
-Lemma translate_triggerUB A B T (f: forall T, Es A T -> Es B T) (g: forall T, (A -> A * T) -> (B -> B * T))
+Lemma translate_triggerUB T (f: forall T, Es T -> Es T) (g: forall T, (oAny -> oAny * T) -> (oAny -> oAny * T))
       (F: f = (fun _ es => match es with
                         | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (g _ run)))
                         | inr1 (inr1 x) => inr1 (inr1 x)
@@ -111,31 +136,21 @@ Proof.
 Qed. 
 
 
-(* Lemma translate_assoc_triggerUB A B C T
-  :
-      @triggerUB _ T _  = translate (@assoc_Es A B C) (@triggerUB _ T _).
+Lemma swap_swap a : swap (swap a) = a.
 Proof.
-  unfold triggerUB.
-  erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
-  f_equal.
-  - unfold trigger.
-    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
-    repeat f_equal.
-    extensionality v. destruct v.
-  - extensionality v. destruct v.
-Qed.  *)
-
-(* 
-Definition emb_run {S0 S1 S2} X (run: S1 * S2 -> S1 * S2 * X): (S0 * S1 * S2 -> S0 * S1 * S2 * X) :=
-  (fun '(s0, s1, s2) => (s0, fst (fst (run (s1, s2) )), snd (fst (run (s1, s2))), snd (run (s1, s2))))
-. *)
+  i. unfold swap. destruct a; et.
+  destruct (Any.split t0) eqn:T.
+  - destruct p. rewrite Any.pair_split. f_equal.
+    rewrite <- Any.split_pair with (a:=t0); et.
+  - rewrite T. et.  
+Qed.
 
 
 Lemma swap_ems_prog X ms0 ms1 (e: callE X)
 :
       swap_ems (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)
 .
-Proof.
+Proof. 
   destruct e. s. unfold unwrapU, add_fnsems. 
   des_ifs; grind; unfold swap_ems.
   - eapply translate_triggerUB; ss.
@@ -149,7 +164,17 @@ Proof.
     unfold map_lens. 
     repeat (f_equal).
     unfold swap_state. 
-    extensionality x. destruct x. et.
+    extensionality x. destruct x; ss.
+    destruct (Any.split t0) eqn:T0.
+      + destruct p. unfold lens_state.
+        unfold swap, Lens.set, Lens.view. s.
+        rewrite ! T0. rewrite ! Any.pair_split. ss. f_equal.
+        destruct (fst (run (Some t1))) eqn: T1.
+        * rewrite Any.pair_split. ss.
+        * et.
+      + unfold lens_state, swap, Lens.set, Lens.view.
+        unfold fstl, sndl. rewrite ! T0. ss.
+
   - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
     f_equal.
     unfold ">>>", Cat_IFun, emb_l, emb_r, lmap. 
@@ -157,7 +182,16 @@ Proof.
     destruct s0. s. 
     repeat (f_equal).
     unfold swap_state. 
-    extensionality x. destruct x. et.
+    extensionality x. destruct x; ss.
+    unfold lens_state, swap, Lens.set, Lens.view. s.
+    destruct (Any.split t0) eqn:T0.
+      + destruct p. s.
+        rewrite ! Any.pair_split. ss. f_equal.
+        destruct (fst (run (Some t2))) eqn:T2.
+        * s. rewrite Any.pair_split. et.
+        * et.
+      + ss. rewrite ! T0. ss.  
+
   - unfold triggerUB. grind.
     erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
     f_equal.
@@ -173,7 +207,8 @@ Lemma assoc_ems_prog X ms0 ms1 ms2 (e: callE X)
   assoc_ems (prog (add ms0 (add ms1 ms2)) e) (prog (add (add ms0 ms1) ms2) e)
 .
 Proof.
-  destruct e. s. unfold unwrapU.
+  destruct e. s.
+  unfold unwrapU.
   repeat (unfold add_fnsems; grind).
   des_ifs; grind; unfold assoc_ems.
   - eapply translate_triggerUB. ss. 
@@ -199,12 +234,43 @@ Proof.
     extensionalities T es. des_ifs.
   - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
     f_equal.
-    unfold ">>>", Cat_IFun, emb_l, lmap.
-    extensionalities T es. des_ifs.
-    destruct s1. s.
+    unfold ">>>", Cat_IFun.
+    unfold assoc_Es, emb_l, lmap.
+    extensionalities T es. des_ifs. s.
     repeat f_equal.
-    unfold assoc_state. s.
-    extensionality x. destruct x, p.
+    unfold assoc_state, lens_state.
+    unfold Lens.set, Lens.view.
+    extensionality x. destruct x.
+    unfold fstl, assoc.
+    + s. destruct (Any.split t0) eqn:T0.
+      * destruct p. s.
+        unfold assoc_state, assoc. des_ifs.
+        f_equal.
+        -- s. f_equal.
+           ++ f_equal.
+      
+      destruct (Any.split t2) eqn:T2.
+        -- destruct p. s. rewrite Any.pair_split. s.
+           destruct (Any.split t1) eqn:T1.
+           ++ destruct p. s.
+           f_equal.
+           ++ 
+     
+    
+    destruct (run (fst (fstl (fst (fstl (Some t0)))))) eqn: T0.
+      (* destruct (run (fst (fstl (assoc (Some t0))))) eqn: Assoc0. *)
+      s. destruct (Any.split t0) eqn:T1.
+      * destruct p. s.
+        destruct (Any.split t2) eqn:T2.
+        -- destruct (Any.split t3) eqn: T3.
+          ++ destruct p, p0. s. rewrite Any.pair_split. s.   
+             f_equal.
+      f_equal.
+      * s. destruct (Any.split t0) eqn:T1.
+        -- destruct p. f_equal. s. 
+      * destruct p. s. destruct (Any.split t1) eqn: T1.
+        -- destruct p. ss. destruct (Any.split t2) eqn: T2.
+          ++ destruct p. ss. rewrite ! Any.pair_split. ss.
     unfold lens_state. s. 
     f_equal.
     (* Set Printing All.  *)
@@ -274,152 +340,6 @@ Qed.
 Context {CONF: EMSConfig}.
 
 
-(* Definition swap_state {A B X} (f: A * B -> (A * B) * X)  :=
-  (fun '(b,a) => let '((a',b'), t) := f (a,b) in ((b',a'), t)).
-
-(* Definition map_sE S S' X (f: (S -> S * X) -> (S' -> S' * X))  (e: sE S X) := 
-  match e with
-  | SUpdate run => SUpdate (f run)
-  end. *)
-
-Definition swap_Es {A B} T (es: Es (A*B) T) : Es (B*A) T :=
-  match es with
-  | inr1 (inl1 (SUpdate f)) => inr1 (inl1 (SUpdate (swap_state f)))
-  | inr1 (inr1 x) => inr1 (inr1 x)
-  | inl1 y => inl1 y
-  end.   *)
-
-
-(* Definition trans_ems {R A B} f (itl: itree (Es A) R) (itr: itree (Es B) R) :=
-  itr = translate f itl.  *)
-
-(* Lemma add_prop_aux
-        msl msr stl0 str0
-        (f: state msl -> state msr)
-        (g: forall T, (Es (state msl) T) -> (Es (state msr) T))
-        (REL: f stl0 = str0)
-        (REL': forall T (itl: itree (Es (state msl)) T)  itr, itr = translate g itl)
-  :
-        forall e, 
-        paco7 _simg bot7 Any.t Any.t eq false false
-        (snd <$> interp_Es (prog msl) (prog msl e) stl0)
-        (snd <$> interp_Es (prog msr) (prog msr e) str0)
-.
-Proof.
-  generalize (Any.t) as X. i.
-  eapply simg_map.
-  2: { instantiate (1 := (fun r0 r1 => snd r0 = snd r1 /\ f (fst r0) = fst r1)).
-  i. apply H. }
-  revert_until msr.
-  ginit. { i. apply cpn7_wcompat. apply simg_mon. }
-  i.    
-  assert (R: prog msr e = translate g (prog msl e)). { apply REL'. }
-  revert R. 
-  generalize (prog msl e) as itl.
-  generalize (prog msr e) as itr. 
-  rewrite <- REL.
-  generalize stl0 as stl.
-  gcofix CIH. i.
-  inv R.
-  rewrite (itree_eta_ itl).
-  destruct (observe itl).
-  - (* Ret *)
-    erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
-    rewrite ! interp_Es_ret.
-    gstep. apply simg_ret. et.   
-  - (* Tau *)
-    erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
-    rewrite ! interp_Es_tau.
-    gstep. apply simg_tauL; et. apply simg_tauR; et. 
-    apply simg_progress; et.
-    gfinal. left. eapply CIH. ss.
-    - (* Vis *)
-    erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
-    destruct e0 as [c|[s|e0]].
-    + (* callE *)
-      rewrite <- ! bind_trigger, ! interp_Es_bind.
-      Set Printing All. 
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)) stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)))
-      (@swap (state ms1) (state ms0) stl)).
-      setoid_rewrite interp_Es_callE.
-      setoid_rewrite interp_Es_callE.
-      rewrite ! bind_tau.
-      gstep. apply simg_tauL; et. apply simg_tauR; et.
-      apply simg_progress; et.
-      rewrite <- ! interp_Es_bind.
-    
-      gfinal. left. eapply CIH'.
-      unfold swap_ems. erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
-      f_equal. apply swap_ems_prog.
-
-    + (* sE *)
-      rewrite <- ! bind_trigger, ! interp_Es_bind.
-      (* Set Printing All. *)
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0
-         (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))) stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0
-            (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))))
-      (@swap (state ms1) (state ms0) stl)).
-      setoid_rewrite interp_Es_sE.
-      grind.
-      setoid_rewrite interp_Es_sE.
-      grind.
-      gstep. 
-      apply simg_tauL; et. apply simg_tauR; et.
-      apply simg_tauL; et. apply simg_tauR; et.
-      apply simg_progress; et.
-      destruct stl. inv Heq1. rewrite H1 in Heq. inv Heq.
-      gfinal. left. eapply CIH'. unfold swap_ems. et.
-
-    + (* eventE *)
-      rewrite <- ! bind_trigger, ! interp_Es_bind.
-      (* Set Printing All. *)
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0)))
-      stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0))))
-      (@swap (state ms1) (state ms0) stl)).
-      setoid_rewrite interp_Es_eventE.
-      setoid_rewrite interp_Es_eventE.
-      grind. 
-      gstep.
-      destruct e0.
-      * (* Choose *)
-        apply simg_chooseR; et. i. apply simg_chooseL; et. exists x0.
-        grind.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_progress; et.
-        gfinal. left. apply CIH'. unfold swap_ems. et.
-      * (* Take *)
-        apply simg_takeL; et. i. apply simg_takeR; et. exists x0.
-        grind.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_progress; et.
-        gfinal. left. apply CIH'. unfold swap_ems. et.
-      * (* Syscall *)
-        apply simg_syscall. i. inv EQ.
-        grind. 
-        gstep.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_tauL; et. apply simg_tauR; et.
-        apply simg_progress; et.
-        gfinal. left. apply CIH'. unfold swap_ems. et.
-  
-
-Admitted.
-
-*)
 
 Theorem add_comm
         ms0 ms1
@@ -448,9 +368,13 @@ Proof.
 
   generalize (Call "main" initial_arg) as e.
   assert (REL: swap (init_st (add ms1 ms0)) = init_st (add ms0 ms1)).
-  { unfold init_st. et. }
+  { unfold init_st. ss. unfold add_state.
+    destruct (init_st ms1), (init_st ms0); et. 
+    unfold swap. destruct (Any.split (Any.pair t0 t1)) eqn: SWAP.
+    - destruct p. rewrite Any.pair_split in SWAP. inv SWAP. et.
+    - rewrite Any.pair_split in SWAP. inv SWAP.  }
   revert REL.
-  generalize (Any.t) as X.
+  (* generalize (option Any.t) as X. *)
   generalize (init_st (add ms1 ms0)) as stl0.
   generalize (init_st (add ms0 ms1)) as str0.
 
@@ -459,11 +383,10 @@ Proof.
        i. apply H0.   }
   revert_until x.
   ginit. { i. apply cpn7_wcompat. apply simg_mon. }  
-  gcofix CIH. i.
+  (* gcofix CIH. i. *)
+  i.
 
   pose proof (swap_ems_prog ms0 ms1 e) as REL'.
-
-  (* assert (REL': swap_ems (prog (add ms1 ms0) e) (prog (add ms0 ms1) e)). { apply swap_ems_prog. } *)
 
   revert REL'.
   generalize (prog (add ms1 ms0) e) as itl.
@@ -490,12 +413,9 @@ Proof.
     + (* callE *)
       rewrite <- ! bind_trigger, ! interp_Es_bind.
       (* Set Printing All. *)
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)) stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0 (@inl1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 c)))
-      (@swap (state ms1) (state ms0) stl)).
+      pattern (@interp_Es X (@prog (add ms1 ms0)) (@ITree.trigger Es X (@inl1 callE (sum1 sE eventE) X c)) stl). 
+      pattern (@interp_Es X (@prog (add ms0 ms1)) (@ITree.trigger Es X (@swap_Es X (@inl1 callE (sum1 sE eventE) X c)))
+      (swap stl)).
       setoid_rewrite interp_Es_callE.
       setoid_rewrite interp_Es_callE.
       rewrite ! bind_tau.
@@ -510,14 +430,11 @@ Proof.
     + (* sE *)
       rewrite <- ! bind_trigger, ! interp_Es_bind.
       (* Set Printing All. *)
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0
-         (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))) stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0
-            (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inl1 (sE (state (add ms1 ms0))) eventE X0 s))))
-      (@swap (state ms1) (state ms0) stl)).
+      pattern (@interp_Es X (@prog (add ms1 ms0))
+      (@ITree.trigger Es X (@inr1 callE (sum1 sE eventE) X (@inl1 sE eventE X s))) stl).
+      pattern (@interp_Es X (@prog (add ms0 ms1))
+      (@ITree.trigger Es X (@swap_Es X (@inr1 callE (sum1 sE eventE) X (@inl1 sE eventE X s)))) 
+      (swap stl)).
       setoid_rewrite interp_Es_sE.
       grind.
       setoid_rewrite interp_Es_sE.
@@ -526,19 +443,18 @@ Proof.
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_progress; et.
-      destruct stl. inv Heq1. rewrite H1 in Heq. inv Heq.
+      unfold swap_state in *. rewrite swap_swap in Heq0. 
+      rewrite Heq in Heq0. inv Heq0.
       gfinal. left. eapply CIH'. unfold swap_ems. et.
 
     + (* eventE *)
       rewrite <- ! bind_trigger, ! interp_Es_bind.
       (* Set Printing All. *)
-      pattern (@interp_Es (state (add ms1 ms0)) X0 (@prog (add ms1 ms0))
-      (@ITree.trigger (Es (state (add ms1 ms0))) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0)))
-      stl).
-      pattern (@interp_Es (prod (state ms0) (state ms1)) X0 (@prog (add ms0 ms1))
-      (@ITree.trigger (Es (prod (state ms0) (state ms1))) X0
-         (@swap_Es (state ms1) (state ms0) X0 (@inr1 callE (sum1 (sE (state (add ms1 ms0))) eventE) X0 (@inr1 (sE (state (add ms1 ms0))) eventE X0 e0))))
-      (@swap (state ms1) (state ms0) stl)).
+      pattern (@interp_Es X (@prog (add ms1 ms0))
+      (@ITree.trigger Es X (@inr1 callE (sum1 sE eventE) X (@inr1 sE eventE X e0))) stl).
+      pattern (@interp_Es X (@prog (add ms0 ms1))
+      (@ITree.trigger Es X (@swap_Es X (@inr1 callE (sum1 sE eventE) X (@inr1 sE eventE X e0)))) 
+      (swap stl)).
       setoid_rewrite interp_Es_eventE.
       setoid_rewrite interp_Es_eventE.
       grind. 

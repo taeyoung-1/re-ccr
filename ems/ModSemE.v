@@ -10,6 +10,7 @@ Set Implicit Arguments.
 
 Notation gname := string (only parsing). (*** convention: not capitalized ***)
 Notation mname := string (only parsing). (*** convention: capitalized ***)
+Notation oAny := (option Any.t) (only parsing).
 
 Section EVENTSCOMMON.
 
@@ -89,6 +90,7 @@ Goal (tt ↑↓ǃ) = Ret tt. rewrite Any.upcast_downcast. ss. Qed.
 
 
 
+(* Not used? *)
 Section EVENTSCOMMON.
 
   Definition p_state: Type := (mname -> Any.t).
@@ -114,125 +116,54 @@ End EVENTSCOMMON.
 Section EVENTS.
 
 Section DEFINES.
-  Variable S: Type.
-  (* Variable st: Type.*)
 
   Inductive callE: Type -> Type :=
-  | Call (fn: gname) (args: Any.t) : callE Any.t
+  | Call (fn: gname) (args: oAny) : callE oAny
   .
   
-  (* Variant sE: Type -> Type :=
-  | SUpdate (run : Any.t -> Any.t * Any.t) : sE Any.t
-  . *)
 
-  Variant sE (X : Type) : Type :=
-  | SUpdate (run : S -> S * X) : sE X
+  Variant sE (X: Type): Type :=
+  | SUpdate (run : oAny -> oAny * X) : sE X
   .
-  
-  (* Variant sE (S: Type)  (X : Type) : Type :=
-  | SUpdate (run : S -> S * X) : sE X
-  . 
-  If implemented in this way with another variable st, universe inconsistency occurs.
-  *)
 
   Definition Es: Type -> Type := (callE +' sE +' eventE).
   
+(*   
   Definition sGet {X} (p: S -> X) : sE X := SUpdate (fun x => (x, p x)).
   Definition sModify (f: S -> S) : sE () := SUpdate (fun x => (f x, tt)).
-  Definition sPut x := (sModify (fun _:S => x)).
+  Definition sPut x := (sModify (fun _:S => x)). *)
   
   (* Double-check Types*)
   (* Definition Get (p: Any.t -> Any.t) : sE Any.t Any.t := SUpdate (fun x => (x, p x)).
   Definition Modify (f: Any.t -> Any.t) : sE Any.t () := SUpdate (fun x => (f x, tt)).
   Definition Put x := (Modify (fun _ => x)). *)
 
-  (* Definition sGet (p: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (x, p x)).
-  Definition sModify (f: Any.t -> Any.t) : sE Any.t := SUpdate (fun x => (f x, tt↑)).
-  Definition sPut x := (sModify (fun _ => x)). *)
+  Definition sGet : sE (oAny) := 
+    SUpdate (fun x => (x, x)).
 
+  Definition sPut x : sE unit :=
+    SUpdate (fun _ => (x, tt)).
 
-  (* Definition Es: Type -> Type := (callE +' (sE Any.t) +' eventE). *)
-
-  (********************************************************************)
-  (*************************** Interpretation *************************)
-  (********************************************************************)
-
-  (* Definition handle_pE {E}: pE ~> stateT p_state (itree E) :=
-    fun _ e mps =>
-      match e with
-      | PPut mn p => Ret (update mps mn p, tt)
-      | PGet mn => Ret (mps, mps mn)
-      end. 
-      
-      Definition handle_pE {E} : forall X, pE X -> (p_state -> itree E (p_state * X)) :=
-      
-
-
-      *)
- (* Definition interp_sE {E}: itree (pE +' E) ~> stateT p_state (itree E) :=
-    (* SUpdate.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) SUpdate.pure_state). *)
-    SUpdate.interp_state (case_ handle_pE pure_state).
-
-
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
-    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
-    Ret (st1, v)
-  . *)
-
-  (* Definition handle_sE {E} : forall S X, sE S X -> (S -> itree E (S * X)) :=
-    fun _ _ e glob =>
-      match e with
-      | SUpdate run => Ret (run glob)
-      end. *)
-
-  (* Definition interp_sE {E}: forall S X, itree ((sE S) +' E) (S * X) -> (S -> itree E (S * X)) :=
-    (* SUpdate.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) SUpdate.pure_state). *)
-    SUpdate.interp_state (case_ handle_sE pure_state). *)
-
-  (* Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
-    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
-    Ret (st1, v)
-  . *)
-
-  (* Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: p_state): itree eventE (p_state * _)%type :=
-    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
-    Ret (st1, v)
-  . *)
-
-  (* Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
+  Definition handle_sE {E}: sE ~> stateT (oAny) (itree E) := 
     fun _ e glob =>
       match e with
       | SUpdate run => Ret (run glob)  
       end. 
       
- Definition interp_sE {E}: itree (sE +' E) ~> stateT Any.t (itree E) :=
+ Definition interp_sE {E}: itree (sE +' E) ~> stateT (oAny) (itree E) :=
     (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
     State.interp_state (case_ handle_sE pure_state).
 
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
-    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
-    Ret (st1, v)
-  . *)
-
-  Definition handle_sE {E}: sE ~> stateT S (itree E) := 
-    fun _ e glob =>
-      match e with
-      | SUpdate run => Ret (run glob)  
-      end. 
-      
- Definition interp_sE {E}: itree (sE +' E) ~> stateT S (itree E) :=
-    (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
-    State.interp_state (case_ handle_sE pure_state).
-
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: S): itree eventE (S * _)%type :=
+  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: oAny): itree eventE (oAny * _)%type :=
     '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
 End DEFINES.
+
   Lemma interp_Es_bind
-        st A B
-        (itr: itree (Es st) A) (ktr: A -> itree (Es st) B)
-        (prog: callE ~> itree (Es st))
+        A B
+        (itr: itree Es A) (ktr: A -> itree Es B)
+        (prog: callE ~> itree Es)
         st0
     :
       interp_Es prog (v <- itr ;; ktr v) st0 =
@@ -241,10 +172,9 @@ End DEFINES.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_tau
-        st
-        (prog: callE ~> itree (Es st))
+        (prog: callE ~> itree Es)
         A
-        (itr: itree (Es st) A)
+        (itr: itree Es A)
         st0
     :
       interp_Es prog (tau;; itr) st0 = tau;; interp_Es prog itr st0
@@ -252,15 +182,15 @@ End DEFINES.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_ret
-        st T
+        T
         prog st0 (v: T)
     :
-      interp_Es prog (Ret v: itree (Es st) _) st0 = Ret (st0, v)
+      interp_Es prog (Ret v: itree Es _) st0 = Ret (st0, v)
   .
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_callE
-        st p (st0: st) T
+        p st0 T
         (* (e: Es Σ) *)
         (e: callE T)
     :
@@ -269,10 +199,10 @@ End DEFINES.
   Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
 
   Lemma interp_Es_sE
-        st p st0
+        p st0
         (* (e: Es Σ) *)
         T
-        (e: sE st T)
+        (e: sE T)
     :
       interp_Es p (trigger e) st0 =
       '(st1, r) <- handle_sE e st0;;
@@ -284,7 +214,7 @@ End DEFINES.
   Qed.
 
   Lemma interp_Es_eventE
-        st p (st0: st)
+        p st0
         (* (e: Es Σ) *)
         T
         (e: eventE T)
@@ -297,8 +227,7 @@ End DEFINES.
   Qed.
 
   Lemma interp_Es_triggerUB
-        st
-        (prog: callE ~> itree (Es st))
+        (prog: callE ~> itree Es)
         st0
         A
     :
@@ -309,8 +238,7 @@ End DEFINES.
   Qed.
 
   Lemma interp_Es_triggerNB
-        st
-        (prog: callE ~> itree (Es st))
+        (prog: callE ~> itree Es)
         st0
         A
     :
@@ -327,55 +255,40 @@ Opaque interp_Es.
 
 
 Section LENS.
-  Variable S: Type.
-  Variable V: Type.
 
-  Variable l: Lens.t S V.
+  (* Variable S V: Type.
+  Variable l: Lens.t S V. *)
+  Variable l: Lens.t (oAny) (oAny).
 
-  Definition lens_state X : (V -> V * X) -> (S -> S * X) :=
+
+    (* Definition lens_state X : (V -> V * X) -> (S -> S * X) :=
     fun run s =>
       (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s))).
 
   Definition map_lens X (se: sE V X) : sE S X := 
     match se with
     | SUpdate run => SUpdate (lens_state run)
-    end.
-    
-    
-    (* Definition lens_state : (Any.t -> Any.t * Any.t) -> (Any.t -> Any.t * Any.t) :=
+    end. *)
+
+  Definition lens_state T : (oAny -> (oAny) * T) -> (oAny -> (oAny) * T) :=
     fun run s =>
-    (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
-    .
-    
-    Definition map_lens (se: sE Any.t ) : sE Any.t :=
-      match se with
-      | SUpdate run => SUpdate (lens_state run)
-      end
-      . *)
+      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s))).
 
-  (* Variable l: Lens.t Any.t Any.t.
-
-  Definition lens_state X: (Any.t -> Any.t * X) -> (Any.t -> Any.t * X) :=
-    fun run s =>
-      (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s)))
-  .
-
-  Definition map_lens X (se: sE X ) : sE X :=
+    Definition map_lens T (se: sE T) : sE T := 
     match se with
     | SUpdate run => SUpdate (lens_state run)
-    end
-  . *)
+    end.    
 
 End LENS.
 
 Section PROGRAM_EVENT.
-  Variable st st' : Type.
+  (* Variable st st' : Type. *)
 
-  Variable l : Lens.t st' st.
+  (* Variable l : Lens.t st' st. *)
 
-  (* Variable l : Lens.t Any.t Any.t. *)
+  Variable l : Lens.t (oAny) (oAny).
   
-  Definition lmap X :  Es st X -> Es st' X .
+  Definition lmap T : Es T -> Es T.
   Proof.
     intro e. destruct e as [e|[e|e]].
     - exact (e|)%sum.
@@ -385,21 +298,3 @@ Section PROGRAM_EVENT.
 
 End PROGRAM_EVENT.
 
-Section MAP_EVENT.
-  CoFixpoint map_event {E1 E2} (embed: forall X, E1 X -> E2 X) {R} : itree E1 R -> itree E2 R :=
-    fun itr =>
-      match observe itr with
-      | RetF r => Ret r
-      | TauF itr => Tau (map_event embed itr)
-      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
-      end.
-
-  (* CoFixpoint map_event (embed: forall X, Es X -> Es X) : itree Es Any.t -> itree Es Any.t :=
-    fun itr =>
-      match observe itr with
-      | RetF r => Ret r
-      | TauF itr => Tau (map_event embed itr)
-      | VisF e ktr => Vis (embed _ e) (fun x => map_event embed (ktr x))
-      end. *)
-      
-End MAP_EVENT.

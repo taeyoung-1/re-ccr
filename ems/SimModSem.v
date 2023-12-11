@@ -1154,20 +1154,22 @@ Section ADEQUACY.
       rewrite sim_sk. et.
     }
     (* simpl in PR. rewrite <- sim_sk in PR.    *)
-(* 
-    generalize (Mod.get_modsem (ModAdd.add (CTX) md_src) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_src)))) as ms_src.
-    generalize (Mod.get_modsem (ModAdd.add (CTX) md_tgt) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_tgt)))) as ms_tgt.
-    i. *)
+    revert PR.
+
+    (* generalize (Mod.get_modsem (ModAdd.add (CTX) md_src) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_src)))) as ms_src.
+    generalize (Mod.get_modsem (ModAdd.add (CTX) md_tgt) (Sk.canon (Mod.sk (ModAdd.add (CTX) md_tgt)))) as ms_tgt. *)
+    i.
 
     eapply adequacy_local_aux in PR; et.
     
-    { ss. ii.
+    { admit. }
+      (* ss. ii. 
       (* previous version is proved by second branch (exists mn, ... ) which doesn't exists anymore *)
     
       fold sk_src sk_tgt.
-      revert_until SKEQ.
-      pattern (Sk.sort sk_tgt) at 1.
-      rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs.
+      (* revert_until SKEQ. *)
+      (* pattern (Sk.sort sk_tgt) at 1. *)
+      (* rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs. *)
 
       esplits. 
       generalize (ModSem.add_fnsems (Mod.get_modsem (CTX) (Sk.sort sk_src))
@@ -1177,7 +1179,8 @@ Section ADEQUACY.
       
       i. destruct (ModSem.fnsems ms_src fn); cycle 1.
       - left. et.
-      - right.
+      - right. exists i.
+    
       
       
       exists i. destruct o_tgt; cycle 1. 
@@ -1218,10 +1221,13 @@ Section ADEQUACY.
         }
         { ss. inv H. ss. clarify. }
       }
-    }
+    } *)
     { exists w_init. econs.
       { refl. }
-      { unfold ModSem.initial_p_state.
+      { ss. 
+        instantiate (1:=wf).
+        
+        unfold ModSem.initial_p_state.
         erewrite ! alist_find_some_iff; et.
         { clear FNWF.
           match goal with
