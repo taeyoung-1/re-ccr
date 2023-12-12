@@ -104,16 +104,17 @@ Section PROP.
     else 8
   .
 
+  (* TODO: apply this change in original version *)
   Definition _has_offset vaddr m ofs : iProp :=
     OwnM (_has_size m.(blk) m.(sz))
     ** match vaddr with
        | Vptr b ofs' => ⌜Some b = m.(blk) /\ ofs = ofs'⌝
        | Vint i =>
           if Archi.ptr64 then ⌜False⌝
-          else ∃ a, OwnM (_has_base m.(blk) a) ** ⌜ofs = Ptrofs.sub (Ptrofs.of_int i) a /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
+          else ∃ a, OwnM (_has_base m.(blk) a) ** ⌜ofs = Ptrofs.sub (Ptrofs.of_int i) a /\ Ptrofs.unsigned a <> 0 /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
        | Vlong i =>
           if negb Archi.ptr64 then ⌜False⌝
-          else ∃ a, OwnM (_has_base m.(blk) a) ** ⌜ofs = Ptrofs.sub (Ptrofs.of_int64 i) a /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
+          else ∃ a, OwnM (_has_base m.(blk) a) ** ⌜ofs = Ptrofs.sub (Ptrofs.of_int64 i) a /\ Ptrofs.unsigned a <> 0 /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
        | _ => ⌜False⌝
        end.
 
@@ -822,6 +823,16 @@ Section RULES.
     : 
       vaddr (↦_m,q) mvs ⊢ ⌜vaddr <> Vnullptr⌝.
   Proof.
+    iIntros "A". unfold points_to. des_ifs.
+    iDestruct "A" as "[_ A]".
+    iDestruct "A" as (ofs) "[[[_ A] %] [% %]]".
+    unfold _has_offset. des_ifs.
+    iDestruct "A" as "[_ A]".
+    iDestruct "A" as (a) "[A %]".
+    iPureIntro. des. clarify.
+    assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
+    red. i. subst. vm_compute (Int64.unsigned Int64.zero) in *.
+    rewrite Z.add_0_l in H5. apply H7. clear H7.
   Admitted.
 
   Lemma offset_notnull 
@@ -829,7 +840,18 @@ Section RULES.
     : 
       vaddr (⊨_m,tg,q) ofs ** ⌜valid m ofs⌝ ⊢ ⌜vaddr <> Vnullptr⌝.
   Proof.
-  Admitted.
+    iIntros "[A %]". unfold has_offset. des_ifs.
+    iDestruct "A" as "[_ A]".
+    unfold _has_offset. des_ifs.
+    iDestruct "A" as "[_ A]".
+    iDestruct "A" as (a) "[A %]".
+    iPureIntro. unfold valid in *. des. clarify. 
+    assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
+    red. i. subst.
+    replace (Ptrofs.unsigned _) with (Ptrofs.max_unsigned - Ptrofs.unsigned a) in H3.
+    2:{ admit "with H5". }
+    nia.
+  Qed.
 
   (* Lemma valid_ofs_same_meta
       vaddr m m' tg tg' q q' ofs ofs'
