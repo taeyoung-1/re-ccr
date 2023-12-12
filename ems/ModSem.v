@@ -10,7 +10,7 @@ Require Import Any.
 Set Implicit Arguments.
 
 
-Class EMSConfig := { finalize: oAny -> oAny; initial_arg: oAny }.
+Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
 
 
 
@@ -18,27 +18,23 @@ Module ModSem.
 Section MODSEM.
 
   Record t: Type := mk {
-    init_st : oAny;
-    fnsems : gname -> option (oAny -> itree Es oAny)
+    init_st : Any.t;
+    fnsems : gname -> option (Any.t -> itree Es Any.t)
   }
   .
 
   Program Definition wrap_fun {E} `{eventE -< E} A R 
         (f: ktree E A R):
-    ktree E oAny oAny :=
+    ktree E Any.t Any.t :=
     fun arg =>
-      match arg with
-      | Some arg => 
-          (arg <- unwrapU (arg↓);;
-           ret <- (f arg);; Ret (Some ret↑))
-      | None => Ret None
-      end
+          arg <- unwrapU (arg↓);;
+          ret <- (f arg);; Ret (ret↑)
   .
 
   Fixpoint get_fnsems {E} `{eventE -< E}
-          (fnsems: list (gname * (ktree E oAny oAny)))
+          (fnsems: list (gname * (ktree E Any.t Any.t)))
           (fn: gname):
-    option (ktree E oAny oAny) :=
+    option (ktree E Any.t Any.t) :=
     match fnsems with
     | [] => None
     | (fn_hd, body_hd)::tl =>
@@ -59,14 +55,14 @@ Section INTERP.
 
   Context `{CONF: EMSConfig}.
 
-  Definition initial_itr (P: option Prop): itree eventE oAny :=
+  Definition initial_itr (P: option Prop): itree eventE Any.t :=
     match P with
     | None => Ret tt
     | Some P' => assume (<<WF: P'>>)
     end;;; 
     snd <$> interp_Es prog (prog (Call "main" initial_arg)) (init_st ms).
 
-  Let state: Type := itree eventE oAny.
+  Let state: Type := itree eventE Any.t.
 
   Definition state_sort (st0: state): sort :=
     match (observe st0) with
@@ -219,7 +215,7 @@ Section INTERP.
   Qed.
 
 
-  Program Definition compile_itree: itree eventE oAny -> semantics :=
+  Program Definition compile_itree: itree eventE Any.t -> semantics :=
     fun itr =>
       {|
         STS.state := state;
@@ -431,7 +427,7 @@ Section MOD.
   Definition wf (md: t): Prop := <<SK: Sk.wf (md.(sk))>>.
 
   Definition empty: t := {|
-    get_modsem := fun _ => ModSem.mk None (fun _ => None);
+    get_modsem := fun _ => ModSem.mk tt↑ (fun _ => None);
     sk := Sk.unit;
   |}.
 
@@ -461,30 +457,18 @@ Section EVENTSCOMMON.
   Context `{HasEventE: eventE -< E}.
 
   Definition ccallN {X Y} (fn: gname) (varg: X): itree E Y := 
-    vret <- trigger (Call fn (Some varg↑));; 
-    match vret with
-    | Some r => r <- r↓ǃ;; Ret r
-    | None => triggerNB
-    end.
+    vret <- trigger (Call fn (varg↑));; 
+    vret <- vret↓ǃ;; Ret vret
+    .
   Definition ccallU {X Y} (fn: gname) (varg: X): itree E Y := 
-    vret <- trigger (Call fn (Some varg↑));;
-    match vret with
-    | Some r => r <- r↓?;; Ret r
-    | None => triggerUB
-    end.
+    vret <- trigger (Call fn (varg↑));;
+    vret <- vret↓?;; Ret vret
+    .
 
-  Definition cfunN {X Y} (body: X -> itree E Y): oAny -> itree E oAny :=
-    fun varg => 
-    match varg with
-    | Some varg => varg <- varg↓ǃ;; vret <- body varg;; Ret (Some vret↑)
-    | None => Ret None
-    end.
-  Definition cfunU {X Y} (body: X -> itree E Y): oAny -> itree E oAny :=
-    fun varg => 
-    match varg with
-    | Some varg => varg <- varg↓?;; vret <- body varg;; Ret (Some vret↑)
-    | None => Ret None
-    end. 
+  Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
+    fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
+  Definition cfunU {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
+    fun '(_, varg) => varg <- varg↓?;; vret <- body varg;; Ret vret↑. 
 
 End EVENTSCOMMON.
 

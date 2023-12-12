@@ -24,7 +24,7 @@ Section ADD.
     lmap sndl.
 
 
-  Definition add_fnsems : gname -> option (oAny -> itree _ oAny) :=
+  Definition add_fnsems : gname -> option (Any.t -> itree _ Any.t) :=
     fun fn =>
       match M1.(fnsems) fn, M2.(fnsems) fn with
       | Some fn_body, None => Some (fun args => translate emb_l (fn_body args))
@@ -33,35 +33,25 @@ Section ADD.
       | _, _ => None
       end.
 
-  Definition add_state st1 st2 : oAny :=
-    match st1, st2 with
-    | Some st1, Some st2 => Some (Any.pair st1 st2)
-    | Some st1, None => Some st1
-    | None, Some st2 => Some st2
-    | None, None => None
-    end.
-
   Definition add : t :=
   {|
-    init_st := add_state (init_st M1) (init_st M2);
+    init_st := Any.pair (init_st M1) (init_st M2);
     fnsems := add_fnsems;
+    (* idea: maintain linked-status? (boolean) *)
   |}.
 
 End ADD.
 
 Section PROOF.
 
-Definition swap oab: oAny :=
-  match oab with
-  | Some oab => match Any.split oab with
-            | Some (a, b) => Some (Any.pair b a)
-            | None => Some oab
-            end
-  | None => None
+Definition swap ab: Any.t :=
+  match Any.split ab with
+  | Some (a, b) => Any.pair b a
+  | None => ab (* or UB? *)
   end.
 
-Definition swap_state {X} (f: oAny -> oAny * X)  :=
-  (fun oba => let '(oab', t) := f (swap oba) in ((swap oab'), t)).
+Definition swap_state {X} (f: Any.t -> Any.t * X)  :=
+  (fun ba => let '(ab', t) := f (swap ba) in ((swap ab'), t)).
 
 Definition swap_Es T (es: Es T) : Es T :=
   match es with
@@ -73,7 +63,7 @@ Definition swap_Es T (es: Es T) : Es T :=
 Definition swap_ems {R} (itl: itree Es R) (itr: itree Es R) :=
   itr = translate swap_Es itl.
 
-(* Definition assoc oa'bc: oAny :=
+(* Definition assoc oa'bc: Any.t :=
   match oa'bc with
   | Some a'bc => 
     match Any.split a'bc with
@@ -87,22 +77,32 @@ Definition swap_ems {R} (itl: itree Es R) (itr: itree Es R) :=
   | None => None
   end. *)
 
-Definition assoc oab'c: oAny :=
-  match oab'c with
-  | Some ab'c => 
-    match Any.split ab'c with
-    | Some (ab, c) => 
-      match Any.split ab with
-      | Some (a, b) => Some (Any.pair a (Any.pair b c))
-      | None => Some (ab'c)
-      end
-    | None => Some (ab'c)
-    end
-  | None => None
-  end.  
 
-Definition assoc_state {X} (f: oAny -> oAny * X) :=
-  (fun oa'bc => let '(oab'c, t) := f (assoc oa'bc) in (assoc oab'c, t)).
+(* 
+Definition assoc a'bc: Any.t :=
+  match Any.split a'bc with
+  | Some (a, bc) => 
+      match Any.split bc with
+      | Some (b, c) => (Any.pair (Any.pair a b) c)
+      | None => (a'bc) (* or UB? *)
+      end
+    |None => (a'bc) (* or UB? *)
+  end
+  . 
+  
+Definition assoc' ab'c: Any.t :=
+  match Any.split ab'c with
+  | Some (ab, c) => 
+      match Any.split ab with
+      | Some (a, b) => (Any.pair a (Any.pair b c))
+      | None => (ab'c) (* or UB? *)
+      end
+    |None => (ab'c) (* or UB? *)
+  end
+  . 
+
+Definition assoc_state {X} (f: Any.t -> Any.t * X) :=
+  (fun ab'c => let '(a'bc, t) := f (assoc' ab'c) in (assoc a'bc, t)).
 
 Definition assoc_Es T (es: Es T) : Es T :=
   match es with
@@ -110,12 +110,13 @@ Definition assoc_Es T (es: Es T) : Es T :=
   | inr1 (inr1 x) => inr1 (inr1 x)
   | inl1 y => inl1 y
   end.
-
   
 Definition assoc_ems {R} (itl: itree Es R) (itr: itree Es R) :=
-  itr = translate assoc_Es itl. 
+  itr = translate assoc_Es itl.  *)
 
-Lemma translate_triggerUB T (f: forall T, Es T -> Es T) (g: forall T, (oAny -> oAny * T) -> (oAny -> oAny * T))
+
+
+Lemma translate_triggerUB T (f: forall T, Es T -> Es T) (g: forall T, (Any.t -> Any.t * T) -> (Any.t -> Any.t * T))
       (F: f = (fun _ es => match es with
                         | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (g _ run)))
                         | inr1 (inr1 x) => inr1 (inr1 x)
@@ -138,11 +139,11 @@ Qed.
 
 Lemma swap_swap a : swap (swap a) = a.
 Proof.
-  i. unfold swap. destruct a; et.
-  destruct (Any.split t0) eqn:T.
-  - destruct p. rewrite Any.pair_split. f_equal.
-    rewrite <- Any.split_pair with (a:=t0); et.
-  - rewrite T. et.  
+  i. unfold swap.
+  destruct (Any.split a) eqn:A.
+  - destruct p. rewrite Any.pair_split. 
+    rewrite <- Any.split_pair with (a:=a); et.
+  - rewrite A. et.  
 Qed.
 
 
@@ -164,16 +165,18 @@ Proof.
     unfold map_lens. 
     repeat (f_equal).
     unfold swap_state. 
-    extensionality x. destruct x; ss.
-    destruct (Any.split t0) eqn:T0.
-      + destruct p. unfold lens_state.
+    extensionality x. ss.
+    (* destruct x; ss. *)
+    destruct (Any.split x) eqn:Xspl.
+    + destruct p. unfold lens_state.
         unfold swap, Lens.set, Lens.view. s.
-        rewrite ! T0. rewrite ! Any.pair_split. ss. f_equal.
-        destruct (fst (run (Some t1))) eqn: T1.
-        * rewrite Any.pair_split. ss.
-        * et.
+        unfold fstl, sndl.
+        rewrite ! Xspl.
+        rewrite ! Any.pair_split. ss. f_equal.
+        rewrite Any.pair_split. ss.
       + unfold lens_state, swap, Lens.set, Lens.view.
-        unfold fstl, sndl. rewrite ! T0. ss.
+        unfold fstl, sndl. rewrite ! Xspl. ss.
+        rewrite Any.upcast_split. et.
 
   - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
     f_equal.
@@ -182,16 +185,16 @@ Proof.
     destruct s0. s. 
     repeat (f_equal).
     unfold swap_state. 
-    extensionality x. destruct x; ss.
+    extensionality x. ss.
     unfold lens_state, swap, Lens.set, Lens.view. s.
-    destruct (Any.split t0) eqn:T0.
-      + destruct p. s.
+    unfold fstl, sndl.
+    destruct (Any.split x) eqn:Xspl.
+      + destruct p. s. 
         rewrite ! Any.pair_split. ss. f_equal.
-        destruct (fst (run (Some t2))) eqn:T2.
-        * s. rewrite Any.pair_split. et.
-        * et.
-      + ss. rewrite ! T0. ss.  
+        rewrite ! Any.pair_split. et.
 
+      + ss. rewrite ! Xspl. ss.
+        rewrite Any.upcast_split. et.  
   - unfold triggerUB. grind.
     erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
     f_equal.
@@ -202,12 +205,14 @@ Proof.
     + extensionality v. destruct v.
 Qed.
 
-Lemma assoc_ems_prog X ms0 ms1 ms2 (e: callE X)
+
+(* Lemma assoc_ems_prog X ms0 ms1 ms2 (e: callE X)
+
 :
   assoc_ems (prog (add ms0 (add ms1 ms2)) e) (prog (add (add ms0 ms1) ms2) e)
 .
 Proof.
-  destruct e. s.
+  destruct e. s. 
   unfold unwrapU.
   repeat (unfold add_fnsems; grind).
   des_ifs; grind; unfold assoc_ems.
@@ -233,18 +238,52 @@ Proof.
     unfold emb_l, lmap.
     extensionalities T es. des_ifs.
   - erewrite <- ! (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)).
+
     f_equal.
     unfold ">>>", Cat_IFun.
-    unfold assoc_Es, emb_l, lmap.
+    unfold emb_l, lmap.
     extensionalities T es. des_ifs. s.
-    repeat f_equal.
-    unfold assoc_state, lens_state.
+    destruct s1. s.
+
+    repeat f_equal. 
+    unfold assoc_state. s.
+    extensionality ab'c.
+    unfold lens_state. s.
     unfold Lens.set, Lens.view.
-    extensionality x. destruct x.
-    unfold fstl, assoc.
-    + s. destruct (Any.split t0) eqn:T0.
+    (* unfold fstl, sndl. *)
+    (* unfold assoc, assoc'. *)
+    f_equal.
+    + unfold fstl. 
+      destruct (Any.split ab'c) eqn:AB'C. 
+      * destruct p as [ab c]. s.
+        unfold assoc. 
+        destruct (Any.split ab) eqn:AB.
+        -- destruct p as [a b]. s.
+           unfold assoc'. des_ifs; ss; clarify.
+           4: { rewrite Any.upcast_split in Heq. inv Heq. }
+           5: { admit. }
+           all: admit.
+        -- s. unfold assoc'. des_ifs; ss; clarify.
+          ++ rewrite Any.pair_split in Heq.
+        destruct (Any.split (assoc' ab'c)) eqn:A'BC. 
+        -- destruct p.
+          (* At this point, split t0, split t3 shouldn't be None. *)
+           s. rewrite Any.pair_split.
+           unfold assoc' in *. rewrite AB'C in A'BC.
+           destruct (Any.split t0) eqn:T0. destruct p.
+           rewrite Any.pair_split in A'BC. inv A'BC.
+           ++ s. rewrite Any.pair_split. et. 
+           ++ s. destruct (Any.split t3) eqn:T3. destruct p.
+            ** destruct p
+            --- destruct p. s. rewrite Any.pair_split in X'.
+                inv X'. rewrite Any.pair_split in T3. inv T3. et.
+            --- s. rewrite X' in X. inv X.
+
+    s. destruct (Any.split x) eqn:X.
+    + destruct p. s.
+      destruct (Any.split t0) eqn:T0.
       * destruct p. s.
-        unfold assoc_state, assoc. des_ifs.
+      unfold assoc_state, assoc. des_ifs.
         f_equal.
         -- s. f_equal.
            ++ f_equal.
@@ -299,7 +338,7 @@ Proof.
       repeat f_equal.
       extensionality v. destruct v.
     + extensionality v. destruct v.
-Qed.
+Qed. *)
 
 (* Move to SimGlobal? *)
 Lemma simg_map R0 R1 RR R0' R1' RR' f_src f_tgt itl itr (f0: R0 -> R0') (f1: R1 -> R1')
@@ -368,11 +407,8 @@ Proof.
 
   generalize (Call "main" initial_arg) as e.
   assert (REL: swap (init_st (add ms1 ms0)) = init_st (add ms0 ms1)).
-  { unfold init_st. ss. unfold add_state.
-    destruct (init_st ms1), (init_st ms0); et. 
-    unfold swap. destruct (Any.split (Any.pair t0 t1)) eqn: SWAP.
-    - destruct p. rewrite Any.pair_split in SWAP. inv SWAP. et.
-    - rewrite Any.pair_split in SWAP. inv SWAP.  }
+  { unfold init_st, swap. ss. rewrite Any.pair_split. et. }
+
   revert REL.
   (* generalize (option Any.t) as X. *)
   generalize (init_st (add ms1 ms0)) as stl0.
@@ -513,13 +549,12 @@ Lemma add_assoc_aux
         (snd <$> interp_Es (prog (add (add ms0 ms1) ms2)) (prog (add (add ms0 ms1) ms2) (Call "main" initial_arg)) (init_st (add (add ms0 ms1) ms2)))
         (snd <$> interp_Es (prog (add ms0 (add ms1 ms2))) (prog (add ms0 (add ms1 ms2)) (Call "main" initial_arg)) (init_st (add ms0 (add ms1 ms2))))
 .
-Proof.
-  generalize (Call "main" initial_arg) as e.
+Proof. Admitted.
+  (* generalize (Call "main" initial_arg) as e.
   assert (REL: assoc (init_st (add ms0 (add ms1 ms2))) = init_st (add (add ms0 ms1) ms2)).
-  { unfold init_st. et. }
+  { unfold init_st, assoc. ss. rewrite ! Any.pair_split. et. }
   revert REL.
 
-  generalize (Any.t) as X.
   generalize (init_st (add (add ms0 ms1) ms2)) as stl0.
   generalize (init_st (add ms0 (add ms1 ms2))) as str0.
 
@@ -561,12 +596,8 @@ Proof.
     + (* call E *)
       rewrite <- ! bind_trigger, ! interp_Es_bind.
       (* Set Printing All. *)
-      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
-      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
-         (@assoc_Es (state ms0) (state ms1) (state ms2) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)))
-      (@assoc (state ms0) (state ms1) (state ms2) str)).
-      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
-      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0 (@inl1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 c)) str).
+      pattern (@interp_Es X (@prog (add (add ms0 ms1) ms2)) (@ITree.trigger Es X (@assoc_Es X (@inl1 callE (sum1 sE eventE) X c))) (assoc str)).
+      pattern (@interp_Es X (@prog (add ms0 (add ms1 ms2))) (@ITree.trigger Es X (@inl1 callE (sum1 sE eventE) X c)) str).
       setoid_rewrite interp_Es_callE.
       setoid_rewrite interp_Es_callE.
       rewrite ! bind_tau.
@@ -580,31 +611,42 @@ Proof.
     + (* sE *)
       rewrite <- ! bind_trigger, ! interp_Es_bind.
       (* Set Printing All. *)
-      pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
-      (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
-         (@assoc_Es (state ms0) (state ms1) (state ms2) X0
-            (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))))
-      (@assoc (state ms0) (state ms1) (state ms2) str)).
-      pattern (@interp_Es (state (add ms0 (add ms1 ms2))) X0 (@prog (add ms0 (add ms1 ms2)))
-      (@ITree.trigger (Es (state (add ms0 (add ms1 ms2)))) X0
-         (@inr1 callE (sum1 (sE (state (add ms0 (add ms1 ms2)))) eventE) X0 (@inl1 (sE (state (add ms0 (add ms1 ms2)))) eventE X0 s))) str).
+      pattern (@interp_Es X (@prog (add (add ms0 ms1) ms2)) (@ITree.trigger Es X (@assoc_Es X (@inr1 callE (sum1 sE eventE) X (@inl1 sE eventE X s)))) (assoc str)).
+      pattern (@interp_Es X (@prog (add ms0 (add ms1 ms2))) (@ITree.trigger Es X (@inr1 callE (sum1 sE eventE) X (@inl1 sE eventE X s))) str).
       setoid_rewrite interp_Es_sE.
       grind.
+      (* Set Printing All. *)
+      pattern (@interp_Es X (@prog (add (add ms0 ms1) ms2))
+      (@ITree.trigger Es X (@inr1 callE (sum1 sE eventE) X (@inl1 sE eventE X (@SUpdate X (@assoc_state X run))))) (assoc str)).
       setoid_rewrite interp_Es_sE.
       grind.
       gstep. 
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_progress; et.
+      unfold assoc_state in *. 
+      (* make lemma of assoc_assoc *)
+      assert (assoc_assoc: forall x, assoc' (assoc x) = x). 
+      { i. unfold assoc, assoc'. des_ifs.
+        - rewrite Any.pair_split in Heq1.
+          inv Heq1. inv Heq4. 
+          rewrite Any.pair_split in Heq2.
+          inv Heq2. rewrite <- Any.split_pair with (a:=x1); et.
+          rewrite Heq3. f_equal. f_equal.
+          rewrite <- Any.split_pair with (a:=t7); et.
+        all: admit.
+      }
+      admit.
+      (* rewrite assoc_assoc in Heq0.
       destruct str. destruct s4. inv Heq1.
       (* rewrite H0 in Heq. *)
       assert (SSS: (s, x) = (s1, (s0, s3), x0)). { rewrite <- H0, <- Heq. et. }
       inv SSS.
       gfinal. left.
       replace (s1, s0, s3) with (assoc (s1, (s0, s3))); et.
-      eapply CIH'. unfold assoc_ems. et.
+      eapply CIH'. unfold assoc_ems. et. *)
   + (* eventE *)
-    rewrite <- ! bind_trigger, ! interp_Es_bind.
+    rewrite <- ! bind_trigger, ! interp_Es_bind. admit.
     (* Set Printing All. *)
     pattern (@interp_Es (prod (prod (state ms0) (state ms1)) (state ms2)) X0 (@prog (add (add ms0 ms1) ms2))
     (@ITree.trigger (Es (prod (prod (state ms0) (state ms1)) (state ms2))) X0
@@ -641,7 +683,7 @@ Proof.
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_progress; et.
       gfinal. left. apply CIH'. unfold assoc_ems. et.
-Qed. 
+Qed.  *)
 
 Lemma add_assoc_rev_aux
         ms0 ms1 ms2
@@ -650,8 +692,8 @@ Lemma add_assoc_rev_aux
         (snd <$> interp_Es (prog (add ms0 (add ms1 ms2))) (prog (add ms0 (add ms1 ms2)) (Call "main" initial_arg)) (init_st (add ms0 (add ms1 ms2))))
         (snd <$> interp_Es (prog (add (add ms0 ms1) ms2)) (prog (add (add ms0 ms1) ms2) (Call "main" initial_arg)) (init_st (add (add ms0 ms1) ms2)))
 .
-Proof.
-  generalize (Call "main" initial_arg) as e.
+Proof. Admitted.
+  (* generalize (Call "main" initial_arg) as e.
   assert (REL: assoc (init_st (add ms0 (add ms1 ms2))) = init_st (add (add ms0 ms1) ms2)).
   { unfold init_st. et. }
   revert REL.
@@ -781,7 +823,7 @@ Proof.
       apply simg_tauL; et. apply simg_tauR; et.
       apply simg_progress; et.
       gfinal. left. apply CIH'. unfold assoc_ems. et.
-Qed.
+Qed. *)
 
 
 Theorem add_assoc
@@ -835,7 +877,7 @@ Context `{Sk.ld}.
 Context {CONF: EMSConfig}.
 
 (* Definition compile (md: t): semantics :=
-  ModSemL.compile_itree (ModSemL.initial_itr md.(enclose) (Some (wf md))). *)
+  ModSem.compile_itree (ModSem.initial_itr md.(enclose) (Some (wf md))). *)
 
 
 Definition compile (md: t): semantics :=
@@ -846,7 +888,7 @@ Definition compile (md: t): semantics :=
 
 Definition add (md0 md1: t): t := {|
   get_modsem := fun sk =>
-                  ModSem.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
+                  ModSemAdd.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
   sk := Sk.add md0.(sk) md1.(sk);
 |}
 .
@@ -854,7 +896,7 @@ Definition add (md0 md1: t): t := {|
 
 (* Definition add (md0 md1: t): t := {|
   get_modsem := fun sk =>
-                  ModSemL.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
+                  ModSem.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
   sk := Sk.add md0.(sk) md1.(sk);
 |}
 . *)
@@ -877,8 +919,8 @@ Theorem add_comm
     <<COMM: Beh.of_program (compile (add md0 md1)) <1= Beh.of_program (compile (add md1 md0))>>
 .
 Proof.
-(* Admitted. *)
-  unfold compile. red. apply adequacy_global_itree; et.
+Admitted.
+  (* unfold compile. red. apply adequacy_global_itree; et.
   unfold ModSem.initial_itr, assume.
   
   rewrite ! bind_bind.
@@ -898,24 +940,24 @@ Proof.
 
 ii. unfold compile in *.
   destruct (classic (Sk.wf (sk (add md1 md0)))).
-  (* 2: { eapply ModSemL.initial_itr_not_wf. ss. } *)
+  (* 2: { eapply ModSem.initial_itr_not_wf. ss. } *)
   ss. des. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
   { apply Sk.wf_comm. auto. }
   rewrite Sk.add_comm; et.
   eapply ModSemAdd.add_comm; [|et].
   { i. auto. }
   {  }
-Qed.
+Qed. *)
 
 
 
-Lemma add_assoc' ms0 ms1 ms2:
+(* Lemma add_assoc' ms0 ms1 ms2:
   add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
 Proof.
   unfold add. f_equal.
   { extensionality skenv_link. ss. apply ModSem.add_assoc'. }
   { ss. rewrite Sk.add_assoc. auto. }
-Qed.
+Qed. *)
 
 Theorem add_assoc
         md0 md1 md2
@@ -923,9 +965,9 @@ Theorem add_assoc
     <<COMM: Beh.of_program (compile (add md0 (add md1 md2))) =
             Beh.of_program (compile (add (add md0 md1) md2))>>
 .
-Proof.
-  rewrite add_assoc'. ss.
-Qed.
+Proof. Admitted.
+  (* rewrite add_assoc'. ss.
+Qed. *)
 
 Theorem add_assoc_rev
         md0 md1 md2
@@ -933,9 +975,9 @@ Theorem add_assoc_rev
     <<COMM: Beh.of_program (compile (add (add md0 md1) md2)) =
             Beh.of_program (compile (add md0 (add md1 md2)))>>
 .
-Proof.
-  rewrite add_assoc'. ss.
-Qed.
+Proof. Admitted.
+  (* rewrite add_assoc'. ss.
+Qed. *)
 
 Lemma add_empty_r 
       md
@@ -966,7 +1008,7 @@ Qed.
 Lemma add_empty_l md: add empty md = md.
 Proof.
   destruct md; ss.
-  unfold add, ModSemL.add. f_equal; ss.
+  unfold add, ModSem.add. f_equal; ss.
   { extensionality skenv. destruct (get_modsem0 skenv); ss. }
   { apply Sk.add_unit_l. }
 Qed. *)

@@ -32,7 +32,7 @@ Section ECHOIMP.
   Definition echo_imp: ModL.t :=
     Mod.add_list (Mem (fun _ => false) :: map ImpMod.get_mod echo_progs).
 
-  Definition echo_imp_itr := ModSemL.initial_itr (ModL.enclose echo_imp) None.
+  Definition echo_imp_itr := ModSem.initial_itr (ModL.enclose echo_imp) None.
 End ECHOIMP.
 
 
@@ -41,7 +41,7 @@ Section ECHOIMPL.
   Definition echo_impl: ModL.t :=
     Mod.add_list [Mem (fun _ => false); Stack; Echo; Main; Client].
 
-  Definition echo_impl_itr := ModSemL.initial_itr (ModL.enclose echo_impl) None.
+  Definition echo_impl_itr := ModSem.initial_itr (ModL.enclose echo_impl) None.
 End ECHOIMPL.
 
 
@@ -57,7 +57,7 @@ Section ECHOSPEC.
       Main; Client
       ].
 
-  Definition echo_spec_itr := ModSemL.initial_itr (ModL.enclose echo_spec) None.
+  Definition echo_spec_itr := ModSem.initial_itr (ModL.enclose echo_spec) None.
 End ECHOSPEC.
 
 

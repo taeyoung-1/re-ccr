@@ -10,7 +10,7 @@ Set Implicit Arguments.
 
 Notation gname := string (only parsing). (*** convention: not capitalized ***)
 Notation mname := string (only parsing). (*** convention: capitalized ***)
-Notation oAny := (option Any.t) (only parsing).
+Notation Any := Any.t (only parsing).
 
 Section EVENTSCOMMON.
 
@@ -118,12 +118,12 @@ Section EVENTS.
 Section DEFINES.
 
   Inductive callE: Type -> Type :=
-  | Call (fn: gname) (args: oAny) : callE oAny
+  | Call (fn: gname) (args: Any.t) : callE Any.t
   .
   
 
-  Variant sE (X: Type): Type :=
-  | SUpdate (run : oAny -> oAny * X) : sE X
+  Variant sE (V: Type): Type :=
+  | SUpdate (run : Any.t -> Any.t * V) : sE V
   .
 
   Definition Es: Type -> Type := (callE +' sE +' eventE).
@@ -138,23 +138,23 @@ Section DEFINES.
   Definition Modify (f: Any.t -> Any.t) : sE Any.t () := SUpdate (fun x => (f x, tt)).
   Definition Put x := (Modify (fun _ => x)). *)
 
-  Definition sGet : sE (oAny) := 
+  Definition sGet : sE (Any.t) := 
     SUpdate (fun x => (x, x)).
 
   Definition sPut x : sE unit :=
     SUpdate (fun _ => (x, tt)).
 
-  Definition handle_sE {E}: sE ~> stateT (oAny) (itree E) := 
+  Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
     fun _ e glob =>
       match e with
       | SUpdate run => Ret (run glob)  
       end. 
       
- Definition interp_sE {E}: itree (sE +' E) ~> stateT (oAny) (itree E) :=
+ Definition interp_sE {E}: itree (sE +' E) ~> stateT Any.t (itree E) :=
     (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
     State.interp_state (case_ handle_sE pure_state).
 
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: oAny): itree eventE (oAny * _)%type :=
+  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
     '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
     Ret (st1, v)
   .
@@ -258,7 +258,7 @@ Section LENS.
 
   (* Variable S V: Type.
   Variable l: Lens.t S V. *)
-  Variable l: Lens.t (oAny) (oAny).
+  Variable l: Lens.t (Any.t) (Any.t).
 
 
     (* Definition lens_state X : (V -> V * X) -> (S -> S * X) :=
@@ -270,7 +270,7 @@ Section LENS.
     | SUpdate run => SUpdate (lens_state run)
     end. *)
 
-  Definition lens_state T : (oAny -> (oAny) * T) -> (oAny -> (oAny) * T) :=
+  Definition lens_state T : (Any.t -> (Any.t) * T) -> (Any.t -> (Any.t) * T) :=
     fun run s =>
       (Lens.set l (fst (run (Lens.view l s))) s, snd (run (Lens.view l s))).
 
@@ -286,7 +286,7 @@ Section PROGRAM_EVENT.
 
   (* Variable l : Lens.t st' st. *)
 
-  Variable l : Lens.t (oAny) (oAny).
+  Variable l : Lens.t (Any.t) (Any.t).
   
   Definition lmap T : Es T -> Es T.
   Proof.
