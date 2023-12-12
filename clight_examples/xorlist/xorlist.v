@@ -76,96 +76,131 @@ Definition ___compcert_va_composite : ident := $"__compcert_va_composite".
 Definition ___compcert_va_float64 : ident := $"__compcert_va_float64".
 Definition ___compcert_va_int32 : ident := $"__compcert_va_int32".
 Definition ___compcert_va_int64 : ident := $"__compcert_va_int64".
-Definition _add : ident := $"add".
-Definition _at_tail : ident := $"at_tail".
-Definition _cur : ident := $"cur".
-Definition _decrypt : ident := $"decrypt".
-Definition _delete : ident := $"delete".
-Definition _encrypt : ident := $"encrypt".
+Definition _add_hd : ident := $"add_hd".
+Definition _add_tl : ident := $"add_tl".
+Definition _delete_hd : ident := $"delete_hd".
+Definition _delete_tl : ident := $"delete_tl".
 Definition _entry : ident := $"entry".
 Definition _free : ident := $"free".
-Definition _from_tail : ident := $"from_tail".
 Definition _hd : ident := $"hd".
 Definition _hd_handler : ident := $"hd_handler".
 Definition _hd_new : ident := $"hd_new".
-Definition _hd_new_next : ident := $"hd_new_next".
-Definition _hd_next : ident := $"hd_next".
 Definition _hd_old : ident := $"hd_old".
-Definition _index : ident := $"index".
 Definition _item : ident := $"item".
-Definition _key : ident := $"key".
 Definition _link : ident := $"link".
 Definition _main : ident := $"main".
 Definition _malloc : ident := $"malloc".
-Definition _next : ident := $"next".
-Definition _prev : ident := $"prev".
-Definition _ptr : ident := $"ptr".
-Definition _search : ident := $"search".
 Definition _tl : ident := $"tl".
 Definition _tl_handler : ident := $"tl_handler".
 Definition _tl_new : ident := $"tl_new".
-Definition _tl_new_prev : ident := $"tl_new_prev".
 Definition _tl_old : ident := $"tl_old".
-Definition _tl_prev : ident := $"tl_prev".
 Definition _t'1 : ident := 128%positive.
 Definition _t'2 : ident := 129%positive.
 Definition _t'3 : ident := 130%positive.
 Definition _t'4 : ident := 131%positive.
-Definition _t'5 : ident := 132%positive.
-Definition _t'6 : ident := 133%positive.
-Definition _t'7 : ident := 134%positive.
-Definition _t'8 : ident := 135%positive.
 
-Definition f_encrypt := {|
-  fn_return := tlong;
-  fn_callconv := cc_default;
-  fn_params := ((_prev, (tptr (Tstruct __Node noattr))) ::
-                (_next, (tptr (Tstruct __Node noattr))) :: nil);
-  fn_vars := nil;
-  fn_temps := ((_t'2, (tptr (Tstruct __Node noattr))) ::
-               (_t'1, (tptr (Tstruct __Node noattr))) :: nil);
-  fn_body :=
-(Ssequence
-  (Ssequence
-    (Sbuiltin (Some _t'1) EF_capture (Tcons (tptr tvoid) Tnil)
-      ((Etempvar _prev (tptr (Tstruct __Node noattr))) :: nil))
-    (Sbuiltin (Some _t'2) EF_capture (Tcons (tptr tvoid) Tnil)
-      ((Etempvar _next (tptr (Tstruct __Node noattr))) :: nil)))
-  (Sreturn (Some (Ebinop Oxor (Etempvar _t'1 tlong) (Etempvar _t'2 tlong)
-                   tlong))))
-|}.
-
-Definition f_decrypt := {|
-  fn_return := (tptr (Tstruct __Node noattr));
-  fn_callconv := cc_default;
-  fn_params := ((_key, tlong) :: (_ptr, (tptr (Tstruct __Node noattr))) ::
-                nil);
-  fn_vars := nil;
-  fn_temps := ((_t'1, (tptr (Tstruct __Node noattr))) :: nil);
-  fn_body :=
-(Ssequence
-  (Sbuiltin (Some _t'1) EF_capture (Tcons (tptr tvoid) Tnil)
-    ((Etempvar _ptr (tptr (Tstruct __Node noattr))) :: nil))
-  (Sreturn (Some (Ecast
-                   (Ebinop Oxor (Etempvar _key tlong) (Etempvar _t'1 tlong)
-                     tlong) (tptr (Tstruct __Node noattr))))))
-|}.
-
-Definition f_add := {|
+Definition f_add_hd := {|
   fn_return := tvoid;
   fn_callconv := cc_default;
   fn_params := ((_hd_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
                 (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
-                (_item, tlong) :: (_at_tail, tbool) :: nil);
+                (_item, tlong) :: nil);
   fn_vars := nil;
   fn_temps := ((_entry, (tptr (Tstruct __Node noattr))) ::
                (_hd, (tptr (Tstruct __Node noattr))) ::
                (_tl, (tptr (Tstruct __Node noattr))) ::
-               (_tl_prev, (tptr (Tstruct __Node noattr))) ::
-               (_hd_next, (tptr (Tstruct __Node noattr))) :: (_t'8, tlong) ::
-               (_t'7, (tptr (Tstruct __Node noattr))) :: (_t'6, tlong) ::
-               (_t'5, tlong) :: (_t'4, (tptr (Tstruct __Node noattr))) ::
-               (_t'3, tlong) :: (_t'2, (tptr (Tstruct __Node noattr))) ::
+               (_t'4, (tptr (Tstruct __Node noattr))) ::
+               (_t'3, (tptr (Tstruct __Node noattr))) ::
+               (_t'2, (tptr (Tstruct __Node noattr))) ::
+               (_t'1, (tptr tvoid)) :: nil);
+  fn_body :=
+(Ssequence
+  (Ssequence
+    (Scall (Some _t'1)
+      (Evar _malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))
+      ((Esizeof (Tstruct __Node noattr) tulong) :: nil))
+    (Sset _entry
+      (Ecast (Etempvar _t'1 (tptr tvoid)) (tptr (Tstruct __Node noattr)))))
+  (Ssequence
+    (Sset _hd
+      (Ederef (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+        (tptr (Tstruct __Node noattr))))
+    (Ssequence
+      (Sset _tl
+        (Ederef (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
+          (tptr (Tstruct __Node noattr))))
+      (Ssequence
+        (Sassign
+          (Efield
+            (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
+              (Tstruct __Node noattr)) _item tlong) (Etempvar _item tlong))
+        (Sifthenelse (Ebinop Oeq
+                       (Etempvar _tl (tptr (Tstruct __Node noattr)))
+                       (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
+                       tint)
+          (Ssequence
+            (Sassign
+              (Efield
+                (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
+                  (Tstruct __Node noattr)) _link tlong)
+              (Econst_int (Int.repr 0) tint))
+            (Ssequence
+              (Ssequence
+                (Sset _t'2
+                  (Ecast (Etempvar _entry (tptr (Tstruct __Node noattr)))
+                    (tptr (Tstruct __Node noattr))))
+                (Sassign
+                  (Ederef
+                    (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
+                    (tptr (Tstruct __Node noattr)))
+                  (Etempvar _t'2 (tptr (Tstruct __Node noattr)))))
+              (Sassign
+                (Ederef
+                  (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+                  (tptr (Tstruct __Node noattr)))
+                (Etempvar _t'2 (tptr (Tstruct __Node noattr))))))
+          (Ssequence
+            (Ssequence
+              (Sbuiltin (Some _t'3) EF_capture (Tcons (tptr tvoid) Tnil)
+                ((Etempvar _hd (tptr (Tstruct __Node noattr))) :: nil))
+              (Sassign
+                (Efield
+                  (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
+                    (Tstruct __Node noattr)) _link tlong)
+                (Etempvar _t'3 tlong)))
+            (Ssequence
+              (Ssequence
+                (Sbuiltin (Some _t'4) EF_capture (Tcons (tptr tvoid) Tnil)
+                  ((Etempvar _entry (tptr (Tstruct __Node noattr))) :: nil))
+                (Sassign
+                  (Efield
+                    (Ederef (Etempvar _hd (tptr (Tstruct __Node noattr)))
+                      (Tstruct __Node noattr)) _link tlong)
+                  (Ebinop Oxor
+                    (Efield
+                      (Ederef (Etempvar _hd (tptr (Tstruct __Node noattr)))
+                        (Tstruct __Node noattr)) _link tlong)
+                    (Etempvar _t'4 tlong) tlong)))
+              (Sassign
+                (Ederef
+                  (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+                  (tptr (Tstruct __Node noattr)))
+                (Etempvar _entry (tptr (Tstruct __Node noattr)))))))))))
+|}.
+
+Definition f_add_tl := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_hd_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
+                (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
+                (_item, tlong) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_entry, (tptr (Tstruct __Node noattr))) ::
+               (_hd, (tptr (Tstruct __Node noattr))) ::
+               (_tl, (tptr (Tstruct __Node noattr))) ::
+               (_t'4, (tptr (Tstruct __Node noattr))) ::
+               (_t'3, (tptr (Tstruct __Node noattr))) ::
+               (_t'2, (tptr (Tstruct __Node noattr))) ::
                (_t'1, (tptr tvoid)) :: nil);
   fn_body :=
 (Ssequence
@@ -213,239 +248,68 @@ Definition f_add := {|
                   (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
                   (tptr (Tstruct __Node noattr)))
                 (Etempvar _t'2 (tptr (Tstruct __Node noattr))))))
-          (Sifthenelse (Etempvar _at_tail tbool)
-            (Ssequence
-              (Ssequence
-                (Scall (Some _t'3)
-                  (Evar _encrypt (Tfunction
-                                   (Tcons (tptr (Tstruct __Node noattr))
-                                     (Tcons (tptr (Tstruct __Node noattr))
-                                       Tnil)) tlong cc_default))
-                  ((Etempvar _tl (tptr (Tstruct __Node noattr))) ::
-                   (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                   nil))
-                (Sassign
-                  (Efield
-                    (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
-                      (Tstruct __Node noattr)) _link tlong)
-                  (Etempvar _t'3 tlong)))
-              (Ssequence
-                (Ssequence
-                  (Scall (Some _t'4)
-                    (Evar _decrypt (Tfunction
-                                     (Tcons tlong
-                                       (Tcons (tptr (Tstruct __Node noattr))
-                                         Tnil))
-                                     (tptr (Tstruct __Node noattr))
-                                     cc_default))
-                    ((Efield
-                       (Ederef (Etempvar _tl (tptr (Tstruct __Node noattr)))
-                         (Tstruct __Node noattr)) _link tlong) ::
-                     (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                     nil))
-                  (Sset _tl_prev
-                    (Etempvar _t'4 (tptr (Tstruct __Node noattr)))))
-                (Ssequence
-                  (Ssequence
-                    (Scall (Some _t'5)
-                      (Evar _encrypt (Tfunction
-                                       (Tcons (tptr (Tstruct __Node noattr))
-                                         (Tcons
-                                           (tptr (Tstruct __Node noattr))
-                                           Tnil)) tlong cc_default))
-                      ((Etempvar _entry (tptr (Tstruct __Node noattr))) ::
-                       (Etempvar _tl_prev (tptr (Tstruct __Node noattr))) ::
-                       nil))
-                    (Sassign
-                      (Efield
-                        (Ederef (Etempvar _tl (tptr (Tstruct __Node noattr)))
-                          (Tstruct __Node noattr)) _link tlong)
-                      (Etempvar _t'5 tlong)))
-                  (Sassign
-                    (Ederef
-                      (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
-                      (tptr (Tstruct __Node noattr)))
-                    (Etempvar _entry (tptr (Tstruct __Node noattr)))))))
-            (Ssequence
-              (Ssequence
-                (Scall (Some _t'6)
-                  (Evar _encrypt (Tfunction
-                                   (Tcons (tptr (Tstruct __Node noattr))
-                                     (Tcons (tptr (Tstruct __Node noattr))
-                                       Tnil)) tlong cc_default))
-                  ((Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                   (Etempvar _hd (tptr (Tstruct __Node noattr))) :: nil))
-                (Sassign
-                  (Efield
-                    (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
-                      (Tstruct __Node noattr)) _link tlong)
-                  (Etempvar _t'6 tlong)))
-              (Ssequence
-                (Ssequence
-                  (Scall (Some _t'7)
-                    (Evar _decrypt (Tfunction
-                                     (Tcons tlong
-                                       (Tcons (tptr (Tstruct __Node noattr))
-                                         Tnil))
-                                     (tptr (Tstruct __Node noattr))
-                                     cc_default))
-                    ((Efield
-                       (Ederef (Etempvar _hd (tptr (Tstruct __Node noattr)))
-                         (Tstruct __Node noattr)) _link tlong) ::
-                     (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                     nil))
-                  (Sset _hd_next
-                    (Etempvar _t'7 (tptr (Tstruct __Node noattr)))))
-                (Ssequence
-                  (Ssequence
-                    (Scall (Some _t'8)
-                      (Evar _encrypt (Tfunction
-                                       (Tcons (tptr (Tstruct __Node noattr))
-                                         (Tcons
-                                           (tptr (Tstruct __Node noattr))
-                                           Tnil)) tlong cc_default))
-                      ((Etempvar _entry (tptr (Tstruct __Node noattr))) ::
-                       (Etempvar _hd_next (tptr (Tstruct __Node noattr))) ::
-                       nil))
-                    (Sassign
-                      (Efield
-                        (Ederef (Etempvar _hd (tptr (Tstruct __Node noattr)))
-                          (Tstruct __Node noattr)) _link tlong)
-                      (Etempvar _t'8 tlong)))
-                  (Sassign
-                    (Ederef
-                      (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-                      (tptr (Tstruct __Node noattr)))
-                    (Etempvar _entry (tptr (Tstruct __Node noattr)))))))))))))
-|}.
-
-Definition f_delete := {|
-  fn_return := tlong;
-  fn_callconv := cc_default;
-  fn_params := ((_hd_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
-                (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
-                (_from_tail, tbool) :: nil);
-  fn_vars := nil;
-  fn_temps := ((_item, tlong) :: (_tl_old, (tptr (Tstruct __Node noattr))) ::
-               (_tl_new, (tptr (Tstruct __Node noattr))) ::
-               (_tl_new_prev, (tptr (Tstruct __Node noattr))) ::
-               (_hd_old, (tptr (Tstruct __Node noattr))) ::
-               (_hd_new, (tptr (Tstruct __Node noattr))) ::
-               (_hd_new_next, (tptr (Tstruct __Node noattr))) ::
-               (_t'6, tlong) :: (_t'5, (tptr (Tstruct __Node noattr))) ::
-               (_t'4, (tptr (Tstruct __Node noattr))) :: (_t'3, tlong) ::
-               (_t'2, (tptr (Tstruct __Node noattr))) ::
-               (_t'1, (tptr (Tstruct __Node noattr))) :: nil);
-  fn_body :=
-(Ssequence
-  (Sifthenelse (Ebinop Oeq
-                 (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
-                 (Ederef
-                   (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-                   (tptr (Tstruct __Node noattr))) tint)
-    (Sset _item (Ecast (Econst_int (Int.repr 0) tint) tlong))
-    (Sifthenelse (Etempvar _from_tail tbool)
-      (Ssequence
-        (Sset _tl_old
-          (Ederef
-            (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
-            (tptr (Tstruct __Node noattr))))
-        (Ssequence
-          (Sset _item
-            (Efield
-              (Ederef (Etempvar _tl_old (tptr (Tstruct __Node noattr)))
-                (Tstruct __Node noattr)) _item tlong))
           (Ssequence
             (Ssequence
-              (Scall (Some _t'1)
-                (Evar _decrypt (Tfunction
-                                 (Tcons tlong
-                                   (Tcons (tptr (Tstruct __Node noattr))
-                                     Tnil)) (tptr (Tstruct __Node noattr))
-                                 cc_default))
-                ((Efield
-                   (Ederef (Etempvar _tl_old (tptr (Tstruct __Node noattr)))
-                     (Tstruct __Node noattr)) _link tlong) ::
-                 (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) :: nil))
-              (Sset _tl_new (Etempvar _t'1 (tptr (Tstruct __Node noattr)))))
+              (Sbuiltin (Some _t'3) EF_capture (Tcons (tptr tvoid) Tnil)
+                ((Etempvar _tl (tptr (Tstruct __Node noattr))) :: nil))
+              (Sassign
+                (Efield
+                  (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
+                    (Tstruct __Node noattr)) _link tlong)
+                (Etempvar _t'3 tlong)))
             (Ssequence
+              (Ssequence
+                (Sbuiltin (Some _t'4) EF_capture (Tcons (tptr tvoid) Tnil)
+                  ((Etempvar _entry (tptr (Tstruct __Node noattr))) :: nil))
+                (Sassign
+                  (Efield
+                    (Ederef (Etempvar _tl (tptr (Tstruct __Node noattr)))
+                      (Tstruct __Node noattr)) _link tlong)
+                  (Ebinop Oxor
+                    (Efield
+                      (Ederef (Etempvar _tl (tptr (Tstruct __Node noattr)))
+                        (Tstruct __Node noattr)) _link tlong)
+                    (Etempvar _t'4 tlong) tlong)))
               (Sassign
                 (Ederef
                   (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
                   (tptr (Tstruct __Node noattr)))
-                (Etempvar _tl_new (tptr (Tstruct __Node noattr))))
-              (Ssequence
-                (Sifthenelse (Ebinop Oeq
-                               (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
-                               (Ecast (Econst_int (Int.repr 0) tint)
-                                 (tptr tvoid)) tint)
-                  (Sassign
-                    (Ederef
-                      (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-                      (tptr (Tstruct __Node noattr)))
-                    (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)))
-                  (Ssequence
-                    (Ssequence
-                      (Scall (Some _t'2)
-                        (Evar _decrypt (Tfunction
-                                         (Tcons tlong
-                                           (Tcons
-                                             (tptr (Tstruct __Node noattr))
-                                             Tnil))
-                                         (tptr (Tstruct __Node noattr))
-                                         cc_default))
-                        ((Efield
-                           (Ederef
-                             (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
-                             (Tstruct __Node noattr)) _link tlong) ::
-                         (Etempvar _tl_old (tptr (Tstruct __Node noattr))) ::
-                         nil))
-                      (Sset _tl_new_prev
-                        (Etempvar _t'2 (tptr (Tstruct __Node noattr)))))
-                    (Ssequence
-                      (Scall (Some _t'3)
-                        (Evar _encrypt (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct __Node noattr))
-                                           (Tcons
-                                             (tptr (Tstruct __Node noattr))
-                                             Tnil)) tlong cc_default))
-                        ((Etempvar _tl_new_prev (tptr (Tstruct __Node noattr))) ::
-                         (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                         nil))
-                      (Sassign
-                        (Efield
-                          (Ederef
-                            (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
-                            (Tstruct __Node noattr)) _link tlong)
-                        (Etempvar _t'3 tlong)))))
-                (Scall None
-                  (Evar _free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid
-                                cc_default))
-                  ((Etempvar _tl_old (tptr (Tstruct __Node noattr))) :: nil)))))))
-      (Ssequence
-        (Sset _hd_old
-          (Ederef
-            (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-            (tptr (Tstruct __Node noattr))))
+                (Etempvar _entry (tptr (Tstruct __Node noattr)))))))))))
+|}.
+
+Definition f_delete_hd := {|
+  fn_return := tlong;
+  fn_callconv := cc_default;
+  fn_params := ((_hd_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
+                (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_item, tlong) :: (_hd_old, (tptr (Tstruct __Node noattr))) ::
+               (_hd_new, (tptr (Tstruct __Node noattr))) :: (_link, tlong) ::
+               (_t'1, (tptr (Tstruct __Node noattr))) :: nil);
+  fn_body :=
+(Ssequence
+  (Sset _item (Ecast (Econst_int (Int.repr 0) tint) tlong))
+  (Ssequence
+    (Sset _hd_old
+      (Ederef (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+        (tptr (Tstruct __Node noattr))))
+    (Ssequence
+      (Sifthenelse (Ebinop One
+                     (Etempvar _hd_old (tptr (Tstruct __Node noattr)))
+                     (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
+                     tint)
         (Ssequence
           (Sset _item
             (Efield
               (Ederef (Etempvar _hd_old (tptr (Tstruct __Node noattr)))
                 (Tstruct __Node noattr)) _item tlong))
           (Ssequence
-            (Ssequence
-              (Scall (Some _t'4)
-                (Evar _decrypt (Tfunction
-                                 (Tcons tlong
-                                   (Tcons (tptr (Tstruct __Node noattr))
-                                     Tnil)) (tptr (Tstruct __Node noattr))
-                                 cc_default))
-                ((Efield
-                   (Ederef (Etempvar _hd_old (tptr (Tstruct __Node noattr)))
-                     (Tstruct __Node noattr)) _link tlong) ::
-                 (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) :: nil))
-              (Sset _hd_new (Etempvar _t'4 (tptr (Tstruct __Node noattr)))))
+            (Sset _hd_new
+              (Ecast
+                (Efield
+                  (Ederef (Etempvar _hd_old (tptr (Tstruct __Node noattr)))
+                    (Tstruct __Node noattr)) _link tlong)
+                (tptr (Tstruct __Node noattr))))
             (Ssequence
               (Sassign
                 (Ederef
@@ -463,105 +327,104 @@ Definition f_delete := {|
                       (tptr (Tstruct __Node noattr)))
                     (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)))
                   (Ssequence
+                    (Sset _link
+                      (Efield
+                        (Ederef
+                          (Etempvar _hd_new (tptr (Tstruct __Node noattr)))
+                          (Tstruct __Node noattr)) _link tlong))
                     (Ssequence
-                      (Scall (Some _t'5)
-                        (Evar _decrypt (Tfunction
-                                         (Tcons tlong
-                                           (Tcons
-                                             (tptr (Tstruct __Node noattr))
-                                             Tnil))
-                                         (tptr (Tstruct __Node noattr))
-                                         cc_default))
-                        ((Efield
-                           (Ederef
-                             (Etempvar _hd_new (tptr (Tstruct __Node noattr)))
-                             (Tstruct __Node noattr)) _link tlong) ::
-                         (Etempvar _hd_old (tptr (Tstruct __Node noattr))) ::
-                         nil))
-                      (Sset _hd_new_next
-                        (Etempvar _t'5 (tptr (Tstruct __Node noattr)))))
-                    (Ssequence
-                      (Scall (Some _t'6)
-                        (Evar _encrypt (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct __Node noattr))
-                                           (Tcons
-                                             (tptr (Tstruct __Node noattr))
-                                             Tnil)) tlong cc_default))
-                        ((Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)) ::
-                         (Etempvar _hd_new_next (tptr (Tstruct __Node noattr))) ::
+                      (Sbuiltin (Some _t'1) EF_capture
+                        (Tcons (tptr tvoid) Tnil)
+                        ((Etempvar _hd_old (tptr (Tstruct __Node noattr))) ::
                          nil))
                       (Sassign
                         (Efield
                           (Ederef
                             (Etempvar _hd_new (tptr (Tstruct __Node noattr)))
                             (Tstruct __Node noattr)) _link tlong)
-                        (Etempvar _t'6 tlong)))))
+                        (Ebinop Oxor (Etempvar _link tlong)
+                          (Etempvar _t'1 tlong) tlong)))))
                 (Scall None
                   (Evar _free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid
                                 cc_default))
-                  ((Etempvar _hd_old (tptr (Tstruct __Node noattr))) :: nil)))))))))
-  (Sreturn (Some (Etempvar _item tlong))))
+                  ((Etempvar _hd_old (tptr (Tstruct __Node noattr))) :: nil))))))
+        Sskip)
+      (Sreturn (Some (Etempvar _item tlong))))))
 |}.
 
-Definition f_search := {|
+Definition f_delete_tl := {|
   fn_return := tlong;
   fn_callconv := cc_default;
   fn_params := ((_hd_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
-                (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) ::
-                (_from_tail, tbool) :: (_index, tulong) :: nil);
+                (_tl_handler, (tptr (tptr (Tstruct __Node noattr)))) :: nil);
   fn_vars := nil;
-  fn_temps := ((_cur, (tptr (Tstruct __Node noattr))) ::
-               (_prev, (tptr (Tstruct __Node noattr))) ::
-               (_next, (tptr (Tstruct __Node noattr))) ::
-               (_t'2, (tptr (Tstruct __Node noattr))) :: (_t'1, tulong) ::
-               nil);
+  fn_temps := ((_item, tlong) :: (_tl_old, (tptr (Tstruct __Node noattr))) ::
+               (_tl_new, (tptr (Tstruct __Node noattr))) :: (_link, tlong) ::
+               (_t'1, (tptr (Tstruct __Node noattr))) :: nil);
   fn_body :=
 (Ssequence
-  (Sset _prev (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)))
+  (Sset _item (Ecast (Econst_int (Int.repr 0) tint) tlong))
   (Ssequence
-    (Sifthenelse (Etempvar _from_tail tbool)
-      (Sset _cur
-        (Ederef (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
-          (tptr (Tstruct __Node noattr))))
-      (Sset _cur
-        (Ederef (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
-          (tptr (Tstruct __Node noattr)))))
+    (Sset _tl_old
+      (Ederef (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
+        (tptr (Tstruct __Node noattr))))
     (Ssequence
-      (Sloop
+      (Sifthenelse (Ebinop One
+                     (Etempvar _tl_old (tptr (Tstruct __Node noattr)))
+                     (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
+                     tint)
         (Ssequence
+          (Sset _item
+            (Efield
+              (Ederef (Etempvar _tl_old (tptr (Tstruct __Node noattr)))
+                (Tstruct __Node noattr)) _item tlong))
           (Ssequence
+            (Sset _tl_new
+              (Ecast
+                (Efield
+                  (Ederef (Etempvar _tl_old (tptr (Tstruct __Node noattr)))
+                    (Tstruct __Node noattr)) _link tlong)
+                (tptr (Tstruct __Node noattr))))
             (Ssequence
-              (Sset _t'1 (Etempvar _index tulong))
-              (Sset _index
-                (Ebinop Osub (Etempvar _t'1 tulong)
-                  (Econst_int (Int.repr 1) tint) tulong)))
-            (Sifthenelse (Etempvar _t'1 tulong) Sskip Sbreak))
-          (Sifthenelse (Ebinop Oeq
-                         (Etempvar _cur (tptr (Tstruct __Node noattr)))
-                         (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
-                         tint)
-            (Sreturn (Some (Econst_int (Int.repr 0) tint)))
-            (Ssequence
+              (Sassign
+                (Ederef
+                  (Etempvar _tl_handler (tptr (tptr (Tstruct __Node noattr))))
+                  (tptr (Tstruct __Node noattr)))
+                (Etempvar _tl_new (tptr (Tstruct __Node noattr))))
               (Ssequence
-                (Scall (Some _t'2)
-                  (Evar _decrypt (Tfunction
-                                   (Tcons tlong
-                                     (Tcons (tptr (Tstruct __Node noattr))
-                                       Tnil)) (tptr (Tstruct __Node noattr))
-                                   cc_default))
-                  ((Efield
-                     (Ederef (Etempvar _cur (tptr (Tstruct __Node noattr)))
-                       (Tstruct __Node noattr)) _link tlong) ::
-                   (Etempvar _prev (tptr (Tstruct __Node noattr))) :: nil))
-                (Sset _next (Etempvar _t'2 (tptr (Tstruct __Node noattr)))))
-              (Ssequence
-                (Sset _prev (Etempvar _cur (tptr (Tstruct __Node noattr))))
-                (Sset _cur (Etempvar _next (tptr (Tstruct __Node noattr))))))))
+                (Sifthenelse (Ebinop Oeq
+                               (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
+                               (Ecast (Econst_int (Int.repr 0) tint)
+                                 (tptr tvoid)) tint)
+                  (Sassign
+                    (Ederef
+                      (Etempvar _hd_handler (tptr (tptr (Tstruct __Node noattr))))
+                      (tptr (Tstruct __Node noattr)))
+                    (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid)))
+                  (Ssequence
+                    (Sset _link
+                      (Efield
+                        (Ederef
+                          (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
+                          (Tstruct __Node noattr)) _link tlong))
+                    (Ssequence
+                      (Sbuiltin (Some _t'1) EF_capture
+                        (Tcons (tptr tvoid) Tnil)
+                        ((Etempvar _tl_old (tptr (Tstruct __Node noattr))) ::
+                         nil))
+                      (Sassign
+                        (Efield
+                          (Ederef
+                            (Etempvar _tl_new (tptr (Tstruct __Node noattr)))
+                            (Tstruct __Node noattr)) _link tlong)
+                        (Ebinop Oxor (Etempvar _link tlong)
+                          (Etempvar _t'1 tlong) tlong)))))
+                (Scall None
+                  (Evar _free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid
+                                cc_default))
+                  ((Etempvar _tl_old (tptr (Tstruct __Node noattr))) :: nil))))))
         Sskip)
-      (Sreturn (Some (Efield
-                       (Ederef (Etempvar _cur (tptr (Tstruct __Node noattr)))
-                         (Tstruct __Node noattr)) _item tlong))))))
+      (Sreturn (Some (Etempvar _item tlong))))))
 |}.
 
 Definition composites : list composite_definition :=
@@ -839,32 +702,32 @@ Definition global_definitions : list (ident * globdef fundef type) :=
  (_malloc,
    Gfun(External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default)) ::
  (_free, Gfun(External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default)) ::
- (_encrypt, Gfun(Internal f_encrypt)) ::
- (_decrypt, Gfun(Internal f_decrypt)) :: (_add, Gfun(Internal f_add)) ::
- (_delete, Gfun(Internal f_delete)) :: (_search, Gfun(Internal f_search)) ::
- nil).
+ (_add_hd, Gfun(Internal f_add_hd)) :: (_add_tl, Gfun(Internal f_add_tl)) ::
+ (_delete_hd, Gfun(Internal f_delete_hd)) ::
+ (_delete_tl, Gfun(Internal f_delete_tl)) :: nil).
 
 Definition public_idents : list ident :=
-(_search :: _delete :: _add :: _free :: _malloc :: ___builtin_debug ::
- ___builtin_write32_reversed :: ___builtin_write16_reversed ::
- ___builtin_read32_reversed :: ___builtin_read16_reversed ::
- ___builtin_fnmsub :: ___builtin_fnmadd :: ___builtin_fmsub ::
- ___builtin_fmadd :: ___builtin_fmin :: ___builtin_fmax ::
- ___compcert_i64_umulh :: ___compcert_i64_smulh :: ___compcert_i64_sar ::
- ___compcert_i64_shr :: ___compcert_i64_shl :: ___compcert_i64_umod ::
- ___compcert_i64_smod :: ___compcert_i64_udiv :: ___compcert_i64_sdiv ::
- ___compcert_i64_utof :: ___compcert_i64_stof :: ___compcert_i64_utod ::
- ___compcert_i64_stod :: ___compcert_i64_dtou :: ___compcert_i64_dtos ::
- ___builtin_expect :: ___builtin_unreachable :: ___compcert_va_composite ::
- ___compcert_va_float64 :: ___compcert_va_int64 :: ___compcert_va_int32 ::
- ___builtin_va_end :: ___builtin_va_copy :: ___builtin_va_arg ::
- ___builtin_va_start :: ___builtin_membar :: ___builtin_annot_intval ::
- ___builtin_annot :: ___builtin_sel :: ___builtin_memcpy_aligned ::
- ___builtin_sqrt :: ___builtin_fsqrt :: ___builtin_fabsf ::
- ___builtin_fabs :: ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz ::
- ___builtin_clzll :: ___builtin_clzl :: ___builtin_clz ::
- ___builtin_bswap16 :: ___builtin_bswap32 :: ___builtin_bswap ::
- ___builtin_bswap64 :: ___builtin_ais_annot :: nil).
+(_delete_tl :: _delete_hd :: _add_tl :: _add_hd :: _free :: _malloc ::
+ ___builtin_debug :: ___builtin_write32_reversed ::
+ ___builtin_write16_reversed :: ___builtin_read32_reversed ::
+ ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::
+ ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_fmin ::
+ ___builtin_fmax :: ___compcert_i64_umulh :: ___compcert_i64_smulh ::
+ ___compcert_i64_sar :: ___compcert_i64_shr :: ___compcert_i64_shl ::
+ ___compcert_i64_umod :: ___compcert_i64_smod :: ___compcert_i64_udiv ::
+ ___compcert_i64_sdiv :: ___compcert_i64_utof :: ___compcert_i64_stof ::
+ ___compcert_i64_utod :: ___compcert_i64_stod :: ___compcert_i64_dtou ::
+ ___compcert_i64_dtos :: ___builtin_expect :: ___builtin_unreachable ::
+ ___compcert_va_composite :: ___compcert_va_float64 ::
+ ___compcert_va_int64 :: ___compcert_va_int32 :: ___builtin_va_end ::
+ ___builtin_va_copy :: ___builtin_va_arg :: ___builtin_va_start ::
+ ___builtin_membar :: ___builtin_annot_intval :: ___builtin_annot ::
+ ___builtin_sel :: ___builtin_memcpy_aligned :: ___builtin_sqrt ::
+ ___builtin_fsqrt :: ___builtin_fabsf :: ___builtin_fabs ::
+ ___builtin_ctzll :: ___builtin_ctzl :: ___builtin_ctz :: ___builtin_clzll ::
+ ___builtin_clzl :: ___builtin_clz :: ___builtin_bswap16 ::
+ ___builtin_bswap32 :: ___builtin_bswap :: ___builtin_bswap64 ::
+ ___builtin_ais_annot :: nil).
 
 Definition prog : Clight.program := 
   mkprogram composites global_definitions public_idents _main Logic.I.
