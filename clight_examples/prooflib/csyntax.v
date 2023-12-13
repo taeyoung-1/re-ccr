@@ -2,7 +2,7 @@ Require Import ConvC2ITree.
 Require Import Clight_Mem0.
 Require Import Clight_Mem1.
 Require Import BinNums.
-From compcertip Require Import Clightdefs Integers.
+From compcert Require Import Clightdefs Integers.
 Module CTypeNotation.
 Declare Scope ctypes_scope.
 Bind Scope ctypes_scope with Ctypes.type.

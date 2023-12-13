@@ -4,8 +4,8 @@ Require Import Behavior.
 Require Import ModSem.
 Require Import Skeleton.
 Require Import ClightDmExprgen ClightDmgen.
-From compcertip Require Import Floats Integers Values Ctypes Memory Maps.
-From compcertip Require Import Clight Clightdefs.
+From compcert Require Import Floats Integers Values Ctypes Memory Maps.
+From compcert Require Import Clight Clightdefs.
 
 
 Section UNFOLD_DECOMP.

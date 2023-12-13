@@ -1,7 +1,7 @@
 Require Import Coqlib.
 Require Import ProofMode.
 
-From compcertip Require Import Integers Ctypes.
+From compcert Require Import Integers Ctypes.
 
 Open Scope Z.
 

@@ -9,7 +9,7 @@ Require Import AList.
 Require Import ClightDmExprgen.
 
 From compcert Require Import
-     AST Maps Globalenvs Memory Values ValuesAux Linking Integers.
+     AST Maps Globalenvs Memory Values IntPtrRel Linking Integers.
 From compcert Require Import
      Ctypes Clight Clightdefs.
 Import Clightdefs.ClightNotations.

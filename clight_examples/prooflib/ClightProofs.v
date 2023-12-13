@@ -10,7 +10,7 @@ Require Import STB.
 Require Import HTactics ProofMode.
 Require Import SimModSem.
 Require Import Coq.Sorting.Sorted.
-From compcertip Require Import Floats Integers Values Ctypes Memory.
+From compcert Require Import Floats Integers Values Ctypes Memory.
 Require Import ConvC2ITree.
 Require Import Clight_Mem0.
 Require Import Clight_Mem1.

@@ -91,7 +91,7 @@ Proof. ii. subst. unfold dec. destruct H; ss. Qed.
 (*   - *)
 (* Qed. *)
 *)
-
+*)
 Section SIMMODSEM.
 
   Context `{@GRA.inG memcntRA Σ}.

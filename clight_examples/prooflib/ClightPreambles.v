@@ -8,7 +8,7 @@ Require Import HTactics ProofMode .
 Require Import ClightProofs.
 Require Import ConvC2ITree.
 Require Import Clight_Mem1.
-From compcertip Require Import Floats Integers Values Ctypes Memory Clightdefs. 
+From compcert Require Import Floats Integers Values Ctypes Memory Clightdefs. 
 
 Lemma unfold_iter_eq:
   ∀ (E : Type → Type) (A B : Type) (f : A → itree E (A + B)) (x : A),
