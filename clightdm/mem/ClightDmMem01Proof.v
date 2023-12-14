@@ -5,6 +5,7 @@ Require Import PCM.
 Require Import HoareDef STB.
 Require Import ClightDmMem0 ClightDmMem1.
 Require Import HTactics ProofMode.
+Require Import Coqlib.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
 
 (* 
@@ -94,30 +95,78 @@ Proof. ii. subst. unfold dec. destruct H; ss. Qed.
 *)
 Section SIMMODSEM.
 
-  Context `{@GRA.inG memcntRA Σ}.
-  Context `{@GRA.inG memszRA Σ}.
+  Context `{@GRA.inG pointstoRA Σ}.
+  Context `{@GRA.inG allocatedRA Σ}.
+  Context `{@GRA.inG blocksizeRA Σ}.
+  Context `{@GRA.inG blockaddressRA Σ}.
 
-  Inductive sim_cnt 
-  : URA.car (t:=(Excl.t _)) -> (perm_kind -> option permission) -> memval -> Prop :=
-  | sim_present (res : Excl.t _) perm mv p_cur p_max
-      (RES: res = Some (p_cur, p_max, mv))
-      (CUR: perm Cur = Some p_cur) 
-      (MAX: perm Max = Some p_max) 
-    : sim_cnt res perm mv
+  (* Context `{@GRA.inG memcntRA Σ}. *)
+  (* Context `{@GRA.inG memszRA Σ}. *)
+
+  Definition Q1 : Qp := 1%Qp.
+  (* Definition Q0 : Qp := 0%Qp. *)
+
+  (* permission sim for points to *)
+  Inductive sim_cnt
+  : URA.car (t:=(Consent.t _)) -> (perm_kind -> option permission) -> memval ->  Prop :=
+  | sim_cnt_readable (res: Consent.t _) q mv perm p
+      (RES: res = Consent.just q mv)
+      (Q: (q < Q1)%Qp)
+      (PERM: perm Cur = Some p)
+      (PORD: perm_order p Readable) :
+    sim_cnt res perm mv
+  | sim_cnt_writable (res: Consent.t _) mv perm p
+      (RES: res = Consent.just Q1 mv)
+      (PERM: perm Cur = Some p)
+      (PORD: perm_order p Writable) :
+    sim_cnt res perm  mv
   | sim_empty mv : sim_cnt ε (fun _ => None) mv
   .
 
-  Inductive sim_header
-  : URA.car (t:=(Excl.t _)) -> Maps.ZMap.t memval 
+  (* permission sim for allocated with *)
+  Inductive sim_allocated
+  : URA.car (t:=(Consent.t _)) -> (perm_kind -> option permission) -> tag ->  Prop :=
+  | sim_allocated_nonempty (res: Consent.t _) q tag perm p
+      (RES: res = Consent.just q tag)
+      (Q: (q < Q1)%Qp)
+      (PERM: perm Cur = Some p) :
+    sim_allocated res perm tag
+  | sim_allocated_freeable (res: Consent.t _) tag perm
+      (RES: res = Consent.just Q1 tag)
+      (PERM: perm Cur = Some Freeable) : 
+    sim_allocated res perm tag
+  | sim_allocated_empty tag : sim_allocated ε (fun _ => None) tag
+  .
+
+  (* block underlying concrete address sim *)
+  Inductive sim_concrete
+  : URA.car (t:=(OneShot.t ptrofs)) -> option Z -> Prop :=
+  | sim_captured cres base
+      (RES: cres = OneShot.white base):
+    sim_concrete cres (Some (Ptrofs.unsigned base))
+  | sim_logical: sim_concrete ε None
+  .
+
+  (* block size sim *)
+  Inductive sim_size
+  : URA.car (t:=(Consent.t tag)) -> URA.car (t:=(OneShot.t Z)) -> Maps.ZMap.t memval
     -> (Z -> perm_kind -> option permission) -> Prop :=
-  | sim_header_malloced cnt perm sz 
-      (CNT: Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt 
-              = inj_bytes (encode_int (size_chunk_nat Mptr) sz))
-      (PERM: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = Some Freeable)
-    : sim_header (Some sz) cnt perm
-  | sim_header_not cnt perm 
-      (PERM: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = None)
-    : sim_header ε cnt perm
+  | sim_size_dynamic (tres: Consent.t _) (sres: OneShot.t Z) sz q cnt perm p
+      (TAG: tres = Consent.just q Dynamic)
+      (SZ: sres = OneShot.white sz)
+      (CNT: Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt
+            = inj_bytes (encode_int (size_chunk_nat Mptr) sz))
+      (HEADER: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = Some Freeable)
+      (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
+    :
+    sim_size tres sres cnt perm
+  | sim_size_common  (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm p
+      (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
+    :
+    sim_size tres sres cnt perm
+  | sim_size_not cnt
+    :
+    sim_size ε ε cnt (fun _ _ => None)
   .
 
   Lemma sim_cnt_alloc res m m' b' lo hi
@@ -133,16 +182,16 @@ Section SIMMODSEM.
     /\
     <<ORTHO: forall b ofs, (m'.(Mem.nextblock) ≤ Pos.succ b)%positive -> res b ofs = ε >>.
   Proof.
-    Transparent Mem.alloc.
+    Local Transparent Mem.alloc.
     splits; i; unfold Mem.alloc in ALLOC; ss; clarify; ss.
     - assert (b <> Mem.nextblock m \/ (b = Mem.nextblock m /\ not (lo ≤ ofs < hi))).
         by now destruct (Pos.eq_dec b (Mem.nextblock m)); et; right; et. des.
       + rewrite Maps.PMap.gso; et; try nia. rewrite Maps.PMap.gso; et.
-      + subst. rewrite Maps.PMap.gss. rewrite Maps.PMap.gss.
-        destruct (Coqlib.zle lo ofs); destruct (Coqlib.zlt ofs hi);
-          ss; clarify; try nia; rewrite ORTHO; try nia; econstructor 2.
+      + subst. do 2 rewrite Maps.PMap.gss.
+        assert (Coqlib.proj_sumbool (Coqlib.zle lo ofs) && Coqlib.proj_sumbool (Coqlib.zlt ofs hi) = false).
+        { destruct (Coqlib.zle lo ofs); destruct (Coqlib.zlt ofs hi); ss; try lia. }
+        rewrite H5. rewrite ORTHO; [|lia]. econs 3.
     - eapply ORTHO. nia.
-    Opaque Mem.alloc.
   Qed.
 
   Lemma sim_cnt_store_zero res m m' b' start len
