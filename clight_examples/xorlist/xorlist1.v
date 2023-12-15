@@ -317,7 +317,7 @@ Section SPEC.
   Definition add_hd_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, item, xs) => (
-        (ord_pure 0%nat),
+        (ord_pure 1%nat),
         (fun varg => ⌜varg = [hd_handler; tl_handler; Vlong item]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
         (fun vret => ⌜vret = Vundef↑⌝
@@ -327,7 +327,7 @@ Section SPEC.
   Definition add_tl_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, item, xs) => (
-        (ord_pure 2%nat),
+        (ord_pure 1%nat),
         (fun varg => ⌜varg = [hd_handler; tl_handler; Vlong item]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
         (fun vret => ⌜vret = Vundef↑⌝
@@ -337,7 +337,7 @@ Section SPEC.
   Definition delete_hd_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, xs) => (
-        (ord_pure 2%nat),
+        (ord_pure 1%nat),
         (fun varg => ⌜varg = [hd_handler; tl_handler]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
         (fun vret => let '(item, xs') := vlist_delete_hd xs (Vlong Int64.zero) in
@@ -347,7 +347,7 @@ Section SPEC.
   Definition delete_tl_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, xs) => (
-        (ord_pure 2%nat),
+        (ord_pure 1%nat),
         (fun varg => ⌜varg = [hd_handler; tl_handler]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
         (fun vret => let '(item, xs') := vlist_delete_tl xs (Vlong Int64.zero) in

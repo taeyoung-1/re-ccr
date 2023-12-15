@@ -18,7 +18,7 @@ void add_hd(node** hd_handler, node** tl_handler, long item) {
   node* tl = *tl_handler;
   entry->item = item;
 
-  if (tl == NULL) {
+  if (hd == NULL) {
     entry->link = 0;
     *hd_handler = *tl_handler = entry;
   } else {
@@ -34,7 +34,7 @@ void add_tl(node** hd_handler, node** tl_handler, long item) {
   node* tl = *tl_handler;
   entry->item = item;
 
-  if (hd == NULL) {
+  if (tl == NULL) {
     entry->link = 0;
     *hd_handler = *tl_handler = entry;
   } else {
