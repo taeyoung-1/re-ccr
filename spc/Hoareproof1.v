@@ -91,7 +91,7 @@ Section CANCEL.
 
   Variable md: SMod.t.
 
-  Let sk: Sk.t := Sk.add Sk.unit (SMod.sk md).
+  Let sk: Sk.t := Sk.sort (Sk.add Sk.unit (SMod.sk md)).
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
   Let ms: SModSem.t := SMod.get_modsem md sk.
   Let sbtb := SModSem.fnsems ms.
@@ -172,66 +172,62 @@ Section CANCEL.
   Ltac steps := repeat (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
   Ltac steps_strong := repeat (mred; try (_step ltac:(guclo simg_indC_spec)); des_ifs_safe).
 
-   (* Lemma stb_find_iff_aux fn
+   Lemma stb_find_iff_aux fn
     :
       ((<<NONE: _stb fn = None>>) /\
        (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn = None>>) /\
        (<<FINDMID: ms_mid.(ModSem.fnsems) fn = None>>)) \/
 
-      (exists md (f: fspecbody (SMod.get_modsem md sk).(SModSem.state)) 
-      (f1: fspecbody ms_mid.(ModSem.state)) (f2: fspecbody ms_mid2.(ModSem.state)),
-      (* (exists md (f: fspecbody (ModSem.state ms_mid) ), *)
-
+      (exists (f: fspecbody),
           (<<SOME: _stb fn = Some (fsb_fspec f)>>) /\
           (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn =
-                      Some (fun_to_mid2 (fsb_body (f2)))>>) /\
+                      Some (fun_to_mid2 (fsb_body f))>>) /\
           (<<FINDMID: ms_mid.(ModSem.fnsems) fn =
-                      Some (fun_to_mid stb (fsb_body (f1))) >>)).
+                      Some (fun_to_mid stb (fsb_body f))>>)).
   Proof.
-    unfold ms_mid2, ms_mid, mds_mid, mds_mid2, SMod.to_mid2, SMod.to_mid.
-    rewrite SMod.transl_fnsems. rewrite SMod.transl_fnsems. fold sk.
-    unfold _stb at 1 2. unfold sbtb, mss. rewrite alist_find_map.
-    generalize mds. induction mds0; ss; auto. rewrite ! alist_find_app_o.
-    erewrite ! SMod.red_do_ret2. rewrite ! alist_find_map. uo.
-    destruct (alist_find fn (SModSem.fnsems (SMod.get_modsem a sk))) eqn:FIND.
-    { right. esplits; et. }
-    des.
-    { left. esplits; et. }
-    { right. esplits; et. }
-  Qed. *)
+    unfold ms_mid2, ms_mid, md_mid2, md_mid, SMod.to_mid2, SMod.to_mid.
+    unfold _stb at 1 2. unfold sbtb, ms.
+    des_ifs.
+    - right. exists f.
+      unfold Mod.enclose. s. unfold sk in *.
+      rewrite Sk.add_unit_l in Heq. 
+      rewrite Heq. esplits; et.
+    - left.
+      unfold Mod.enclose. s. unfold sk in *.
+      rewrite Sk.add_unit_l in Heq.
+      rewrite Heq.
+      esplits; et.
+  Qed.
 
-  (*
+  
   Lemma stb_find_iff fn
     :
       ((<<NONE: stb fn = None>> \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>)) /\
-       (<<FINDSRC: alist_find fn (fnsems ms_mid2) = None>>) /\
-       (<<FINDMID: alist_find fn (fnsems ms_mid) = None>>)) \/
+       (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn = None>>) /\
+       (<<FINDMID: ms_mid2.(ModSem.fnsems) fn = None>>)) \/
 
-      (exists md (f: fspecbody),
-          (<<STB: stb fn = Some (f: fspec)>>) /\
-          (<<FINDSRC: alist_find fn (fnsems ms_mid2) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn
-                                 (SMod.get_modsem md sk))
-                              ∘ fun_to_mid2 (fsb_body f))>>) /\
-          (<<FINDMID: alist_find fn (fnsems ms_mid) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn
-                                 (SMod.get_modsem md sk))
-                              ∘ fun_to_mid stb (fsb_body f))>>)).
+       (exists (f: fspecbody),
+       (<<SOME: stb fn = Some (fsb_fspec f)>>) /\
+       (<<FINDSRC: ms_mid2.(ModSem.fnsems) fn =
+                   Some (fun_to_mid2 (fsb_body f))>>) /\
+       (<<FINDMID: ms_mid.(ModSem.fnsems) fn =
+                   Some (fun_to_mid stb (fsb_body f))>>)).
   Proof.
     hexploit (stb_find_iff_aux fn). i. des.
     { left. esplits; et. }
     { right. esplits; et. }
-  Qed. *)
+  Qed.
 
-  (* Let adequacy_type_aux__APC:
+
+
+  
+  Let adequacy_type_aux__APC:
     forall at_most o0
            st_src0 st_tgt0
     ,
-      simg (fun (st_src1: ms_mid2.(ModSem.state) * unit) '(st_tgt1, x) => st_tgt1 = st_tgt0)
+      simg (fun (st_src1: Any.t * unit) '(st_tgt1, x) => st_tgt1 = st_tgt0)
            false false (Ret (st_src0, tt))
-           (interp_Es p_mid ((interp_hCallE_mid stb (ord_pure o0) (_APC _ at_most))) st_tgt0)
+           (interp_Es p_mid ((interp_hCallE_mid stb (ord_pure o0) (_APC at_most))) st_tgt0)
   .
   Proof.
     ginit.
@@ -241,99 +237,19 @@ Section CANCEL.
     pattern fuel. eapply well_founded_induction. { eapply wf_opair_lt. } clear fuel.
     intros fuel IH. i.
 
-    rewrite unfold_APC. 
-    (* steps. (* Anomaly "in retyping: Bad recursive type." Please report at http://coq.inria.fr/bugs/. *) *)
-    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
-    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind. 
-    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et. 
-    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau. 
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite interp_Es_ret. rewrite bind_ret_l.
+    rewrite unfold_APC.
+    steps. 
 
     destruct x.
     { steps. }
     
-    (* (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
-    cbn; ired_both. (* Anomaly "in retyping: Bad recursive type." Please report at http://coq.inria.fr/bugs/. *)
-    *)
-    (* steps. *)
-    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
-    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind.
-    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite interp_Es_ret. rewrite bind_ret_l.
-
-    rewrite interp_mid_bind. rewrite interp_mid_guarantee. rewrite bind_bind.
-    rewrite interp_Es_bind. rewrite interp_Es_guarantee. rewrite bind_bind.
-    unfold guarantee. rewrite bind_bind.
-    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i. rewrite bind_ret_l.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite interp_Es_ret. rewrite bind_ret_l.
-    
-    rewrite interp_mid_bind. rewrite interp_mid_triggere. rewrite bind_bind.
-    rewrite interp_Es_bind. rewrite interp_Es_eventE. rewrite bind_bind.
-    guclo simg_safe_spec. eapply simg_safe_chooseR; et. i.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite bind_ret_l. rewrite interp_Es_bind. rewrite interp_Es_tau.
-    rewrite bind_tau. guclo simg_safe_spec. eapply simg_safe_tauR; et.
-    rewrite interp_Es_ret. rewrite bind_ret_l.
-    destruct x1.
-    
-    rewrite interp_mid_bind. rewrite interp_mid_hcall. rewrite bind_bind.
-    rewrite interp_Es_bind. unfold handle_hCallE_mid. rewrite interp_Es_tau. rewrite bind_tau.
-    guclo simg_safe_spec. econs; et. 
-    rewrite interp_Es_bind. rewrite interp_Es_unwrapN.
-    rewrite bind_bind. rewrite bind_bind.
-
-    
-
-    unfold unwrapN. des_ifs.
-    { rewrite bind_bind. rewrite bind_ret_l. rewrite bind_ret_l. rewrite interp_Es_bind. 
-      rewrite interp_Es_guarantee. unfold guarantee. rewrite bind_bind. rewrite bind_bind. rewrite bind_bind.
-      guclo simg_safe_spec. econs; et. i. rewrite bind_ret_l.
-      rewrite bind_tau. rewrite bind_tau.
-      guclo simg_safe_spec. econs; et.
-      guclo simg_safe_spec. econs; et.
-      rewrite bind_ret_l.
-      rewrite interp_Es_bind. rewrite interp_Es_bind. rewrite interp_Es_eventE. repeat (rewrite bind_bind).
-      guclo simg_safe_spec. econs; et. i.
-      rewrite bind_tau. rewrite bind_tau.
-      repeat (guclo simg_safe_spec; econs; et).
-      rewrite bind_ret_l. rewrite interp_Es_ret. rewrite bind_ret_l.
-      repeat (rewrite interp_Es_bind). rewrite interp_Es_eventE. repeat (rewrite bind_bind).
-      guclo simg_safe_spec. econs; et. i.
-      rewrite bind_tau. rewrite bind_tau.
-      repeat (guclo simg_safe_spec; econs; et). rewrite bind_ret_l.
-      rewrite interp_Es_ret. rewrite bind_ret_l.
-      rewrite interp_Es_callE. rewrite bind_tau. guclo simg_safe_spec. econs; et.
-      guclo simg_safe_spec.
-    }
-    guclo simg_safe_spec. 
-    
-
+    steps.
     hexploit (stb_find_iff s). i. des.
     { rewrite NONE. steps. }
     { rewrite FIND. steps. exfalso. eapply x1; et. }
-    rewrite STB. steps.
-    steps. rewrite FINDMID. unfold fun_to_mid. steps.
-   rewrite idK_spec at 1.
+    rewrite SOME. steps.  ss.
+    rewrite FINDMID. unfold fun_to_mid. steps.
+    rewrite idK_spec at 1.
     guclo bindC_spec. econs.
     { unfold APC. steps. eapply simg_flag_down.
       eapply IH; auto. econs. left. auto.
@@ -342,14 +258,14 @@ Section CANCEL.
     i. ss. destruct vret_tgt as [? []]. destruct vret_src as [? []]. ss. des; subst.
     unfold idK. steps. eapply simg_flag_down.
     eapply IH; et. econs; et. right; split; et. refl.
-  Qed. *)
+  Qed.
 
-  (* Let adequacy_type_aux_APC:
-    forall o0 st_src0 st_tgt0 mn
+  Let adequacy_type_aux_APC:
+    forall o0 st_src0 st_tgt0
     ,
-      simg (fun (st_src1: p_state * unit) '(st_tgt1, _) => st_tgt1 = st_tgt0)
+      simg (fun (st_src1: Any.t * unit) '(st_tgt1, _) => st_tgt1 = st_tgt0)
            false false (Ret (st_src0, tt))
-           (EventsL.interp_Es p_mid (transl_all mn (interp_hCallE_mid stb (ord_pure o0) APC)) st_tgt0)
+           (interp_Es p_mid ((interp_hCallE_mid stb (ord_pure o0) APC)) st_tgt0)
   .
   Proof.
     ginit.
@@ -358,20 +274,20 @@ Section CANCEL.
     gfinal. right.
     eapply adequacy_type_aux__APC.
     Unshelve. all: try exact 0.
-  Qed. *)
+  Qed.
 
-  (* Lemma idK_spec2: forall E A B (a: A) (itr: itree E B), itr = Ret a >>= fun _ => itr. Proof. { i. ired. ss. } Qed. *)
+  Lemma idK_spec2: forall E A B (a: A) (itr: itree E B), itr = Ret a >>= fun _ => itr. Proof. { i. ired. ss. } Qed.
 
-  (* Let adequacy_type_aux:
+  Let adequacy_type_aux:
     forall
       o0
-      A (body: itree _ A) st_src0 st_tgt0 mn
+      A (body: itree _ A) st_src0 st_tgt0
       (SIM: st_tgt0 = st_src0)
     ,
       simg eq
            false false
-           (EventsL.interp_Es p_mid2 (transl_all mn (interp_hCallE_mid2 body)) st_src0)
-           (EventsL.interp_Es p_mid (transl_all mn (interp_hCallE_mid stb o0 body)) st_tgt0)
+           (interp_Es p_mid2 (interp_hCallE_mid2 body) st_src0)
+           (interp_Es p_mid (interp_hCallE_mid stb o0 body) st_tgt0)
   .
   Proof.
     ginit.
@@ -383,9 +299,8 @@ Section CANCEL.
     destruct e; cycle 1.
     { rewrite <- bind_trigger. resub. steps.
       destruct s; ss.
-      { destruct p; resub; ss.
-        - steps. eapply simg_progress_flag. gbase. eapply CIH; ss; et.
-        - steps. eapply simg_progress_flag. gbase. eapply CIH; ss; et.
+      { destruct s; resub; ss.
+        steps. eapply simg_progress_flag. gbase. eapply CIH; ss; et.
       }
       { dependent destruction e; resub; ss.
         - steps. steps_strong. exists x. steps. eapply simg_progress_flag. gbase. eapply CIH; et.
@@ -399,11 +314,13 @@ Section CANCEL.
     { rewrite NONE. steps. }
     { rewrite FIND. steps. destruct tbr.
       { exfalso. eapply x; ss. }
-      steps. rewrite FINDSRC. steps.
+      steps. ss.
+      rewrite FINDSRC. steps.
     }
-    rewrite STB. steps. destruct tbr.
+    rewrite SOME. steps. destruct tbr.
     (* PURE *)
     { Local Opaque ord_lt. ired_both. steps.
+       ss.
       rewrite FINDMID. unfold fun_to_mid. ired_both.
       rewrite idK_spec2 at 1.
       guclo bindC_spec. econs.
@@ -413,7 +330,7 @@ Section CANCEL.
     }
 
     (* IMPURE *)
-    { Local Opaque ord_lt. unfold guarantee. steps.
+    { Local Opaque ord_lt. unfold guarantee. steps. ss.
       rewrite FINDMID. rewrite FINDSRC.
       unfold fun_to_mid2, cfunN, fun_to_mid. steps.
       guclo bindC_spec. econs.
@@ -423,18 +340,15 @@ Section CANCEL.
       eapply simg_progress_flag. gbase. eapply CIH. ss.
     }
     Unshelve. all: ss.
-  Qed. *)
-
-  (* Lemma sk_eq:
-    ModL.sk (Mod.add_list mds_mid) = ModL.sk (Mod.add_list mds_mid2).
-  Proof.
-    unfold ms_mid, ms_mid2, mds_mid2, mds_mid, ModL.enclose.
-    rewrite ! Mod.add_list_sk. f_equal.
-    generalize mds. clear. i. induction mds; ss.
-    rewrite IHl. auto.
   Qed.
 
-  Lemma initial_mrs_eq:
+  Lemma sk_eq:
+    Mod.sk md_mid = Mod.sk md_mid2.
+  Proof. 
+    ss.
+  Qed.
+
+  (* Lemma initial_mrs_eq:
     initial_mrs ms_mid = initial_mrs ms_mid2.
   Proof.
     pose proof sk_eq.
@@ -444,9 +358,9 @@ Section CANCEL.
     rewrite ! Mod.add_list_initial_mrs.
     generalize mds. clear. i. induction mds; auto.
     ss. rewrite IHl. auto.
-  Qed.
+  Qed. *)
 
-  Lemma fns_eq:
+  (* Lemma fns_eq:
     (List.map fst (fnsems (ModL.enclose (Mod.add_list mds_mid))))
     =
     (List.map fst (fnsems (ModL.enclose (Mod.add_list mds_mid2)))).
@@ -480,14 +394,7 @@ Section CANCEL.
     esplits; et.
     rewrite ! interp_Es_bind. rewrite ! bind_bind.
     rewrite ! interp_Es_unwrapU. rewrite ! bind_bind.
-    (* { des. inv x. split.
-      { inv H. econs.
-        { rewrite fns_eq. auto. }
-        { pose proof initial_mrs_eq. unfold ms_mid, ms_mid2 in H.
-          rewrite H. auto. }
-      }
-      { ss. rewrite sk_eq. auto. }
-    } *)
+
     steps. 
     
 
@@ -500,9 +407,7 @@ Section CANCEL.
     rewrite FINDSRC. rewrite FINDMID. steps.
     unfold fun_to_mid2, fun_to_mid, cfunN. steps.
     guclo bindC_spec. econs.
-    { eapply simg_flag_down. gfinal. right. eapply adequacy_type_aux. ss.
-      unfold initial_p_state.
-      rewrite initial_mrs_eq. auto. }
+    { eapply simg_flag_down. gfinal. right. eapply adequacy_type_aux. ss. } 
     { i. subst. steps. }
   Qed.
 

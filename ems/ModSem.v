@@ -19,7 +19,13 @@ Section MODSEM.
 
   Record t: Type := mk {
     init_st : Any.t;
-    fnsems : gname -> option (Any.t -> itree Es Any.t)
+    (* fnsems : gname -> option (Any.t -> itree Es Any.t) *)
+    fnsems : alist gname (Any.t -> itree Es Any.t);
+  }
+  .
+
+  Record wf (ms: t): Prop := mk_wf {
+    wf_fnsems: NoDup (List.map fst ms.(fnsems));
   }
   .
 
@@ -42,13 +48,14 @@ Section MODSEM.
     end.
 
 
+
 Section INTERP.
 
   Variable ms: t.
 
   Definition prog: callE ~> itree Es :=
     fun _ '(Call fn args) =>
-      sem <- (fnsems ms fn)?;;
+      sem <- (alist_find fn ms.(fnsems))?;;
       rv <- (sem args);;
       Ret rv
   .  
@@ -424,10 +431,10 @@ Section MOD.
 
   }
   .
-  Definition wf (md: t): Prop := <<SK: Sk.wf (md.(sk))>>.
+  Definition wf (md: t): Prop := (<<WF: ModSem.wf md.(enclose)>> /\ <<SK: Sk.wf (md.(sk))>>).
 
   Definition empty: t := {|
-    get_modsem := fun _ => ModSem.mk tt↑ (fun _ => None);
+    get_modsem := fun _ => ModSem.mk tt↑ [];
     sk := Sk.unit;
   |}.
 

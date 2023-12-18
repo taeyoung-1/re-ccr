@@ -2,6 +2,7 @@ Require Import Coqlib.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
+Require Import ModSemProof.
 (* Import ModSemL. *)
 Require Import Skeleton.
 Require Import PCM.
@@ -93,7 +94,7 @@ Section CANCEL.
   Require Import IRed.
 
 
-  (* Lemma my_lemma__APC o (w: unit) st
+  Lemma my_lemma__APC o (w: unit) st
     :
       paco8 (_sim_itree (fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt) top2) bot8 unit unit
             (fun st_src st_tgt _ _ => st_src = st_tgt)
@@ -108,37 +109,6 @@ Section CANCEL.
     { my_steps. }
     my_steps. deflag.
     eapply IH; auto.
-  Qed. *)
-
-  Lemma my_lemma__APC o (w: unit) st (st0: st)
-    :
-      paco11 (_sim_itree top2) bot11 _ _ unit unit (fun (_: unit) '(st_src0, st_tgt0) => st_src0 = st_tgt0)
-            (fun st_src0 st_tgt0 _ _ => st_src0 = st_tgt0)
-            false false w
-            (st0, Ret tt)
-            (st0, interp_hCallE_mid2 (_APC _ o)).
-  Proof.
-    ginit. revert w st0.
-    induction (Ord.lt_well_founded o); i. clear H. rename x into o. rename H0 into IH.
-    rewrite unfold_APC. my_steps.
-    destruct x.
-    { my_steps. }
-    my_steps. deflag. eapply IH; auto. 
-    (* rewrite interp_mid2_bind. rewrite interp_mid2_triggere. rewrite bind_bind. 
-    apply sim_itreeC_spec. eapply sim_itreeC_choose_tgt. i. rewrite bind_tau.
-    apply sim_itreeC_spec. eapply sim_itreeC_tau_tgt. rewrite bind_ret_l.
-    rewrite interp_mid2_bind. rewrite interp_mid2_guarantee. rewrite bind_bind.
-    unfold guarantee. rewrite bind_bind. 
-    apply sim_itreeC_spec. eapply sim_itreeC_choose_tgt. rewrite bind_ret_l. rewrite bind_tau. i.
-    apply sim_itreeC_spec. eapply sim_itreeC_tau_tgt. rewrite bind_ret_l.
-    rewrite interp_mid2_bind. rewrite interp_mid2_triggere. rewrite bind_bind.
-    apply sim_itreeC_spec. eapply sim_itreeC_choose_tgt. i. rewrite bind_tau. 
-    apply sim_itreeC_spec. eapply sim_itreeC_tau_tgt. rewrite bind_ret_l. 
-    destruct x1. rewrite interp_mid2_bind. ired_r.
-    apply sim_itreeC_spec. eapply sim_itreeC_tau_tgt. 
-    apply sim_itreeC_spec. eapply sim_itreeC_choose_tgt. i. rewrite bind_tau.
-    apply sim_itreeC_spec. eapply sim_itreeC_tau_tgt. rewrite bind_ret_l.
-    eapply IH; auto. *)
   Qed.
 
   Lemma idK_spec2: forall E A B (a: A) (itr: itree E B), itr = Ret a >>= fun _ => itr. Proof. { i. ired. ss. } Qed.
@@ -148,7 +118,7 @@ Section CANCEL.
     Beh.of_program (Mod.compile md_mid2) <1=
     Beh.of_program (Mod.compile md_src).
   Proof.
-    eapply ModSem.refines_close.
+    eapply refines_close.
     eapply (@adequacy_local_strong md_src md_mid2).
     (* eapply (@adequacy_local_list_strong mds_src mds_mid2). *)
     unfold md_src, md_mid2.
@@ -180,7 +150,7 @@ Section CANCEL.
         force_r. i. ired_both.
         steps. deflag. rewrite (idK_spec2 tt (interp_hEs_src (k ()))).
         guclo lbindC_spec. econs.
-        { deflag. gfinal. right. eapply paco11_mon.
+        { deflag. gfinal. right. eapply paco8_mon.
           { eapply my_lemma__APC. }
           { i. ss. }
         }
@@ -194,7 +164,7 @@ Section CANCEL.
       }
       destruct s0.
       { resub. destruct s0.
-        { ired_both. force_r. force_l. steps.
+        { ired_both. force_l. force_r. steps.
           deflag. gbase. et.
         }
         (* { ired_both. force_r. force_l. steps.

@@ -123,7 +123,7 @@ Section DEFINES.
   
 
   Variant sE (V: Type): Type :=
-  | SUpdate (run : Any.t -> Any.t * V) : sE V
+  | SUpdate (run : Any.t -> option (Any.t * V)) : sE V
   .
 
   Definition Es: Type -> Type := (callE +' sE +' eventE).
@@ -139,16 +139,16 @@ Section DEFINES.
   Definition Put x := (Modify (fun _ => x)). *)
 
   Definition sGet : sE (Any.t) := 
-    SUpdate (fun x => (x, x)).
+    SUpdate (fun x => Some (x, x)).
 
   Definition sPut x : sE unit :=
-    SUpdate (fun _ => (x, tt)).
+    SUpdate (fun _ => Some (x, tt)).
 
   Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
     fun _ e glob =>
       match e with
-      | SUpdate run => Ret (run glob)  
-      end. 
+      | SUpdate run => (run glob)?
+      end.
       
  Definition interp_sE {E}: itree (sE +' E) ~> stateT Any.t (itree E) :=
     (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)

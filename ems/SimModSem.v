@@ -973,18 +973,19 @@ Section ADEQUACY.
 
     Hypothesis le_PreOrder: PreOrder le.
 
+    
     Hypothesis fnsems_find_iff :
       forall fn,
         (<<NONE: ms_src.(ModSem.fnsems) fn = None>>) \/
-        (* (exists (f: _ -> itree _ _),
-            (* (<<MN: mn <> mn'>>) /\ *)
+        (exists (f: _ -> itree _ _),
             (<<SRC: ms_src.(ModSem.fnsems) fn = Some (f)>>) /\
-            (<<TGT: ms_tgt.(ModSem.fnsems) fn = Some (f)>>)) \/ *)
+            (<<TGT: ms_tgt.(ModSem.fnsems) fn = Some (f)>>)) \/
         (exists (f_src f_tgt: _ -> itree _ _),
             (<<SRC: ms_src.(ModSem.fnsems) fn = Some (f_src)>>) /\
             (<<TGT: ms_tgt.(ModSem.fnsems) fn = Some (f_tgt)>>) /\
             (<<SIM: sim_fsem wf le f_src f_tgt>>)).
 
+            
 
     Variant g_lift_rel
             (w0: world) st_src0 st_tgt0: Prop :=
@@ -1033,6 +1034,15 @@ Section ADEQUACY.
         - rr in RET. des. step. splits; auto. econs; et.
         - hexploit (fnsems_find_iff fn). i. des.
           { step. rewrite interp_Es_bind.  steps. rewrite NONE. unfold unwrapU, triggerUB. grind. step. ss. }
+          { admit. }
+          (* { steps. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
+          apply simg_progress_flag.
+          guclo bindC_spec. econs.
+          { gbase. eapply CIH. econs; ss. econs; et. refl. }
+          { i. ss. des. destruct vret_src, vret_tgt. des; clarify. inv SIM.
+            hexploit K; et. i. des. pclearbot.
+            steps. gbase. eapply CIH. left. econs; et.
+          } }          *)
           { hexploit (SIM (varg) (varg)); et. i. des. ired_both. 
             steps. grind. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.
             apply simg_progress_flag.
@@ -1056,7 +1066,7 @@ Section ADEQUACY.
         - steps. destruct run. steps. eapply IH; eauto.
         - eapply simg_progress_flag. gbase. eapply CIH. econs; eauto.
     Qed.
- 
+    (* Admitted. *)
     Context `{CONF: EMSConfig}.
 
     Hypothesis INIT:
@@ -1156,12 +1166,33 @@ Section ADEQUACY.
     
     { 
       (* previous version is proved by second branch (exists mn, ... ) which doesn't exists anymore *)
-      ss. ii. fold sk_src sk_tgt. rewrite <- SKEQ.  
+      ss. ii. fold sk_src sk_tgt. rewrite <- SKEQ. 
+      unfold ModSemAdd.add_fnsems.
+      unfold sim_fnsem in *. hexploit (sim_fnsems fn). 
+      generalize (Mod.get_modsem md_src (Sk.sort sk_tgt)) as ms_src. 
+      generalize (Mod.get_modsem md_tgt (Sk.sort sk_tgt)) as ms_tgt.
+      generalize (Mod.get_modsem CTX (Sk.sort sk_tgt)) as ms_ctx.
+      i.
+      des_ifs; et; right.
+      - exists (fun _ : Any.t => triggerUB), (fun _ : Any.t => triggerUB). 
+      esplits; et. 
+      unfold sim_fsem, "==>". i.
+      ginit. gstep. econs. ss.
+      - admit.
+      - exists (fun args : Any.t => translate ModSemAdd.emb_r (i args)).
+        exists (fun args : Any.t => translate ModSemAdd.emb_r (i0 args)).
+        esplits; et.
+        instantiate (1:= le). instantiate (1:= wf).
+        eapply H0.
+
+      destruct (ModSem.fnsems (Mod.get_modsem CTX (Sk.sort sk_tgt)) fn) eqn:Hctx.
+      - right. admit.
+      -  
       (* revert_until SKEQ. *)
       (* pattern (Sk.sort sk_tgt) at 1. *)
       (* rewrite <- SKEQ. rewrite ! alist_find_app_o. des_ifs. *)
 
-      esplits. instantiate (1:= le). Check (wf_lift wf).
+      esplits. instantiate (1:= le).
       instantiate (1:= wf_lift wf).
       unfold sim_fnsem in *.
       (* revert fn. *)
@@ -1267,17 +1298,19 @@ Section ADEQUACY.
       <<CR: (refines md_tgt md_src)>>
   .
   Proof.
-    eapply ModSem.refines_strong_refines.
+    eapply refines_strong_refines.
     eapply adequacy_local_strong; et.
   Qed.
 
-  Corollary adequacy_local_list_strong
+  (* Corollary adequacy_local_list_strong
             mds_src mds_tgt
             (FORALL: List.Forall2 ModPair.sim mds_src mds_tgt)
     :
       <<CR: refines_strong (Mod.add_list mds_tgt) (Mod.add_list mds_src)>>
   .
-  Proof. Admitted.
+  Proof. Admitted. *)
+
+
     (* r. induction FORALL; ss.
     { ii. auto. }
     (* rewrite ! Mod.add_list_cons. *)
@@ -1289,7 +1322,7 @@ Section ADEQUACY.
     eapply refines_strong_proper_l; et.
   Qed. *)
 
-  Theorem adequacy_local2 md_src md_tgt
+  (* Theorem adequacy_local2 md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
     :
       <<CR: (refines2 [md_tgt] [md_src])>>
@@ -1297,9 +1330,9 @@ Section ADEQUACY.
   Proof.
     eapply ModSem.refines_strong_refines.
     eapply adequacy_local_list_strong. econs; ss.
-  Qed.
+  Qed. *)
 
-  Corollary adequacy_local_list
+  (* Corollary adequacy_local_list
             mds_src mds_tgt
             (FORALL: List.Forall2 ModPair.sim mds_src mds_tgt)
     :
@@ -1308,6 +1341,6 @@ Section ADEQUACY.
   Proof.
     eapply ModSem.refines_strong_refines.
     eapply adequacy_local_list_strong; et.
-  Qed.
+  Qed. *)
 
 End ADEQUACY.

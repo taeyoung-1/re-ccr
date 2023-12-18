@@ -116,46 +116,45 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
-  Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
+  Let sk: Sk.t := Sk.sort (Sk.add Sk.unit (SMod.sk md)).
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
 
-  Let _mss: Sk.t -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
-  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
-  Let _stb: Sk.t -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
+  Let _ms: Sk.t -> SModSem.t := fun sk => (SMod.get_modsem md sk).
+  Let _sbtb: Sk.t -> (gname -> option fspecbody) := fun sk => ((SModSem.fnsems) (_ms sk)).
+  Let _stb: Sk.t -> gname -> option fspec := fun sk => 
+  ((fun fn => match (_sbtb sk fn) with
+            | Some fsb => Some (fsb_fspec fsb)
+            | None => None
+            end)).
 
-  Let mss: list SModSem.t := _mss sk.
-  Let sbtb: list (gname * fspecbody) := _sbtb sk.
+  Let ms: SModSem.t := _ms sk.
+  Let sbtb: gname -> option fspecbody := _sbtb sk.
 
   Variable stb: Sk.t -> gname -> option fspec.
   Hypothesis STBCOMPLETE:
-    forall fn fsp (FIND: alist_find fn (_stb sk) = Some fsp), stb sk fn = Some fsp.
+    forall fn fsp (FIND: (_stb sk) fn = Some fsp), stb sk fn = Some fsp.
   Hypothesis STBSOUND:
-    forall fn (FIND: alist_find fn (_stb sk) = None),
+    forall fn (FIND: (_stb sk) fn = None),
       (<<NONE: stb sk fn = None>>) \/ (exists fsp, <<FIND: stb sk fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
   (* Let mss: list SModSem.t := (List.map ((flip SMod.get_modsem) sk) mds). *)
   (* Let sbtb: list (gname * fspecbody) := (List.flat_map (SModSem.fnsems) mss). *)
   (* Let stb: list (gname * fspec) := List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) sbtb. *)
 
-  Let mds_mid: list Mod.t := List.map (SMod.to_mid (stb sk)) mds.
-  Let mds_tgt: list Mod.t := List.map (SMod.to_tgt stb) mds.
+  Let md_mid: Mod.t := (SMod.to_mid (stb sk)) md.
+  Let md_tgt: Mod.t := (SMod.to_tgt stb) md.
 
-  Let ms_mid: ModSemL.t := ModL.enclose (Mod.add_list mds_mid).
-  Let ms_tgt: ModSemL.t := ModL.enclose (Mod.add_list mds_tgt).
+  Let ms_mid: ModSem.t := Mod.enclose md_mid.
+  Let ms_tgt: ModSem.t := Mod.enclose md_tgt.
 
 
   Lemma sk_eq:
-    ModL.sk (Mod.add_list mds_tgt) = ModL.sk (Mod.add_list mds_mid).
-  Proof.
-    unfold ms_tgt, ms_mid, mds_mid, mds_tgt, ModL.enclose.
-    rewrite ! Mod.add_list_sk. f_equal.
-    generalize mds. clear. i. induction mds0; ss.
-    rewrite IHmds0. auto.
-  Qed.
+    Mod.sk md_tgt = Mod.sk md_mid.
+  Proof. ss. Qed.
 
-  Lemma fst_initial_mrs_eq:
+  (* Lemma fst_initial_mrs_eq:
     List.map fst (ModSemL.initial_mrs ms_tgt) = List.map fst (ModSemL.initial_mrs ms_mid).
   Proof.
     pose proof sk_eq.
@@ -179,64 +178,62 @@ Section CANCEL.
     rewrite ! Mod.add_list_fns. rewrite ! List.map_map. f_equal.
     f_equal. extensionality sm. ss. rewrite ! List.map_map. f_equal.
     extensionality fnsb. destruct fnsb as [fn sb]. ss.
-  Qed.
+  Qed. *)
 
   Lemma stb_find_iff_aux fn
     :
-      ((<<NONE: alist_find fn (_stb sk) = None>>) /\
-       (<<FINDMID: alist_find fn (ModSemL.fnsems ms_mid) = None>>) /\
-       (<<FINDTGT: alist_find fn (ModSemL.fnsems ms_tgt) = None>>)) \/
+      ((<<NONE: (_stb sk) fn = None>>) /\
+       (<<FINDMID: (ModSem.fnsems ms_mid) fn = None>>) /\
+       (<<FINDTGT: (ModSem.fnsems ms_tgt) fn = None>>)) \/
 
-      (exists md (f: fspecbody),
-          (<<STB: alist_find fn (_stb sk) = Some (f: fspec)>>) /\
-          (<<SBTB: alist_find fn sbtb = Some f>>) /\
-          (<<FINDMID: alist_find fn (ModSemL.fnsems ms_mid) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn (SMod.get_modsem md sk))
-                              ∘ fun_to_mid (stb sk) (fsb_body f))>>) /\
-          (<<FINDTGT: alist_find fn (ModSemL.fnsems ms_tgt) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn (SMod.get_modsem md sk))
-                              ∘ fun_to_tgt (SModSem.mn (SMod.get_modsem md sk)) (stb sk) f)>>) /\
-          (<<MIN: List.In (SModSem.mn (SMod.get_modsem md sk)) (List.map fst ms_tgt.(ModSemL.initial_mrs))>>)).
+      (exists (f: fspecbody),
+          (<<STB: (_stb sk) fn = Some (f: fspec)>>) /\
+          (<<SBTB: sbtb fn = Some f>>) /\
+          (<<FINDMID: (ModSem.fnsems ms_mid) fn =
+                        Some (fun_to_mid (stb sk) (fsb_body f))>>) /\
+          (<<FINDTGT: (ModSem.fnsems ms_tgt) fn =
+                        Some (fun_to_tgt (stb sk) f)>>)
+          (* (<<MIN: List.In (SModSem.mn (SMod.get_modsem md sk)) (List.map fst ms_tgt.(ModSemL.initial_mrs))>>) *)
+          ).
   Proof.
-    unfold ms_mid, ms_tgt, mds_tgt, mds_mid, SMod.to_mid, mds_tgt, SMod.to_tgt.
-    rewrite SMod.transl_fnsems. rewrite SMod.transl_fnsems. rewrite SMod.transl_initial_mrs. fold sk.
-    unfold _stb at 1 2. unfold sbtb, _sbtb, _mss. rewrite alist_find_map.
-    generalize mds. induction mds0; ss; auto. rewrite ! alist_find_app_o.
-    erewrite ! SMod.red_do_ret2. rewrite ! alist_find_map. uo.
-    destruct (alist_find fn (SModSem.fnsems (SMod.get_modsem a sk))) eqn:FIND.
-    { right. esplits; et. }
-    des.
-    { left. esplits; et. }
-    { right. esplits; et. }
+    unfold ms_mid, ms_tgt, md_tgt, md_mid, SMod.to_mid, SMod.to_tgt.
+    rewrite SMod.transl_fnsems.
+    unfold _stb at 1 2. unfold sbtb, _sbtb, _ms. 
+    des_ifs.
+    - right. exists f. 
+      unfold Mod.enclose, SMod.load_fnsems. s. unfold sk in *.
+      rewrite Sk.add_unit_l in *. 
+      rewrite Heq.
+      esplits; et.
+    - left.  
+      unfold Mod.enclose, SMod.load_fnsems. s. unfold sk in *.
+      rewrite Sk.add_unit_l in *. 
+      rewrite Heq.
+      esplits; et.
   Qed.
 
   Lemma stb_find_iff fn
     :
       ((<<NONE: stb sk fn = None>> \/ (exists fsp, <<FIND: stb sk fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>)) /\
-       (<<FINDMID: alist_find fn (ModSemL.fnsems ms_mid) = None>>) /\
-       (<<FINDTGT: alist_find fn (ModSemL.fnsems ms_tgt) = None>>)) \/
+       (<<FINDMID: (ModSem.fnsems ms_mid) fn = None>>) /\
+       (<<FINDTGT: (ModSem.fnsems ms_tgt) fn = None>>)) \/
 
-      (exists md (f: fspecbody),
+      (exists (f: fspecbody),
           (<<STB: stb sk fn = Some (f: fspec)>>) /\
-          (<<SBTB: alist_find fn sbtb = Some f>>) /\
-          (<<FINDMID: alist_find fn (ModSemL.fnsems ms_mid) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn (SMod.get_modsem md sk))
-                              ∘ fun_to_mid (stb sk) (fsb_body f))>>) /\
-          (<<FINDTGT: alist_find fn (ModSemL.fnsems ms_tgt) =
-                      Some (transl_all (T:=_)
-                              (SModSem.mn (SMod.get_modsem md sk))
-                              ∘ fun_to_tgt (SModSem.mn (SMod.get_modsem md sk)) (stb sk) f)>>) /\
-          (<<MIN: List.In (SModSem.mn (SMod.get_modsem md sk)) (List.map fst ms_tgt.(ModSemL.initial_mrs))>>)).
+          (<<SBTB: sbtb fn = Some f>>) /\
+          (<<FINDMID: (ModSem.fnsems ms_mid) fn =
+                      Some (fun_to_mid (stb sk) (fsb_body f))>>) /\
+          (<<FINDTGT: (ModSem.fnsems ms_tgt) fn =
+                      Some (fun_to_tgt (stb sk) f)>>)
+          (* (<<MIN: List.In (SModSem.mn (SMod.get_modsem md sk)) (List.map fst ms_tgt.(ModSemL.initial_mrs))>>) *)
+          ).
   Proof.
     hexploit (stb_find_iff_aux fn). i. des.
     { left. esplits; et. }
     { right. esplits; et. }
   Qed.
 
-  Let W: Type := (p_state).
+  (* Let W: Type := (p_state).
 
   Let r_state: Type := mname -> Σ.
 
@@ -366,7 +363,7 @@ Section CANCEL.
     }
   Qed.
 
-  Local Opaque rsum rsum_minus.
+  Local Opaque rsum rsum_minus. *)
 
 
   Ltac ired_l := try (prw _red_gen 2 0).
@@ -379,7 +376,7 @@ Section CANCEL.
   Ltac steps := repeat (mred; try _step; des_ifs_safe).
 
 
-  Let zip_state_get st mrs mn
+  (* Let zip_state_get st mrs mn
       (MIN: List.In mn (List.map fst ms_tgt.(ModSemL.initial_mrs)))
     :
       zip_state st mrs mn = Any.pair (st mn) (mrs mn)↑.
@@ -402,28 +399,28 @@ Section CANCEL.
     eapply in_map_iff in MIN. des. destruct x. subst.
     eapply alist_find_none in Heq.
     exfalso. eapply Heq. et.
-  Qed.
+  Qed. *)
 
 
-  Let adequacy_type_aux
-      (NODUP: NoDup (List.map fst ms_tgt.(ModSemL.initial_mrs))):
+  Let adequacy_type_aux:
+      (* (NODUP: NoDup (List.map fst ms_tgt.(ModSemL.initial_mrs))): *)
     forall RT
            mrs0 frs ctx0
-           st_src0 st_tgt0 (i0: itree (hCallE +' pE +' eventE) RT)
-           mn cur
-           (ZIP: st_tgt0 = zip_state st_src0 mrs0)
-           (CTX: ctx0 = frs ⋅ rsum_minus mn mrs0)
+           st_src0 st_tgt0 (i0: itree (hCallE +' sE +' eventE) RT)
+           cur
+           (ZIP: st_tgt0 = Any.pair st_src0 mrs0↑)
+           (CTX: ctx0 = frs ⋅ mrs0)
 
-           (MIN: List.In mn (List.map fst ms_tgt.(ModSemL.initial_mrs)))
-           (NODUP: NoDup (List.map fst ms_tgt.(ModSemL.initial_mrs)))
+           (* (MIN: List.In mn (List.map fst ms_tgt.(initial_mrs))) *)
+           (* (NODUP: NoDup (List.map fst ms_tgt.(ModSemL.initial_mrs))) *)
     ,
       simg (fun '(st_src1, v_src) '(st_tgt1, v_tgt) =>
               exists mrs1,
-                (<<ZIP: st_tgt1 = zip_state st_src1 mrs1>>) /\
-                (<<RET: (v_tgt: Σ * RT) = (frs ⋅ rsum_minus mn mrs1, v_src)>>))
+                (<<ZIP: st_tgt1 = Any.pair st_src1 mrs1↑>>) /\
+                (<<RET: (v_tgt: Σ * RT) = (frs ⋅ mrs1, v_src)>>))
            false false
-           (EventsL.interp_Es (ModSemL.prog ms_mid) (transl_all mn (interp_hCallE_mid (stb sk) cur i0)) st_src0)
-           (EventsL.interp_Es (ModSemL.prog ms_tgt) (transl_all mn (interp_hCallE_tgt mn (stb sk) cur i0 ctx0)) st_tgt0)
+           (interp_Es (ModSem.prog ms_mid) ((interp_hCallE_mid (stb sk) cur i0)) st_src0)
+           (interp_Es (ModSem.prog ms_tgt) ((interp_hCallE_tgt (stb sk) cur i0 ctx0)) st_tgt0)
   .
   Proof.
     Opaque subevent.
@@ -437,9 +434,10 @@ Section CANCEL.
     {
       destruct s; ss.
       {
-        destruct p; ss.
-        - resub. steps.
-          erewrite zip_state_get; et. steps. deflag.
+        destruct s; ss.
+        - resub. steps. deflag.
+          erewrite zip_state_get; et. steps. 
+          deflag.
           gbase. eapply CIH; ss.
           extensionality mn0. unfold update, zip_state. des_ifs.
           exfalso. eapply in_map_iff in MIN. des. destruct x. subst.
@@ -456,21 +454,21 @@ Section CANCEL.
       }
     }
     dependent destruction h. resub.
-    set (ModSemL.prog ms_mid) as p_mid in *.
-    set (ModSemL.prog ms_tgt) as p_tgt in *.
+    set (ModSem.prog ms_mid) as p_mid in *.
+    set (ModSem.prog ms_tgt) as p_tgt in *.
     ss.
     seal_left.
 
     steps. hexploit (stb_find_iff fn). i. des.
     { rewrite NONE. steps. }
     { rewrite FIND. unfold HoareCall, ASSUME, ASSERT, mput, mget. steps.
-      erewrite zip_state_get; et. steps.
+      (* erewrite zip_state_get; et. steps. *)
       des; clarify. destruct tbr; ss.
       { exfalso. hexploit TRIVIAL; et. intro T. rewrite T in *. hexploit x4; ss. }
       seal_right. unseal_left. steps. rewrite FIND. steps. esplits; et.
       steps. esplits; et.
       { destruct cur; ss. hexploit x5; ss. intro T. rewrite T in *; ss. }
-      steps. rewrite FINDMID. steps.
+      steps.
     }
     unfold HoareCall, ASSUME, ASSERT, mput, mget.
 
@@ -478,12 +476,17 @@ Section CANCEL.
     rewrite STB. ss. mred. force_r.
     destruct (classic (tbr = true /\ forall x, f.(measure) x = ord_top)).
     { des. subst. steps.
-      erewrite zip_state_get; et. rewrite Any.pair_split. steps.
+      (* erewrite zip_state_get; et.  *)
+      (* rewrite Any.pair_split. steps. *)
       hexploit H0; et. i. rewrite H in *. ss. des. hexploit x4; ss. }
     rename H into TRIVIAL.
-    unseal_left. ired_both. rewrite STB. steps. esplit.
+    unseal_left. ired_both. rewrite STB. steps.
+    unfold sk in H0. rewrite Sk.add_unit_l in H0.
+    unfold fun_to_tgt in H0.
+    esplit.
     { ii. subst. eapply TRIVIAL; ss. } steps.
-    erewrite zip_state_get; et. rewrite Any.pair_split. steps.
+    (* erewrite zip_state_get; et.  *)
+    (* rewrite Any.pair_split. steps. *)
 
     match goal with
     | |- _ ?i_tgt => replace i_tgt with (Ret tt;;; i_tgt)
@@ -501,25 +504,29 @@ Section CANCEL.
     i. destruct vret_src, vret_tgt. des; subst.
 
     steps. esplits; eauto. steps. unfold unwrapU.
-    rewrite FINDMID. rewrite FINDTGT. rewrite ! bind_ret_l.
+    (* rewrite FINDMID. rewrite FINDTGT. rewrite ! bind_ret_l. *)
 
     guclo bindC_spec. econs.
 
     { instantiate (1:= fun '(st_src1, vret_src) '(st_tgt1, vret_tgt) =>
-                         exists (mrs1: r_state) rret,
-                           (<<ZIP: st_tgt1 = zip_state st_src1 mrs1>>) /\
-                           (<<POST: f.(postcond) (Some mn) x vret_src vret_tgt rret>>) /\
-                           (<<RWF: URA.wf (rret ⋅ (c1 ⋅ (frs ⋅ rsum_minus mn mrs1) ⋅ (mrs1 mn)))>>)).
-      fold sk. fold sk. set (mn0:=SModSem.mn (SMod.get_modsem md sk)) in *.
+                         exists (mrs1: Σ) rret,
+                           (<<ZIP: st_tgt1 = Any.pair st_src1 mrs1↑>>) /\
+                           (<<POST: f.(postcond) x vret_src vret_tgt rret>>) /\
+                           (<<RWF: URA.wf (rret ⋅ (c1 ⋅ (frs ⋅ mrs1) ⋅ (mrs1)))>>)).
+      fold sk. fold sk.
+      (* set (mn0:=SModSem.mn (SMod.get_modsem md sk)) in *. *)
       fold Any_tgt in x3.
-      unfold fun_to_src, fun_to_tgt, compose. des_ifs. unfold HoareFun, ASSUME, ASSERT, mget, mput.
+      unfold fun_to_mid, fun_to_tgt, compose.
+      rewrite H0.
+      des_ifs. unfold HoareFun, ASSUME, ASSERT, mget, mput.
       rename x3 into PRECOND. rename c0 into rarg.
       steps. exists x.
-      steps. eexists (rarg, c1 ⋅ (frs ⋅ rsum_minus mn0 (update mrs0 mn c))). steps.
-      erewrite ! zip_state_mput; et. steps.
-      erewrite zip_state_get; et. steps.
-      assert (RWF0: URA.wf (rarg ⋅ ε ⋅ (c1 ⋅ (frs ⋅ rsum_minus mn0 (update mrs0 mn c))) ⋅ update mrs0 mn c mn0)).
-      { r_wf x0. symmetry. eapply rsum_minus_update; et. }
+      steps. eexists (rarg, c1 ⋅ (frs ⋅ mrs0)). steps.
+      (* erewrite ! zip_state_mput; et. steps.
+      erewrite zip_state_get; et. steps. *)
+      assert (RWF0: URA.wf (rarg ⋅ ε ⋅ (c1 ⋅ (frs ⋅ mrs0)) ⋅ c)).
+      { r_wf x0. } 
+      (* symmetry. eapply rsum_minus_update; et. } *)
       unshelve esplits; eauto. steps.
       exists varg_src.
       steps. esplits; eauto. steps. unshelve esplits; eauto. steps.
@@ -549,7 +556,7 @@ Section CANCEL.
     all: try (by exact 0).
   Qed.
 
-  Opaque EventsL.interp_Es.
+  (* Opaque EventsL.interp_Es. *)
 
   Context {CONFS: EMSConfig}.
   Definition midConf: EMSConfig := {| finalize := finalize; initial_arg := Any.pair ord_top↑ initial_arg |}.
@@ -561,13 +568,13 @@ Section CANCEL.
              forall (main_fsp: fspec) (MAIN: stb sk "main" = Some main_fsp),
              exists (x: main_fsp.(meta)) entry_r,
                (<<PRE: main_fsp.(precond) None x (@initial_arg CONFS) (@initial_arg CONFT) entry_r ∧ main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ fold_left (⋅) (List.map SModSem.initial_mr mss) ε)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ fold_left (⋅) (List.map SModSem.initial_mr ms) ε)>>) /\
                (<<RET: forall ret_src ret_tgt r
                               (WFR: URA.wf r)
                               (POST: main_fsp.(postcond) None x ret_src ret_tgt r),
                    ret_src = ret_tgt>>)):
-    Beh.of_program (@ModL.compile _ CONFT (Mod.add_list mds_tgt)) <1=
-    Beh.of_program (@ModL.compile _ midConf (Mod.add_list mds_mid)).
+    Beh.of_program (@Mod.compile _ CONFT (Mod.add_list mds_tgt)) <1=
+    Beh.of_program (@Mod.compile _ midConf (Mod.add_list mds_mid)).
   Proof.
     eapply adequacy_global_itree; ss.
     ginit.
