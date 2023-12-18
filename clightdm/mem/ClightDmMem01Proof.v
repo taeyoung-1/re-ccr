@@ -914,16 +914,21 @@ Section SIMMODSEM.
         iPureIntro. esplits; et; i.
         (* sim contents *)
         - destruct (Pos.eq_dec b (Mem.nextblock a)).
-          + admit "".
+          + ss. subst. do 2 ur.
+            specialize (SIM_CNT (Mem.nextblock a) ofs H4).
+            inv SIM_CNT;
+              try solve [rewrite (Mem.nextblock_noaccess a) in PERM; clarify;
+                         eapply Coqlib.Plt_strict].
+            rewrite URA.unit_idl; ss. do 2 rewrite Maps.PMap.gss. econs 2; eauto.
+            * admit "".
+            * des_ifs; eauto. admit "".
+            * eapply perm_F_any.
           + ss. do 2 (rewrite Maps.PMap.gso; et).
-            specialize (SIM_CNT b ofs). exploit SIM_CNT; eauto. i.
-            inv x0.
-            * econs; eauto. unfold Maps.ZMap.t in RES. unfold Maps.PMap.t in RES. ss.
-              rewrite <- RES. admit "".
-
-
-              rewrite <- RES.
-          ss. admit "CNT".
+            specialize (SIM_CNT b ofs). exploit SIM_CNT; eauto. i. do 2 ur.
+            unfold __points_to. des_ifs.
+            { eapply andb_prop in Heq. des. eapply andb_prop in Heq. des.
+              destruct (AList.dec b (Mem.nextblock a)); clarify. }
+            all : rewrite URA.unit_id; ss.
         (* sim alloc *)
         - admit "ALLOC".
         (* sim size *)
