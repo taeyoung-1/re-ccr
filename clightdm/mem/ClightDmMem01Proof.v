@@ -160,7 +160,10 @@ Section SIMMODSEM.
       (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
     :
     sim_size tres sres cnt perm
-  | sim_size_common  (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm p
+  | sim_size_common  (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm q p t
+      (NOTDYN: t <> Dynamic)
+      (TAG: tres = Consent.just q t)
+      (SZ: sres = OneShot.white sz)
       (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
     :
     sim_size tres sres cnt perm
@@ -207,7 +210,7 @@ Section SIMMODSEM.
     /\
     <<ORTHO: forall b ofs, (m'.(Mem.nextblock) ≤ Pos.succ b)%positive -> res b ofs = ε >>.
   Proof.
-    Transparent Mem.store.
+    Local Transparent Mem.store.
     set start as start0 in *.
     set (start0 + len) as end0 in *. unfold start0 in STORE_ZEROS.
     assert (start0 ≤ start) by nia.
@@ -225,7 +228,6 @@ Section SIMMODSEM.
     - subst. rewrite Maps.PMap.gss.
       rewrite Mem.setN_outside; et;
         replace (strings.length _) with 1%nat by refl; nia.
-    Opaque Mem.store.
   Qed.
 
   Lemma setN_inside x l i c entry
@@ -235,7 +237,7 @@ Section SIMMODSEM.
       Maps.ZMap.get x (Mem.setN l i c) = entry.
   Proof.
     assert (Z.to_nat (x - i)%Z < length l)%nat by nia.
-    apply nth_error_Some in H1. destruct (nth_error _ _) eqn: E in H1; clarify.
+    apply nth_error_Some in H3. destruct (nth_error _ _) eqn: E in H3; clarify.
     clear H1. move l at top. revert_until l. induction l; i; ss; try nia.
     destruct (Nat.eq_dec (Z.to_nat (x - i)) 0).
     - rewrite e in *. ss. clarify. assert (x = i) by nia. rewrite H1 in *.
@@ -259,7 +261,7 @@ Section SIMMODSEM.
     (FILLED_ZERO: forall ofs, start ≤ ofs < start + init_data_list_size l ->
                     Maps.ZMap.get ofs (Maps.PMap.get b' m.(Mem.mem_contents)) = Byte Byte.zero)
     (STORE_RSC: store_init_data_list sk res b' start perm l = Some c)
-    (STORE_MEM: ClightlightMem0.store_init_data_list sk m b' start l = Some m')
+    (STORE_MEM: ClightDmMem0.store_init_data_list sk m b' start l = Some m')
   :
     <<PRE': forall b ofs, 0 ≤ ofs -> not (b = b' /\ start ≤ ofs < start + init_data_list_size l) ->
                 sim_cnt (c b ofs) (Maps.PMap.get b (m'.(Mem.mem_access)) ofs)
@@ -267,7 +269,7 @@ Section SIMMODSEM.
     /\
     <<PRE'': forall ofs, 0 ≤ ofs -> start ≤ ofs < start + init_data_list_size l ->
                   match c b' ofs with
-                  | Excl.just (_, _, mv) => mv = Maps.ZMap.get ofs (Maps.PMap.get b' (m'.(Mem.mem_contents)))
+                  | Consent.just q mv => mv = Maps.ZMap.get ofs (Maps.PMap.get b' (m'.(Mem.mem_contents)))
                   | _ => False
                   end >>
     /\
@@ -288,7 +290,7 @@ Section SIMMODSEM.
     - splits; et; i; try nia.
     - des_ifs_safe.
       replace (Mem.nextblock m) with (Mem.nextblock m0) in * by now
-        unfold ClightlightMem0.store_init_data, Mem.store in Heq; des_ifs.
+        unfold ClightDmMem0.store_init_data, Mem.store in Heq; des_ifs.
       hexploit IHl.
       1,2,5,6: et.
       3:{ instantiate (1:= start0). pose proof (init_data_size_pos a). nia. }
