@@ -144,7 +144,9 @@ Section SIMMODSEM.
   | sim_captured cres base
       (RES: cres = OneShot.white base):
     sim_concrete cres (Some (Ptrofs.unsigned base))
-  | sim_logical: sim_concrete ε None
+  | sim_logical cres
+      (RES: cres = OneShot.black):
+    sim_concrete cres None
   .
 
   (* block size sim *)
@@ -154,22 +156,25 @@ Section SIMMODSEM.
   | sim_size_dynamic (tres: Consent.t _) (sres: OneShot.t Z) sz q cnt perm p
       (TAG: tres = Consent.just q Dynamic)
       (SZ: sres = OneShot.white sz)
+      (POS: sz > 0)
       (CNT: Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt
             = inj_bytes (encode_int (size_chunk_nat Mptr) sz))
       (HEADER: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = Some Freeable)
       (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
     :
     sim_size tres sres cnt perm
-  | sim_size_common  (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm q p t
+  | sim_size_common (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm q p t
       (NOTDYN: t <> Dynamic)
       (TAG: tres = Consent.just q t)
       (SZ: sres = OneShot.white sz)
+      (* (POS: sz >= 0) *)
       (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
     :
     sim_size tres sres cnt perm
-  | sim_size_not cnt
+  | sim_size_not cnt sres
+      (SZ: sres = OneShot.black)
     :
-    sim_size ε ε cnt (fun _ _ => None)
+    sim_size ε sres cnt (fun _ _ => None)
   .
 
   Lemma sim_cnt_alloc res m m' b' lo hi
@@ -476,7 +481,9 @@ Section SIMMODSEM.
                                  | None => True
                                  end>>) /\
               (<<SIM_SZ: forall ob, match ob with
-                               | Some b => sim_size (memalloc_src0 b) (memsz_src0 (Some b)) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)) (Maps.PMap.get b mem_tgt0.(Mem.mem_access))
+                               | Some b => if Pos.ltb b (Mem.nextblock mem_tgt0)
+                                          then sim_size (memalloc_src0 b) (memsz_src0 (Some b)) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)) (Maps.PMap.get b mem_tgt0.(Mem.mem_access))
+                                          else (memsz_src0 (Some b)) = OneShot.black
                                | None => True
                                end>>)⌝
              ** OwnM ((Auth.black memcnt_src0): URA.car (t:=pointstoRA))
@@ -511,15 +518,13 @@ Section SIMMODSEM.
              end
     end
   . *)
-
-  Require Import IProofMode HSim.
   
   Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
   Proof.
     Local Transparent Mem.alloc. Local Transparent Mem.store.
     econs; ss.
     i. econstructor 1 with (wf:=wf) (le:=top2); et; ss; swap 2 3.
-    { admit "". }
+    { admit "initialization". }
       (* eexists. econs; ss. eapply to_semantic. *)
       (* iIntros "H". iDestruct "H" as "[A B]". iSplits.  *)
       (* iSplitR "B"; [iSplitR "A"; [|iApply "A"]|iApply "B"].  *)
@@ -822,20 +827,118 @@ Section SIMMODSEM.
 
         mAssert _ with "SZ" as "SZ".
         { iApply (OwnM_Upd with "SZ").
-          rr. rewrite URA.unfold_add, URA.unfold_wf in *.
-          ii. unseal "ra". ss. des_ifs. subst add wf. ss. des.
-          esplits; et.
-          rewrite URA.unit_idl in *.
-          rr in H. des. rr. exists ctx; et. ss. clarify.
-          rewrite URA.add_comm. rewrite (URA.add_comm f). rewrite <- URA.add_assoc. f_equal.
-          rewrite URA.add_comm. ss.
-          eapply Auth.auth_alloc2.
+          eapply URA.pw_updatable. i.
+          instantiate (1:= fun ok => match ok with
+                             | Some k => if (Pos.eq_dec k (Mem.nextblock a))
+                                        then (_has_size (Some (Mem.nextblock a)) sz) ok
+                                        else a3 ok
+                             | None => a3 ok
+                                  end).
+          ss. destruct k; ss. des_ifs. specialize (SIM_SZ (Some (Mem.nextblock a))). ss.
+          des_ifs. rewrite Pos.ltb_irrefl in Heq. clarify.
+          replace (a3 (Some (Mem.nextblock a))) with (OneShot.black: OneShot.t Z).
+          { Local Transparent _has_size. ss. des_ifs. eapply OneShot.oneshot_black_updatable. } }
+        mUpd "SZ".
 
-        force_l. eexists. steps. hret _; ss. iModIntro. iSplitR "A"; cycle 1.
-        { iSplitL; ss. iExists (Mem.nextblock a), (Vptr (Mem.nextblock a) Ptrofs.zero).
-          iSplitL; ss. iSplitR; ss. replace (Ptrofs.unsigned _) with 0 by refl.
-          iSplitL; ss. iPureIntro. split; econs. instantiate (1:=0). ss. }
-        iExists _, _, _. iSplitR "HD"; ss. iSplitR "CNT"; ss.
+        force_l. eexists. steps. hret _; ss.
+        assert (exists ctx, (λ ok : option block,
+                           match ok with
+                           | Some k =>
+                               if Pos.eq_dec k (Mem.nextblock a)
+                               then
+                                 match ok with
+                                 | Some _b => if AList.dec _b (Mem.nextblock a) then OneShot.white sz else OneShot.unit
+                                 | None => OneShot.unit
+                                 end
+                               else a3 ok
+                           | None => a3 ok
+                           end) = (_has_size (Some (Mem.nextblock a)) sz) ⋅ ctx).
+        { exists (λ ok : option block,
+                match ok with
+                | Some k =>
+                    if Pos.eq_dec k (Mem.nextblock a)
+                    then OneShot.unit
+                    else a3 ok
+                | None => a3 ok
+                end). unfold _has_size. ss. ur. apply func_ext. i.
+          des_ifs; ur; ss; des_ifs. }
+        des. rewrite H3. iDestruct "SZ" as "[SZ CTX]".
+        iPoseProof (_has_size_dup with "SZ") as "[SZ1 SZ2]".
+        iModIntro. iSplitR "SZ1 A A1"; cycle 1.
+        (* post condition *)
+        { iSplitL; ss.
+          set md := (@Build_metadata (Some (Mem.nextblock a)) sz (admit "Jae: is this condition needed?? plz check")).
+          iExists md, (Vptr (Mem.nextblock a) Ptrofs.zero), (Mem.nextblock a).
+          (* assert (exists ctx, (λ ok : option block, *)
+          (*                    match ok with *)
+          (*                    | Some k => *)
+          (*                        if Pos.eq_dec k (Mem.nextblock a) *)
+          (*                        then *)
+          (*                          match ok with *)
+          (*                          | Some _b => if AList.dec _b (Mem.nextblock a) then OneShot.white sz else OneShot.unit *)
+          (*                          | None => OneShot.unit *)
+          (*                          end *)
+          (*                        else a3 ok *)
+          (*                    | None => a3 ok *)
+          (*                    end) = (_has_size (Some (Mem.nextblock a)) sz) ⋅ ctx). *)
+          (* { exists (λ ok : option block, *)
+          (*         match ok with *)
+          (*         | Some k => *)
+          (*             if Pos.eq_dec k (Mem.nextblock a) *)
+          (*             then OneShot.unit *)
+          (*             else a3 ok *)
+          (*         | None => a3 ok *)
+          (*         end). unfold _has_size. ss. ur. apply func_ext. i. *)
+          (*   des_ifs; ur; ss; des_ifs. } *)
+          (* des. rewrite H3. iDestruct "SZ" as "[SZ CTX]". *)
+          iPoseProof (_has_size_dup with "SZ1") as "[SZ1 SZ2]".
+          iSplitL "A SZ1"; ss. iSplitR; ss.
+          (* points to *)
+          - Local Transparent _points_to. unfold points_to, _points_to. unfold md. ss.
+            iPoseProof (_has_size_dup with "SZ1") as "[SZ1 SZ2]".
+            iFrame. iExists (Ptrofs.zero). iFrame. unfold _has_offset. ss. iPureIntro.
+            esplits; eauto.
+            { rewrite repeat_length. rewrite Ptrofs.unsigned_zero. rewrite Z2Nat.id; try lia.
+              admit "by metadata condition". }
+            { rewrite repeat_length. rewrite Ptrofs.unsigned_zero. admit "arith". }
+          (* alloc with *)
+          - Local Transparent _allocated_with. unfold has_offset, _allocated_with. unfold md. ss.
+            iFrame. ss. }
+        (* wf preservation *)
+        iExists _, _, _, _, _.
+        iSplitR "SZ2"; cycle 1.
+        { eauto. }
+        iSplitR "CONC"; cycle 1.
+        { eauto. }
+        iSplitR "ALLOCATED"; [|ss]. iSplitR "CNT"; [|ss].
+        iPureIntro. esplits; et; i.
+        (* sim contents *)
+        - destruct (Pos.eq_dec b (Mem.nextblock a)).
+          + admit "".
+          + ss. do 2 (rewrite Maps.PMap.gso; et).
+            specialize (SIM_CNT b ofs). exploit SIM_CNT; eauto. i.
+            inv x0.
+            * econs; eauto. unfold Maps.ZMap.t in RES. unfold Maps.PMap.t in RES. ss.
+              rewrite <- RES. admit "".
+
+
+              rewrite <- RES.
+          ss. admit "CNT".
+        (* sim alloc *)
+        - admit "ALLOC".
+        (* sim size *)
+        - simpl. destruct ob; ss.
+          destruct (Pos.ltb p (Pos.succ (Mem.nextblock a))) eqn:POS.
+        (*  *)
+        + admit "".   
+        + des_ifs.
+        * rewrite Pos.ltb_nlt in POS. lia.
+        * admit "". }
+          destruct (Pos.eq_dec p (Mem.nextblock a)); cycle 1.
+
+
+          admit "SZ". }
+        iSplitR "ALLOCATED"; ss. iSplitR "CNT"; ss.
         iPureIntro. esplits; et; i; ss.
         - destruct (Pos.eq_dec b (Mem.nextblock a)); 
             try solve [do 2 (rewrite Maps.PMap.gso; et); do 2 ur;

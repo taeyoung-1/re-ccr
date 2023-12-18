@@ -70,9 +70,9 @@ Section BLOCKSIZE.
     (fun _ob => match ob, _ob with
              | Some b, Some _b => if dec _b b
                                  then OneShot.white sz
-                                 else ε
+                                 else OneShot.unit
              | None, None => OneShot.white sz (* sz should be zero *)
-             | _, _ => ε
+             | _, _ => OneShot.unit
              end).
 
 End BLOCKSIZE.
