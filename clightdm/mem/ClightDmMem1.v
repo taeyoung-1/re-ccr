@@ -993,10 +993,10 @@ Section SPEC.
   Definition salloc_spec: fspec :=
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = n↑ /\ Z.of_nat n ≤ Ptrofs.max_unsigned⌝),
+                    (fun varg => ⌜varg = n↑ /\ n ≤ Ptrofs.max_unsigned⌝),
                     (fun vret => ∃ m vaddr b,
-                                 ⌜vret = b↑ /\ m.(blk) = Some b /\ m.(sz) = Z.of_nat n ⌝
-                                 ** vaddr (↦_m,1) List.repeat Undef n
+                                 ⌜vret = b↑ /\ m.(blk) = Some b /\ m.(sz) = n ⌝
+                                 ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat n)
                                  ** vaddr (⊨_m,Local, 1) Ptrofs.zero)
     )))%I.
 

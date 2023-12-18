@@ -616,6 +616,16 @@ Module URA.
     intros [f EQ]. exists f. apply func_ext_dep. i. apply EQ.
   Qed.
 
+
+  Theorem pw_updatable K M (a b : @car (pointwise K M)) 
+    (UPD: forall k, updatable (a k) (b k))
+    : <<UPD: updatable a b>>.
+  Proof.
+    rr. i.
+    try rewrite ! URA.unfold_wf; try rewrite ! URA.unfold_add; cbn. i.
+    eapply UPD. try rewrite ! URA.unfold_wf in H; try rewrite ! URA.unfold_add in H; cbn. ss.
+  Qed.
+
 End URA.
 
 (* Coercion URA.to_RA: URA.t >-> RA.t. *)
