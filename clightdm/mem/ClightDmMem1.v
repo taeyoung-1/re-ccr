@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Any.
 Require Import STS.
@@ -205,7 +205,7 @@ Section RULES.
     iIntros "A".
     set (_has_size _ _) at 1.
     replace c with ((_has_size b s) ⋅ (_has_size b s)).
-    2:{ unfold c. ur. apply func_ext. i. ur. des_ifs. unfold _has_size in Heq. des_ifs. }
+    2:{ unfold c. ur. extensionalities. i. ur. des_ifs. unfold _has_size in Heq. des_ifs. }
     iDestruct "A" as "[? ?]". iFrame.
   Qed.
 
@@ -217,7 +217,7 @@ Section RULES.
     iIntros "A".
     set (_has_base _ _) at 1.
     replace c with ((_has_base b s) ⋅ (_has_base b s)).
-    2:{ unfold c. ur. apply func_ext. i. ur. des_ifs. unfold _has_base in Heq. des_ifs. }
+    2:{ unfold c. ur. extensionalities. i. ur. des_ifs. unfold _has_base in Heq. des_ifs. }
     iDestruct "A" as "[? ?]". iFrame.
   Qed.
 
@@ -394,7 +394,7 @@ Section RULES.
       _points_to b ofs mvs (q0 + q1) = (_points_to b ofs mvs q0) ⋅ (_points_to b ofs mvs q1).
   Proof.
     unfold _points_to. unfold Auth.white. ur. ur. ur.
-    f_equal. ss. apply func_ext. i. apply func_ext. i. ur.
+    f_equal. ss. extensionalities. i. extensionalities. i. ur.
     unfold __points_to. des_ifs.
   Qed.
 
@@ -444,7 +444,7 @@ Section RULES.
       _allocated_with b tg (q0 + q1) = (_allocated_with b tg q0) ⋅ (_allocated_with b tg q1).
   Proof.
     unfold _allocated_with. unfold Auth.white. ur. ur. ur.
-    f_equal. ss. apply func_ext. i.
+    f_equal. ss. extensionalities. i.
     unfold __allocated_with. des_ifs.
   Qed.
 
@@ -475,7 +475,7 @@ Section RULES.
       _points_to b ofs (mvs0 ++ mvs1) q = (_points_to b ofs mvs0 q) ⋅ (_points_to b (ofs + length mvs0) mvs1 q).
   Proof.
     unfold _points_to. unfold Auth.white. ur. ur. ur.
-    f_equal. ss. apply func_ext. i. apply func_ext. i. ur.
+    f_equal. ss. extensionalities. ur. rename H4 into x0.
     unfold __points_to.
     destruct dec; ss;
     destruct Coqlib.zle; ss;

@@ -1,5 +1,5 @@
 From compcert Require Import Globalenvs Smallstep AST Integers Events Behaviors Errors Memory.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Skeleton.
 Require Import PCM.

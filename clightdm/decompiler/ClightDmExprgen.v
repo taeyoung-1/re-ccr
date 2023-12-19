@@ -1,6 +1,6 @@
 (* Require Import ZArith String List Lia. *)
 
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Skeleton.
 Require Import PCM.

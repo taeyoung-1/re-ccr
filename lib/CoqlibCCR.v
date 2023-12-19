@@ -4,9 +4,9 @@ Require Export List.
 Require Export Bool.
 
 Ltac check_safe := let n := numgoals in guard n < 2.
-Require Export sflib.
+Require Export sflibCCR.
 From Paco Require Export paco.
-Notation "f ∘ g" := (fun x => (f (g x))). (*** TODO: move to Coqlib ***)
+Notation "f ∘ g" := (fun x => (f (g x))). (*** TODO: move to CoqlibCCR ***)
 Require Export Basics.
 
 Require Import Relations.
@@ -14,7 +14,7 @@ Require Export RelationClasses.
 Require Import Wellfounded.
 Require Export Classical_Prop.
 Require Export Lia.
-Require Export Axioms.
+Require Export AxiomsCCR.
 Require Import Relation_Operators.
 Require Export List.
 Require Export ClassicalDescription.
@@ -45,7 +45,7 @@ Ltac determ_tac LEMMA :=
     ];
   i; des; clarify.
 
-(* TODO: if it is mature enough, move it to sflib & remove this file *)
+(* TODO: if it is mature enough, move it to sflibCCR & remove this file *)
 
 Definition update_fst {A B C: Type} (f: A -> C) (ab: A * B): C * B := (f (fst ab), (snd ab)).
 
@@ -1121,7 +1121,7 @@ Proof.
   }
 Qed.
 
-(* TODO: Coqlib? *)
+(* TODO: CoqlibCCR? *)
 Lemma nodup_app_l A (l0 l1: list A)
       (ND: NoDup (l0 ++ l1))
   :
@@ -1332,7 +1332,7 @@ Ltac Psimpl_ :=
   | [ |- ~(?P \/ ?Q) ] => apply and_not_or
   | [ H: ~(forall n, ~?P n) |- _ ] => apply not_all_not_ex in H
   | [ H: ~(forall n, ?P) |- _ ] => apply not_all_ex_not in H; destruct H as [n H]
-  | [ H: ~(exists n, ?P) |- _ ] => apply Coqlib.not_ex_all_not in H; unfold NW in H
+  | [ H: ~(exists n, ?P) |- _ ] => apply CoqlibCCR.not_ex_all_not in H; unfold NW in H
   | [ H: ~(exists n, ~?P n) |- _ ] => apply not_ex_not_all in H
   | [ |- ~(forall n, ?P n) ] => apply ex_not_not_all
   | [ |- ~(exists n, ?P n) ] => apply all_not_not_ex

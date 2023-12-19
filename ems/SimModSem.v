@@ -1,11 +1,11 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Skeleton.
 Require Import ModSem.
 Require Import Behavior.
 Require Import Relation_Definitions.
 
-(*** TODO: export these in Coqlib or Universe ***)
+(*** TODO: export these in CoqlibCCR or Universe ***)
 Require Import Relation_Operators.
 Require Import RelationPairs.
 From ITree Require Import

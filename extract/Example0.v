@@ -1,6 +1,5 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
-Require Import ImpPrelude.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.

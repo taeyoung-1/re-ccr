@@ -1,5 +1,5 @@
-Require Import Coqlib.
-Require Export sflib.
+Require Import CoqlibCCR.
+Require Export sflibCCR.
 Require Export ITreelib.
 Require Export ModSemE.
 Require Export AList.

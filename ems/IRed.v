@@ -1,5 +1,5 @@
 Require Import Red.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import ModSemE.
 Require Import Any.

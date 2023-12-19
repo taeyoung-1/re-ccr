@@ -1,6 +1,6 @@
-Require Import sflib.
+Require Import sflibCCR.
 Require Import String.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import Any.
 
 Set Implicit Arguments.

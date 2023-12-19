@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
@@ -32,7 +32,7 @@ Proof.
   rewrite HOM. f_equal. eapply IHxi; et.
 Qed.
 
-(*** TODO: move to Coqlib ***)
+(*** TODO: move to CoqlibCCR ***)
 Lemma find_app
       X (xs0 xs1: list X) (f: X -> bool) x
       (FIND: find f xs0 = Some x)

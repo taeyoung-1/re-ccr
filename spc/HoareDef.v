@@ -1,4 +1,4 @@
- Require Import Coqlib AList.
+ Require Import CoqlibCCR AList.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
@@ -169,7 +169,7 @@ End PROOF.
 
 
 
-(*** TODO: Move to Coqlib. TODO: Somehow use case_ ??? ***)
+(*** TODO: Move to CoqlibCCR. TODO: Somehow use case_ ??? ***)
 (* Definition map_fst A0 A1 B (f: A0 -> A1): (A0 * B) -> (A1 * B) := fun '(a, b) => (f a, b). *)
 (* Definition map_snd A B0 B1 (f: B0 -> B1): (A * B0) -> (A * B1) := fun '(a, b) => (a, f b). *)
 

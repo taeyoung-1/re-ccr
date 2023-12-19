@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ProofMode.
 From Coq Require Import Program.
 From compcert Require Import Values Integers Clightdefs.

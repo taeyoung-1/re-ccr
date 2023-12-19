@@ -1,4 +1,4 @@
-Require Import Coqlib AList.
+Require Import CoqlibCCR AList.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.

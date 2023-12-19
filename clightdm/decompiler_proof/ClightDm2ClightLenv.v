@@ -1,6 +1,6 @@
 From compcert Require Import Maps Clight Clightdefs.
 From ExtLib Require Import Data.List.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import PCM.
 Require Import AList.
 

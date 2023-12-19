@@ -6,8 +6,8 @@ From ExtLib Require Export
      Structures.Maps
      Data.Map.FMapAList.
 
-Require Import sflib.
-Require Import Coqlib.
+Require Import sflibCCR.
+Require Import CoqlibCCR.
 
 
 Set Implicit Arguments.
@@ -15,9 +15,9 @@ Set Implicit Arguments.
 
 Global Opaque string_dec.
 
-(************ temporary buffer before putting it in Coqlib ***********)
-(************ temporary buffer before putting it in Coqlib ***********)
-(************ temporary buffer before putting it in Coqlib ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
 
 Class Dec (A: Type) := dec: forall (a0 a1: A), { a0 = a1 } + { a0 <> a1 }.
 
@@ -29,9 +29,9 @@ Global Program Instance Z_Dec: Dec Z. Next Obligation. apply Z.eq_dec. Defined.
 Definition update K `{Dec K} V (f: K -> V) (k: K) (v: V): K -> V :=
   fun _k => if dec k _k then v else f _k.
 
-(************ temporary buffer before putting it in Coqlib ***********)
-(************ temporary buffer before putting it in Coqlib ***********)
-(************ temporary buffer before putting it in Coqlib ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
+(************ temporary buffer before putting it in CoqlibCCR ***********)
 
 
 Global Instance function_Map `{Dec K} V: (Map K V (K -> option V)) :=
@@ -635,4 +635,4 @@ Module AListSort (V: Typ).
   Qed.
 End AListSort.
 
-Notation "f ∘ g" := (fun x => (f (g x))). (*** It is already in Coqlib but Coq seems to have a bug; it gets overriden by the one in program_scope in the files that import this file ***)
+Notation "f ∘ g" := (fun x => (f (g x))). (*** It is already in CoqlibCCR but Coq seems to have a bug; it gets overriden by the one in program_scope in the files that import this file ***)

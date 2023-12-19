@@ -1,5 +1,5 @@
-Require Import sflib.
-Require Import Coqlib.
+Require Import sflibCCR.
+Require Import CoqlibCCR.
 Require Import STS.
 Require Import Behavior.
 

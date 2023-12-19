@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Export ZArith.
 Require Import String.
 Require Import PCM.

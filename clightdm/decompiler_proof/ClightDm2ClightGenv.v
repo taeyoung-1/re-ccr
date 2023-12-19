@@ -1,6 +1,6 @@
 From compcert Require Import Maps Globalenvs Smallstep AST Integers Events Behaviors Errors Memory.
 From ExtLib Require Import Data.List.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Skeleton.
 Require Import PCM.

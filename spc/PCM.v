@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import String.
 Require Import ITreelib.
 Require Import ClassicalChoice ChoiceFacts.
@@ -1130,7 +1130,6 @@ End Consent.
 
 Arguments Consent.t: clear implicits.
 
-
 (**********************************************************************************)
 (*** For backward compatibility, I put below definitions "outside" Auth module. ***)
 (*** TODO: put it inside ***)
@@ -1453,3 +1452,4 @@ Module FOO.
 End FOO.
 
 Global Opaque URA.unit.
+
