@@ -135,7 +135,7 @@ Definition f_add_hd := {|
             (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
               (Tstruct __Node noattr)) _item tlong) (Etempvar _item tlong))
         (Sifthenelse (Ebinop Oeq
-                       (Etempvar _tl (tptr (Tstruct __Node noattr)))
+                       (Etempvar _hd (tptr (Tstruct __Node noattr)))
                        (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
                        tint)
           (Ssequence
@@ -224,7 +224,7 @@ Definition f_add_tl := {|
             (Ederef (Etempvar _entry (tptr (Tstruct __Node noattr)))
               (Tstruct __Node noattr)) _item tlong) (Etempvar _item tlong))
         (Sifthenelse (Ebinop Oeq
-                       (Etempvar _hd (tptr (Tstruct __Node noattr)))
+                       (Etempvar _tl (tptr (Tstruct __Node noattr)))
                        (Ecast (Econst_int (Int.repr 0) tint) (tptr tvoid))
                        tint)
           (Ssequence

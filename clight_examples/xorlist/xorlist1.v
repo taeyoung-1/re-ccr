@@ -19,12 +19,9 @@ Section PROP.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
-  Definition vlist_add (x: val) (l : list val) (at_tail: val) : list val :=
-    if Val.eq at_tail Vzero then x :: l else snoc l x.
+  Definition vlist_delete_hd (l: list val) (default: val) : val * list val := (hd default l, tl l).
 
-  Definition vlist_delete (l: list val) (from_tail: val) (default: val) : val * list val :=
-    if Val.eq from_tail Vzero then (hd default l, tl l)
-    else (last l default, removelast l).
+  Definition vlist_delete_tl (l: list val) (default: val) : val * list val := (last l default, removelast l).
 
   Definition check_inbound (l: list val) (from_tail: val) (index: val) : option nat :=
     match index with
@@ -252,7 +249,7 @@ Section SPEC.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
-  Definition encrypt_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+  (* Definition encrypt_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(left_ptr, right_ptr, m_l, m_r, ofs_l, ofs_r, tg_l, tg_r, q_l, q_r) => (
             (ord_pure 1%nat),
             (fun varg => ⌜varg = [left_ptr; right_ptr]↑⌝
@@ -315,47 +312,49 @@ Section SPEC.
     mk_simple (
       decrypt_hoare1
       @ decrypt_hoare2
-    ).
+    ). *)
 
-  (* {hd_handler |-> hd  /\ tl_handler |-> tl /\ is_xorlist hd tl xs}
-     void add(node** hd_handler, node** tl_handler, long item, bool at_tail)
-     {r. if hd = null
-         then exists new_node, hd_handler |-> new_node /\ tl_handler |-> new_node /\ is_xorlist new_node new_node [item]
-         else if at_tail = false
-              then exists new_hd, hd_handler |-> new_hd /\ tl_handler |-> tl /\ is_xorlist new_hd tl (item :: xs)
-              else exists new_tl, hd_handler |-> hd /\ tl_handler |-> new_tl /\ is_xorlist hd new_tl (xs ++ [item])
-     } *)
-
-  Definition add_spec : fspec :=
+  Definition add_hd_spec : fspec :=
     (mk_simple
-      (fun '(hd_handler, tl_handler, item, at_tail, xs) => (
-        (ord_pure 2%nat),
-        (fun varg => ⌜varg = [hd_handler; tl_handler; Vlong item; Vint at_tail]↑⌝
+      (fun '(hd_handler, tl_handler, item, xs) => (
+        (ord_pure 1%nat),
+        (fun varg => ⌜varg = [hd_handler; tl_handler; Vlong item]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
         (fun vret => ⌜vret = Vundef↑⌝
-                     ** full_xorlist 1 hd_handler tl_handler (vlist_add (Vlong item) xs (Vint at_tail)))
+                     ** full_xorlist 1 hd_handler tl_handler (Vlong item :: xs))
     )))%I.
 
-  (* {hd_handler |-> hd  /\ tl_handler |-> tl /\ is_xorlist hd tl xs}
-     long delete(node** hd_handler, node** tl_handler, bool from_tail)
-     {r. if hd = null
-         then r = 0 /\ hd_handler |-> hd /\ tl_handler |-> tl /\ is_xorlist hd tl []
-         else if from_tail = false
-              then r = last xs /\ exists new_hd, hd_handler |-> new_hd /\ tl_handler |-> tl /\ is_xorlist new_hd tl (removelast xs)
-              else r = hd xs /\ exists new_tl, hd_handler |-> hd /\ tl_handler |-> new_tl /\ is_xorlist hd new_tl (tl xs)
-     } *)
-
-  Definition delete_spec : fspec :=
+  Definition add_tl_spec : fspec :=
     (mk_simple
-      (fun '(hd_handler, tl_handler, from_tail, xs) => (
-        (ord_pure 2%nat),
-        (fun varg => ⌜varg = [hd_handler; tl_handler; Vint from_tail]↑⌝
+      (fun '(hd_handler, tl_handler, item, xs) => (
+        (ord_pure 1%nat),
+        (fun varg => ⌜varg = [hd_handler; tl_handler; Vlong item]↑⌝
                      ** full_xorlist 1 hd_handler tl_handler xs),
-        (fun vret => let '(item, xs') := vlist_delete xs (Vint from_tail) (Vlong Int64.zero) in
+        (fun vret => ⌜vret = Vundef↑⌝
+                     ** full_xorlist 1 hd_handler tl_handler (xs ++ [Vlong item]))
+    )))%I.
+
+  Definition delete_hd_spec : fspec :=
+    (mk_simple
+      (fun '(hd_handler, tl_handler, xs) => (
+        (ord_pure 1%nat),
+        (fun varg => ⌜varg = [hd_handler; tl_handler]↑⌝
+                     ** full_xorlist 1 hd_handler tl_handler xs),
+        (fun vret => let '(item, xs') := vlist_delete_hd xs (Vlong Int64.zero) in
                      ⌜vret = item↑⌝ ** full_xorlist 1 hd_handler tl_handler xs')
     )))%I.
 
-  Definition search_spec : fspec :=
+  Definition delete_tl_spec : fspec :=
+    (mk_simple
+      (fun '(hd_handler, tl_handler, xs) => (
+        (ord_pure 1%nat),
+        (fun varg => ⌜varg = [hd_handler; tl_handler]↑⌝
+                     ** full_xorlist 1 hd_handler tl_handler xs),
+        (fun vret => let '(item, xs') := vlist_delete_tl xs (Vlong Int64.zero) in
+                     ⌜vret = item↑⌝ ** full_xorlist 1 hd_handler tl_handler xs')
+    )))%I.
+
+  (* Definition search_spec : fspec :=
     (mk_simple
       (fun '(hd_handler, tl_handler, from_tail, index, xs, idx, q) => (
         (ord_pure 2%nat),
@@ -372,16 +371,19 @@ Section SPEC.
                      ** ⌜((size_chunk Mptr) | Ptrofs.unsigned ofs_tl_hdl)%Z⌝
                      ** frag_xorlist q m_null m_mid Vnullptr p_hd mid_prev mid (firstn idx xs)
                      ** frag_xorlist q m_mid_prev m_null mid_prev mid p_tl Vnullptr (drop idx xs))
-    )))%I.
+    )))%I. *)
 
   (* sealed *)
   Definition xorStb : list (gname * fspec).
     eapply (Seal.sealing "stb").
-    apply [("encrypt", encrypt_spec);
-           ("decrypt", decrypt_spec);
-           ("add", add_spec);
-           ("delete", delete_spec);
-           ("search", search_spec)
+    apply [
+           (* ("encrypt", encrypt_spec);
+           ("decrypt", decrypt_spec); *)
+           ("add_hd", add_hd_spec);
+           ("add_tl", add_tl_spec);
+           ("delete_hd", delete_hd_spec);
+           ("delete_tl", delete_tl_spec)
+           (* ("search", search_spec) *)
            ].
   Defined.
 
@@ -397,11 +399,14 @@ Section SMOD.
   Context `{@GRA.inG blockaddressRA Σ}.
 
   Definition xorSbtb: list (gname * fspecbody) :=
-    [("encrypt",  mk_pure encrypt_spec);
-     ("decrypt",  mk_pure decrypt_spec);
-     ("add",  mk_pure add_spec);
-     ("delete",  mk_pure delete_spec);
-     ("search",  mk_pure search_spec)
+    [
+     (* ("encrypt",  mk_pure encrypt_spec);
+     ("decrypt",  mk_pure decrypt_spec); *)
+     ("add_hd", mk_pure add_hd_spec);
+     ("add_tl", mk_pure add_tl_spec);
+     ("delete_hd", mk_pure delete_hd_spec);
+     ("delete_tl", mk_pure delete_tl_spec)
+     (* ("search",  mk_pure search_spec) *)
      ].
   
   Definition SxorSem : SModSem.t := {|

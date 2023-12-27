@@ -1,44 +1,46 @@
 #include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
+
 #include "xorlist.h"
 
-extern void add(node**, node**, long, bool);
+void display(node* head) {
+  node* curr = head;
+  node* prev = NULL;
+  long item;
 
-extern int delete(node**, node**, bool);
+  printf("\nList elements are : ");
 
-extern long search(node**, node**, bool, size_t);
-
-void display(node *head, bool test)
-{
-    node *curr = head;
-    node *prev = NULL, *next;
-    int limit = test?6:10;
-    long item;
-
-    printf("\nList elements are : ");
-    for (int i = 0; i < limit; i++) {
-        item = search(&head, NULL, false, i);
-        printf("%ld ", item);
-    }
-    printf("\n");
+  while (curr != NULL) {
+    printf("%ld ", curr->item);
+    node* next = (node*)((curr->link) ^ (intptr_t)prev);
+    prev = curr;
+    curr = next;
+  }
+  printf("\n\n");
 }
 
-int main(int argc, char *argv[])
-{
-    node *head = NULL, *tail = NULL;
-    long item;
-    for (long i = 1; i <= 10; i++){
-        add(&head, &tail, i, i < 6);
-        printf("Successfully inserted %ld\n",i);
-    }
+int main(int argc, char* argv[]) {
+  node *head = NULL, *tail = NULL;
+  long item;
 
-    display(head, false);
-    printf("\n");
-    for (long i = 1; i <= 4; i++){
-        item=delete(&head, &tail, i < 3);
-        printf("Successfully deleted %ld\n",item);
+  for (long i = 0; i <= 9; i++) {
+    if (i < 6) {
+      add_hd(&head, &tail, i);
+    } else {
+      add_tl(&head, &tail, i);
     }
+    printf("Successfully inserted %ld\n", i);
+  }
 
-    display(head, true);
+  display(head);
+
+  for (long i = 0; i <= 3; i++) {
+    if (i < 2) {
+      item = delete_hd(&head, &tail);
+    } else {
+      item = delete_tl(&head, &tail);
+    }
+    printf("Successfully deleted %ld\n", item);
+  }
+
+  display(head);
 }

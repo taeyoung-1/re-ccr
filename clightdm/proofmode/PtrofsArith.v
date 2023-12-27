@@ -35,6 +35,15 @@ From compcert Require Import Values Integers Clightdefs.
       + eapply Z.le_lt_trans; try apply Z.log2_lxor; try nia. 
   Qed.
 
+  Lemma int64_ptrofs_xor_comm p1 p2 : Int64.xor (Ptrofs.to_int64 p1) (Ptrofs.to_int64 p2) = Ptrofs.to_int64 (Ptrofs.xor p1 p2).
+  Proof.
+    i. unfold Ptrofs.to_int64, Ptrofs.xor, Int64.xor.
+    do 2 try rewrite Int64.unsigned_repr.
+    2,3: change Int64.max_unsigned with Ptrofs.max_unsigned; apply Ptrofs.unsigned_range_2.
+    rewrite Ptrofs.unsigned_repr; et.
+    apply lxor_size; apply Ptrofs.unsigned_range_2.
+  Qed.
+
 Create HintDb ptrArith.
 
 Hint Unfold Vptrofs Int64.xor Ptrofs.to_int64 : ptrArith.
