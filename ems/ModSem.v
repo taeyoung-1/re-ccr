@@ -341,19 +341,27 @@ Section MOD.
   Definition compile (md: t): semantics :=
     ModSem.compile_itree (ModSem.initial_itr md.(enclose) (Some (wf md))).  
 
+  Section ADD.
    Definition add (md0 md1: t): t := {|
     get_modsem := fun sk =>
                     ModSem.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
     sk := Sk.add md0.(sk) md1.(sk);
   |}
   .
+
+  Fixpoint add_list (xs: list t): t :=
+    match xs with
+    | [] => empty
+    | x::l => add x (add_list l)
+    end.
+
+  End ADD.
     
 End MOD.
 End Mod.
 
 Section REFINE.
   Context `{Sk.ld}.
-  Context {CONF: EMSConfig}.
 
   (* Contexts are now simplified as a single module *)
 
@@ -363,13 +371,21 @@ Section REFINE.
     forall (ctx: Mod.t), Beh.of_program (Mod.compile (Mod.add ctx md_tgt)) <1=
                               Beh.of_program (Mod.compile (Mod.add ctx md_src))
   .
-
   Definition refines_strong (md_tgt md_src: Mod.t): Prop :=
     forall {CONF: EMSConfig}, refines md_tgt md_src.
     
+Section CONF.
+  Context {CONF: EMSConfig}.
+
   Definition refines_closed (md_tgt md_src: Mod.t): Prop :=
     Beh.of_program (Mod.compile md_tgt) <1= Beh.of_program (Mod.compile md_src)
   .
+
+  (* Definition refines2 (md_tgt md_src: list Mod.t): Prop :=
+    forall (ctx: Mod.t), Beh.of_program (Mod.compile (Mod.add ctx (Mod.add_list md_tgt))) <1=
+                              Beh.of_program (Mod.compile (Mod.add ctx (Mod.add_list md_src)))
+  . *)
+End CONF.
 
 End REFINE.
 
