@@ -971,7 +971,7 @@ End ModSemPair.
 
 
 
-Module ModPair.
+Module ModLPair.
 Section SIMMOD.
   Context `{Sk.ld}.
   Variable (mds_src mds_tgt: list Mod.t).
@@ -990,10 +990,10 @@ Section CONFIRM.
   Context `{Sk.ld}.
 
   Lemma sim_app mds_src1 mds_src2 mds_tgt1 mds_tgt2 sk
-        (SIM1: ModPair.sim mds_src1 mds_tgt1 sk) 
-        (SIM2: ModPair.sim mds_src2 mds_tgt2 sk)
+        (SIM1: sim mds_src1 mds_tgt1 sk) 
+        (SIM2: sim mds_src2 mds_tgt2 sk)
     :
-        <<SIM_TOTAL: ModPair.sim (mds_src1 ++ mds_src2) (mds_tgt1 ++ mds_tgt2) sk>>.
+        <<SIM_TOTAL: sim (mds_src1 ++ mds_src2) (mds_tgt1 ++ mds_tgt2) sk>>.
   Proof.
     inv SIM1. inv SIM2. econs; cycle 1.
     { do 2 rewrite map_app. apply Forall2_app; et. }
@@ -1003,6 +1003,24 @@ Section CONFIRM.
   Qed.
 
 End CONFIRM.
+
+End ModLPair.
+
+
+Module ModPair.
+Section SIMMOD.
+  Context `{Sk.ld}.
+   Variable (md_src md_tgt: Mod.t).
+   Inductive sim: Prop := mk {
+     sim_modsem:
+       forall sk
+              (SKINCL: Sk.le md_tgt.(Mod.sk) sk)
+              (SKWF: Sk.wf sk),
+         <<SIM: ModSemPair.sim (md_src.(Mod.get_modsem) sk) (md_tgt.(Mod.get_modsem) sk)>>;
+     sim_sk: <<SIM: md_src.(Mod.sk) = md_tgt.(Mod.sk)>>;
+   }.
+
+End SIMMOD.
 
 End ModPair.
 
@@ -1289,8 +1307,8 @@ Section ADEQUACY.
 
   Context `{Sk.ld}.
 
-  Theorem adequacy_local_strong mds_src mds_tgt
-          (SIM: forall sk, ModPair.sim mds_src mds_tgt sk)
+  Theorem adequacy_local_strong_l mds_src mds_tgt
+          (SIM: forall sk, ModLPair.sim mds_src mds_tgt sk)
     :
       <<CR: (refines_strong (Mod.add_list mds_tgt) (Mod.add_list mds_src))>>
   .
@@ -1417,6 +1435,21 @@ Section ADEQUACY.
       ss. rewrite ! map_app in *. ss. apply nodup_app_l in wf_initial_mrs.
       apply nodup_comm in wf_initial_mrs. ss. apply NoDup_cons_iff in wf_initial_mrs.
       des. apply wf_initial_mrs. eapply in_map with (f:=fst) in E1. ss.
+  Qed.
+
+  Theorem adequacy_local_strong md_src md_tgt
+          (SIM: ModPair.sim md_src md_tgt)
+    :
+      <<CR: (refines_strong md_tgt md_src)>>
+  .
+  Proof.
+    replace (Mod.lift md_tgt) with (Mod.add_list [md_tgt]).
+    2:{ unfold Mod.add_list. ss. rewrite ModL.add_empty_r. ss. }
+    replace (Mod.lift md_src) with (Mod.add_list [md_src]).
+    2:{ unfold Mod.add_list. ss. rewrite ModL.add_empty_r. ss. }
+    apply adequacy_local_strong_l. i. inv SIM. econs; ss; cycle 1.
+    { econs; et. }
+    i. econs; et. eapply sim_modsem; et. inv SKINCL. ss. rewrite <- sim_sk. et.
   Qed.
 
   Context {CONF: EMSConfig}.
