@@ -1345,16 +1345,17 @@ Section ADEQUACY.
     { eapply prop_ext. split; auto. }
     clear wf_src. rewrite SKEQ. unfold wf_tgt in SKWF.
     red in SIM. inv SKWF. rename H1 into MSWFTGT. red in MSWFTGT. ss. fold sk_tgt in MSWFTGT. 
-    set (Mod.add_list ctx) as ctx_mds in *.
     clearbody sk_tgt wf_tgt. clear -SIM PR MSWFTGT.
-    clearbody ctx_mds. clear ctx. revert mds_tgt SIM ctx_mds MSWFTGT x0 PR.
+    revert mds_tgt SIM ctx MSWFTGT x0 PR.
     induction mds_src; i.
     { destruct mds_tgt; inv SIM. ss. }
     destruct mds_tgt; inv SIM. rewrite Mod.add_list_cons in *. ss.
     rewrite ModSemL.add_assoc_eq in *. 
-    change (ModSemL.add (ModL.get_modsem ctx_mds (Sk.canon sk_tgt)) (Mod.get_modsem a (Sk.canon sk_tgt)))
-      with (ModL.get_modsem (ModL.add ctx_mds a) (Sk.canon sk_tgt)).
-    assert (MSWFSRC: ModSemL.wf (ModSemL.add (ModSemL.add (ModL.get_modsem ctx_mds (Sk.canon sk_tgt)) (Mod.get_modsem a (Sk.canon sk_tgt))) (ModL.get_modsem (Mod.add_list mds_tgt) (Sk.canon sk_tgt)))).
+    change (ModSemL.add (ModL.get_modsem (Mod.add_list ctx) (Sk.canon sk_tgt)) (Mod.get_modsem a (Sk.canon sk_tgt)))
+      with (ModL.get_modsem (ModL.add (Mod.add_list ctx) a) (Sk.canon sk_tgt)).
+    change (ModSemL.add (ModL.get_modsem (Mod.add_list ctx) (Sk.canon sk_tgt)) (Mod.get_modsem t (Sk.canon sk_tgt)))
+      with (ModL.get_modsem (ModL.add (Mod.add_list ctx) t) (Sk.canon sk_tgt)) in MSWFTGT.
+    assert (MSWFSRC: ModSemL.wf (ModSemL.add (ModL.get_modsem (ModL.add (Mod.add_list ctx) a) (Sk.canon sk_tgt)) (ModL.get_modsem (Mod.add_list mds_tgt) (Sk.canon sk_tgt)))).
     { clear -MSWFTGT H3. inv MSWFTGT. econs; ss; rewrite ! map_app in *; cycle 1.
       { inv H3. rewrite sim_mn. ss. }
       set (List.map fst (List.map _ _)) as anamedom.
@@ -1363,19 +1364,47 @@ Section ADEQUACY.
       unfold tnamedom, anamedom. inv H3. clear -sim_fnsems.
       induction sim_fnsems; auto.
       ss. f_equal; ss. inv H0. destruct x, y. ss. }
+    rewrite <- ! Mod.add_list_snoc in *.
     eapply IHmds_src; [>et..|]. inv H3. des. 
+    rewrite ! Mod.add_list_snoc in *.
     eapply adequacy_local_aux with (wf:=wf) (mn:= ModSem.mn (Mod.get_modsem a (Sk.canon sk_tgt))); et.
     - i. ss. rewrite ! alist_find_app_o.
-      destruct (alist_find fn (ModSemL.fnsems (ModL.get_modsem ctx_mds (Sk.canon sk_tgt)))) eqn: E.
-      { right. left. exists f mn', In mn' (List.map fst (ModSemL. )) /\ transl_all mn' (T:=Any.t) <*> f admit. }
+      destruct (alist_find fn (ModSemL.fnsems (ModL.get_modsem (Mod.add_list ctx) (Sk.canon sk_tgt)))) eqn: E.
+      { right. left. set ctx as ctx0 in E.
+        assert (INV: List.incl ctx0 ctx) by refl.
+        clearbody ctx0. revert ctx0 E INV. induction ctx0; i; ss.
+        rewrite alist_find_app_o in E. des_ifs; cycle 1.
+        { eapply IHctx0; et. etrans; et. unfold incl. ss. et. }
+        clear -INV Heq MSWFSRC. unfold map_snd in Heq.
+        rewrite alist_find_map in Heq. uo. des_ifs. 
+        exists (ModSem.mn (Mod.get_modsem a0 (Sk.canon sk_tgt))), i0.
+        esplits; ss.
+        inv MSWFSRC. ss. rewrite ! map_app in *. ss. apply nodup_app_l in wf_initial_mrs.
+        apply nodup_comm in wf_initial_mrs. ss. apply NoDup_cons_iff in wf_initial_mrs.
+        des. red. i. apply wf_initial_mrs. rewrite H0. clear -INV. unfold incl in *.
+        hexploit INV. { ss. auto. } i.  clear -H0. ginduction ctx; i; ss; des; subst; et. }
       destruct (alist_find fn (List.map _ _)) eqn: E1.
-      { right. left. admit. }
-      destruct (alist_find fn (ModSemL.fnsems (ModL.get_modsem _ _))) eqn: E2; et.
-      right. left. admit. 
+      { right. right. des_ifs; cycle 1.
+        { exfalso. clear -sim_fnsems E1 Heq. induction sim_fnsems; ss.
+          inv H0. destruct x, y. red in H1, H2. ss. subst. des_ifs. et. }
+        induction sim_fnsems; ss.
+        inv H0. destruct x, y. red in H1, H2. ss. subst. des_ifs; et.
+        eexists _, _. esplits; et. rewrite sim_mn. ss. }
+      destruct (alist_find fn (ModSemL.fnsems (ModL.get_modsem (Mod.add_list mds_tgt) _))) eqn: E2; et.
+      right. left. des_ifs.
+      { exfalso. clear -sim_fnsems E1 Heq. induction sim_fnsems; ss.
+        inv H0. destruct x, y. red in H1, H2. ss. subst. des_ifs. et. }
+      inv MSWFSRC. ss. rewrite ! map_app in wf_initial_mrs. rewrite <- List.app_assoc in wf_initial_mrs.
+      apply nodup_app_r in wf_initial_mrs. ss. apply NoDup_cons_iff in wf_initial_mrs.
+      des. clear -wf_initial_mrs E2.
+      induction mds_tgt; ss.
+      rewrite alist_find_app_o in E2. des_ifs; et. unfold map_snd in Heq.
+      rewrite alist_find_map in Heq. uo. des_ifs.
+      eexists _,_. esplits; et.
     - exists w_init. econs;[refl|..]; cycle 1.
       { i. unfold ModSemL.initial_p_state. ss. 
         rewrite ! alist_find_app_o. ss. rewrite ! eq_rel_dec_correct. des_ifs. }
-      rewrite <- sim_mn at 1. unfold ModSemL.initial_p_state. ss.
+      rewrite sim_mn at 2. unfold ModSemL.initial_p_state. ss.
       rewrite ! alist_find_app_o. ss. rewrite ! eq_rel_dec_correct.
       do 2 (destruct (string_Dec _ _); clarify).
       destruct (alist_find _ _) eqn: E at 1.
@@ -1388,7 +1417,7 @@ Section ADEQUACY.
       ss. rewrite ! map_app in *. ss. apply nodup_app_l in wf_initial_mrs.
       apply nodup_comm in wf_initial_mrs. ss. apply NoDup_cons_iff in wf_initial_mrs.
       des. apply wf_initial_mrs. eapply in_map with (f:=fst) in E1. ss.
-  Admitted.
+  Qed.
 
   Context {CONF: EMSConfig}.
 
