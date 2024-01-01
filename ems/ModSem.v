@@ -10,7 +10,7 @@ Require Import Permutation.
 
 Set Implicit Arguments.
 
-Global Obligation Tactic := program_simpl.
+
 
 Class EMSConfig := { finalize: Any.t -> option Any.t; initial_arg: Any.t }.
 
@@ -95,9 +95,9 @@ Section MODSEML.
       | Some rv => final rv
       | _ => angelic
       end
-    | VisF _ (Choose X) k => demonic
-    | VisF _ (Take X) k => angelic
-    | VisF _ (Syscall fn args rvs) k => vis
+    | VisF (Choose X) k => demonic
+    | VisF (Take X) k => angelic
+    | VisF (Syscall fn args rvs) k => vis
     end
   .
 
@@ -276,6 +276,17 @@ Section MODSEML.
     eapply initial_itr_not_wf; et.
   Qed.
 
+  Lemma compile_le (P Q: Prop)
+        (LE: P -> Q)
+    :
+      Beh.of_program (compile (Some Q)) <1= Beh.of_program (compile (Some P)).
+  Proof.
+    destruct (classic P); cycle 1.
+    { ii. eapply initial_itr_not_wf; et. }
+    replace P with Q; et.
+    eapply prop_ext. split; auto.
+  Qed.
+
   (* Program Definition interp_no_forge: semantics := {| *)
   (*   STS.state := state; *)
   (*   STS.step := step; *)
@@ -385,30 +396,22 @@ Section MODSEML.
   Qed.
 
   Theorem add_assoc
-          ms0 ms1 ms2 (P0 P1: Prop) (IMPL: P1 -> P0)
+          ms0 ms1 ms2 P
     :
-      <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) (Some P0)) <1=
-              Beh.of_program (compile (add (add ms0 ms1) ms2) (Some P1))>>
+      <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) P) <1=
+              Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
   .
   Proof.
-    destruct (classic (P1)); cycle 1.
-    { ii. eapply initial_itr_not_wf; et. }
-    replace P0 with P1.
-    2: { eapply prop_ext. split; auto. }
     rewrite add_assoc_eq. ss.
   Qed.
 
   Theorem add_assoc_rev
-          ms0 ms1 ms2 (P0 P1: Prop) (IMPL: P1 -> P0)
+          ms0 ms1 ms2 P
     :
-      <<COMM: Beh.of_program (compile (add (add ms0 ms1) ms2) (Some P0)) <1=
-              Beh.of_program (compile (add ms0 (add ms1 ms2)) (Some P1))>>
+      <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) P) <1=
+              Beh.of_program (compile (add (add ms0 ms1) ms2) P)>>
   .
   Proof.
-    destruct (classic (P1)); cycle 1.
-    { ii. eapply initial_itr_not_wf; et. }
-    replace P0 with P1.
-    2: { eapply prop_ext. split; auto. }
     rewrite add_assoc_eq. ss.
   Qed.
 End MODSEML.
@@ -619,13 +622,13 @@ Section MODL.
   Context `{Sk.ld}.
 
   Record t: Type := mk {
-    get_modsem: Sk.sem -> ModSemL.t;
+    get_modsem: Sk.t -> ModSemL.t;
     sk: Sk.t;
     enclose: ModSemL.t := (get_modsem (Sk.canon sk));
   }
   .
 
-  Definition wf (md: t): Prop := (<<WF: ModSemL.wf md.(enclose)>> /\ <<SK: Sk.wf (Sk.canon md.(sk))>>).
+  Definition wf (md: t): Prop := (<<WF: ModSemL.wf md.(enclose)>> /\ <<SK: Sk.wf (md.(sk))>>).
 
   Section BEH.
 
@@ -654,10 +657,10 @@ Section MODL.
   .
   Proof.
     ii. unfold compile in *.
-    destruct (classic (ModSemL.wf (enclose (add md1 md0)) /\ Sk.wf (Sk.canon (sk (add md1 md0))))).
+    destruct (classic (ModSemL.wf (enclose (add md1 md0)) /\ Sk.wf (sk (add md1 md0)))).
     2: { eapply ModSemL.initial_itr_not_wf. ss. }
-    ss. des. assert (SK: Sk.wf (Sk.canon (Sk.add (sk md0) (sk md1)))).
-    { rewrite Sk.add_comm. auto. }
+    ss. des. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
+    { apply Sk.wf_comm. auto. }
     rewrite Sk.add_comm; et.
     eapply ModSemL.add_comm; [| |et].
     { i. split; auto. unfold enclose. ss. rewrite Sk.add_comm; et.
@@ -668,110 +671,12 @@ Section MODL.
     { rewrite Sk.add_comm; et. }
   Qed.
 
-  (* Lemma add_assoc' ms0 ms1 ms2:
+  Lemma add_assoc' ms0 ms1 ms2:
     add ms0 (add ms1 ms2) = add (add ms0 ms1) ms2.
   Proof.
     unfold add. f_equal.
     { extensionality skenv_link. ss. apply ModSemL.add_assoc'. }
-    { ss. symmetry. rewrite Sk.add_assoc. auto. }
-  Qed. *)
-
-  Theorem add_assoc_ctxl
-          md0 md1 md2 ctx
-    :
-      <<COMM: Beh.of_program (compile (add ctx (add md0 (add md1 md2)))) =
-              Beh.of_program (compile (add ctx (add (add md0 md1) md2)))>>
-  .
-  Proof.
-    ii. unfold compile in *.
-    unfold wf. ss.
-    assert (Sk.canon (Sk.add (sk ctx) (Sk.add (sk md0) (Sk.add (sk md1) (sk md2)))) 
-            = Sk.canon (Sk.add (sk ctx) (Sk.add (Sk.add (sk md0) (sk md1)) (sk md2)))).
-    { apply Sk.add_canon; et. apply Sk.add_assoc. }
-    rewrite H0.
-    rewrite (ModSemL.add_assoc' (get_modsem md0 _)). refl.
-  Qed.
-
-  Theorem add_assoc_ctxr
-          md0 md1 md2 ctx
-    :
-      <<COMM: Beh.of_program (compile (add (add md0 (add md1 md2)) ctx)) =
-              Beh.of_program (compile (add (add (add md0 md1) md2) ctx))>>
-  .
-  Proof.
-    ii. unfold compile in *.
-    unfold wf. ss.
-    assert (Sk.canon (Sk.add (Sk.add (sk md0) (Sk.add (sk md1) (sk md2))) (sk ctx)) 
-            = Sk.canon (Sk.add (Sk.add (Sk.add (sk md0) (sk md1)) (sk md2)) (sk ctx))).
-    { apply Sk.add_canon; et. apply Sk.add_assoc. }
-    rewrite H0.
-    rewrite (ModSemL.add_assoc' (get_modsem md0 _)). refl.
-  Qed.
-
-  (* Theorem add_assoc_rev
-          md0 md1 md2
-    :
-      <<COMM: Beh.of_program (compile (add (add md0 md1) md2)) <1=
-              Beh.of_program (compile (add md0 (add md1 md2)))>>
-  .
-  Proof.
-    ii. unfold compile in *.
-    destruct (classic (ModSemL.wf (enclose (add md0 (add md1 md2))) /\ Sk.wf (sk (add md0 (add md1 md2))))).
-    2: { eapply ModSemL.initial_itr_not_wf. ss. }
-    ss. des. assert (SK: Sk.wf (Sk.add (Sk.add (sk md0) (sk md1)) (sk md2))).
-    { apply Sk.wf_assoc. auto. }
-    rewrite Sk.add_assoc.
-    eapply ModSemL.add_assoc_rev.
-    2:{ et. }
-    i. split; auto. unfold enclose. ss. rewrite <- Sk.add_assoc; et.
-    inv H2. unfold enclose in H3. ss. rewrite <- ModSemL.add_assoc'.
-    et.
-  Qed. *)
-
-  Definition empty: t := {|
-    get_modsem := fun _ => ModSemL.mk [] [];
-    sk := Sk.unit;
-  |}
-  .
-
-  Lemma add_empty_r_ctxl md ctx: Beh.of_program (compile (add ctx (add md empty))) = Beh.of_program (compile (add ctx md)).
-  Proof.
-    ii. unfold compile in *.
-    ss. unfold add, ModSemL.add, wf. f_equal; ss.
-    repeat rewrite List.app_nil_r.
-    assert (Sk.canon (Sk.add (sk ctx) (Sk.add (sk md) Sk.unit))
-            = Sk.canon (Sk.add (sk ctx) (sk md))).
-    { apply Sk.add_canon; et. apply Sk.add_unit_r. }
-    rewrite H0. f_equal. 
-  Qed.
-
-  Lemma add_empty_l_ctxl md ctx: Beh.of_program (compile (add ctx (add empty md))) = Beh.of_program (compile (add ctx md)).
-  Proof.
-    ii. unfold compile in *.
-    ss. unfold add, ModSemL.add, wf. f_equal; ss.
-    repeat rewrite List.app_nil_r.
-    assert (Sk.canon (Sk.add (sk ctx) (Sk.add Sk.unit (sk md)))
-            = Sk.canon (Sk.add (sk ctx) (sk md))).
-    { apply Sk.add_canon; et. apply Sk.add_unit_l. }
-    rewrite H0. f_equal. 
-  Qed.
-
-  Lemma add_empty_r md: Beh.of_program (compile (add md empty)) = Beh.of_program (compile md).
-  Proof.
-    ii. unfold compile in *.
-    ss. unfold add, ModSemL.add, wf. f_equal; ss.
-    repeat rewrite List.app_nil_r. rewrite Sk.add_unit_r.
-    f_equal. f_equal.
-    all: unfold enclose; destruct get_modsem; ss.
-  Qed.
-
-  Lemma add_empty_l md: Beh.of_program (compile (add empty md)) = Beh.of_program (compile md).
-  Proof.
-    ii. unfold compile in *.
-    ss. unfold add, ModSemL.add, wf. f_equal; ss.
-    rewrite Sk.add_unit_l.
-    f_equal. f_equal.
-    all: unfold enclose; destruct get_modsem; ss.
+    { ss. rewrite Sk.add_assoc. auto. }
   Qed.
 
   Theorem add_assoc
@@ -781,8 +686,40 @@ Section MODL.
               Beh.of_program (compile (add (add md0 md1) md2))>>
   .
   Proof.
-    rewrite <- add_empty_l. rewrite add_assoc_ctxl.
-    rewrite add_empty_l. et.
+    rewrite add_assoc'. ss.
+  Qed.
+
+  Theorem add_assoc_rev
+          md0 md1 md2
+    :
+      <<COMM: Beh.of_program (compile (add (add md0 md1) md2)) =
+              Beh.of_program (compile (add md0 (add md1 md2)))>>
+  .
+  Proof.
+    rewrite add_assoc'. ss.
+  Qed.
+
+  Definition empty: t := {|
+    get_modsem := fun _ => ModSemL.mk [] [];
+    sk := Sk.unit;
+  |}
+  .
+
+  Lemma add_empty_r md: add md empty = md.
+  Proof.
+    destruct md; ss.
+    unfold add, ModSemL.add. f_equal; ss.
+    - extensionality skenv. destruct (get_modsem0 skenv); ss.
+      repeat rewrite app_nil_r. auto.
+    - eapply Sk.add_unit_r.
+  Qed.
+
+  Lemma add_empty_l md: add empty md = md.
+  Proof.
+    destruct md; ss.
+    unfold add, ModSemL.add. f_equal; ss.
+    { extensionality skenv. destruct (get_modsem0 skenv); ss. }
+    { apply Sk.add_unit_l. }
   Qed.
 
   End BEH.
@@ -795,10 +732,9 @@ End ModL.
 Module Mod.
 Section MOD.
   Context `{Sk.ld}.
-  Context {CONF: EMSConfig}.
 
   Record t: Type := mk {
-    get_modsem: Sk.sem -> ModSem.t;
+    get_modsem: Sk.t -> ModSem.t;
     sk: Sk.t;
   }
   .
@@ -817,7 +753,7 @@ Section MOD.
      fold_right ModL.add ModL.empty (List.map lift xs)
    .
 
-   Lemma add_list_single: forall (x: t), Beh.of_program (ModL.compile (add_list [x])) = Beh.of_program (ModL.compile x).
+   Lemma add_list_single: forall (x: t), add_list [x] = x.
    Proof. ii; cbn. rewrite ModL.add_empty_r. refl. Qed.
 
    Lemma add_list_cons
@@ -827,55 +763,27 @@ Section MOD.
    .
    Proof. ss. Qed.
 
-   Lemma add_list_snoc_ctxl
-         x xs ctx
-     :
-       Beh.of_program (ModL.compile (ModL.add ctx (add_list (snoc xs x))))
-       = Beh.of_program (ModL.compile (ModL.add ctx (ModL.add (add_list xs) x))).
-   Proof.
-     ginduction xs; ii; ss.
-     { cbn in *. rewrite ModL.add_empty_l_ctxl.
-       rewrite ModL.add_empty_r_ctxl. et. }
-     { cbn in *. rewrite ModL.add_assoc.
-       rewrite <- ModL.add_assoc_ctxl. rewrite ModL.add_assoc.
-       apply IHxs. }
-   Qed.
-
-   (* Lemma add_list_snoc_ctxr
-         x xs ctx
-     :
-       Beh.of_program (ModL.compile (ModL.add (add_list (snoc xs x)) ctx))
-       = Beh.of_program (ModL.compile (ModL.add (ModL.add (add_list xs) x) ctx)).
-   Proof.
-     ginduction xs; ii; ss.
-     { cbn in *. do 2 rewrite <- ModL.add_assoc.
-       rewrite ModL.add_empty_l_ctxl.
-       rewrite ModL.add_empty_l. et. }
-     { cbn in *. rewrite ModL.add_assoc.
-       rewrite <- ModL.add_assoc_ctxl. rewrite ModL.add_assoc.
-       apply IHxs. }
-   Qed. *)
-
    Lemma add_list_snoc
          x xs
      :
-       Beh.of_program (ModL.compile (add_list (snoc xs x)))
-       = Beh.of_program (ModL.compile (ModL.add (add_list xs) x)).
+       (add_list (snoc xs x)) = (ModL.add (add_list xs) x)
+   .
    Proof.
-     rewrite <- ModL.add_empty_l. rewrite add_list_snoc_ctxl.
-     rewrite ModL.add_empty_l. et.
+     ginduction xs; ii; ss.
+     { cbn. rewrite ModL.add_empty_l. rewrite ModL.add_empty_r. refl. }
+     { cbn. rewrite <- ModL.add_assoc'. f_equal. rewrite <- IHxs. refl. }
    Qed.
 
    Lemma add_list_app
-         xs ys ctx
+         xs ys
      :
-       Beh.of_program (ModL.compile (ModL.add ctx (add_list (xs ++ ys)))) = Beh.of_program (ModL.compile (ModL.add ctx (ModL.add (add_list xs) (add_list ys)))).
+       add_list (xs ++ ys) = ModL.add (add_list xs) (add_list ys)
+   .
    Proof.
      (* unfold add_list. rewrite map_app. rewrite fold_right_app. *)
      ginduction xs; ii; ss.
-     - cbn. rewrite ModL.add_empty_l_ctxl. refl.
-     - rewrite ! add_list_cons. rewrite <- ModL.add_assoc_ctxl. 
-       do 2 rewrite ModL.add_assoc. apply IHxs. 
+     - cbn. rewrite ModL.add_empty_l. refl.
+     - rewrite ! add_list_cons. rewrite <- ModL.add_assoc'. f_equal. eapply IHxs; ss.
    Qed.
 
    Lemma add_list_sk (mdl: list t)
@@ -887,7 +795,7 @@ Section MOD.
      induction mdl; ss. rewrite <- IHmdl. auto.
    Qed.
 
-   Lemma add_list_initial_mrs (mdl: list t) (ske: Sk.sem)
+   Lemma add_list_initial_mrs (mdl: list t) (ske: Sk.t)
      :
        ModSemL.initial_mrs (ModL.get_modsem (add_list mdl) ske)
        =
@@ -896,7 +804,7 @@ Section MOD.
      induction mdl; ss. rewrite <- IHmdl. auto.
    Qed.
 
-   Lemma add_list_fns (mdl: list t) (ske: Sk.sem)
+   Lemma add_list_fns (mdl: list t) (ske: Sk.t)
      :
        List.map fst (ModSemL.fnsems (ModL.get_modsem (add_list mdl) ske))
        =
@@ -909,7 +817,7 @@ Section MOD.
      ss. rewrite map_app. auto.
    Qed.
 
-   Lemma add_list_fnsems (mdl: list t) (ske: Sk.sem)
+   Lemma add_list_fnsems (mdl: list t) (ske: Sk.t)
      :
        (ModSemL.fnsems (ModL.get_modsem (add_list mdl) ske))
        =
@@ -1072,23 +980,16 @@ ctx (a0 b0)
 (ctx a0) b1
       ***)
      rewrite ModL.add_assoc in PR.
-     specialize (SIM1 (snoc ctx md0_tgt)). spc SIM1.
-     eassert (SIM1': _ -> _).
-     { intro. hexploit SIM1.
-       { apply ModL.add_comm. rewrite Mod.add_list_snoc_ctxl.
-         apply ModL.add_comm. apply X. }
-       { i. apply ModL.add_comm in H0. rewrite Mod.add_list_snoc_ctxl in H0.
-         apply ModL.add_comm in H0. apply H0. } }
-     eapply SIM1' in PR.
+     specialize (SIM1 (snoc ctx md0_tgt)). spc SIM1. rewrite Mod.add_list_snoc in SIM1. eapply SIM1 in PR.
      (***
 ctx (a0 b1)
 (a0 b1) ctx
 a0 (b1 ctx)
 (b1 ctx) a0
       ***)
-     rewrite <- ModL.add_assoc in PR.
+     rewrite <- ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
-     rewrite <- ModL.add_assoc in PR.
+     rewrite <- ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      (***
 (b1 ctx) a1
@@ -1098,7 +999,7 @@ ctx (a1 b1)
       ***)
      specialize (SIM0 (cons md1_src ctx)). spc SIM0. rewrite Mod.add_list_cons in SIM0. eapply SIM0 in PR.
      eapply ModL.add_comm in PR.
-     rewrite ModL.add_assoc in PR.
+     rewrite ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      ss.
    Qed.
@@ -1118,7 +1019,7 @@ tgt + (xs + ys)
 (xs + ys) + tgt
       ***)
      eapply ModL.add_comm in PR.
-     rewrite <- ModL.add_assoc in PR.
+     rewrite <- ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      (***
 (xs + ys) + src
@@ -1126,16 +1027,9 @@ src + (xs + ys)
 (src + xs) + ys
 ys + (src + xs)
       ***)
-     specialize (SIM0 (xs ++ ys)). spc SIM0. 
-     eassert (SIM0': _ -> _).
-     { intro. hexploit SIM0.
-       { apply ModL.add_comm. rewrite Mod.add_list_app.
-         apply ModL.add_comm. apply X. }
-       { i. apply ModL.add_comm in H0. rewrite Mod.add_list_app in H0.
-         apply ModL.add_comm in H0. apply H0. } }
-     eapply SIM0' in PR.
+     specialize (SIM0 (xs ++ ys)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
      eapply ModL.add_comm in PR.
-     rewrite ModL.add_assoc in PR.
+     rewrite ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      ss.
    Qed.
@@ -1154,16 +1048,9 @@ ys + (xs + tgt)
 (ys + xs) + src
 ys + (xs + src)
       ***)
-     rewrite ModL.add_assoc in PR.
-     specialize (SIM0 (ys ++ xs)). spc SIM0.
-     eassert (SIM0': _ -> _).
-     { intro. hexploit SIM0.
-       { apply ModL.add_comm. rewrite Mod.add_list_app.
-         apply ModL.add_comm. apply X. }
-       { i. apply ModL.add_comm in H0. rewrite Mod.add_list_app in H0.
-         apply ModL.add_comm in H0. apply H0. } }
-     eapply SIM0' in PR.
-     rewrite <- ModL.add_assoc in PR.
+     rewrite ModL.add_assoc' in PR.
+     specialize (SIM0 (ys ++ xs)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
+     rewrite <- ModL.add_assoc' in PR.
      ss.
    Qed.
 
@@ -1195,24 +1082,16 @@ ctx (a0 b0)
       ***)
      rewrite Mod.add_list_app in PR.
      rewrite ModL.add_assoc in PR.
-     specialize (SIM1 (ctx ++ t0)). spc SIM1.
-     eassert (SIM1': _ -> _).
-     { intro. hexploit SIM1.
-       { apply ModL.add_comm. rewrite Mod.add_list_app.
-         apply ModL.add_comm. apply X. }
-       { i. apply ModL.add_comm in H0. rewrite Mod.add_list_app in H0.
-         apply ModL.add_comm in H0. apply H0. } }
-
-      eapply SIM1' in PR.
+     specialize (SIM1 (ctx ++ t0)). spc SIM1. rewrite Mod.add_list_app in SIM1. eapply SIM1 in PR.
      (***
 ctx (a0 b1)
 (a0 b1) ctx
 a0 (b1 ctx)
 (b1 ctx) a0
       ***)
-     rewrite <- ModL.add_assoc in PR.
+     rewrite <- ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
-     rewrite <- ModL.add_assoc in PR.
+     rewrite <- ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      (***
 (b1 ctx) a1
@@ -1220,16 +1099,9 @@ a1 (b1 ctx)
 (a1 b1) ctx
 ctx (a1 b1)
       ***)
-     specialize (SIM0 (s1 ++ ctx)). spc SIM0. 
-     eassert (SIM0': _ -> _).
-     { intro. hexploit SIM0.
-       { apply ModL.add_comm. rewrite Mod.add_list_app.
-         apply ModL.add_comm. apply X. }
-       { i. apply ModL.add_comm in H0. rewrite Mod.add_list_app in H0.
-         apply ModL.add_comm in H0. apply H0. } }
-     eapply SIM0' in PR.
+     specialize (SIM0 (s1 ++ ctx)). spc SIM0. rewrite Mod.add_list_app in SIM0. eapply SIM0 in PR.
      eapply ModL.add_comm in PR.
-     rewrite ModL.add_assoc in PR.
+     rewrite ModL.add_assoc' in PR.
      eapply ModL.add_comm in PR.
      rewrite ! Mod.add_list_app in *.
      assumption.
@@ -1264,11 +1136,7 @@ ctx (a1 b1)
      :
        refines2 (mhd0++mtl0) (mhd1++mtl1).
    Proof.
-     eapply refines2_eq. unfold refines. intros ctx x0.
-      rewrite ! Mod.add_list_app.
-     assert (refines (ModL.add (Mod.add_list mhd0) (Mod.add_list mtl0))
-              (ModL.add (Mod.add_list mhd1) (Mod.add_list mtl1))); try apply H0.
-     etrans.
+     eapply refines2_eq. rewrite ! Mod.add_list_app. etrans.
      { eapply refines_proper_l. eapply refines2_eq. et. }
      { eapply refines_proper_r. eapply refines2_eq. et. }
    Qed.
@@ -1323,12 +1191,6 @@ ctx (a1 b1)
 End REFINE.
 
 
-Global Existing Instance Sk.globalenv.
-Arguments Sk.unit: simpl never.
-Arguments Sk.add: simpl never.
-Arguments Sk.wf: simpl never.
-Coercion Sk.load_skenv: Sk.sem >-> SkEnv.t.
-Global Opaque Sk.load_skenv.
 
 
 (*** TODO: Move to ModSem.v ***)

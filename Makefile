@@ -24,12 +24,15 @@ Makefile.coq: Makefile $(COQTHEORIES)
 	echo "-R ../CompCert-intptr/common compcert.common"; \
 	echo "-R ../CompCert-intptr/x86 compcert.x86"; \
 	echo "-R ../CompCert-intptr/x86_64 compcert.x86_64"; \
+	echo "-R ../CompCert-intptr/libSSA compcert.libSSA"; \
 	echo "-R ../CompCert-intptr/backend compcert.backend"; \
+	echo "-R ../CompCert-intptr/midend compcert.midend"; \
 	echo "-R ../CompCert-intptr/cfrontend compcert.cfrontend"; \
 	echo "-R ../CompCert-intptr/driver compcert.driver"; \
 	echo "-R ../CompCert-intptr/exportclight compcert.exportclight"; \
 	echo "-R ../CompCert-intptr/flocq Flocq"; \
 	echo "-R ../CompCert-intptr/cparser compcert.cparser"; \
+	echo "-R ../CompCert-intptr/MenhirLib MenhirLib"; \
                           \
 		 echo "-R lib $(COQMODULE)"; \
          echo "-R ems $(COQMODULE)"; \

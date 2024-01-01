@@ -14,9 +14,6 @@ Set Implicit Arguments.
 
 Local Open Scope nat_scope.
 
-Inductive gdef: Type := Gfun | Gvar (gv: Z).
-
-
 Notation mblock := nat (only parsing).
 Notation ptrofs := Z (only parsing).
 
@@ -48,26 +45,7 @@ Global Program Instance EMSConfigImp: EMSConfig := {|
 |}
 .
 
-Program Instance dd : RA.t.
-Next Obligation.
-Proof.
-Admitted.
-Next Obligation.
-Proof.
-Admitted.
-Next Obligation.
-Proof.
-Admitted.
-Next Obligation.
-Proof.
-Admitted.
-Next Obligation.
-Proof.
-Admitted.
 
-Definition asdf := @Sk.globalenv dd.
-
-Global Existing Instance asdf.
 Definition wordsize_64 := 64.
 Definition modulus_64 := two_power_nat wordsize_64.
 Definition modulus_64_half := (modulus_64 / 2)%Z.
