@@ -418,10 +418,10 @@ Section EVENTSCOMMON.
     vret <- vret↓?;; Ret vret
     .
 
-  Definition cfunN {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
-  Definition cfunU {X Y} (body: X -> itree E Y): (option mname * Any.t) -> itree E Any.t :=
-    fun '(_, varg) => varg <- varg↓?;; vret <- body varg;; Ret vret↑. 
+  Definition cfunN {X Y} (body: X -> itree E Y): Any.t -> itree E Any.t :=
+    fun varg => varg <- varg↓ǃ;; vret <- body varg;; Ret vret↑.
+  Definition cfunU {X Y} (body: X -> itree E Y): Any.t -> itree E Any.t :=
+    fun varg => varg <- varg↓?;; vret <- body varg;; Ret vret↑. 
 
 End EVENTSCOMMON.
 

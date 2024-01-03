@@ -9,8 +9,6 @@ Set Implicit Arguments.
 
 
 Notation gname := string (only parsing). (*** convention: not capitalized ***)
-Notation mname := string (only parsing). (*** convention: capitalized ***)
-Notation Any := Any.t (only parsing).
 
 Section EVENTSCOMMON.
 
@@ -93,8 +91,7 @@ Goal (tt ↑↓ǃ) = Ret tt. rewrite Any.upcast_downcast. ss. Qed.
 (* Not used? *)
 Section EVENTSCOMMON.
 
-  Definition p_state: Type := (mname -> Any.t).
-  (* Definition p_state : Type := Any.t. *)
+  Definition p_state : Type := Any.t.
 
   (*** Same as State.pure_state, but does not use "Vis" directly ***)
   Definition pure_state {S E}: E ~> stateT S (itree E) := fun _ e s => x <- trigger e;; Ret (s, x).

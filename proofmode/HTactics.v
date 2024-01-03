@@ -5,7 +5,9 @@ Require Import ModSem.
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
-Require Import HoareDef OpenDef STB SimModSem.
+Require Import HoareDef.
+Require Import SimModSem.
+Require Import STB.
 
 Require Import Relation_Definitions.
 Require Import Relation_Operators.
@@ -13,7 +15,8 @@ Require Import RelationPairs.
 From ExtLib Require Import
      Data.Map.FMapAList.
 Require Import Red IRed.
-Require Import ProofMode Invariant.
+Require Import ProofMode.
+Require Import Invariant.
 
 Set Implicit Arguments.
 
@@ -89,7 +92,7 @@ Section SIM.
       (SIM: exists w0,
           (<<WF: wf w0 (st_src0, st_tgt0)>>) /\
           (<<K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-              g _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)>>))
+              g _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret)>>))
     :
       _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                       (st_tgt0, trigger (Call fn varg) >>= k_tgt)
@@ -108,31 +111,6 @@ Section SIM.
       (K: r _ _ RR true i_tgt0 w0 (st_src0, i_src) (st_tgt0, i_tgt))
     :
       _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, tau;; i_src) (st_tgt0, i_tgt)
-  | safe_sim_itree_take_src
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      X k_src i_tgt
-      (K: forall (x: X), r _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
-                      (st_tgt0, i_tgt)
-
-  | safe_sim_itree_pput_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      st_src1
-      (K: r _ _ RR true i_tgt0 w0 (st_src1, k_src tt) (st_tgt0, i_tgt))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, trigger (PPut st_src1) >>= k_src)
-                      (st_tgt0, i_tgt)
-
-  | safe_sim_itree_pget_src
-      i_src0 i_tgt0 w0 st_tgt0 st_src0
-      k_src i_tgt
-      (K: r _ _ RR true i_tgt0 w0 (st_src0, k_src st_src0) (st_tgt0, i_tgt))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, trigger (PGet) >>= k_src)
-                      (st_tgt0, i_tgt)
-
 
   | safe_sim_itree_tau_tgt
       i_src0 i_tgt0 w0 st_src0 st_tgt0
@@ -147,23 +125,33 @@ Section SIM.
     :
       _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
                       (st_tgt0, trigger (Choose X) >>= k_tgt)
-
-  | safe_sim_itree_pput_tgt
+                      
+  | safe_sim_itree_take_src
       i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      st_tgt1
-      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt1, k_tgt tt))
+      X k_src i_tgt
+      (K: forall (x: X), r _ _ RR true i_tgt0 w0 (st_src0, k_src x) (st_tgt0, i_tgt))
     :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                      (st_tgt0, trigger (PPut st_tgt1) >>= k_tgt)
+      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Take X) >>= k_src)
+                      (st_tgt0, i_tgt)
+  
+  | safe_sim_itree_supdate_src
+    i_src0 i_tgt0 w0 st_src0 st_tgt0
+    X k_src i_tgt
+    (run: st_local -> st_local * X)
+    (K: r _ _ RR true i_tgt0 w0 (fst (run st_src0), k_src (snd (run st_src0))) (st_tgt0, i_tgt))
+  :
+    _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, trigger (SUpdate run) >>= k_src)
+                    (st_tgt0, i_tgt)
 
-  | safe_sim_itree_pget_tgt
-      i_src0 i_tgt0 w0 st_src0 st_tgt0
-      k_tgt i_src
-      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, k_tgt st_tgt0))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
-                      (st_tgt0, trigger (PGet) >>= k_tgt)
+  | safe_sim_itree_supdate_tgt
+    i_src0 i_tgt0 w0 st_src0 st_tgt0
+    X i_src k_tgt
+    (run: st_local -> st_local * X)
+    (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (fst (run st_tgt0), k_tgt (snd (run st_tgt0))))
+  :
+    _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
+                    (st_tgt0, trigger (SUpdate run) >>= k_tgt)
+
   .
 
   Lemma safe_sim_sim r g:
@@ -182,7 +170,7 @@ Section HLEMMAS.
   Context `{Σ: GRA.t}.
   Local Opaque GRA.to_URA.
 
-  Variant mk_wf (A: Type)
+  Variant mk_wf (A: Type) 
           (R: A -> Any.t -> Any.t -> iProp)
     : A -> Any.t * Any.t -> Prop :=
   | mk_wf_intro
@@ -195,9 +183,9 @@ Section HLEMMAS.
 
   Definition inv_wf
              `{@GRA.inG invRA Σ}
-             A
+             A 
              (R: A -> Any.t -> Any.t -> iProp)
-    : _ -> (Any.t * Any.t -> Prop) :=
+    : _ -> (Any.t *  Any.t -> Prop) :=
     @mk_wf
       (A + Any.t * Any.t)%type
       (fun a' mp_src mp_tgt =>
@@ -208,12 +196,12 @@ Section HLEMMAS.
   .
 
   Lemma hcall_clo_ord_weaken'
-        (fsp1: fspec)
+        (fsp1: fspec) 
         (x: shelve__ fsp1.(meta))
 
         A (a0: shelve__ A) FR
 
-        (le: A -> A -> Prop) mn r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop) r rg a n m mr_src0 mp_src0
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -226,22 +214,22 @@ Section HLEMMAS.
         (ACC: current_iProp ctx0 I)
 
         (UPDATABLE:
-           I ⊢ #=> (FR ** R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) (Some mn) x varg_src varg_tgt: iProp)))
+           I ⊢ #=> (FR ** R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) x varg_src varg_tgt: iProp)))
 
         (PURE: ord_lt (fsp1.(measure) x) ord_cur /\
                (tbr = true -> is_pure (fsp1.(measure) x)) /\ (tbr = false -> (fsp1.(measure) x) = ord_top))
 
-        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) (mp_src1 mp_tgt1 : Any.t) a1
+        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) (mp_src1 mp_tgt1: Any.t) a1
                       (vret_src: Any.t)
                       (WLE: le a0 a1)
                       ctx1
-                      (ACC: current_iProp ctx1 (FR ** R a1 mp_src1 mp_tgt1 ** fsp1.(postcond) (Some mn) x vret_src vret_tgt))
+                      (ACC: current_iProp ctx1 (FR ** R a1 mp_src1 mp_tgt1 ** fsp1.(postcond) x vret_src vret_tgt))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
-                       (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
-    :
+                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                  (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
+                :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
-             (Any.pair mp_src0 mr_src0, (HoareCall mn tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
+             (Any.pair mp_src0 mr_src0, (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
   Proof.
@@ -252,7 +240,7 @@ Section HLEMMAS.
                (<<UPDATABLE: URA.wf (ctx0 ⋅ (mr_src0' ⋅ (rarg_src ⋅ fr_src0')))>>) /\
                (<<RSRC: R a0 mp_src0 mp_tgt0 mr_src0'>>) /\
                (<<FRS: FR fr_src0'>>) /\
-               (<<PRE: fsp0.(precond) (Some mn) x_tgt varg_src varg_tgt rarg_src>>)).
+               (<<PRE: fsp0.(precond) x_tgt varg_src varg_tgt rarg_src>>)).
     { inv ACC. uipropall. hexploit UPDATABLE.
       { eapply URA.wf_mon. eapply GWF. }
       { eapply IPROP. }
@@ -281,7 +269,7 @@ Section HLEMMAS.
     repeat (ired_both; apply sim_itreeC_spec; econs). inv WF.
     repeat (ired_both; apply sim_itreeC_spec; econs). i.
     repeat (ired_both; apply sim_itreeC_spec; econs). i.
-    repeat (ired_both; apply sim_itreeC_spec; econs). i.
+    repeat (ired_both; apply sim_itreeC_spec; econs). i. 
     ired_both. eapply POST; eauto. hexploit POST0. i.
     uipropall. hexploit (H c); et.
     { eapply URA.wf_mon. instantiate (1:=fr_src0' ⋅ c0 ⋅ mr_src). r_wf x0. }
@@ -295,12 +283,12 @@ Section HLEMMAS.
 
   Lemma hcall_clo_ord_weaken
         Hns Rn Invn
-        (fsp1: fspec)
+        (fsp1: fspec) 
         (x: shelve__ fsp1.(meta))
 
         A (a0: shelve__ A)
 
-        (le: A -> A -> Prop) mn r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -313,22 +301,22 @@ Section HLEMMAS.
         (ACC: current_iPropL ctx0 l)
 
         (UPDATABLE:
-           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) (Some mn) x varg_src varg_tgt: iProp)))
+           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) x varg_src varg_tgt: iProp)))
 
         (PURE: ord_lt (fsp1.(measure) x) ord_cur /\
                (tbr = true -> is_pure (fsp1.(measure) x)) /\ (tbr = false -> (fsp1.(measure) x) = ord_top))
 
-        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) (mp_src1 mp_tgt1 : Any.t) a1
+        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) mp_src1 mp_tgt1 a1
                       (vret_src: Any.t)
                       (WLE: le a0 a1)
                       ctx1
-                      (ACC: current_iPropL ctx1 ((Invn, R a1 mp_src1 mp_tgt1) :: (Rn, fsp1.(postcond) (Some mn) x vret_src vret_tgt) :: snd (alist_pops Hns l)))
+                      (ACC: current_iPropL ctx1 ((Invn, R a1 mp_src1 mp_tgt1) :: (Rn, fsp1.(postcond) x vret_src vret_tgt) :: snd (alist_pops Hns l)))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
-                   (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
+            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                   ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
-             (Any.pair mp_src0 mr_src0, (HoareCall mn tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
+             ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
   Proof.
@@ -346,13 +334,13 @@ Section HLEMMAS.
   Qed.
 
   Lemma hcall_clo_weaken
-        Hns Rn Invn
+        Hns Rn Invn 
         (fsp1: fspec)
         (x: shelve__ fsp1.(meta))
 
         A (a0: shelve__ A)
 
-        (le: A -> A -> Prop) mn r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -365,22 +353,22 @@ Section HLEMMAS.
         (ACC: current_iPropL ctx0 l)
 
         (UPDATABLE:
-           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) (Some mn) x varg_src varg_tgt: iProp)))
+           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (fsp1.(precond) x varg_src varg_tgt: iProp)))
 
         (PURE: ord_lt (fsp1.(measure) x) ord_cur /\
                (tbr = true -> is_pure (fsp1.(measure) x)) /\ (tbr = false -> (fsp1.(measure) x) = ord_top))
 
-        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) (mp_src1 mp_tgt1 : Any.t) a1
+        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) mp_src1 mp_tgt1 a1
                       (vret_src: Any.t)
                       (WLE: le a0 a1)
                       ctx1
-                      (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, fsp1.(postcond) (Some mn) x vret_src vret_tgt) (snd (alist_pops Hns l)))))
+                      (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, fsp1.(postcond) x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
-                   (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
+            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                   ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
-             (Any.pair mp_src0 mr_src0, (HoareCall mn tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
+             ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
   Proof.
@@ -391,11 +379,11 @@ Section HLEMMAS.
         Hns Rn Invn
         X (x: shelve__ X)
         A (a0: shelve__ A)
-
+        
         (D: X -> ord)
-        (P: option mname -> X -> Any.t -> Any.t -> iProp)
-        (Q: option mname -> X -> Any.t -> Any.t -> iProp)
-        (le: A -> A -> Prop) mn r rg a n m mr_src0 mp_src0
+        (P: X -> Any.t -> Any.t -> iProp)
+        (Q: X -> Any.t -> Any.t -> iProp)
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
         (R: A -> Any.t -> Any.t -> iProp)
@@ -405,22 +393,22 @@ Section HLEMMAS.
         (ACC: current_iPropL ctx0 l)
 
         (UPDATABLE:
-           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (P (Some mn) x varg_src varg_tgt: iProp)))
+           from_iPropL (fst (alist_pops Hns l)) ⊢ #=> (R a0 mp_src0 mp_tgt0 ** (P x varg_src varg_tgt: iProp)))
 
         (PURE: ord_lt (D x) ord_cur /\
                (tbr = true -> is_pure (D x)) /\ (tbr = false -> (D x) = ord_top))
 
-        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) (mp_src1 mp_tgt1 : Any.t) a1
+        (POST: forall (vret_tgt : Any.t) (mr_src1: Σ) mp_src1 mp_tgt1 a1
                       (vret_src: Any.t)
                       (WLE: le a0 a1)
                       ctx1
-                      (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, Q (Some mn) x vret_src vret_tgt) (snd (alist_pops Hns l)))))
+                      (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, Q x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
-                       (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
+                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                       ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
-             (Any.pair mp_src0 mr_src0, (HoareCall mn tbr ord_cur (mk_fspec D P Q) fn varg_src) ctx0 >>= k_src)
+             ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur (mk_fspec D P Q) fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
   Proof.
@@ -432,9 +420,9 @@ Section HLEMMAS.
   Qed.
 
   Lemma harg_clo
-        A Rn Invn
-        mn r rg
-        X (P: option mname -> X -> Any.t -> Any.t -> iProp) varg
+        A Rn Invn 
+         r rg
+        X (P: X -> Any.t -> Any.t -> iProp) varg
         mpr_src mp_tgt f_tgt k_src
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
@@ -444,13 +432,13 @@ Section HLEMMAS.
         (ARG:
            forall x varg_src
                   ctx (mr_src: Σ) mp_src
-                  (ACC: current_iPropL ctx (@cons (prod string (bi_car iProp)) (Rn, P mn x varg_src varg) (@cons (prod string (bi_car iProp)) (Invn, R a mp_src mp_tgt) (@nil (prod string (bi_car iProp)))))),
-             gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr true n a
-                    (Any.pair mp_src mr_src↑, k_src (ctx, ((mn, x), varg_src)))
+                  (ACC: current_iPropL ctx (@cons (prod string (bi_car iProp)) (Rn, P  x varg_src varg) (@cons (prod string (bi_car iProp)) (Invn, R a mp_src mp_tgt) (@nil (prod string (bi_car iProp)))))),
+             gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr true n a
+                    ((Any.pair mp_src mr_src↑), k_src (ctx, (x, varg_src)))
                     (mp_tgt, f_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
-             (mpr_src, (HoareFunArg P (mn, varg) >>= k_src))
+      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr m n a
+             (mpr_src, (HoareFunArg P varg >>= k_src))
              (mp_tgt, f_tgt)
   .
   Proof.
@@ -473,9 +461,9 @@ Section HLEMMAS.
   Qed.
 
   Lemma hret_clo
-        A (a: shelve__ A)
-        mn r rg n m mr_src mp_src a0
-        X (Q: option mname -> X -> Any.t -> Any.t -> iProp)
+        A (a: shelve__ A) 
+         r rg n m mr_src mp_src a0
+        X (Q: X -> Any.t -> Any.t -> iProp)
         x vret_src vret_tgt
         mp_tgt
         (le: A -> A -> Prop)
@@ -488,13 +476,13 @@ Section HLEMMAS.
         (WLE: le a0 a)
 
         (UPDATABLE:
-           (from_iPropL l) ⊢ #=> (R a mp_src mp_tgt ** (Q mn x vret_src vret_tgt: iProp)))
+           (from_iPropL l) ⊢ #=> (R a mp_src mp_tgt ** (Q  x vret_src vret_tgt: iProp)))
 
-        (EQ: forall (mr_src1: Σ) (WLE: le a0 a) (WF: mk_wf R a (Any.pair mp_src mr_src1↑, mp_tgt)),
-            eqr (Any.pair mp_src mr_src1↑) mp_tgt vret_tgt vret_tgt)
+        (EQ: forall (mr_src1: Σ) (WLE: le a0 a) (WF: mk_wf R a ((Any.pair mp_src mr_src1↑), mp_tgt)),
+            eqr ((Any.pair mp_src mr_src1↑)) mp_tgt vret_tgt vret_tgt)
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a0
-             (Any.pair mp_src mr_src, (HoareFunRet Q mn x (ctx, vret_src)))
+      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr m n a0
+             ((Any.pair mp_src mr_src), (HoareFunRet Q x (ctx, vret_src)))
              (mp_tgt, (Ret vret_tgt))
   .
   Proof.
@@ -502,7 +490,7 @@ Section HLEMMAS.
     assert (exists mr_src1 rret_src,
                (<<UPDATABLE: URA.wf (ctx ⋅ (mr_src1 ⋅ rret_src))>>) /\
                (<<RSRC: R a mp_src mp_tgt mr_src1>>) /\
-               (<<PRE: Q mn x vret_src vret_tgt rret_src>>)).
+               (<<PRE: Q  x vret_src vret_tgt rret_src>>)).
     { red in ACC. inv ACC. uipropall.
       hexploit (UPDATABLE r0); et.
       { eapply URA.wf_mon; et. }
@@ -521,9 +509,9 @@ Section HLEMMAS.
   Qed.
 
   Lemma APC_start_clo
-        (at_most: Ord.t)
+        (at_most: Ord.t) 
         (o: ord)
-        A mn r rg a m n mp_src0
+        A  r rg a m n mp_src0
         k_src
         (wf: A -> Any.t * Any.t -> Prop)
         (le: A -> A -> Prop)
@@ -532,25 +520,33 @@ Section HLEMMAS.
 
         (POST: gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr true n a
                       (mp_src0,
-                       (interp_hCallE_tgt mn stb o (_APC at_most) ctx)>>= k_src)
+                       (interp_hCallE_tgt  stb o (_APC at_most) ctx)>>= k_src)
                       (itr_tgt))
     :
       gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
              (mp_src0,
-              (interp_hCallE_tgt mn stb o APC ctx) >>= k_src)
+              (interp_hCallE_tgt stb o APC ctx) >>= k_src)
              (itr_tgt).
-  Proof.
-    subst. unfold APC. destruct itr_tgt.
-    ired_both. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+  Proof. 
+    subst.  unfold APC. destruct itr_tgt. ired_both.
+    (* ired_both. (prw _red_gen 2 1 0). *)
+    (* rewrite interp_tgt_bind.
+    ired_both.
+    rewrite interp_tgt_triggere.
+    ired_both. *)
+    (* rewrite bind_bind. *)
+    (* rewrite bind_bind. *)
+    apply sim_itreeC_spec; econs.
+    (* eapply sim_itreeC_choose_src. *)
     exists at_most.
     repeat (ired_both; apply sim_itreeC_spec; econs).
     ired_both. et.
-    Unshelve. all: ss.
+    (* Unshelve. all: ss. *)
   Qed.
 
   Lemma APC_stop_clo
-        (o: ord)
-        A mn r rg a n m mp_src0
+        (o: ord) 
+        A  r rg a n m mp_src0
         k_src
         (at_most: Ord.t)
         (wf: A -> Any.t * Any.t -> Prop)
@@ -564,20 +560,23 @@ Section HLEMMAS.
     :
       gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
               (mp_src0,
-              (interp_hCallE_tgt mn stb o (_APC at_most) ctx) >>= k_src)
+              (interp_hCallE_tgt  stb o (_APC at_most) ctx) >>= k_src)
              (itr_tgt).
-  Proof.
+  Proof. 
     subst. destruct itr_tgt.
-    rewrite unfold_APC. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+    rewrite unfold_APC.
+    rewrite interp_tgt_bind.  rewrite interp_tgt_triggere. rewrite bind_bind. rewrite bind_bind.
+    apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
     exists true. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_tau_src.
+    rewrite bind_ret_l. simpl. rewrite interp_tgt_ret. 
     ired_both. et.
   Qed.
 
   Lemma APC_step_clo
         (fn: gname) (args: Any.t) (next: Ord.t)
-
+        
         (o: ord)
-        A mn r rg a n m mp_src0
+        A  r rg a n m mp_src0
         k_src ctx0
         (at_most: Ord.t)
         (wf: A -> Any.t * Any.t -> Prop)
@@ -591,28 +590,37 @@ Section HLEMMAS.
 
         (POST: gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr true n a
                       (mp_src0,
-                       ('(ctx1, _) <- (HoareCall mn true o fsp fn args ctx0);;
-                        Tau (ITree.bind (interp_hCallE_tgt mn stb o (_APC next) ctx1) k_src)))
+                       ('(ctx1, _) <- (HoareCall true o fsp fn args ctx0);;
+                        Tau (ITree.bind (interp_hCallE_tgt  stb o (_APC next) ctx1) k_src)))
                       (itr_tgt))
     :
       gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
-             (mp_src0, (interp_hCallE_tgt mn stb o (_APC at_most) ctx0) >>= k_src)
+             (mp_src0, (interp_hCallE_tgt  stb o (_APC at_most) ctx0) >>= k_src)
              (itr_tgt).
-  Proof.
+  Proof. 
     subst. destruct itr_tgt.
-    rewrite unfold_APC. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+    rewrite unfold_APC.
+    rewrite interp_tgt_bind.  rewrite interp_tgt_triggere. rewrite bind_bind. rewrite bind_bind.
+    apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
     exists false. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_tau_src.
-    ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+    ired_l.
+     (* rewrite interp_tgt_bind.  rewrite interp_tgt_triggere. rewrite bind_bind. rewrite bind_bind. *)
+    apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
     exists next. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_tau_src.
-    ired_l. unfold guarantee. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+    ired_l. 
+    (* rewrite interp_tgt_bind. rewrite interp_tgt_guarantee. rewrite bind_bind. rewrite bind_bind. *)
+    unfold guarantee. ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
     split.
     { auto. }
     ired_l. apply sim_itreeC_spec. eapply sim_itreeC_tau_src.
-    ired_l. apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
+    ired_l. 
+    (* rewrite interp_tgt_bind.  rewrite interp_tgt_triggere. rewrite bind_bind. rewrite bind_bind. *)
+    apply sim_itreeC_spec. eapply sim_itreeC_choose_src.
     exists (fn, args).
     ired_l. apply sim_itreeC_spec. eapply sim_itreeC_tau_src.
-    ired_l. ss. rewrite FIND. ss. subst. ired_l.
-    ss. ired_l.
+    ired_l. 
+    (* rewrite interp_tgt_bind. rewrite interp_tgt_hcall. rewrite bind_bind. rewrite bind_bind. *)
+    ss. rewrite FIND. ss. subst. ired_l.
     match goal with
     | [SIM: gpaco8 _ _ _ _ _ _ _ _ _ _ ?i0 _ |- gpaco8 _ _ _ _ _ _ _ _ _ _ ?i1 _] =>
       replace i1 with i0; et
@@ -620,23 +628,23 @@ Section HLEMMAS.
     f_equal. grind.
   Qed.
 
-  Lemma trivial_init_clo
-        A wf (le: A -> A -> Prop) r rg w arg mrp_src mp_tgt itr_tgt mn stb body RR
+  (* Lemma trivial_init_clo
+        A wf (le: A -> A -> Prop) r rg w arg mrp_src mp_tgt itr_tgt  stb body RR
         m n
         (INIT:
            gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg Any.t Any.t
                   RR true n w
-                  (mrp_src, fun_to_tgt mn stb (mk_specbody fspec_trivial body) arg)
+                  (mrp_src, fun_to_tgt  stb (mk_specbody fspec_trivial body) arg)
                   (mp_tgt, itr_tgt))
     :
       gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg Any.t Any.t
              RR m n w
-             (mrp_src, KModSem.disclose_ksb_tgt mn stb (ksb_trivial body) arg)
+             (mrp_src, KModSem.disclose_ksb_tgt  stb (ksb_trivial body) arg)
              (mp_tgt, itr_tgt).
   Proof.
     unfold KModSem.disclose_ksb_tgt.
     apply sim_itreeC_spec. econs; eauto. i. destruct x; et.
-  Qed.
+  Qed. *)
 
 End HLEMMAS.
 
@@ -747,6 +755,7 @@ Ltac _step :=
   | _ => idtac
   end
 .
+
 Ltac _steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl).
 
 Ltac steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl; des_ifs_safe).
@@ -769,7 +778,8 @@ Section TEST.
   Context `{Σ: GRA.t}.
   Let wf := (mk_wf (fun (_ : unit) (_ _ : Any.t) => bi_pure True)).
   Let le := fun (_ _: unit) => True.
-  Variable (srcs0 tgts0: Any.t).
+  Variable srcs0: Any.t.
+  Variable tgts0: Any.t.
 
   Goal gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) bot8 bot8 Any.t Any.t (fun _ _ => eq) false false tt
        (srcs0, triggerUB >>= idK) (tgts0, triggerUB >>= idK).
@@ -817,27 +827,17 @@ Ltac astop :=
 
 Ltac init :=
   let varg_src := fresh "varg_src" in
-  let mn := fresh "mn" in
   let varg := fresh "varg" in
   let EQ := fresh "EQ" in
   let w := fresh "w" in
   let mrp_src := fresh "mrp_src" in
   let mp_tgt := fresh "mp_tgt" in
   let WF := fresh "WF" in
-  split; ss; intros varg_src [mn varg] EQ w mrp_src mp_tgt WF;
+  split; ss; intros varg_src varg EQ w mrp_src mp_tgt WF;
   try subst varg_src; cbn; ginit;
-  match goal with
-  | |- gpaco8 _ _ _ _ _ _ _ _ _ _ (_, KModSem.disclose_ksb_tgt _ _ (ksb_trivial _) _) _ =>
-    eapply trivial_init_clo;
-    try (unfold fun_to_tgt, cfunN, cfunU, KModSem.disclose_ksb_tgt, fun_to_tgt);
-    rewrite HoareFun_parse; simpl
-  | |- gpaco8 _ _ _ _ _ _ _ _ _ _ (_, KModSem.disclose_ksb_tgt _ _ _ _) _ =>
-    try (unfold fun_to_tgt, cfunN, cfunU, KModSem.disclose_ksb_tgt, fun_to_tgt);
-    simpl;
-    apply sim_itreeC_spec; apply sim_itreeC_take_src; intros [];rewrite HoareFun_parse; simpl
-  | |- _ =>
-    try (unfold fun_to_tgt, cfunN, cfunU; rewrite HoareFun_parse); simpl
-  end.
+  try (unfold fun_to_tgt, cfunN, cfunU; rewrite HoareFun_parse); simpl
+
+  .
 
 Ltac harg :=
   let PRE := constr:("PRE") in

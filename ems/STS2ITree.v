@@ -128,7 +128,7 @@ Section PROOF.
   Let wf_demonic := L1.(wf_demonic).
 
   Let STS_itree := decompile_STS step state_sort st_init.
-  Let L1_itree := ModSemL.compile_itree STS_itree.
+  Let L1_itree := ModSem.compile_itree STS_itree.
 
   Hypothesis wf_syscall0 :
     forall ev,
@@ -199,7 +199,7 @@ paco2 has 'fixed' semantics -> needs fixed semantics to do pcofix
         esplits; et. mbase.
     - eapply sim_indC_fin; eauto.
       ss. rewrite unfold_decompile_STS. rewrite SRT.
-      unfold ModSemL.state_sort. ss.
+      unfold ModSem.state_sort. ss.
       erewrite wf_finalize; et.
     - eapply sim_indC_demonic_tgt; ss; clarify.
       + rewrite unfold_decompile_STS. rewrite SRT. ss.
@@ -255,11 +255,11 @@ paco2 has 'fixed' semantics -> needs fixed semantics to do pcofix
       + i. exists (decompile_STS step state_sort st_tgt1).
         eexists.
         { rewrite unfold_decompile_STS in *. rewrite SRT in *.
-          apply (ModSemL.step_choose (fun st1 : {st' | step st0 None st'} => decompile_STS step state_sort (st1 $)) (exist _ st_tgt1 STEP)). }
+          apply (ModSem.step_choose (fun st1 : {st' | step st0 None st'} => decompile_STS step state_sort (st1 $)) (exist _ st_tgt1 STEP)). }
         esplits; et. mbase2.
     - econs; ss.
       + rewrite unfold_decompile_STS. rewrite SRT.
-        unfold ModSemL.state_sort. ss.
+        unfold ModSem.state_sort. ss.
         erewrite wf_finalize; et.
       + auto.
     - assert (CASE: (forall ev st1, not (step st0 (Some ev) st1)) \/ (exists ev st1, (step st0 (Some ev) st1))).
@@ -288,7 +288,7 @@ paco2 has 'fixed' semantics -> needs fixed semantics to do pcofix
         exists (cont (exist (fun 'ev => exists st1, step st0 (Some ev) st1) x H)).
         destruct x. eexists.
         { rewrite unfold_decompile_STS. rewrite SRT. ss. rewrite bind_trigger.
-          eapply (ModSemL.step_choose cont (exist (fun 'ev => exists st1, step st0 (Some ev) st1) (event_sys fn args rv) H)). }
+          eapply (ModSem.step_choose cont (exist (fun 'ev => exists st1, step st0 (Some ev) st1) (event_sys fn args rv) H)). }
         esplits; et.
         mclo2. destruct H. rename s into STEP. subst cont.
         set (cont := fun rv0 =>
@@ -308,7 +308,7 @@ paco2 has 'fixed' semantics -> needs fixed semantics to do pcofix
         i. des. clarify.
         exists (cont rv). eexists.
         { ss. rewrite bind_trigger. subst cont. ss.
-          apply (@ModSemL.step_syscall fn args rv (fun rv0 : Any.t => exists st1, step st0 (Some (event_sys fn args rv0)) st1) (fun x : Any.t => Vis (Choose {st1 | step st0 (Some (event_sys fn args x)) st1}) (fun st1 : {st1 | step st0 (Some (event_sys fn args x)) st1} => decompile_STS step state_sort (st1 $)))).
+          apply (@ModSem.step_syscall fn args rv (fun rv0 : Any.t => exists st1, step st0 (Some (event_sys fn args rv0)) st1) (fun x : Any.t => Vis (Choose {st1 | step st0 (Some (event_sys fn args x)) st1}) (fun st1 : {st1 | step st0 (Some (event_sys fn args x)) st1} => decompile_STS step state_sort (st1 $)))).
           2:{ exists st_tgt1. auto. }
           apply wf_syscall.
           exists st0, st_tgt1. auto. }
@@ -346,10 +346,10 @@ paco2 has 'fixed' semantics -> needs fixed semantics to do pcofix
     exists itr, forall tr,
         of_state L0 st_init0 tr
         <->
-        of_state (ModSemL.compile_itree itr) itr tr.
+        of_state (ModSem.compile_itree itr) itr tr.
   Proof.
     exists STS_itree. i.
-    assert (A: of_state (ModSemL.compile_itree STS_itree) STS_itree tr
+    assert (A: of_state (ModSem.compile_itree STS_itree) STS_itree tr
                =
                of_state L1_itree (decompile_STS step state_sort st_init) tr).
     { ss. }

@@ -44,8 +44,6 @@ Section PROOF.
       (<<WEAKER: fspec_weaker fsp_tgt fsp_src>>)
   .
 
-  Variable mn: mname.
-
   Let wf: unit -> W -> Prop :=
     fun _ '(st_src, st_tgt) =>
       exists mp (mr: Σ),
@@ -64,8 +62,8 @@ Section PROOF.
                    vret_src = (ctx, vret) /\
                    vret_tgt = (ctx, vret))
               false false tt
-              (Any.pair mp mr↑, interp_hCallE_tgt mn stb_src ord_cur_src itr ctx)
-              (Any.pair mp mr↑, interp_hCallE_tgt mn stb_tgt ord_cur_tgt itr ctx).
+              (Any.pair mp mr↑, interp_hCallE_tgt stb_src ord_cur_src itr ctx)
+              (Any.pair mp mr↑, interp_hCallE_tgt stb_tgt ord_cur_tgt itr ctx).
   Proof.
     ginit. gcofix CIH. i. ides itr.
     { steps. gstep. econs. esplits; et. }
@@ -75,9 +73,9 @@ Section PROOF.
     { resub. destruct h. steps.
       hexploit stb_stronger; et. i. des. rewrite FINDSRC. steps.
       Local Transparent HoareCall. unfold HoareCall, ASSUME, ASSERT, mput, mget. Local Opaque HoareCall.
-      steps. specialize (WEAKER x (Some mn)). des.
+      steps. specialize (WEAKER x ). des.
       assert (exists rarg_src,
-                 (<<PRE: precond fsp_src (Some mn) x_tgt varg_src x0 rarg_src>>) /\
+                 (<<PRE: precond fsp_src x_tgt varg_src x0 rarg_src>>) /\
                  (<<VALID: URA.wf (rarg_src ⋅ c1 ⋅ ctx ⋅ c)>>)
              ).
       { hexploit PRE. i. uipropall. hexploit (H c0); et.
@@ -102,7 +100,7 @@ Section PROOF.
       rewrite Any.pair_split in _UNWRAPU. des; clarify.
       steps. rewrite Any.upcast_downcast in *. sym in _UNWRAPU0. clarify.
       assert (exists rret_tgt,
-                 (<<POSTTGT: postcond f (Some mn) x x1 vret rret_tgt>>) /\
+                 (<<POSTTGT: postcond f x x1 vret rret_tgt>>) /\
                  (<<VALIDTGT: URA.wf (rret_tgt ⋅ c1 ⋅ c3 ⋅ mr0)>>)
              ).
       { hexploit POST. i. uipropall. hexploit (H c2); et.
@@ -117,12 +115,10 @@ Section PROOF.
       steps. deflag. gbase. eapply CIH; ss.
     }
     destruct s.
-    { resub. destruct p.
-      { ired_both. force_l. force_r. ired_both.
+    { resub. destruct s.
+      ired_both. force_l. force_r. ired_both.
         force_l. force_r. ired_both. steps. deflag.
-        gbase. eapply CIH; ss. }
-      { ired_both. force_l. force_r. ired_both. steps. deflag.
-        gbase. eapply CIH; ss. }
+        gbase. rewrite Any.pair_split. eapply CIH; ss.
     }
     { resub. destruct e.
       { ired_both. force_r. i. force_l. exists x. steps. deflag.
@@ -137,20 +133,22 @@ Section PROOF.
   Variable fsp_src fsp_tgt: fspec.
   Hypothesis fsp_weaker: fspec_weaker fsp_src fsp_tgt.
 
-  Variable body: (option mname * Any.t) -> itree hEs Any.t.
+  Variable body: Any.t -> itree hEs Any.t.
 
   Lemma weakening_fn arg mrs_src mrs_tgt (WF: wf tt (mrs_src, mrs_tgt)):
     sim_itree wf top2 false false tt
-              (mrs_src, fun_to_tgt mn stb_src (mk_specbody fsp_src body) arg)
-              (mrs_tgt, fun_to_tgt mn stb_tgt (mk_specbody fsp_tgt body) arg).
+              (mrs_src, fun_to_tgt stb_src (mk_specbody fsp_src body) arg)
+              (mrs_tgt, fun_to_tgt stb_tgt (mk_specbody fsp_tgt body) arg).
   Proof.
     red in WF. des. subst.
     Local Transparent HoareFun. unfold fun_to_tgt, HoareFun, ASSUME, ASSERT, mput, mget. Local Opaque HoareFun.
-    destruct arg as [mn_caller varg_tgt]. ss. des. clarify.
+    (* destruct arg as [mn_caller varg_tgt].  *)
+    rename arg into varg_tgt.
+    ss. des. clarify.
     ginit. steps.
-    hexploit (fsp_weaker x mn_caller). i. des.
+    hexploit (fsp_weaker x). i. des.
     assert (exists rarg_tgt,
-               (<<PRETGT: precond fsp_tgt mn_caller x_tgt x0 varg_tgt rarg_tgt>>) /\
+               (<<PRETGT: precond fsp_tgt x_tgt x0 varg_tgt rarg_tgt>>) /\
                (<<VALIDTGT: URA.wf (rarg_tgt ⋅ c0 ⋅ mr)>>)).
     { hexploit PRE; et. i. uipropall. hexploit (H c); et.
       { eapply URA.wf_mon. instantiate (1:=c0 ⋅ mr). r_wf _ASSUME. }
@@ -170,7 +168,7 @@ Section PROOF.
     }
     i. ss. des; clarify. steps.
     assert (exists rret_src,
-               (<<POSTSRC: postcond fsp_src mn_caller x vret x1 rret_src>>) /\
+               (<<POSTSRC: postcond fsp_src x vret x1 rret_src>>) /\
                (<<VALIDSRC: URA.wf (rret_src ⋅ ctx  ⋅ c1)>>)
            ).
     { hexploit POST; et. i. uipropall. hexploit (H c2); et.
@@ -189,13 +187,15 @@ Section PROOF.
 
   Lemma weakening_fsem:
     sim_fsem wf top2
-             (fun_to_tgt mn stb_src (mk_specbody fsp_src body))
-             (fun_to_tgt mn stb_tgt (mk_specbody fsp_tgt body)).
+             (fun_to_tgt stb_src (mk_specbody fsp_src body))
+             (fun_to_tgt stb_tgt (mk_specbody fsp_tgt body)).
   Proof.
     ii. destruct w. subst. eapply weakening_fn. auto.
   Qed.
 
 End PROOF.
+
+Require Import SimModSemFacts.
 
 Section PROOF.
   Context `{EMSConfig}.
@@ -206,10 +206,10 @@ Section PROOF.
           md
           (WEAK: forall sk, stb_weaker (stb0 sk) (stb1 sk))
     :
-      refines2 [SMod.to_tgt stb0 md] [SMod.to_tgt stb1 md]
+      refines (SMod.to_tgt stb0 md) (SMod.to_tgt stb1 md)
   .
   Proof.
-    eapply adequacy_local2. econs; cycle 1.
+    eapply adequacy_local. econs; cycle 1.
     { unfold SMod.to_tgt. cbn. eauto. }
     i. specialize (WEAK sk). r. econs.
     2:{ unfold SMod.to_tgt.
@@ -224,8 +224,8 @@ Section PROOF.
       { refl. }
     }
     { ss. }
-    { ss. }
-    exists tt. esplits; et.
+    { ss. esplits; ss. }
   Qed.
+
 
 End PROOF.

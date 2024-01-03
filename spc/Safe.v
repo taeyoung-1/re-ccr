@@ -64,7 +64,6 @@ Section SAFEMODSEM.
 
   Record t: Type := mk {
     fnsems: list (gname * fspec);
-    mn: mname;
     initial_mr: Σ;
     initial_st: Any.t;
   }
@@ -73,7 +72,6 @@ Section SAFEMODSEM.
   Definition to_smodsem (md: t): SModSem.t :=
     {|
     SModSem.fnsems := map (map_snd safe_specbody) md.(fnsems);
-    SModSem.mn := md.(mn);
     SModSem.initial_mr := md.(initial_mr);
     SModSem.initial_st := md.(initial_st);
     |}.
@@ -107,8 +105,8 @@ Coercion SafeMod.to_smod: SafeMod.t >-> SMod.t.
 Section LEMMAS.
   Context `{EMSConfig}.
 
-  Variable prog: ModL.t.
-  Let L := ModL.compile prog.
+  Variable prog: Mod.t.
+  Let L := Mod.compile prog.
 
   Variant _safe_state
           (safe_state: forall R, (R -> Prop) -> itree eventE R -> Prop)
@@ -210,16 +208,16 @@ Section LEMMAS.
     induction H0 using Beh.of_state_ind; ss.
     { i. inv STEP. des. clarify. eapply IH; auto.
       punfold SAFE. inv SAFE.
-      { unfold ModSemL.state_sort in SRT. ss. des_ifs. }
+      { unfold ModSem.state_sort in SRT. ss. des_ifs. }
       { eapply step_tau_iff in STEP. des; subst. inv SAFE0; ss. }
       { eapply step_trigger_choose_iff in STEP. des; subst.
         specialize (SAFE0 x). inv SAFE0; ss. }
-      { unfold ModSemL.state_sort in SRT. ss. }
+      { unfold ModSem.state_sort in SRT. ss. }
     }
     { i. punfold SAFE. inv SAFE.
-      { unfold ModSemL.state_sort in SRT. ss. des_ifs. }
-      { unfold ModSemL.state_sort in SRT. ss. }
-      { unfold ModSemL.state_sort in SRT. ss. }
+      { unfold ModSem.state_sort in SRT. ss. des_ifs. }
+      { unfold ModSem.state_sort in SRT. ss. }
+      { unfold ModSem.state_sort in SRT. ss. }
       { des. inv SAFE0; ss. exploit STEP.
         { eapply step_trigger_take. }
         { i. des; clarify. eapply IH; et. }
@@ -235,15 +233,15 @@ Section SAFETY.
   Context `{EMSConfig}.
   Context `{Σ: GRA.t}.
 
-  Variable smds: list SafeMod.t.
+  Variable smd: SafeMod.t.
   Variable stb: gname -> Prop.
 
-  Let mds: list Mod.t := map (SMod.to_src ∘ SafeMod.to_smod stb) smds.
-  Hypothesis WF: ModL.wf (Mod.add_list mds).
+  Let md: Mod.t := (SMod.to_src ∘ SafeMod.to_smod stb) smd.
+  Hypothesis WF: Mod.wf md.
 
   Hypothesis stb_sound:
     forall fn (IN: stb fn),
-      In fn (map fst (ModL.enclose (Mod.add_list mds)).(ModSemL.fnsems)).
+      In fn (map fst (Mod.enclose (md)).(ModSem.fnsems)).
   Hypothesis MAIN:
     stb "main".
 
@@ -258,41 +256,43 @@ Section SAFETY.
 
   Lemma fnsems_find_safe fn
     :
-      alist_find fn (ModSemL.fnsems (ModL.enclose (Mod.add_list mds))) = None \/
-      exists mn,
-        alist_find fn (ModSemL.fnsems (ModL.enclose (Mod.add_list mds)))
+      alist_find fn (ModSem.fnsems (Mod.enclose (md))) = None \/
+        alist_find fn (ModSem.fnsems (Mod.enclose (md)))
         =
-        Some (transl_all (T:=_) mn ∘ fun_to_src (fun _ => SafeModSem.safe_itree stb)).
+        Some (fun_to_src (fun _ => SafeModSem.safe_itree stb)).
   Proof.
-    unfold ModL.enclose, mds. unfold Sk.canon. ss.
+    unfold Mod.enclose, md. unfold Sk.canon. ss.
     change (alist string Sk.gdef) with Sk.t.
-    generalize (Sk.sort (ModL.sk (Mod.add_list (map (SMod.to_src ∘ SafeMod.to_smod stb) smds)))).
-    i. rewrite ! Mod.add_list_fnsems.
-    rewrite <- fold_right_app_flat_map. rewrite ! flat_map_map.
-    generalize smds. induction smds0; ss; auto.
-    rewrite ! alist_find_app_o. rewrite ! alist_find_map_snd. uo.
+    generalize (Sk.sort (Mod.sk ((SMod.to_src ∘ SafeMod.to_smod stb) smd))).
+    i.
+    (* rewrite ! Mod.add_list_fnsems. *)
+    (* rewrite <- fold_right_app_flat_map. rewrite ! flat_map_map. *)
+    generalize smd. induction smd0; ss; auto.
+    (* rewrite ! alist_find_app_o. rewrite ! alist_find_map_snd. uo. *)
     change (fun '(fn0, sb) => (fn0: string, fun_to_src (fsb_body sb))) with
         (map_snd (A:=string) (fun_to_src ∘ fsb_body)).
     rewrite ! alist_find_map_snd. uo.
-    des_ifs. right. esplits; et.
+    des_ifs; et.
   Qed.
 
   Lemma call_safe:
-    forall md fn arg st
+    forall fn arg st
            (IN: stb fn),
       paco3 _safe_state bot3 _
             (fun '(st, retv) => safe_retval retv)
-            (EventsL.interp_Es
-               (ModSemL.prog (ModL.enclose (Mod.add_list mds)))
-               (ModSemL.prog (ModL.enclose (Mod.add_list mds))
-                             (EventsL.Call md fn arg)) st).
+            (interp_Es
+               (ModSem.prog (Mod.enclose (md)))
+               (ModSem.prog (Mod.enclose (md))
+                             (Call fn arg)) st).
   Proof.
-    ginit. gcofix CIH. i. steps.
+    ginit. gcofix CIH. i.
+    Local Opaque Mod.enclose.
+    steps.
     hexploit stb_sound; et. i.
     eapply in_map_iff in H0. des. destruct x. clarify.
     unfold unwrapU. des_ifs.
     2: { exfalso. eapply alist_find_none in Heq; et. }
-    Local Opaque ModSemL.prog. ss.
+    Local Opaque ModSem.prog. ss.
     hexploit (fnsems_find_safe s). i. des; clarify. steps.
     guclo safe_bind_clo_spec. econs.
     { instantiate (1:=fun '(st, retv) => safe_retval retv).
@@ -308,10 +308,10 @@ Section SAFETY.
   Qed.
 
   Theorem safe_mods_safe:
-    ~ Beh.of_program (ModL.compile (Mod.add_list mds)) Tr.ub.
+    ~ Beh.of_program (Mod.compile (md)) Tr.ub.
   Proof.
     eapply safe_state_no_ub. ginit.
-    ss. unfold ModSemL.initial_itr.
+    ss. unfold ModSem.initial_itr.
     step. unshelve esplits; et. unfold ITree.map. steps.
     guclo safe_bind_clo_spec. econs.
     { gfinal. right. eapply call_safe. auto. }

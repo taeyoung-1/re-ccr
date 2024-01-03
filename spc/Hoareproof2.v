@@ -2,13 +2,14 @@ Require Import Coqlib.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
-Import ModSemL.
+Require Import ModSemFacts.
 Require Import Skeleton.
 Require Import PCM.
 Require Import Any.
 Require Import SimSTS.
 Require Import HoareDef.
 Require Import SimModSem.
+Require Import SimModSemFacts.
 Require Import HTactics.
 From Ordinal Require Import Ordinal Arithmetic.
 
@@ -36,12 +37,11 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
-  Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
-  (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
-  Let mss: list SModSem.t := (List.map ((flip SMod.get_modsem) sk) mds).
-  Let sbtb: list (gname * fspecbody) := (List.flat_map (SModSem.fnsems) mss).
+   Let sk: Sk.t := Sk.add Sk.unit (SMod.sk md).
+   Let ms: SModSem.t := (SMod.get_modsem md) sk.
+   Let sbtb := SModSem.fnsems ms.
   Let _stb: list (gname * fspec) := List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) sbtb.
 
   Variable stb: gname -> option fspec.
@@ -52,20 +52,20 @@ Section CANCEL.
       (<<NONE: stb fn = None>>) \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
 
-  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
-  Let mds_mid2: list Mod.t := List.map (SMod.to_mid2 stb) mds.
+  Let md_src: Mod.t := (SMod.to_src) md.
+  Let md_mid2:  Mod.t := (SMod.to_mid2 stb) md.
 
 
 
   Let W: Type := p_state.
 
-  Opaque EventsL.interp_Es.
+  Opaque interp_Es.
 
-  Let ms_src: ModSemL.t := ModL.enclose (Mod.add_list mds_src).
-  Let ms_mid2: ModSemL.t := ModL.enclose (Mod.add_list mds_mid2).
+  Let ms_src: ModSem.t := Mod.enclose md_src.
+  Let ms_mid2: ModSem.t := Mod.enclose md_mid2.
 
-  Let p_src := ModSemL.prog ms_src.
-  Let p_mid2 := ModSemL.prog ms_mid2.
+  Let p_src := ModSem.prog ms_src.
+  Let p_mid2 := ModSem.prog ms_mid2.
 
   Require Import IRed.
 
@@ -91,20 +91,17 @@ Section CANCEL.
 
   Context {CONF: EMSConfig}.
   Theorem adequacy_type_m2s:
-    Beh.of_program (ModL.compile (Mod.add_list mds_mid2)) <1=
-    Beh.of_program (ModL.compile (Mod.add_list mds_src)).
+    Beh.of_program (Mod.compile md_mid2) <1=
+    Beh.of_program (Mod.compile md_src).
   Proof.
-    eapply ModSem.refines_close.
-    eapply (@adequacy_local_list_strong mds_src mds_mid2).
-    unfold mds_src, mds_mid2.
-    eapply Forall2_apply_Forall2.
-    { refl. }
-    i. subst. econs; ss. i. econs; ss.
+    eapply refines_close.
+    eapply (adequacy_local_strong md_src md_mid2).
+    econs; ss. i. econs; ss.
     { instantiate (1:=fun (_ _: unit) => True). ss. }
     { instantiate (1:=fun _ '(st_src, st_tgt) => st_src = st_tgt).
       eapply Forall2_apply_Forall2.
       { refl. }
-      i. subst. destruct b0. econs; ss. ii. subst.
+      i. subst. destruct b. econs; ss. ii. subst.
       unfold fun_to_src, fun_to_mid2, body_to_src, body_to_mid2. ss.
       generalize (fsb_body f y).
       revert mrs_tgt w. ginit. gcofix CIH. i. ides i.
@@ -125,18 +122,13 @@ Section CANCEL.
           deflag. gbase. et.
         }
       }
-      destruct e.
+      destruct e as [c|[s0|e]].
       { resub. destruct c. steps.
         deflag. gbase. et.
       }
-      destruct s0.
-      { resub. destruct p.
-        { ired_both. force_r. force_l. steps.
-          deflag. gbase. et.
-        }
-        { ired_both. force_r. force_l. steps.
-          deflag. gbase. et.
-        }
+      { resub. destruct s0.
+        ired_both. force_r. force_l. steps.
+        deflag. gbase. et.
       }
       { resub. destruct e.
         { ired_both. force_r. i. force_l. exists x. steps.

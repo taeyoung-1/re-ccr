@@ -57,15 +57,15 @@ Section CANCELSTB.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
-  Let sk: Sk.t := SMod.get_sk mds.
+  Let sk: Sk.t := SMod.get_sk md.
 
-  Let _mss: Sk.t -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
-  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
+  Let _ms: Sk.t -> SModSem.t := fun sk => (SMod.get_modsem md sk).
+  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => ((SModSem.fnsems) (_ms sk)).
   Let _stb: Sk.t -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
 
-  Let mss: list SModSem.t := _mss sk.
+  Let ms: SModSem.t := _ms sk.
   Let sbtb: list (gname * fspecbody) := _sbtb sk.
 
   Variable stb: Sk.t -> gname -> option fspec.
@@ -75,18 +75,18 @@ Section CANCELSTB.
     forall fn (FIND: alist_find fn (_stb sk) = None),
       (<<NONE: stb sk fn = None>>) \/ (exists fsp, <<FIND: stb sk fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
-  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
-  Let mds_tgt: list Mod.t := List.map (SMod.to_tgt stb) mds.
+  Let md_src: Mod.t := (SMod.to_src) md.
+  Let md_tgt: Mod.t := (SMod.to_tgt stb) md.
 
 
 
   Let W: Type := p_state.
   (* Let wf: Ord.t -> W -> W -> Prop := top3. *)
 
-  Opaque EventsL.interp_Es.
+  Opaque interp_Es.
 
-  Let ms_src: ModSemL.t := ModL.enclose (Mod.add_list mds_src).
-  Let ms_tgt: ModSemL.t := ModL.enclose (Mod.add_list mds_tgt).
+  Let ms_src: ModSem.t := Mod.enclose md_src.
+  Let ms_tgt: ModSem.t := Mod.enclose md_tgt.
 
   Section STRONGER.
   Context {CONFS CONFT: EMSConfig}.
@@ -96,14 +96,14 @@ Section CANCELSTB.
           (MAINM:
              forall (main_fsp: fspec) (MAIN: stb sk "main" = Some main_fsp),
              exists (x: main_fsp.(meta)) entry_r,
-               (<<PRE: main_fsp.(precond) None x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
+               (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ fold_left (⋅) (List.map SModSem.initial_mr mss) ε)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ (SModSem.initial_mr ms))>>) /\
                (<<RET: forall ret_src ret_tgt,
-                   ((main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
+                   ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
-      Beh.of_program (@ModL.compile _ CONFT (Mod.add_list mds_tgt)) <1=
-      Beh.of_program (@ModL.compile _ CONFS (Mod.add_list mds_src)).
+      Beh.of_program (@Mod.compile _ CONFT md_tgt) <1=
+      Beh.of_program (@Mod.compile _ CONFS md_src).
   Proof.
     ii. eapply adequacy_type_m2s; et.
     eapply adequacy_type_m2m; et.
@@ -119,25 +119,22 @@ Section CANCELSTB.
   Context {CONF: EMSConfig}.
   Variable entry_r: Σ.
 
-  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_initial_mrs mds sk).
+  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk).
 
   Hypothesis MAINM: forall (main_fsp: fspec) (MAIN: stb sk "main" = Some main_fsp),
       exists (x: main_fsp.(meta)),
-        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) None x initial_arg initial_arg>>) /\
+        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) x initial_arg initial_arg>>) /\
         (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
         (<<RET: forall ret_src ret_tgt,
-            (main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
+            (main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
 
-  Theorem adequacy_type_stb: refines_closed (Mod.add_list mds_tgt) (Mod.add_list mds_src).
+  Theorem adequacy_type_stb: refines_closed md_tgt md_src.
   Proof.
     ii. eapply adequacy_type_arg_stb; et.
     i. hexploit MAINM; et. i. des. esplits; et.
-    { eapply to_semantic.
-      { eapply PRE.  }
-      { eapply URA.wf_mon; et. }
-    }
-    { r_wf WFR. unfold SMod.get_initial_mrs. ss. unfold mss, _mss.
-      rewrite List.map_map. ss. }
+    eapply to_semantic.
+    - eapply PRE. 
+    - eapply URA.wf_mon; et.
   Qed.
 
 End CANCELSTB.
@@ -147,15 +144,15 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
-  Let sk: Sk.t := SMod.get_sk mds.
-  Let stb0: Sk.t -> gname -> option fspec := fun sk => to_stb (SMod.get_stb mds sk).
-  Let stb1: Sk.t -> gname -> option fspec := fun sk => to_closed_stb (SMod.get_stb mds sk).
+  Let sk: Sk.t := SMod.get_sk md.
+  Let stb0: Sk.t -> gname -> option fspec := fun sk => to_stb (SMod.get_stb md sk).
+  Let stb1: Sk.t -> gname -> option fspec := fun sk => to_closed_stb (SMod.get_stb md sk).
 
-  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
-  Let mds_tgt0: list Mod.t := List.map (SMod.to_tgt stb0) mds.
-  Let mds_tgt1: list Mod.t := List.map (SMod.to_tgt stb1) mds.
+  Let md_src: Mod.t := (SMod.to_src) md.
+  Let md_tgt0: Mod.t := (SMod.to_tgt stb0) md.
+  Let md_tgt1: Mod.t := (SMod.to_tgt stb1) md.
 
   Section STRONGER.
   Context {CONFS CONFT: EMSConfig}.
@@ -165,63 +162,54 @@ Section CANCEL.
           (MAINM:
              forall (main_fsp: fspec) (MAIN: stb0 sk "main" = Some main_fsp),
              exists (x: main_fsp.(meta)) entry_r,
-               (<<PRE: main_fsp.(precond) None x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
+               (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ SMod.get_initial_mrs mds sk)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk)>>) /\
                (<<RET: forall ret_src ret_tgt,
-                   ((main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
+                   ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
-      Beh.of_program (@ModL.compile _ CONFT (Mod.add_list mds_tgt0)) <1=
-      Beh.of_program (@ModL.compile _ CONFS (Mod.add_list mds_src)).
+      Beh.of_program (@Mod.compile _ CONFT md_tgt0) <1=
+      Beh.of_program (@Mod.compile _ CONFS md_src).
   Proof.
     eapply adequacy_type_arg_stb; et.
-    { unfold stb0, sk, SMod.get_stb, SMod.get_sk. unfold to_stb.
-      rewrite flat_map_map. ss. }
-    { i. left. rewrite <- FIND.
-      unfold stb0, to_stb, SMod.get_stb.
-      rewrite flat_map_map. ss. }
-    { i. hexploit MAINM; et. i. des. esplits; et.
-      r_wf WFR. rewrite map_map. ss. }
   Qed.
 
   Theorem adequacy_type_arg_closed
           (MAINM:
              forall (main_fsp: fspec) (MAIN: stb1 sk "main" = Some main_fsp),
              exists (x: main_fsp.(meta)) entry_r,
-               (<<PRE: main_fsp.(precond) None x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
+               (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ SMod.get_initial_mrs mds sk)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk)>>) /\
                (<<RET: forall ret_src ret_tgt,
-                   ((main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
+                   ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
-      Beh.of_program (@ModL.compile _ CONFT (Mod.add_list mds_tgt1)) <1=
-      Beh.of_program (@ModL.compile _ CONFS (Mod.add_list mds_src)).
+      Beh.of_program (@Mod.compile _ CONFT md_tgt1) <1=
+      Beh.of_program (@Mod.compile _ CONFS md_src).
   Proof.
     eapply adequacy_type_arg_stb; et.
     { unfold stb1, sk, SMod.get_stb, SMod.get_sk. unfold to_closed_stb.
-      rewrite flat_map_map. i. ss. unfold map_snd. rewrite FIND. auto. }
+      i. ss. unfold map_snd. rewrite FIND. et. }
     { unfold stb1, sk, SMod.get_stb, SMod.get_sk. unfold to_closed_stb.
-      rewrite flat_map_map. ss. i. right. unfold map_snd.
+      ss. i. right. unfold map_snd.
       rewrite FIND. esplits; et. }
-    { i. exploit MAINM; et. i. des. esplits; et.
-      r_wf WFR. rewrite map_map. ss. }
   Qed.
   End STRONGER.
 
   Context {CONF: EMSConfig}.
   Variable entry_r: Σ.
 
-  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_initial_mrs mds sk).
+  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk).
 
   Section TYPE0.
   Hypothesis MAINM: forall (main_fsp: fspec) (MAIN: stb0 sk "main" = Some main_fsp),
       exists (x: main_fsp.(meta)),
-        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) None x initial_arg initial_arg>>) /\
+        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) x initial_arg initial_arg>>) /\
         (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
         (<<RET: forall ret_src ret_tgt,
-            (main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
+            (main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
 
-  Theorem adequacy_type: refines_closed (Mod.add_list mds_tgt0) (Mod.add_list mds_src).
+  Theorem adequacy_type: refines_closed md_tgt0 md_src.
   Proof.
     ii. eapply adequacy_type_arg; et.
     i. hexploit MAINM; et. i. des. esplits; et.
@@ -236,12 +224,12 @@ Section CANCEL.
   Section TYPE1.
   Hypothesis MAINM: forall (main_fsp: fspec) (MAIN: stb1 sk "main" = Some main_fsp),
       exists (x: main_fsp.(meta)),
-        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) None x initial_arg initial_arg>>) /\
+        (<<PRE: Own (entry_r) -∗ main_fsp.(precond) x initial_arg initial_arg>>) /\
         (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
         (<<RET: forall ret_src ret_tgt,
-            (main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
+            (main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>).
 
-  Theorem adequacy_type_closed: refines_closed (Mod.add_list mds_tgt1) (Mod.add_list mds_src).
+  Theorem adequacy_type_closed: refines_closed md_tgt1 md_src.
   Proof.
     ii. eapply adequacy_type_arg_closed; et.
     i. hexploit MAINM; et. i. des. esplits; et.
@@ -264,18 +252,18 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable mds: list SMod.t.
+  Variable md: SMod.t.
 
 
-  Let sk: Sk.t := SMod.get_sk mds.
-  (* Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)). *)
+  Let sk: Sk.t := SMod.get_sk md.
+  (* Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk md)). *)
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
 
-  Let _mss: Sk.t -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
-  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
+  Let _ms: Sk.t -> SModSem.t := fun sk => (SMod.get_modsem md sk).
+  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => ((SModSem.fnsems) (_ms sk)).
   Let _stb: Sk.t -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
 
-  Let mss: list SModSem.t := _mss sk.
+  Let ms: SModSem.t := _ms sk.
   Let sbtb: list (gname * fspecbody) := _sbtb sk.
 
   Let stb: gname -> option fspec :=
@@ -284,25 +272,28 @@ Section CANCEL.
               | None => Some fspec_trivial
               end.
 
-  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
-  Variable mds_tgt: list Mod.t.
+  Let md_src: Mod.t := (SMod.to_src) md.
+  Variable md_tgt: Mod.t.
 
 
-  Hypothesis WEAKEN: Forall2 (fun md md_tgt => exists stb0, (<<WEAK: forall sk, stb_weaker (stb0 sk) stb>>)
-                                                            /\ (<<MD: md_tgt = SMod.to_tgt stb0 md>>)) mds mds_tgt.
+  Hypothesis WEAKEN: (fun md md_tgt => exists stb0, (<<WEAK: forall sk, stb_weaker (stb0 sk) stb>>)
+                                                            /\ (<<MD: md_tgt = SMod.to_tgt stb0 md>>)) md md_tgt.
 
-  Opaque EventsL.interp_Es.
+  (* Hypothesis WEAKEN: Forall2 (fun md md_tgt => exists stb0, (<<WEAK: forall sk, stb_weaker (stb0 sk) stb>>)
+                                                            /\ (<<MD: md_tgt = SMod.to_tgt stb0 md>>)) md md_tgt. *)
 
-  Let ms_src: ModSemL.t := ModL.enclose (Mod.add_list mds_src).
-  Let ms_tgt: ModSemL.t := ModL.enclose (Mod.add_list mds_tgt).
+  Opaque interp_Es.
 
-  Let initial_mrs_eq_aux
+  Let ms_src: ModSem.t := Mod.enclose md_src.
+  Let ms_tgt: ModSem.t := Mod.enclose md_tgt.
+
+  (* Let initial_mrs_eq_aux
       sk0
     :
       List.map
         (fun x =>
            (SModSem.mn (SMod.get_modsem x sk0),
-            (Any.pair (SModSem.initial_st (SMod.get_modsem x sk0)) (SModSem.initial_mr (SMod.get_modsem x sk0))↑))) mds =
+            (Any.pair (SModSem.initial_st (SMod.get_modsem x sk0)) (SModSem.initial_mr (SMod.get_modsem x sk0))↑))) md =
       ModSemL.initial_mrs (ModL.get_modsem (Mod.add_list mds_tgt) sk0)
   .
   Proof.
@@ -317,7 +308,7 @@ Section CANCEL.
     inv WEAKEN; ss.
   Qed.
 
-  Lemma sk_eq: fold_right Sk.add Sk.unit (List.map SMod.sk mds) = ModL.sk (Mod.add_list mds_tgt).
+  Lemma sk_eq: fold_right Sk.add Sk.unit (List.map SMod.sk md) = ModL.sk (Mod.add_list mds_tgt).
   Proof.
     clear - WEAKEN.
     eapply Forall2_impl in WEAKEN; cycle 1.
@@ -327,7 +318,7 @@ Section CANCEL.
     f_equal. erewrite IHf; ss.
   Qed.
 
-  Lemma sk_eq2: fold_right Sk.add Sk.unit (List.map SMod.sk mds) = (ModL.sk (Mod.add_list (List.map (SMod.to_tgt (fun _ => stb)) mds))).
+  Lemma sk_eq2: fold_right Sk.add Sk.unit (List.map SMod.sk md) = (ModL.sk (Mod.add_list (List.map (SMod.to_tgt (fun _ => stb)) md))).
   Proof.
     rewrite sk_eq. clear - WEAKEN.
     eapply Forall2_impl in WEAKEN; cycle 1.
@@ -348,7 +339,7 @@ Section CANCEL.
       List.map
         (fun x =>
            (SModSem.mn (SMod.get_modsem x sk),
-            (Any.pair (SModSem.initial_st (SMod.get_modsem x sk))) (SModSem.initial_mr (SMod.get_modsem x sk))↑)) mds =
+            (Any.pair (SModSem.initial_st (SMod.get_modsem x sk))) (SModSem.initial_mr (SMod.get_modsem x sk))↑)) md =
       ModSemL.initial_mrs (ModL.enclose (Mod.add_list mds_tgt))
   .
   Proof.
@@ -360,7 +351,7 @@ Section CANCEL.
   Lemma initial_mrs_eq2
     :
       List.map fst (ModSemL.initial_mrs ms_tgt) =
-      List.map fst (ModSemL.initial_mrs (ModL.enclose (Mod.add_list (List.map (SMod.to_tgt (fun _ => stb)) mds))))
+      List.map fst (ModSemL.initial_mrs (ModL.enclose (Mod.add_list (List.map (SMod.to_tgt (fun _ => stb)) md))))
   .
   Proof.
     unfold ms_tgt. rewrite <- initial_mrs_eq.
@@ -375,38 +366,38 @@ Section CANCEL.
     erewrite fold_right_map with (yadd:=@List.app _) (fi:=ModSemL.initial_mrs); cycle 1.
     { refl. }
     rewrite ! List.map_map. cbn.
-    clear - mds. clearbody sk.
-    induction mds; ii; ss. f_equal; ss.
-  Qed.
+    clear - md. clearbody sk.
+    induction md; ii; ss. f_equal; ss.
+  Qed. *)
+
+  Require Import ModSemFacts.
 
   Context {CONF: EMSConfig}.
   Lemma adequacy_type2 entry_r
-        (WFR: URA.wf (entry_r ⋅ SMod.get_initial_mrs mds sk))
+        (WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk))
         (MAINM:
            forall (main_fsp: fspec) (MAIN: stb "main" = Some main_fsp),
            exists (x: main_fsp.(meta)),
-             (<<PRE: Own entry_r -∗ main_fsp.(precond) None x initial_arg initial_arg>>) /\
+             (<<PRE: Own entry_r -∗ main_fsp.(precond) x initial_arg initial_arg>>) /\
              (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
              (<<RET: forall ret_src ret_tgt,
-                 (main_fsp.(postcond) None x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>))
+                 (main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ (⌜ret_src = ret_tgt⌝)>>))
     :
-      refines_closed (Mod.add_list mds_tgt) (Mod.add_list mds_src).
+      refines_closed md_tgt md_src.
   Proof.
     ii. eapply adequacy_type_arg_stb; ss.
     { instantiate (1:=fun _ => stb). unfold stb. i.
-      unfold _stb, _sbtb, _mss, sk. rewrite FIND. auto. }
-    { i. unfold stb, _stb, _sbtb, _mss, sk. rewrite FIND.
+      unfold _stb, _sbtb, _ms, sk. rewrite FIND. auto. }
+    { i. unfold stb, _stb, _sbtb, _ms, sk. rewrite FIND.
       right. esplits; et. }
     { i. ss. hexploit MAINM; et. i. des. esplits; et.
-      { eapply to_semantic; et.
-        eapply URA.wf_mon; et. }
-      { r_wf WFR. unfold SMod.get_initial_mrs. rewrite map_map. ss. }
+      eapply to_semantic; et.
+      eapply URA.wf_mon; et. 
     }
-    { revert x0 PR. eapply refines_close. eapply refines2_pairwise.
-      rewrite <- (map_id mds_tgt). rewrite <- Forall2_flip.
-      eapply Forall2_apply_Forall2; et.
-      i. ss. des. subst. eapply adequacy_weaken; et.
+    { revert x0 PR. eapply refines_close.
+      inv WEAKEN. des. rewrite MD. eapply adequacy_weaken; et.
     }
+
   Qed.
 
 End CANCEL.

@@ -68,10 +68,10 @@ Section AUX.
       _
       (meta fsp)
       fsp.(measure)
-      (fun mn x varg_src varg_tgt =>
-         inv_closed ** (precond fsp) mn x varg_src varg_tgt)
-      (fun mn x vret_src vret_tgt =>
-         inv_closed ** (postcond fsp) mn x vret_src vret_tgt).
+      (fun x varg_src varg_tgt =>
+         inv_closed ** (precond fsp) x varg_src varg_tgt)
+      (fun x vret_src vret_tgt =>
+         inv_closed ** (postcond fsp) x vret_src vret_tgt).
 
   Lemma fspec_weaker_fspec_inv_weakker (fsp0 fsp1: fspec)
         (WEAKER: fspec_weaker fsp0 fsp1)
