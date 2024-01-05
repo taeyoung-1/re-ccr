@@ -76,7 +76,6 @@ Section M.
 
   Definition SMapSem: SModSem.t := {|
     SModSem.fnsems := MapSbtbM;
-    SModSem.mn := "Map";
     SModSem.initial_mr := ε;
     SModSem.initial_st := (fun (_: Z) => 0%Z, 0%Z)↑;
   |}

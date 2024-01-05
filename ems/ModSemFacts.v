@@ -83,10 +83,12 @@ Section COMM.
         * apply sim_itree_call; clarify.
           -- exists a0, b0; et.
           -- i. unfold comm_st in WF. des. ss. clarify.
-           gfinal. left. eapply CIH.
+             gstep. econs; et.
+            gfinal. left. eapply CIH.
         * apply sim_itree_call; clarify.
           -- eexists a0, b0; et.
           -- i. unfold comm_st in WF. des. ss. clarify.
+            gstep. econs; et. 
              gfinal. left. eapply CIH.
 
       + (* sE *)
@@ -294,14 +296,17 @@ Proof.
       * apply sim_itree_call; clarify.
         -- exists a0, b0, c0; et.
         -- i. destruct WF, H, H, H. ss. clarify.
+        gstep. econs; et. 
          gfinal. left. eapply CIH.
       * apply sim_itree_call; clarify.
         -- eexists a0, b0, c0; et.
         -- i. unfold assoc_st in WF. des. ss. clarify.
+        gstep. econs; et. 
            gfinal. left. eapply CIH.
       * apply sim_itree_call; clarify.
         -- eexists a0, b0, c0; et.
         -- i. unfold assoc_st in WF. des. ss. clarify.
+        gstep. econs; et. 
            gfinal. left. eapply CIH. 
     + (* sE *)
       gstep. destruct s, EMB.
@@ -390,14 +395,17 @@ destruct (observe itr).
     * apply sim_itree_call; clarify.
       -- exists a0, b0, c0; et.
       -- i. destruct WF, H, H, H. ss. clarify.
+      gstep. econs; et. 
        gfinal. left. eapply CIH.
     * apply sim_itree_call; clarify.
       -- eexists a0, b0, c0; et.
       -- i. unfold assoc_rev_st in WF. des. ss. clarify.
+      gstep. econs; et. 
          gfinal. left. eapply CIH.
     * apply sim_itree_call; clarify.
       -- eexists a0, b0, c0; et.
       -- i. unfold assoc_rev_st in WF. des. ss. clarify.
+      gstep. econs; et. 
          gfinal. left. eapply CIH. 
   + (* sE *)
     gstep. destruct s, EMB.
@@ -621,6 +629,7 @@ Proof.
       apply sim_itree_call; clarify.
       -- exists a; et.
       -- i. destruct WF, H. ss. clarify.
+        gstep. econs; et. 
          gfinal. left. eapply CIH.
     + (* sE *)
       gstep. destruct s, EMB.
@@ -683,6 +692,7 @@ Proof.
       apply sim_itree_call; clarify.
       -- exists a; et.
       -- i. destruct WF, H. ss. clarify.
+        gstep. econs; et. 
          gfinal. left. eapply CIH.
     + (* sE *)
       gstep. destruct s, EMB.

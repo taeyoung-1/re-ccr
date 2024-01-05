@@ -381,6 +381,9 @@ Section CONF.
     Beh.of_program (Mod.compile md_tgt) <1= Beh.of_program (Mod.compile md_src)
   .
 
+  Definition refines2 (md_tgt md_src: list Mod.t): Prop :=
+    refines (Mod.add_list md_tgt) (Mod.add_list md_src).
+
   (* Definition refines2 (md_tgt md_src: list Mod.t): Prop :=
     forall (ctx: Mod.t), Beh.of_program (Mod.compile (Mod.add ctx (Mod.add_list md_tgt))) <1=
                               Beh.of_program (Mod.compile (Mod.add ctx (Mod.add_list md_src)))

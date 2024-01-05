@@ -221,8 +221,12 @@ Proof.
 Qed.
 Notation syscallU name vs := (z <- trigger (Syscall name vs↑ top1);; `z: Z <- z↓?;; Ret z).
 
-Notation pget := (p0 <- trigger PGet;; p0 <- p0↓ǃ;; Ret p0) (only parsing).
-Notation pput p0 := (trigger (PPut p0↑)) (only parsing).
+Notation pget := (p0 <- trigger sGet;; p0 <- p0↓ǃ;; Ret p0) (only parsing).
+Notation pput p0 := (trigger (sPut p0↑)) (only parsing).
+
+
+(* Notation pget := (p0 <- trigger PGet;; p0 <- p0↓ǃ;; Ret p0) (only parsing).
+Notation pput p0 := (trigger (PPut p0↑)) (only parsing). *)
 
 Fixpoint set_nth A (n:nat) (l:list A) (new:A) {struct l} : option (list A) :=
   match n, l with

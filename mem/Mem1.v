@@ -252,7 +252,6 @@ Section PROOF.
 
   Definition SMemSem (sk: Sk.t): SModSem.t := {|
     SModSem.fnsems := MemSbtb;
-    SModSem.mn := "Mem";
     SModSem.initial_mr := (GRA.embed (Auth.black (initial_mem_mr csl sk)));
     SModSem.initial_st := tt↑;
   |}

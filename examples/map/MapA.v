@@ -70,7 +70,6 @@ Section A.
 
   Definition SMapSem: SModSem.t := {|
     SModSem.fnsems := MapSbtb;
-    SModSem.mn := "Map";
     SModSem.initial_mr := GRA.embed (Excl.unit, Auth.excl ((fun _ => Excl.just 0%Z): @URA.car (Z ==> (Excl.t Z))%ra) ((fun _ => Excl.just 0%Z): @URA.car (Z ==> (Excl.t Z))%ra));
     SModSem.initial_st := (fun (_: Z) => 0%Z)↑;
   |}

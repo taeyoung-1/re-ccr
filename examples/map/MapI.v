@@ -49,7 +49,7 @@ Section I.
   Definition getF: list val -> itree Es val :=
     fun varg =>
       k <- (pargs [Tint] varg)?;;
-      data <- trigger PGet;; data <- data↓?;; vptr <- (vadd data (Vint (k * 8)))?;;
+      data <- trigger sGet;; data <- data↓?;; vptr <- (vadd data (Vint (k * 8)))?;;
       `r: val <- ccallU "load" [vptr];; r <- (unint r)?;;
       Ret (Vint r)
   .
@@ -57,7 +57,7 @@ Section I.
   Definition setF: list val -> itree Es val :=
     fun varg =>
       '(k, v) <- (pargs [Tint; Tint] varg)?;;
-      data <- trigger PGet;; data <- data↓?;; vptr <- (vadd data (Vint (k * 8)))?;;
+      data <- trigger sGet;; data <- data↓?;; vptr <- (vadd data (Vint (k * 8)))?;;
       `_: val <- ccallU "store" [vptr; Vint v];;
       Ret Vundef
   .
@@ -71,8 +71,7 @@ Section I.
 
   Definition MapSem: ModSem.t := {|
     ModSem.fnsems := [("init", cfunU initF); ("get", cfunU getF); ("set", cfunU setF); ("set_by_user", cfunU set_by_userF)];
-    ModSem.mn := "Map";
-    ModSem.initial_st := Vnullptr↑;
+    ModSem.init_st := Vnullptr↑;
   |}
   .
 

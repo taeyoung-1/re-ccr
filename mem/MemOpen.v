@@ -28,12 +28,12 @@ Section TUNNEL.
     (* mk_fspec (fun _ x y a o => (((fst ∘ PQ) x a o: iProp) ∧ ⌜y = tt↑⌝)%I) *)
     (*          (fun _ x z a => (((snd ∘ PQ) x a: iProp) ∧ ⌜z = tt↑⌝)%I) *)
     mk_fspec (fun x => match x with | Some x => (fst ∘ fst ∘ DPQ) x | _ => ord_top end)
-             (fun _ x y a =>
+             (fun x y a =>
                 match x with
                 | Some x => (((snd ∘ fst ∘ DPQ) x a: iProp))%I
                 | _ => ⌜y = a⌝%I: iProp
                 end)
-             (fun _ x z a =>
+             (fun x z a =>
                 match x with
                 | Some x => (((snd ∘ DPQ) x a: iProp))%I
                 | _ => ⌜z = a⌝%I: iProp
@@ -97,7 +97,7 @@ Section PROOF.
 End PROOF.
 
 
-
+(* 
 Section PROOF.
   Context `{@GRA.inG memRA Σ}.
 
@@ -137,7 +137,7 @@ Section PROOF.
   .
   Definition Mem (stb: Sk.t -> gname -> option fspec): Mod.t := KMod.transl_tgt stb KMem.
 
-End PROOF.
+End PROOF. *)
 Global Hint Unfold MemStb: stb.
 
 Global Opaque _points_to.
