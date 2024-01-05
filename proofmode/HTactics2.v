@@ -827,7 +827,6 @@ Ltac harg :=
 
 Ltac init :=
   let varg_src := fresh "varg_src" in
-  let := fresh "mn" in
   let varg := fresh "varg" in
   let EQ := fresh "EQ" in
   let w := fresh "w" in

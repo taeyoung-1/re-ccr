@@ -45,7 +45,7 @@ Section SIM.
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          sim_itree _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
       _sim_itree sim_itree RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                  (st_tgt0, trigger (Call fn varg) >>= k_tgt)
@@ -149,7 +149,7 @@ Section SIM.
             fn varg k_src k_tgt
             (WF: wf w0 (st_src0, st_tgt0))
             (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-                sim_itree _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
+                sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
             P i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
               (st_tgt0, trigger (Call fn varg) >>= k_tgt))
         (SYSCALL: forall
@@ -264,7 +264,7 @@ Section SIM.
             fn varg k_src k_tgt
             (WF: wf w0 (st_src0, st_tgt0))
             (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-                paco8 _sim_itree bot8 _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
+                paco8 _sim_itree bot8 _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)),
             P i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
               (st_tgt0, trigger (Call fn varg) >>= k_tgt))
         (SYSCALL: forall
@@ -369,7 +369,7 @@ Section SIM.
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          sim_itree _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          sim_itree _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
       sim_itree_indC  sim_itree RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                      (st_tgt0, trigger (Call fn varg) >>= k_tgt)
@@ -482,7 +482,7 @@ Section SIM.
       fn varg k_src k_tgt
       (WF: wf w0 (st_src0, st_tgt0))
       (K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-          g _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
+          g _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret))
     :
       sim_itreeC r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                  (st_tgt0, trigger (Call fn varg) >>= k_tgt)
@@ -1023,6 +1023,7 @@ Section SEMPAIR.
         { i. ss. destruct vret_src, vret_tgt. des; clarify. inv SIM0.
           hexploit K; et. i. des. pclearbot. ired_both.
           steps. gbase. eapply CIH. econs; et.
+          eapply sim_itree_bot_flag_up. et.           
         }
       }
     - step. i. subst. apply simg_progress_flag.
@@ -1501,7 +1502,7 @@ Proof.
           (* exists wf1, wf2. et.  *)
           (* exists wf1. et. *)
           esplits; et. }
-        i. gfinal. left.
+        i. gstep. econs; et. gfinal. left.
         ss. destruct (Any.split st_src1) eqn: SPL1; destruct (Any.split st_tgt1) eqn: SPL2; clarify.
         2: { destruct p. clarify. }
         destruct p, p0, WF.

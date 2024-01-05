@@ -92,7 +92,7 @@ Section SIM.
       (SIM: exists w0,
           (<<WF: wf w0 (st_src0, st_tgt0)>>) /\
           (<<K: forall w1 vret st_src1 st_tgt1 (WLE: le w0 w1) (WF: wf w1 (st_src1, st_tgt1)),
-              g _ _ RR false false w (st_src1, k_src vret) (st_tgt1, k_tgt vret)>>))
+              g _ _ RR true true w (st_src1, k_src vret) (st_tgt1, k_tgt vret)>>))
     :
       _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                       (st_tgt0, trigger (Call fn varg) >>= k_tgt)
@@ -225,7 +225,7 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iProp ctx1 (FR ** R a1 mp_src1 mp_tgt1 ** fsp1.(postcond) x vret_src vret_tgt))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
                   (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
                 :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
@@ -312,7 +312,7 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 ((Invn, R a1 mp_src1 mp_tgt1) :: (Rn, fsp1.(postcond) x vret_src vret_tgt) :: snd (alist_pops Hns l)))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
                    ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
@@ -364,7 +364,7 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, fsp1.(postcond) x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
                    ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
@@ -404,7 +404,7 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, Q x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true false a
+                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
                        ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
       gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
@@ -820,7 +820,7 @@ Ltac astart _at_most :=
 
 Ltac astop :=
   match goal with
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, interp_hCallE_tgt _ _ _ APC _ >>= _) (_, _)) ] => astart 0
+  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, interp_hCallE_tgt _ _ APC _ >>= _) (_, _)) ] => astart 0
   | _ => idtac
   end;
   eapply APC_stop_clo.

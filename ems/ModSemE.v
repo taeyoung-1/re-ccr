@@ -3,7 +3,6 @@ Require Export sflib.
 Require Export ITreelib.
 Require Export AList.
 Require Import Any.
-Require Import Optics.
 
 Set Implicit Arguments.
 
