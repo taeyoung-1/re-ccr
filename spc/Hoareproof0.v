@@ -114,22 +114,22 @@ Section CANCEL.
 
 
 
+  Context `{SK: Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X: Sk.ld}.
 
   Variable mds: list SMod.t.
 
-  Let sk: Sk.sem := Sk.canon (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
+  Let sk: Sk.t := Sk.canon (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
 
-  Let _mss: Sk.sem -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
-  Let _sbtb: Sk.sem -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
-  Let _stb: Sk.sem -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
+  Let _mss: Sk.t -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
+  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
+  Let _stb: Sk.t -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
 
   Let mss: list SModSem.t := _mss sk.
   Let sbtb: list (gname * fspecbody) := _sbtb sk.
 
-  Variable stb: Sk.sem -> gname -> option fspec.
+  Variable stb: Sk.t -> gname -> option fspec.
   Hypothesis STBCOMPLETE:
     forall fn fsp (FIND: alist_find fn (_stb sk) = Some fsp), stb sk fn = Some fsp.
   Hypothesis STBSOUND:
@@ -339,7 +339,6 @@ Section CANCEL.
       unfold ms_mid, ms_tgt.
       unfold mds_mid, mds_tgt, SMod.to_mid, SMod.to_tgt. ss.
       rewrite ! SMod.transl_initial_mrs.
-      change (alist string Any.t) with Sk.t.
       generalize (Sk.canon (fold_right Sk.add Sk.unit (map SMod.sk mds))).
       intros sk0. i. red. extensionality mn.
       unfold SMod.load_initial_mrs.

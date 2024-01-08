@@ -367,25 +367,25 @@ End RDB.
 Module KMod.
 Section KMOD.
 
+  Context `{SK: Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X: Sk.ld}.
 
   Record t: Type := mk {
-    get_modsem: Sk.sem -> KModSem.t;
+    get_modsem: Sk.t -> KModSem.t;
     sk: Sk.t;
   }
   .
 
-  Definition get_stb (mds: list t): Sk.sem -> alist gname fspec :=
+  Definition get_stb (mds: list t): Sk.t -> alist gname fspec :=
     fun sk => map (map_snd ksb_fspec) (flat_map (KModSem.fnsems ∘ (flip get_modsem sk)) mds).
 
-  Definition get_sk (mds: list t): Sk.sem :=
+  Definition get_sk (mds: list t): Sk.t :=
     Sk.canon (fold_right Sk.add Sk.unit (List.map sk mds)).
 
-  Definition get_frds (mds: list t): Sk.sem -> list mname :=
+  Definition get_frds (mds: list t): Sk.t -> list mname :=
     fun sk => (map (KModSem.mn ∘ (flip get_modsem sk)) mds).
 
-  Definition get_initial_mrs (mds: list t): Sk.sem -> Σ :=
+  Definition get_initial_mrs (mds: list t): Sk.t -> Σ :=
     fun sk => fold_left (⋅) (List.map (KModSem.initial_mr ∘ (flip get_modsem sk)) mds) ε.
 
   Definition transl_mid (md: t): SMod.t := {|
@@ -398,7 +398,7 @@ Section KMOD.
                                        (transl_mid md).(SMod.get_modsem) sk.
   Proof. i. refl. Qed.
 
-  Definition transl_src (frds: Sk.sem -> list mname) (md: t): Mod.t := {|
+  Definition transl_src (frds: Sk.t -> list mname) (md: t): Mod.t := {|
     Mod.get_modsem := fun sk => KModSem.transl_src (frds sk) (md.(get_modsem) sk);
     Mod.sk := md.(sk);
   |}

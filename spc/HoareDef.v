@@ -1,4 +1,4 @@
- Require Import Coqlib AList.
+Require Import Coqlib AList.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
@@ -264,21 +264,6 @@ Section CANCEL.
              (fun _ x z a => (((snd ∘ DPQ) x a: iProp) ∧ ⌜z = a⌝)%I)
   .
 
-  Definition app_DPQ {X0} {X1}
-    (DPQ0: X0 -> ord * (Any.t -> iProp) * (Any.t -> iProp))
-    (DPQ1: X1 -> ord * (Any.t -> iProp) * (Any.t -> iProp))
-  :
-    (X0 + X1) -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-    fun meta =>
-      match meta with
-      | inl meta0 => DPQ0 meta0
-      | inr meta1 => DPQ1 meta1
-      end.
-  
-
-  (* specbody with dummy function body used in pure spec *)
-  Definition mk_pure (fsb: fspec) := mk_specbody fsb (fun arg => Ret arg.2).
-
   Section INTERP.
   (* Variable stb: gname -> option fspec. *)
   (*** TODO: I wanted to use above definiton, but doing so makes defining ms_src hard ***)
@@ -476,10 +461,10 @@ If this feature is needed; we can extend it then. At the moment, I will only all
 
   End INTERP.
 
-  Context `{Sk.ld}.
 
+  Context `{Sk.ld}.
   Variable md_tgt: ModL.t.
-  Let ms_tgt: ModSemL.t := (ModL.get_modsem md_tgt (Sk.canon md_tgt.(ModL.sk))).
+  Let ms_tgt: ModSemL.t := (ModL.get_modsem md_tgt md_tgt.(ModL.sk)).
 
   Variable sbtb: alist gname fspecbody.
   Let stb: alist gname fspec := List.map (fun '(gn, fsb) => (gn, fsb_fspec fsb)) sbtb.
@@ -502,7 +487,9 @@ End CANCEL.
 End PSEUDOTYPING.
 
 
-Notation "DPQ0 @ DPQ1" := (app_DPQ DPQ0 DPQ1) (at level 60, right associativity).
+
+
+
 
 
 Module SModSem.
@@ -546,16 +533,16 @@ End SModSem.
 Module SMod.
 Section SMOD.
 
+  Context `{Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X:Sk.ld}.
 
   Record t: Type := mk {
-    get_modsem: Sk.sem -> SModSem.t;
+    get_modsem: Sk.t -> SModSem.t;
     sk: Sk.t;
   }
   .
 
-  Definition transl (tr: Sk.sem -> mname -> fspecbody -> (option mname * Any.t -> itree Es Any.t)) (mst: SModSem.t -> Any.t) (md: t): Mod.t := {|
+  Definition transl (tr: Sk.t -> mname -> fspecbody -> (option mname * Any.t -> itree Es Any.t)) (mst: SModSem.t -> Any.t) (md: t): Mod.t := {|
     Mod.get_modsem := fun sk => SModSem.transl (tr sk) mst (md.(get_modsem) sk);
     Mod.sk := md.(sk);
   |}
@@ -564,17 +551,17 @@ Section SMOD.
   Definition to_src (md: t): Mod.t := transl (fun _ _ => fun_to_src ∘ fsb_body) SModSem.initial_st md.
   Definition to_mid (stb: gname -> option fspec) (md: t): Mod.t := transl (fun _ _ => fun_to_mid stb ∘ fsb_body) SModSem.initial_st md.
   Definition to_mid2 (stb: gname -> option fspec) (md: t): Mod.t := transl (fun _ _ => fun_to_mid2 ∘ fsb_body) SModSem.initial_st md.
-  Definition to_tgt (stb: Sk.sem -> gname -> option fspec) (md: t): Mod.t :=
+  Definition to_tgt (stb: Sk.t -> gname -> option fspec) (md: t): Mod.t :=
     transl (fun sk mn => fun_to_tgt mn (stb sk)) (fun ms => Any.pair ms.(SModSem.initial_st) ms.(SModSem.initial_mr)↑) md.
 
 
-  Definition get_stb (mds: list t): Sk.sem -> alist gname fspec :=
+  Definition get_stb (mds: list t): Sk.t -> alist gname fspec :=
     fun sk => map (map_snd fsb_fspec) (flat_map (SModSem.fnsems ∘ (flip get_modsem sk)) mds).
 
-  Definition get_sk (mds: list t): Sk.sem :=
+  Definition get_sk (mds: list t): Sk.t :=
     Sk.canon (fold_right Sk.add Sk.unit (List.map sk mds)).
 
-  Definition get_initial_mrs (mds: list t): Sk.sem -> Σ :=
+  Definition get_initial_mrs (mds: list t): Sk.t -> Σ :=
     fun sk => fold_left (⋅) (List.map (SModSem.initial_mr ∘ (flip get_modsem sk)) mds) ε.
 
 
@@ -598,21 +585,13 @@ Section SMOD.
   Proof. refl. Qed.
 
 
-
-
-
-
-
-
-
-
   (* Definition l_bind A B (x: list A) (f: A -> list B): list B := List.flat_map f x. *)
   (* Definition l_ret A (a: A): list A := [a]. *)
 
   Declare Scope l_monad_scope.
   Local Open Scope l_monad_scope.
   Notation "'do' X <- A ; B" := (List.flat_map (fun X => B) A) : l_monad_scope.
-  Notation "'do' ' X <- A ; B" := (List.flat_map (fun _x => match _x with | X => B end) A) : l_monad_scope.
+  Notation "'do' ' X <- A ; B" := (List.flat_map (fun _x => match _x with | X => B end) A) (at level 200, X pattern, A at level 100, B at level 200): l_monad_scope.
   Notation "'ret'" := (fun X => [X]) (at level 60) : l_monad_scope.
 
   Lemma unconcat
@@ -673,7 +652,7 @@ Section SMOD.
   .
   Proof. rewrite ! transl_sk. ss. Qed.
 
-  Definition load_fnsems (sk: Sk.sem) (mds: list t) (tr0: mname -> fspecbody -> option mname * Any.t -> itree Es Any.t) :=
+  Definition load_fnsems (sk: Sk.t) (mds: list t) (tr0: mname -> fspecbody -> option mname * Any.t -> itree Es Any.t) :=
     do md <- mds;
     let ms := (get_modsem md sk) in
       (do '(fn, fsb) <- ms.(SModSem.fnsems);
@@ -683,7 +662,7 @@ Section SMOD.
 
   Let transl_fnsems_aux
         tr0 mr0 mds
-        (sk: Sk.sem)
+        (sk: Sk.t)
     :
       (ModSemL.fnsems (ModL.get_modsem (Mod.add_list (List.map (transl tr0 mr0) mds)) sk)) =
       (load_fnsems sk mds (tr0 sk))
@@ -747,7 +726,7 @@ Section SMOD.
 
 
 
-  Definition load_initial_mrs {A} (sk: Sk.sem) (mds: list t) (mr0: SModSem.t -> A): list (string * A) :=
+  Definition load_initial_mrs {A} (sk: Sk.t) (mds: list t) (mr0: SModSem.t -> A): list (string * A) :=
     do md <- mds;
     let ms := (get_modsem md sk) in
     ret (ms.(SModSem.mn), mr0 ms)
@@ -755,7 +734,7 @@ Section SMOD.
 
   Let transl_initial_mrs_aux
         tr0 mr0 mds
-        (sk: Sk.sem)
+        (sk: Sk.t)
     :
       (ModSemL.initial_mrs (ModL.get_modsem (Mod.add_list (List.map (transl tr0 mr0) mds)) sk)) =
       (load_initial_mrs sk mds mr0)

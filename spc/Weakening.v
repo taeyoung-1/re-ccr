@@ -199,8 +199,8 @@ End PROOF.
 
 Section PROOF.
   Context `{EMSConfig}.
+  Context `{SK: Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X: Sk.ld}.
 
   Theorem adequacy_weaken
           stb0 stb1
@@ -212,10 +212,10 @@ Section PROOF.
   Proof.
     eapply adequacy_local2. econs; cycle 1.
     { unfold SMod.to_tgt. cbn. eauto. }
-    i. specialize (WEAK (Sk.canon sk)). r. econs.
+    i. specialize (WEAK sk). r. econs.
     2:{ unfold SMod.to_tgt.
       unfold SMod.transl. ss.
-      abstr (SModSem.fnsems (SMod.get_modsem md (Sk.canon sk))) fnsems.
+      abstr (SModSem.fnsems (SMod.get_modsem md sk)) fnsems.
       eapply Forall2_apply_Forall2.
       { refl. }
       i. subst. destruct b. destruct f. econs.

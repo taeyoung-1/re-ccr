@@ -1,6 +1,14 @@
 Require Export ZArith.
+Require Import AList.
+Require Import Coqlib.
 Require Import String.
 Require Import Orders.
+
+Set Implicit Arguments.
+
+Local Open Scope nat_scope.
+
+
 
 (* one instance per lang *)
 Module Sk.
@@ -22,6 +30,7 @@ Module Sk.
     add_unit_r: forall a, add a unit = a;
     le_add_l: forall a b, le a (add b a);
     le_add_r: forall a b, le a (add a b);
+    le_add_both: forall a b c, le a b -> le (add c a) (add c b);
     wf_comm: forall a b, wf (add a b) -> wf (add b a);
     wf_canon: forall a, wf a -> wf (canon a);
     unit_wf: wf unit;

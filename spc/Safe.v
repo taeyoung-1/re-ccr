@@ -84,13 +84,13 @@ Coercion SafeModSem.to_smodsem: SafeModSem.t >-> SModSem.t.
 Module SafeMod.
 Section SAFEMOD.
   Context `{EMSConfig}.
+  Context `{SK: Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X: Sk.ld}.
 
   Variable stb: gname -> Prop.
 
   Record t: Type := mk {
-    get_modsem: Sk.sem -> SafeModSem.t;
+    get_modsem: Sk.t -> SafeModSem.t;
     sk: Sk.t;
   }
   .
@@ -107,7 +107,7 @@ Coercion SafeMod.to_smod: SafeMod.t >-> SMod.t.
 
 Section LEMMAS.
   Context `{EMSConfig}.
-  Context `{X: Sk.ld}.
+  Context `{SK: Sk.ld}.
 
   Variable prog: ModL.t.
   Let L := ModL.compile prog.
@@ -235,8 +235,8 @@ Hint Resolve safe_bind_clo_mon: paco.
 
 Section SAFETY.
   Context `{EMSConfig}.
+  Context `{SK: Sk.ld}.
   Context `{Σ: GRA.t}.
-  Context `{X: Sk.ld}.
 
   Variable smds: list SafeMod.t.
   Variable stb: gname -> Prop.
@@ -267,8 +267,7 @@ Section SAFETY.
         =
         Some (transl_all (T:=_) mn ∘ fun_to_src (fun _ => SafeModSem.safe_itree stb)).
   Proof.
-    unfold ModL.enclose, mds. unfold Sk.canon. ss.
-    change (alist string Any.t) with Sk.t.
+    unfold ModL.enclose, mds. ss.
     generalize (Sk.canon (ModL.sk (Mod.add_list (map (SMod.to_src ∘ SafeMod.to_smod stb) smds)))).
     i. rewrite ! Mod.add_list_fnsems.
     rewrite <- fold_right_app_flat_map. rewrite ! flat_map_map.
@@ -277,10 +276,8 @@ Section SAFETY.
     change (fun '(fn0, sb) => (fn0: string, fun_to_src (fsb_body sb))) with
         (map_snd (A:=string) (fun_to_src ∘ fsb_body)).
     rewrite ! alist_find_map_snd. uo.
-    des_ifs.
-    - right. esplits; et.
-    - admit.
-  Admitted.
+    des_ifs. right. esplits; et.
+  Qed.
 
   Lemma call_safe:
     forall md fn arg st
