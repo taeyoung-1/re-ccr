@@ -53,7 +53,7 @@ Section KNOT.
                         (fun varg =>
                            (⌜exists fb,
                                  varg = [Vptr fb 0; Vint (Z.of_nat n)]↑ /\ (intrange_64 n) /\
-                                 fb_has_spec (Sk.load_skenv sk) (RecStb sk) fb rec_spec⌝)
+                                 fb_has_spec (load_skenv sk) (RecStb sk) fb rec_spec⌝)
                              ** OwnM (knot_frag (Some f))
                         ),
                         (fun vret =>
@@ -72,13 +72,13 @@ Section KNOT.
                         (fun varg =>
                            (⌜exists fb,
                                  varg = [Vptr fb 0]↑ /\
-                                 fb_has_spec (Sk.load_skenv sk) (FunStb sk) fb (fun_gen f)⌝)
+                                 fb_has_spec (load_skenv sk) (FunStb sk) fb (fun_gen f)⌝)
                              ** (∃ old, OwnM (knot_frag old))
                         ),
                         (fun vret =>
                            (⌜exists fb,
                                  vret = (Vptr fb 0)↑ /\
-                                 fb_has_spec (Sk.load_skenv sk) (RecStb sk) fb rec_spec⌝)
+                                 fb_has_spec (load_skenv sk) (RecStb sk) fb rec_spec⌝)
                              ** OwnM (knot_frag (Some f))
                         )
                    ))).
@@ -90,7 +90,7 @@ Section KNOT.
                      (fun varg =>
                         (⌜exists fb,
                               varg = [Vptr fb 0]↑ /\
-                              fb_has_spec (Sk.load_skenv sk) (FunStb sk) fb (fun_gen f)⌝)
+                              fb_has_spec (load_skenv sk) (FunStb sk) fb (fun_gen f)⌝)
                           ** OwnM (knot_init)
                           ** inv_closed
                      ),
@@ -98,7 +98,7 @@ Section KNOT.
                         (∃ INV,
                             (⌜exists fb,
                                   vret = (Vptr fb 0)↑ /\
-                                  fb_has_spec (Sk.load_skenv sk) (RecStb sk) fb (mrec_spec f INV)⌝)
+                                  fb_has_spec (load_skenv sk) (RecStb sk) fb (mrec_spec f INV)⌝)
                               ** INV)%I
                      )
                 )).
@@ -111,7 +111,7 @@ Section KNOT.
     Definition SKnotSem: SModSem.t := {|
       SModSem.fnsems := KnotSbtb;
       SModSem.mn := "Knot";
-      SModSem.initial_mr := (GRA.embed (var_points_to (Sk.load_skenv sk) "_f" (Vint 0))) ⋅ (GRA.embed (knot_full None)) ;
+      SModSem.initial_mr := (GRA.embed (var_points_to (load_skenv sk) "_f" (Vint 0))) ⋅ (GRA.embed (knot_full None)) ;
       SModSem.initial_st := tt↑;
     |}
     .
@@ -119,7 +119,7 @@ Section KNOT.
 
   Definition SKnot: SMod.t := {|
     SMod.get_modsem := SKnotSem;
-    SMod.sk := [("rec", Sk.Gfun); ("knot", Sk.Gfun); ("_f", Sk.Gvar 0)];
+    SMod.sk := [("rec", Gfun); ("knot", Gfun); ("_f", Gvar 0)];
   |}
   .
 

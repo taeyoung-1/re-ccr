@@ -84,9 +84,9 @@ Section SIMMODSEM.
         (⌜forall f (EQ: f' = Some f),
               exists fb,
                 (<<BLK: fb' = Vptr fb 0>>) /\
-                (<<FN: fb_has_spec (Sk.load_skenv sk) (FunStb sk) fb (fun_gen RecStb sk f)>>)⌝)
+                (<<FN: fb_has_spec (load_skenv sk) (FunStb sk) fb (fun_gen RecStb sk f)>>)⌝)
           ** (OwnM (knot_full f'))
-          ** (OwnM (var_points_to (Sk.load_skenv sk) "_f" fb')))%I.
+          ** (OwnM (var_points_to (load_skenv sk) "_f" fb')))%I.
 
   Let wf (sk: Sk.t): _ -> W -> Prop :=
     @inv_wf
@@ -114,7 +114,7 @@ Section SIMMODSEM.
         iIntros "[H0 H1]". unfold inv. iExists None, _. iFrame. iPureIntro. ss. }
     }
     { eapply inv_le_PreOrder. ss. }
-    eapply Sk.incl_incl_env in SKINCL. eapply Sk.load_skenv_wf in SKWF.
+    eapply incl_incl_env in SKINCL. eapply load_skenv_wf in SKWF.
     hexploit (SKINCL "rec"); ss; eauto. intros [blk0 FIND0].
     hexploit (SKINCL "_f"); ss; eauto. intros [blk1 FIND1].
 

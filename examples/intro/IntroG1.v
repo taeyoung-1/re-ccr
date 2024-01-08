@@ -31,7 +31,7 @@ Section PROOF.
 
   Definition G: Mod.t := (SMod.to_tgt (fun _ => GlobalStb)) {|
     SMod.get_modsem := fun _ => GSem;
-    SMod.sk := [("g", Sk.Gfun)];
+    SMod.sk := [("g", Gfun)];
   |}.
 
 End PROOF.

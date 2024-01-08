@@ -34,7 +34,7 @@ Section PROOF.
       ccallU fn [Vptr rb 0; Vint n].
 
   Definition KnotSem (sk: Sk.t): ModSem.t := {|
-    ModSem.fnsems := [("rec", cfunU (recF (Sk.load_skenv sk: SkEnv.t))); ("knot", cfunU (knotF (Sk.load_skenv sk)))];
+    ModSem.fnsems := [("rec", cfunU (recF (load_skenv sk: SkEnv.t))); ("knot", cfunU (knotF (load_skenv sk)))];
     ModSem.mn := "Knot";
     ModSem.initial_st := tt↑;
   |}
@@ -42,7 +42,7 @@ Section PROOF.
 
   Definition Knot: Mod.t := {|
     Mod.get_modsem := fun skenv => KnotSem skenv;
-    Mod.sk := [("rec", Sk.Gfun); ("knot", Sk.Gfun); ("_f", Sk.Gvar 0)];
+    Mod.sk := [("rec", Gfun); ("knot", Gfun); ("_f", Gvar 0)];
   |}
   .
 End PROOF.

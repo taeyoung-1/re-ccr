@@ -35,7 +35,7 @@ Section PROOF.
 
   Definition F: Mod.t := {|
     Mod.get_modsem := fun _ => FSem;
-    Mod.sk := [("f", Sk.Gfun)];
+    Mod.sk := [("f", Gfun)];
   |}
   .
 End PROOF.

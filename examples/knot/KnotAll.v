@@ -57,20 +57,20 @@ Section PROOF.
     refines2 KnotAll0 KnotAll1.
   Proof.
     eapply refines2_cons.
-    { eapply KnotMain01proof.correct with (RecStb:=RecStb) (FunStb:=FunStb) (GlobalStb:=GlobalStb).
+    { eapply KnotMain01proof.correct with (RecStb0:=RecStb) (FunStb0:=FunStb) (GlobalStb0:=GlobalStb).
       { stb_incl_tac. }
       { ii. econs; ss. refl. }
       { ii. econs; ss. refl. }
     }
     eapply refines2_cons.
-    { eapply Knot01proof.correct with (RecStb:=RecStb) (FunStb:=FunStb) (GlobalStb:=GlobalStb).
+    { eapply Knot01proof.correct with (RecStb0:=RecStb) (FunStb0:=FunStb) (GlobalStb0:=GlobalStb).
       + stb_incl_tac.
       + stb_incl_tac.
       + stb_incl_tac; ors_tac.
     }
     etrans.
     { eapply Mem01proof.correct. }
-    { eapply Weakening.adequacy_weaken. ss. }
+    { unfold Mem. eapply Weakening.adequacy_weaken. ss. }
   Qed.
 
   Lemma KnotAll12_correct:
@@ -79,7 +79,7 @@ Section PROOF.
     eapply adequacy_type.
     { instantiate (1:=GRA.embed inv_token ⋅ GRA.embed (Auth.white (Some None: Excl.t (option (nat -> nat))): knotRA)).
       g_wf_tac.
-      { Local Transparent Sk.load_skenv _points_to string_dec.
+      { Local Transparent load_skenv _points_to string_dec.
         ur. unfold var_points_to, initial_mem_mr. ss. uo. split.
         2: { ur. i. ur. i. ur. des_ifs. }
         { repeat rewrite URA.unit_id. ur. eexists ε.

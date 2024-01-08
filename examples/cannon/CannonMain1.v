@@ -46,7 +46,7 @@ Section CANNONMAIN.
 
   Definition SMain: SMod.t := {|
     SMod.get_modsem := fun _ => SMainSem;
-    SMod.sk := [("main", Sk.Gfun)];
+    SMod.sk := [("main", Gfun)];
   |}
   .
 

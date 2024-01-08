@@ -86,8 +86,8 @@ Section PROOF.
       match List.nth_error sk blk with
       | Some (g, gd) =>
         match gd with
-        | Sk.Gfun => ε
-        | Sk.Gvar gv => if csl g then if (dec ofs 0%Z) then Some (Vint gv) else ε else ε
+        | Gfun => ε
+        | Gvar gv => if csl g then if (dec ofs 0%Z) then Some (Vint gv) else ε else ε
         end
       | _ => ε
       end.

@@ -32,7 +32,7 @@ Section PROOF.
 
   Definition Main: Mod.t := {|
     Mod.get_modsem := fun _ => MainSem;
-    (* Mod.sk := [("Main", Sk.Gfun)]; *)
+    (* Mod.sk := [("Main", Gfun)]; *)
     Mod.sk := Sk.unit;
   |}
   .

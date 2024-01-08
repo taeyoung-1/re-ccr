@@ -779,7 +779,7 @@ Section PROOFS.
     rewrite interp_imp_bind. grind.
     des_ifs.
     2:{ grind. rewrite interp_imp_triggerUB_bind. unfold triggerUB; grind. }
-    2:{ rewrite interp_imp_bind. rewrite interp_imp_triggerUB. unfold triggerUB; grind. }
+    2:{ grind. rewrite interp_imp_bind. rewrite interp_imp_triggerUB. unfold triggerUB; grind. }
     2:{ rewrite interp_imp_triggerUB_bind. unfold triggerUB; grind. }
     rewrite interp_imp_bind. rewrite interp_imp_Ret; grind.
     rewrite interp_imp_bind. rewrite interp_imp_Syscall. grind.

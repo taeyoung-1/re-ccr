@@ -78,7 +78,7 @@ Section I.
 
   Definition Map: Mod.t := {|
     Mod.get_modsem := fun _ => MapSem;
-    Mod.sk := [("init", Sk.Gfun); ("get", Sk.Gfun); ("set", Sk.Gfun); ("set_by_user", Sk.Gfun)];
+    Mod.sk := [("init", Gfun); ("get", Gfun); ("set", Gfun); ("set_by_user", Gfun)];
   |}
   .
 End I.

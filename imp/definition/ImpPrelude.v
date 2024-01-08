@@ -6,7 +6,7 @@ Require Export Axioms.
 Require Export sflib.
 Require Export ITreelib.
 Require Export AList.
-Require Import Skeleton.
+Require Export ImpSkeleton.
 Require Import ModSem.
 Require Import PCM.
 
@@ -28,7 +28,7 @@ Next Obligation.
   repeat (decide equality).
 Defined.
 
-Global Program Instance EMSConfigImp: EMSConfig := {|
+Global Instance EMSConfigImp: EMSConfig := {|
   finalize := fun rv =>
                 match rv↓ with
                 | Some (rv) =>
@@ -182,12 +182,11 @@ Module Mem.
     Mem.mk
       (fun blk ofs =>
          do '(g, gd) <- (List.nth_error sk blk);
-         match Any.downcast gd with
-         | Some Gfun => None
-         | Some (Gvar gv) =>
+         match gd with
+         | Gfun => None
+         | Gvar gv =>
            if csl g then None else
            if (dec ofs 0%Z) then Some (Vint gv) else None
-         | None => None
          end)
       (*** TODO: This simplified model doesn't allow function pointer comparsion.
            To be more faithful, we need to migrate the notion of "permission" from CompCert.

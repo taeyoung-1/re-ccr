@@ -57,7 +57,7 @@ Section SIMMODSEM.
     eapply adequacy_local2. econs; ss.
     i. econstructor 1 with (wf:=wf) (le:=top2); ss.
     2: { esplits; et. red. econs. eapply to_semantic. et. }
-    eapply Sk.incl_incl_env in SKINCL. eapply Sk.load_skenv_wf in SKWF.
+    eapply incl_incl_env in SKINCL. eapply load_skenv_wf in SKWF.
     hexploit (SKINCL "succ"); ss; eauto. intros [blk0 FIND0].
     econs; ss.
     { unfold succF. init.

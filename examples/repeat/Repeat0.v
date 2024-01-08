@@ -23,7 +23,7 @@ Section PROOF.
         ccallU "repeat" [Vptr fb 0; Vint (n - 1); v].
 
   Definition RepeatSem (sk: Sk.t): ModSem.t := {|
-    ModSem.fnsems := [("repeat", cfunU (repeatF (Sk.load_skenv sk: SkEnv.t)))];
+    ModSem.fnsems := [("repeat", cfunU (repeatF (load_skenv sk: SkEnv.t)))];
     ModSem.mn := "Repeat";
     ModSem.initial_st := tt↑;
   |}
@@ -31,7 +31,7 @@ Section PROOF.
 
   Definition Repeat: Mod.t := {|
     Mod.get_modsem := RepeatSem;
-    Mod.sk := [("repeat", Sk.Gfun)];
+    Mod.sk := [("repeat", Gfun)];
   |}
   .
 End PROOF.

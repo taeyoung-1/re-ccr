@@ -38,7 +38,7 @@ Section PROOF.
 
   Definition Client: Mod.t := {|
     Mod.get_modsem := fun _ => ClientSem;
-    Mod.sk := [("getint", Sk.Gfun); ("putint", Sk.Gfun)];
+    Mod.sk := [("getint", Gfun); ("putint", Gfun)];
   |}
   .
 

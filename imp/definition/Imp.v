@@ -3,7 +3,7 @@
 Require Import Coqlib.
 Require Import ITreelib.
 Require Import ImpPrelude.
-Require Import Skeleton.
+Require Import ImpSkeleton.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
@@ -372,8 +372,8 @@ Section MODSEM.
   |}.
 
   Definition get_mod (m : program) : Mod.t := {|
-    Mod.get_modsem := fun ge => (modsem m (Sk.load_skenv ge));
-    Mod.sk := List.map (update_snd Any.upcast) m.(defs);
+    Mod.get_modsem := fun ge => (modsem m (load_skenv ge));
+    Mod.sk := m.(defs);
   |}.
 
   Definition modsemL (mL : programL) (ge: SkEnv.t) : ModSemL.t := {|
@@ -384,8 +384,8 @@ Section MODSEM.
   |}.
 
   Definition get_modL (mL : programL) : ModL.t := {|
-    ModL.get_modsem := fun ge => (modsemL mL (Sk.load_skenv ge));
-    ModL.sk := List.map (update_snd Any.upcast) mL.(defsL);
+    ModL.get_modsem := fun ge => (modsemL mL (load_skenv ge));
+    ModL.sk := mL.(defsL);
   |}.
 
   Lemma comm_imp_mod_lift :

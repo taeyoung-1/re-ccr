@@ -35,7 +35,7 @@ Module Sk.
     wf_canon: forall a, wf a -> wf (canon a);
     unit_wf: wf unit;
     wf_mon: forall a b, wf (canon (add a b)) -> wf (canon a);
-    extends := fun a b => exists ctx, canon (add a ctx) = b;
+    (* extends := fun a b => exists ctx, canon (add a ctx) = b; *)
   }
   .
 

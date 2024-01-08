@@ -112,7 +112,7 @@ Section PROOF.
 
   Definition KEcho: KMod.t := {|
     KMod.get_modsem := fun _ => KEchoSem;
-    KMod.sk := [("echo", Sk.Gfun); ("input", Sk.Gfun); ("output", Sk.Gfun)];
+    KMod.sk := [("echo", Gfun); ("input", Gfun); ("output", Gfun)];
   |}
   .
   Definition Echo (stb: Sk.t -> gname -> option fspec): Mod.t :=

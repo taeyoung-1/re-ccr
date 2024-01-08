@@ -84,7 +84,7 @@ Section M.
 
   Definition SMap: SMod.t := {|
     SMod.get_modsem := fun _ => SMapSem;
-    SMod.sk := [("init", Sk.Gfun); ("get", Sk.Gfun); ("set", Sk.Gfun); ("set_by_user", Sk.Gfun)];
+    SMod.sk := [("init", Gfun); ("get", Gfun); ("set", Gfun); ("set_by_user", Gfun)];
   |}
   .
 

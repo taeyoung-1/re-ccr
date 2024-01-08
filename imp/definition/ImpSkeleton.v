@@ -54,7 +54,7 @@ forall gn gd (IN: List.In (gn, gd) sk0),
 
 Program Definition gdefs: Sk.ld := 
   @Sk.mk (alist gname gdef) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) incl
-  _ _ _ _ _ _ _ _ _ _ _ _ _.
+  _ _ _ _ _ _ _ _ _ _ _ _ _ _.
 Next Obligation.
   econs.
   - ii. ss.
@@ -78,16 +78,24 @@ Next Obligation.
   rewrite List.app_nil_r. auto.
 Qed.
 Next Obligation.
-Admitted.
+  induction b; ss. red. i. ss. right. et.
+Qed.
 Next Obligation.
-Admitted.
+  induction a; ss. red. i. ss. des; subst; et.
+Qed.
 Next Obligation.
-  i. eapply Permutation.Permutation_NoDup; [|et].
+  induction c; ss. red. i. ss. des; subst; et.
+Qed.
+Next Obligation.
+  eapply Permutation.Permutation_NoDup; [|et].
   eapply Permutation.Permutation_map.
   apply Permutation.Permutation_app_comm.
 Qed.
 Next Obligation.
-Admitted.
+  eapply Permutation.Permutation_NoDup; [|et].
+  eapply Permutation.Permutation_map.
+  eapply SkSort.sort_permutation.
+Qed.
 Next Obligation.
   econs.
 Qed.

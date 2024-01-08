@@ -38,7 +38,7 @@ Section PROOF.
                      (fun varg =>
                         (⌜varg = [Vptr f 0; Vint (Z.of_nat n); Vint x]↑ /\ (intrange_64 n)
                          /\ fb_has_spec
-                              (Sk.load_skenv sk) (FunStb sk) f
+                              (load_skenv sk) (FunStb sk) f
                               (mk_simple
                                  (X:=Z)
                                  (fun x =>
@@ -65,7 +65,7 @@ Section PROOF.
 
   Definition KRepeat: KMod.t := {|
     KMod.get_modsem := KRepeatSem;
-    KMod.sk := [("repeat", Sk.Gfun)];
+    KMod.sk := [("repeat", Gfun)];
   |}
   .
 

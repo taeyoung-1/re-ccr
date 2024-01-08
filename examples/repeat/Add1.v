@@ -56,7 +56,7 @@ Section PROOF.
 
   Definition KAdd: KMod.t := {|
     KMod.get_modsem := fun _ => KAddSem;
-    KMod.sk := [("succ", Sk.Gfun); ("add", Sk.Gfun)];
+    KMod.sk := [("succ", Gfun); ("add", Gfun)];
   |}
   .
 
