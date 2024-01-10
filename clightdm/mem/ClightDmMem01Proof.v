@@ -7,6 +7,18 @@ Require Import ClightDmMem0 ClightDmMem1.
 Require Import HTactics ProofMode.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
 
+Section PF.
+  Context `{@GRA.inG pointstoRA Σ}.
+  Context `{@GRA.inG allocatedRA Σ}.
+  Context `{@GRA.inG blocksizeRA Σ}.
+  Context `{@GRA.inG blockaddressRA Σ}.
+  Variable sk: Sk.t.
+  Hypothesis (SKWF: Sk.wf sk).
+
+  Theorem correct_mod: ModSemPair.sim (Mod.get_modsem Mem sk) (Mod.get_modsem ClightDmMem0.Mem sk).
+  Proof.
+  Admitted.
+End PF.
 (* 
 Set Implicit Arguments.
 

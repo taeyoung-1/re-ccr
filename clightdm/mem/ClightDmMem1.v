@@ -4,7 +4,7 @@ Require Import Any.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
-Require Import Skeleton.
+Require Import ClightDmSkel.
 Require Import PCM IPM.
 Require Import HoareDef STB.
 Require Import ClightDmExprgen.
@@ -1302,8 +1302,8 @@ Section MRS.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
-  Variable sk: Sk.sem.
-  Let skenv: SkEnv.t := Sk.load_skenv sk.
+  Variable sk: Sk.t.
+  Let skenv: SkEnv.t := load_skenv sk.
 
   Definition store_init_data (res : _pointstoRA) (b : block) (p : Z) (optq : option Qp) (id : init_data) : option _pointstoRA :=
     match id with
@@ -1384,7 +1384,7 @@ Section MRS.
         end
     end.
 
-  Definition alloc_global (res : Σ) (b: block) (gd : globdef clightdm_fundef type) : option Σ :=
+  Definition alloc_global (res : Σ) (b: block) (gd : globdef fundef type) : option Σ :=
     match gd with
     | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b Unfreeable (1/2)%Qp))
                       ⋅ GRA.embed (_has_size (Some b) 1) ⋅ res)
@@ -1403,23 +1403,18 @@ Section MRS.
       end
     end.
 
-  Fixpoint alloc_globals (res: Σ) (b: block) (sk: list (ident * _)) : Σ :=
+  Fixpoint alloc_globals (res: Σ) (b: block) (sk: Sk.t) : option Σ :=
     match sk with
-    | nil => res
+    | nil => Some res
     | g :: gl' => 
       let (_, gd) := g in
-      match gd with
-      | inl false => alloc_globals res (Pos.succ b) gl'
-      | inl true => ε
-      | inr gd =>
-        match alloc_global res b gd with
-        | Some res' => alloc_globals res' (Pos.succ b) gl'
-        | None => ε
-        end
+      match alloc_global res b gd with
+      | Some res' => alloc_globals res' (Pos.succ b) gl'
+      | None => None
       end
     end.
 
-  Definition res_init : Σ := alloc_globals ε xH sk.
+  Definition res_init : option Σ := alloc_globals ε xH sk.
 
 End MRS.
 
@@ -1447,31 +1442,37 @@ Section SMOD.
     ]
   .
 
-  Definition SMemSem sk : SModSem.t := {|
-    SModSem.fnsems := MemSbtb;
-    SModSem.mn := "Mem";
-    SModSem.initial_mr := res_init sk ⋅ GRA.embed ((fun ob => match ob with
-                                                           | Some _ => OneShot.black
-                                                           | None => OneShot.white Ptrofs.zero
-                                                   end) : blockaddressRA)
-                            ⋅ GRA.embed ((fun ob => match  ob with
-                                                 | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
-                                                 | None => OneShot.white 0
-                                                 end) : blocksizeRA);
-    SModSem.initial_st := tt↑;
-  |}
+  Definition SMemSem sk : SModSem.t := 
+  match res_init sk with
+  | Some res =>
+    {|
+      SModSem.fnsems := MemSbtb;
+      SModSem.mn := "Mem";
+      SModSem.initial_mr := res ⋅ GRA.embed ((fun ob => match ob with
+                                                            | Some _ => OneShot.black
+                                                            | None => OneShot.white Ptrofs.zero
+                                                    end) : blockaddressRA)
+                              ⋅ GRA.embed ((fun ob => match  ob with
+                                                  | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
+                                                  | None => OneShot.white 0
+                                                  end) : blocksizeRA);
+      SModSem.initial_st := tt↑;
+    |}
+  | None =>
+    (* should replace with dummy function *)
+    {| 
+      SModSem.fnsems := [("", mk_pure salloc_spec); ("", mk_pure salloc_spec)];
+      SModSem.mn := "Mem";
+      SModSem.initial_mr := ε;
+      SModSem.initial_st := tt↑;
+    |}
+  end
   .
-
-  Import Clightdefs.ClightNotations.
-  Local Open Scope clight_scope.
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
-    SMod.sk := Maps.PTree.set ($"malloc") (inr (Gfun (CExternal CEF_malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))))
-                (Maps.PTree.set ($"free") (inr (Gfun (CExternal CEF_free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default))))
-                  (Maps.PTree.set ($"memcpy") (inr (Gfun (CExternal (CEF_memcpy 1 1) (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
-                    (Maps.PTree.set ($"capture") (inr (Gfun (CExternal CEF_capture (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
-                      (Maps.PTree.empty _))))
+    SMod.sk := [("malloc", Gfun (F:=Clight.fundef) (V:=type) (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default));
+                ("free", Gfun (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))];
   |}
   .
 

@@ -2,7 +2,7 @@
 
 Require Import Coqlib.
 Require Import ITreelib.
-Require Import Skeleton.
+Require Import ClightDmSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
@@ -15,7 +15,7 @@ From compcert Require Import
      Ctypes Clight Clightdefs.
 
 
-Global Program Instance EMSConfigC: EMSConfig := {|
+Global Instance EMSConfigC: EMSConfig := {|
   finalize := fun rv =>
                 match rv↓ with
                 | Some (rv) =>
@@ -34,309 +34,6 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
 Section ABENVS.
 
-  Inductive extfun : Set :=
-    | CEF_external : extfun
-    | CEF_builtin : string -> signature -> extfun
-    | CEF_runtime : string -> signature -> extfun
-    | CEF_vload : memory_chunk -> extfun
-    | CEF_vstore : memory_chunk -> extfun
-    | CEF_malloc : extfun
-    | CEF_free : extfun
-    | CEF_memcpy : Z -> Z -> extfun
-    | CEF_annot : positive -> string -> list typ -> extfun
-    | CEF_annot_val : positive -> string -> typ -> extfun
-    | CEF_inline_asm : string -> signature -> list string -> extfun
-    | CEF_debug : positive -> ident -> list typ -> extfun
-    | CEF_capture : extfun
-    .
-
-  Inductive clightdm_fundef :=
-  | CInternal (t: type)
-  | CExternal (ef: extfun) (t: type)
-  .
-
-  Definition extfun_eq: forall (ef1 ef2: extfun), {ef1=ef2} + {ef1<>ef2}.
-  Proof.
-    generalize ident_eq string_dec signature_eq chunk_eq typ_eq list_eq_dec Coqlib.zeq Int.eq_dec; intros.
-    decide equality.
-  Defined.
-  Global Opaque extfun_eq.
-
-  Definition type_of_clightdm_fundef fd :=
-    match fd with
-    | CInternal t => t
-    | CExternal _ t => t
-    end.
-
-  Definition link_varinit_c (i1 i2: list init_data) :=
-    match classify_init i1, classify_init i2 with
-    | Init_extern, _ => Some i2
-    | _, Init_extern => Some i1
-    | Init_common sz1, Init_common sz2 =>
-      if negb (Coqlib.zle 0 sz1) then None
-      else if negb (Coqlib.zle 0 sz2) then None
-           else if Coqlib.zeq sz1 sz2 then Some i2 else None
-    | Init_common sz1, _ =>
-      if Coqlib.zeq sz1 (init_data_list_size i2) then Some i2 else None
-    | _, Init_common sz2 => 
-      if Coqlib.zeq sz2 (init_data_list_size i1) then Some i1 else None
-    | _, _ => None
-    end.
-
-  Definition link_vardef_c {V: Type} {LV: Linker V} (v1 v2: globvar V) :=
-    match link v1.(gvar_info) v2.(gvar_info) with
-    | None => None
-    | Some info =>
-        match link_varinit_c v1.(gvar_init) v2.(gvar_init) with
-        | None => None
-        | Some init =>
-            if Bool.eqb v1.(gvar_readonly) v2.(gvar_readonly)
-            && Bool.eqb v1.(gvar_volatile) v2.(gvar_volatile)
-            then Some {| gvar_info := info; gvar_init := init;
-                        gvar_readonly := v1.(gvar_readonly);
-                        gvar_volatile := v1.(gvar_volatile) |}
-            else None
-        end
-    end.
-
-  Definition link_fundef_c (fd1 fd2: clightdm_fundef) :=
-    match fd1, fd2 with
-    | CInternal _, CInternal _ => None
-    | CExternal ef1 ty1, CExternal ef2 ty2 =>
-        if extfun_eq ef1 ef2 && type_eq ty1 ty2
-        then Some (CExternal ef1 ty1)
-        else None
-    | CInternal ty1, CExternal ef ty2 =>
-        match ef with
-        | CEF_external =>
-          if type_eq ty1 ty2
-          then Some (CInternal ty1)
-          else None
-        | _ => None
-        end
-    | CExternal ef ty1, CInternal ty2 =>
-        match ef with
-        | CEF_external =>
-          if type_eq ty1 ty2
-          then Some (CInternal ty2)
-          else None
-        | _ => None
-        end
-    end.
-  
-  Definition link_def_c (gd1 gd2: globdef clightdm_fundef type) :=
-    match gd1, gd2 with
-    | Gfun f1, Gfun f2 =>
-        match link_fundef_c f1 f2 with Some f => Some (Gfun f) | None => None end
-    | Gvar v1, Gvar v2 =>
-        match link_vardef_c v1 v2 with Some v => Some (Gvar v) | None => None end
-    | _, _ => None
-    end.
-
-  Definition add :
-    bool + globdef clightdm_fundef type
-      -> bool + globdef clightdm_fundef type
-        -> bool + globdef clightdm_fundef type :=
-    fun a b =>
-      match a, b with
-      | inl false, _ => b
-      | inl true, _ => a
-      | _, inl false => a
-      | _, inl true => b
-      | inr a, inr b =>
-        match link_def_c a b with
-        | Some c => inr c
-        | None => inl true
-        end
-      end.
-
-  Program Instance clightdm_globaldata : RA.t := {
-    car := bool + globdef clightdm_fundef type;
-    add := add;
-    wf := fun c => match c with inl true => False | _ => True end
-  }.
-  Next Obligation.
-  Proof.
-    Transparent Linker_fundef. 
-    Transparent Linker_vardef. 
-    Transparent Linker_types. 
-    Transparent Linker_varinit. 
-    unfold add. des_ifs.
-    - unfold link_def_c in *. des_ifs.
-      + ss. unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        destruct extfun_eq; clarify.
-        destruct type_eq; clarify.
-      + ss. unfold link_vardef_c in *.
-        des_ifs. bsimpl. des.
-        ss. des_ifs. rewrite e0.
-        hexploit Bool.eqb_eq; et.
-        i. rewrite H. 
-        hexploit Bool.eqb_eq.
-        { red. rewrite Heq3. et. }
-        i. rewrite H0.
-        unfold link_varinit_c in *.
-        des_ifs.
-    - exfalso.
-      unfold link_def_c in *. des_ifs.
-      + ss. unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        * destruct extfun_eq; clarify.
-          destruct extfun_eq; clarify.
-        * destruct type_eq; clarify.
-          destruct type_eq; clarify.
-      + ss. unfold link_vardef_c in *.
-        des_ifs; bsimpl; des.
-        * hexploit (Bool.eqb_eq (gvar_readonly v0)); et.
-          i. rewrite H in Heq4.
-          epose proof (Bool.eqb_refl _).
-          red in H0. rewrite Heq4 in H0.
-          clarify.
-        * hexploit (Bool.eqb_eq (gvar_volatile v0)); et.
-          i. rewrite H in Heq4.
-          epose proof (Bool.eqb_refl _).
-          red in H0. rewrite Heq4 in H0.
-          clarify.
-        * ss. unfold link_varinit_c in *.
-          des_ifs; bsimpl.
-        * ss. des_ifs. rewrite e in n. clarify.
-    - exfalso.
-      unfold link_def_c in *. des_ifs.
-      + ss. unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        * destruct extfun_eq; clarify.
-          destruct extfun_eq; clarify.
-        * destruct type_eq; clarify.
-          destruct type_eq; clarify.
-      + ss. unfold link_vardef_c in *.
-        des_ifs; bsimpl; des.
-        * hexploit (Bool.eqb_eq (gvar_readonly v)); et.
-          i. rewrite H in Heq6.
-          epose proof (Bool.eqb_refl _).
-          red in H0. rewrite Heq6 in H0.
-          clarify.
-        * hexploit (Bool.eqb_eq (gvar_volatile v)); et.
-          i. rewrite H in Heq6.
-          epose proof (Bool.eqb_refl _).
-          red in H0. rewrite Heq6 in H0.
-          clarify.
-        * ss. unfold link_varinit_c in *.
-          des_ifs; bsimpl.
-        * ss. des_ifs. rewrite e in n. clarify.
-  Qed.
-  Next Obligation.
-  Proof.
-    unfold add. des_ifs.
-    - exfalso. unfold link_def_c in *.
-      des_ifs.
-      + unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        * destruct type_eq; clarify.
-        * destruct type_eq; clarify.
-        * destruct extfun_eq; clarify.
-          destruct extfun_eq; clarify.
-          destruct extfun_eq; clarify.
-        * destruct type_eq; clarify.
-          destruct type_eq; clarify.
-          destruct type_eq; clarify.
-      + unfold link_vardef_c in *.
-        des_ifs; bsimpl; des; ss;
-          repeat match goal with
-          | H : Bool.eqb _ _ = _ |- _ =>
-            let x := fresh in
-            epose proof (Bool.eqb_spec _ _) as x;
-            rewrite H in x; inv x; clear H
-          end. 
-        * apply H4. et.
-        * apply H4. et.
-        * clear - Heq9 Heq7 Heq5.
-          unfold link_varinit_c in *.
-          des_ifs. ss. destruct Coqlib.zle; clarify. 
-          clear -g. pose proof (init_data_list_size_pos l).
-          nia.
-        * des_ifs. apply n. rewrite <- H4. et.
-    - exfalso. unfold link_def_c in *.
-      des_ifs.
-      + unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        destruct type_eq; clarify.
-      + unfold link_vardef_c in *.
-        des_ifs; bsimpl; des; ss;
-          repeat match goal with
-          | H : Bool.eqb _ _ = _ |- _ =>
-            let x := fresh in
-            epose proof (Bool.eqb_spec _ _) as x;
-            rewrite H in x; inv x; clear H
-          end. 
-        * apply H0. et.
-        * apply H0. et.
-        * clear - Heq9 Heq7 Heq5.
-          unfold link_varinit_c in *.
-          des_ifs. ss. destruct Coqlib.zle; clarify. 
-          clear -g. pose proof (init_data_list_size_pos l).
-          nia.
-        * des_ifs. apply n. rewrite <- H4. et.
-    - unfold link_def_c in *. des_ifs.
-      + unfold link_fundef_c in *. des_ifs.
-      + unfold link_vardef_c in *. des_ifs.
-        ss. des_ifs; bsimpl; des.
-        repeat match goal with
-        | H : Bool.eqb _ _ = _ |- _ =>
-          let x := fresh in
-          epose proof (Bool.eqb_spec _ _) as x;
-          rewrite H in x; inv x; clear H
-        end. 
-        rewrite H2. rewrite H0.
-        repeat f_equal.
-        clear -Heq10 Heq8 Heq4 Heq6.
-        unfold link_varinit_c in *.
-        des_ifs; ss; clarify; des_ifs.
-    - exfalso. unfold link_def_c in *.
-      des_ifs.
-      + unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-        * destruct type_eq; clarify.
-        * destruct extfun_eq; clarify.
-        * destruct type_eq; clarify.
-      + unfold link_vardef_c in *.
-        des_ifs; bsimpl; des; ss;
-          repeat match goal with
-          | H : Bool.eqb _ _ = _ |- _ =>
-            let x := fresh in
-            epose proof (Bool.eqb_spec _ _) as x;
-            rewrite H in x; inv x; clear H
-          end. 
-        * apply H0. et.
-        * apply H0. et.
-        * clear - Heq11 Heq9 Heq7 Heq5.
-          unfold link_varinit_c in *.
-          des_ifs; ss; clarify; des_ifs.
-        * des_ifs. apply n. rewrite e. et.
-    - exfalso. unfold link_def_c in *.
-      des_ifs.
-      + unfold link_fundef_c in *.
-        des_ifs; bsimpl; des.
-      + unfold link_vardef_c in *.
-        des_ifs; bsimpl; des; ss;
-          repeat match goal with
-          | H : Bool.eqb _ _ = _ |- _ =>
-            let x := fresh in
-            epose proof (Bool.eqb_spec _ _) as x;
-            rewrite H in x; inv x; clear H
-          end. 
-        * apply H4. et.
-        * apply H4. et.
-        * clear - Heq11 Heq9 Heq7 Heq5.
-          unfold link_varinit_c in *.
-          des_ifs; ss; clarify; des_ifs.
-        * des_ifs.
-  Qed.
-  Next Obligation.
-  Proof.
-    des_ifs.
-  Qed.
-
-  Definition clightdm_sk := @Sk.globalenv clightdm_globaldata.
   Definition env : Type := alist string (block * type).
   Definition temp_env : Type := alist string val.
   Definition comp_env : Type := alist string composite.
@@ -424,15 +121,12 @@ Section ABENVS.
 
 End ABENVS.
 
-Global Existing Instance clightdm_globaldata.
-Global Existing Instance clightdm_sk.
-
 Section Clight.
 Context {eff : Type -> Type}.
 Context {HasCall : callE -< eff}.
 Context {HasEvent : eventE -< eff}.
-Variable ske: Sk.sem.
-Let skenv: SkEnv.t := Sk.load_skenv ske.
+Variable sk: Sk.t.
+Let skenv: SkEnv.t := load_skenv sk.
 Variable ce: comp_env.
 
 Section EVAL_EXPR_COMP.

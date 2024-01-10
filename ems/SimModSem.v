@@ -978,7 +978,7 @@ Section SIMMOD.
 
   Inductive sim sk: Prop := mk {
      sim_modsem:
-        forall (SKINCL: Forall (flip Sk.le sk) (List.map Mod.sk mds_src))
+        forall (SKINCL: Forall (flip Sk.le sk) (List.map Mod.sk mds_tgt))
               (SKWF: Sk.wf sk),
          <<SIM: Forall2 ModSemPair.sim (List.map (flip Mod.get_modsem sk) mds_src) (List.map (flip Mod.get_modsem sk) mds_tgt)>>;
      sim_sk: <<SIM: Forall2 eq (List.map Mod.sk mds_src) (List.map Mod.sk mds_tgt)>>;
@@ -1326,11 +1326,11 @@ Section ADEQUACY.
       - inv sim_sk. destruct mds_tgt; clarify.
       - destruct mds_tgt; inv sim_sk. ss. f_equal; et. }
     hexploit sim_modsem; et.
-    { rewrite <- SKEQ. clear. unfold sk_src. clear sk_src.
+    { clear. unfold sk_tgt. clear sk_tgt.
       ss. set (ModL.sk (Mod.add_list ctx)) as sk_ctx.
       clearbody sk_ctx. clear ctx.
-      ginduction mds_src; i; ss.
-      econs; cycle 1. { rewrite Sk.add_assoc. apply IHmds_src. }
+      ginduction mds_tgt; i; ss.
+      econs; cycle 1. { rewrite Sk.add_assoc. apply IHmds_tgt. }
       ss. etrans; [|apply Sk.le_canon]. etrans; [|apply Sk.le_add_l].
       apply Sk.le_add_r. }
     { inv SKWF. rewrite <- SKEQ. apply Sk.wf_canon; et. }
@@ -1449,7 +1449,7 @@ Section ADEQUACY.
     2:{ unfold Mod.add_list. ss. rewrite ModL.add_empty_r. ss. }
     apply adequacy_local_strong_l. i. inv SIM. econs; ss; cycle 1.
     { econs; et. }
-    i. econs; et. eapply sim_modsem; et. inv SKINCL. ss. rewrite <- sim_sk. et.
+    i. econs; et. eapply sim_modsem; et. inv SKINCL. ss.
   Qed.
 
   Context {CONF: EMSConfig}.

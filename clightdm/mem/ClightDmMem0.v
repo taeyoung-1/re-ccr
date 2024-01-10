@@ -1,6 +1,6 @@
 Require Import Coqlib.
 Require Import ITreelib.
-Require Import Skeleton.
+Require Import ClightDmSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
@@ -9,7 +9,7 @@ Require Import AList.
 Require Import ClightDmExprgen.
 
 From compcert Require Import
-     AST Maps Globalenvs Memory Values ValuesAux Linking Integers.
+     AST Maps Globalenvs Memory Values Linking Integers.
 From compcert Require Import
      Ctypes Clight Clightdefs.
 Import Clightdefs.ClightNotations.
@@ -19,8 +19,8 @@ Set Implicit Arguments.
 
 Section MODSEM.
   Local Open Scope Z.
-  Variable sk: Sk.sem.
-  Let skenv: SkEnv.t := Sk.load_skenv sk.
+  Variable sk: Sk.t.
+  Let skenv: SkEnv.t := load_skenv sk.
 
   Section BODY.
     Context `{has_pE: pE -< Es}.
@@ -93,8 +93,8 @@ Section MODSEM.
     .
 
     Definition cmp_ptrF : comparison * val * val -> itree Es bool :=
-      fun varg =>
-        mp <- trigger PGet;;
+      fun varg => Ret true.
+        (* mp <- trigger PGet;;
         m <- mp↓?;;
         let '(c, v1, v2) := varg in
         let p1 := to_ptr_val m v1 in
@@ -114,7 +114,7 @@ Section MODSEM.
         | Some b, None => Ret b
         | None, Some b => Ret b
         | None, None => triggerUB
-        end.
+        end. *)
 
     Definition sub_ptrF : Z * val * val -> itree Es val :=
       fun varg =>
@@ -182,8 +182,8 @@ Section MODSEM.
     .
 
     Definition memcpyF: Z * Z * list val -> itree Es val :=
-      fun varg =>
-        mp <- trigger (PGet);;
+      fun varg => Ret Vundef.
+        (* mp <- trigger (PGet);;
         m <- mp↓?;;
         match Archi.ptr64, varg with
         | _, (al, sz, [vaddr; vaddr']) =>
@@ -212,7 +212,7 @@ Section MODSEM.
           | _, _ => triggerUB
           end
         | _, _ => triggerUB
-        end.
+        end. *)
     
     Definition captureF : list val -> itree Es val :=
       fun varg =>
@@ -294,7 +294,6 @@ Section MODSEM.
         end
     end.
 
-
   Fixpoint store_init_data_list (m : mem) (b : block) (p : Z) (idl : list init_data) {struct idl} : option mem :=
     match idl with
     | [] => Some m
@@ -304,8 +303,8 @@ Section MODSEM.
         | None => None
         end
     end.
-  
-  Definition alloc_global (m : mem) (gd : globdef clightdm_fundef type) : option mem :=
+
+  Definition alloc_global (m : mem) (gd : globdef fundef type) : option mem :=
     match gd with
     | Gfun _ => let (m1, b) := Mem.alloc m 0 1 in Mem.drop_perm m1 b 0 1 Nonempty
     | Gvar v =>
@@ -322,53 +321,54 @@ Section MODSEM.
       end
     end.
 
-  Fixpoint alloc_globals (m: mem) (sk: list (ident * _)) : mem :=
-  match sk with
-  | nil => m
-  | g :: gl' =>
-    let (_, gd) := g in
-    match gd with
-    | inl false => alloc_globals m gl'
-    | inl true => Mem.empty
-    | inr gd =>
+  Fixpoint alloc_globals (m: mem) (sk: Sk.t) : option mem :=
+    match sk with
+    | nil => Some m
+    | g :: gl' =>
+      let (_, gd) := g in
       match alloc_global m gd with
       | Some m' => alloc_globals m' gl'
-      | None => Mem.empty
+      | None => None
       end
-    end
-  end.
+    end.
 
   Definition load_mem := alloc_globals Mem.empty sk.
   
   End STATE.
 
   Definition MemSem : ModSem.t :=
-    {|
-      ModSem.fnsems := [("salloc", cfunU sallocF); ("sfree", cfunU sfreeF);
-                        ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
-                        ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
-                        ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
-                        ("non_null?", cfunU non_nullF);
-                        ("malloc", cfunU mallocF); ("mfree", cfunU mfreeF);
-                        ("memcpy", cfunU memcpyF);
-                        ("capture", cfunU captureF)];
-      ModSem.mn := "Mem";
-      ModSem.initial_st := (load_mem)↑;
-    |}
+    match load_mem with
+    | Some m => 
+      {| 
+        ModSem.fnsems := [("salloc", cfunU sallocF); ("sfree", cfunU sfreeF);
+                          ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
+                          ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
+                          ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
+                          ("non_null?", cfunU non_nullF);
+                          ("malloc", cfunU mallocF); ("free", cfunU mfreeF);
+                          ("memcpy", cfunU memcpyF);
+                          ("capture", cfunU captureF)];
+        ModSem.mn := "Mem";
+        ModSem.initial_st := m↑;
+      |}
+    | None =>
+    (* should replace with dummy function *)
+      {| 
+        ModSem.fnsems := [("", cfunU sallocF); ("", cfunU sallocF)];
+        ModSem.mn := "Mem";
+        ModSem.initial_st := tt↑;
+      |}
+    end
   .
 
 End MODSEM.
 
 Local Open Scope clight_scope.
-Locate "$".
 
 Definition Mem: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
-    Mod.sk := Maps.PTree.set ($"malloc") (inr (Gfun (CExternal CEF_malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))))
-                (Maps.PTree.set ($"free") (inr (Gfun (CExternal CEF_free (Tfunction (Tcons (tptr tvoid) Tnil) tvoid cc_default))))
-                  (Maps.PTree.set ($"memcpy") (inr (Gfun (CExternal (CEF_memcpy 1 1) (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
-                    (Maps.PTree.set ($"capture") (inr (Gfun (CExternal CEF_capture (Tfunction (Tcons (tptr tvoid) (Tcons (tptr tvoid) Tnil)) (tptr tvoid) cc_default))))
-                      (Maps.PTree.empty _))))
+    Mod.sk := [("malloc", Gfun (F:=Clight.fundef) (V:=type) (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default));
+               ("free", Gfun (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))];
   |}
 .
