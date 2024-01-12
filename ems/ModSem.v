@@ -43,6 +43,15 @@ Section MODSEML.
   }
   .
 
+  Definition wf_dec (ms: t) : {wf ms} + {~ wf ms}.
+  Proof.
+    edestruct (ListDec.NoDup_dec string_dec (List.map fst ms.(fnsems)));
+      edestruct (ListDec.NoDup_dec string_dec (List.map fst ms.(initial_mrs)));
+        [>idtac|right; intro contra; inv contra; et..].
+    left. econs; et.
+  Defined.
+
+
   (*** using "Program Definition" makes the definition uncompilable; why?? ***)
   Definition add (ms0 ms1: t): t := {|
     (* sk := Sk.add md0.(sk) md1.(sk); *)
@@ -76,10 +85,10 @@ Section MODSEML.
                end).
 
   Context `{CONF: EMSConfig}.
-  Definition initial_itr (P: option Prop): itree (eventE) Any.t :=
+  Definition initial_itr (P: option bool): itree (eventE) Any.t :=
     match P with
-    | None => Ret tt
-    | Some P' => assume (<<WF: P'>>)
+    | None | Some true => Ret tt
+    | Some false => triggerUB
     end;;;
     snd <$> interp_Es prog (prog (Call None "main" initial_arg)) (initial_p_state).
 
@@ -256,35 +265,32 @@ Section MODSEML.
   Definition compile P: semantics :=
     compile_itree (initial_itr P).
 
-  Lemma initial_itr_not_wf P
-        (WF: ~ P)
+  Lemma initial_itr_not_wf
         tr
     :
-      Beh.of_program (compile_itree (initial_itr (Some P))) tr.
+      Beh.of_program (compile_itree (initial_itr (Some false))) tr.
   Proof.
     eapply Beh.ub_top. pfold. econsr; ss; et. rr. ii; ss.
-    unfold initial_itr, assume in *. rewrite bind_bind in STEP.
+    unfold initial_itr, triggerUB in *. rewrite bind_bind in STEP.
     eapply step_trigger_take_iff in STEP. des. subst. ss.
   Qed.
 
-  Lemma compile_not_wf P
-        (WF: ~ P)
+  Lemma compile_not_wf
         tr
     :
-      Beh.of_program (compile (Some P)) tr.
+      Beh.of_program (compile (Some false)) tr.
   Proof.
     eapply initial_itr_not_wf; et.
   Qed.
 
-  Lemma compile_le (P Q: Prop)
-        (LE: P -> Q)
+  Lemma compile_le P Q
+        (LE: P = true -> Q = true)
     :
       Beh.of_program (compile (Some Q)) <1= Beh.of_program (compile (Some P)).
   Proof.
-    destruct (classic P); cycle 1.
+    destruct P; cycle 1.
     { ii. eapply initial_itr_not_wf; et. }
-    replace P with Q; et.
-    eapply prop_ext. split; auto.
+    hexploit LE; et. i. subst. auto.
   Qed.
 
   (* Program Definition interp_no_forge: semantics := {| *)
@@ -346,16 +352,15 @@ Section MODSEML.
   Qed.
 
   Theorem add_comm
-          ms0 ms1 (P0 P1: Prop) (IMPL: P1 -> P0)
+          ms0 ms1 (P0 P1: bool) (IMPL: P1 = true -> P0 = true)
           (WF: wf (add ms1 ms0))
     :
       <<COMM: Beh.of_program (compile (add ms0 ms1) (Some P0)) <1= Beh.of_program (compile (add ms1 ms0) (Some P1))>>
   .
   Proof.
-    destruct (classic (P1)); cycle 1.
+    destruct P1; cycle 1.
     { ii. eapply initial_itr_not_wf; et. }
-    replace P0 with P1.
-    2: { eapply prop_ext. split; auto. }
+    hexploit IMPL; et. i. subst.
     ii. ss. r in PR. r. eapply add_comm_aux; et.
     rp; et. clear PR. ss. cbn. unfold initial_itr. f_equal.
     { extensionality u. destruct u. f_equal.
@@ -630,12 +635,22 @@ Section MODL.
 
   Definition wf (md: t): Prop := (<<WF: ModSemL.wf md.(enclose)>> /\ <<SK: Sk.wf (md.(sk))>>).
 
+  Definition wf_dec (md: t): {wf md} + {~ wf md}.
+  Proof.
+    destruct (ModSemL.wf_dec md.(enclose));
+      destruct (Sk.wf_dec md.(sk));
+        [>idtac|right; intro contra; inv contra; et..].
+    left. econs; et.
+  Defined.
+
+  Definition wf_bool (md: t) : bool := sumbool_to_bool (wf_dec md).
+
   Section BEH.
 
   Context {CONF: EMSConfig}.
 
   Definition compile (md: t): semantics :=
-    ModSemL.compile_itree (ModSemL.initial_itr md.(enclose) (Some (wf md))).
+    ModSemL.compile_itree (ModSemL.initial_itr md.(enclose) (Some (wf_bool md))).
 
   (* Record wf (md: t): Prop := mk_wf { *)
   (*   wf_sk: Sk.wf md.(sk); *)
@@ -656,15 +671,15 @@ Section MODL.
       <<COMM: Beh.of_program (compile (add md0 md1)) <1= Beh.of_program (compile (add md1 md0))>>
   .
   Proof.
-    ii. unfold compile in *.
-    destruct (classic (ModSemL.wf (enclose (add md1 md0)) /\ Sk.wf (sk (add md1 md0)))).
-    2: { eapply ModSemL.initial_itr_not_wf. ss. }
-    ss. des. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
+    ii. unfold compile in *. unfold wf_bool in *.
+    destruct (wf_dec (add md1 md0)).
+    2: { eapply ModSemL.initial_itr_not_wf. }
+    ss. inv w. assert (SK: Sk.wf (Sk.add (sk md0) (sk md1))).
     { apply Sk.wf_comm. auto. }
     rewrite Sk.add_comm; et.
     eapply ModSemL.add_comm; [| |et].
-    { i. split; auto. unfold enclose. ss. rewrite Sk.add_comm; et.
-      inv H2. inv H3. econs; ss.
+    { i. apply sumbool_to_bool_is_true. split; auto. unfold enclose. ss. rewrite Sk.add_comm; et.
+      inv H0. econs; ss.
       { rewrite List.map_app in *. eapply nodup_comm; et. }
       { rewrite List.map_app in *. eapply nodup_comm; et. }
     }

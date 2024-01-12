@@ -314,6 +314,7 @@ Section SAFETY.
   Proof.
     eapply safe_state_no_ub. ginit.
     ss. unfold ModSemL.initial_itr.
+    unfold ModL.wf_bool. destruct ModL.wf_dec; [|exfalso]; et. ss.
     step. unshelve esplits; et. unfold ITree.map. steps.
     guclo safe_bind_clo_spec. econs.
     { gfinal. right. eapply call_safe. auto. }

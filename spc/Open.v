@@ -1072,8 +1072,9 @@ Section ADQ.
     { eapply cpn7_wcompat; eauto with paco. }
     unfold ModSemL.initial_itr, ModSemL.initial_itr.
     fold prog_tgt. fold prog_mid.
-    gsteps. unshelve esplits.
-    { inv x. econs.
+    unfold ModL.wf_bool. destruct ModL.wf_dec; ss; gsteps.
+    destruct ModL.wf_dec; [|exfalso; apply n]; cycle 1.
+    { inv w. econs.
       { inv H. econs.
         { clear wf_initial_mrs.
           match goal with
@@ -1094,14 +1095,14 @@ Section ADQ.
       }
       { rewrite <- my_lemma2_sk. auto. }
     }
-    unfold ITree.map. gsteps.
+    ss. unfold ITree.map. gsteps.
     hexploit (stb_find_iff_mid "main"). i. des.
     { rewrite SRC. rewrite TGT. gsteps. }
     { rewrite SRC. rewrite TGT. gsteps.
       unfold my_if, sumbool_to_bool. des_ifs.
       unfold fun_to_src, body_to_src. rewrite Any.pair_split. gsteps.
       guclo bindC_spec. econs.
-      { apply simg_progress_flag. gfinal. right.
+      { gfinal. right.
         rewrite my_lemma2_initial_state. eapply my_lemma2_aux. left. econs. ss. }
       i. subst. gsteps.
     }
@@ -1109,7 +1110,7 @@ Section ADQ.
       unfold my_if, sumbool_to_bool. des_ifs.
       unfold fun_to_src, body_to_src. rewrite Any.pair_split. gsteps.
       guclo bindC_spec. econs.
-      { apply simg_progress_flag. gfinal. right.
+      { gfinal. right.
         rewrite my_lemma2_initial_state. eapply my_lemma2_aux. right. econs. ss. }
       i. subst. gsteps.
     }
@@ -1359,11 +1360,11 @@ Section ADQ.
   Proof.
     ii. eapply ModL.add_comm. eapply ModL.add_comm in PR.
     rewrite <- Mod.add_list_app in *.
-    destruct (classic (ModL.wf (Mod.add_list (map (KMod.transl_src frds) _kmds ++ ctx)))).
-    2: { unfold ModL.compile. eapply ModSemL.compile_not_wf. et. }
+    destruct (ModL.wf_dec (Mod.add_list (map (KMod.transl_src frds) _kmds ++ ctx))).
+    2: { unfold ModL.compile. unfold ModL.wf_bool. destruct ModL.wf_dec; ss. eapply ModSemL.compile_not_wf. }
     eapply adequacy_open_aux1'; auto.
     { i. ss. des; ss. eapply in_map_iff in MIN0. des. clarify.
-      inv H. inv H0. unfold ModL.enclose in wf_initial_mrs.
+      inv w. inv H. unfold ModL.enclose in wf_initial_mrs.
       replace (Sk.canon
                  (ModL.sk
                     (Mod.add_list
@@ -1386,7 +1387,7 @@ Section ADQ.
         f_equal. f_equal. f_equal. rewrite ! map_map. ss. }
     }
     i. subst sk. eapply MAINM.
-    { inv H. red in H2. eapply Sk.wf_canon.
+    { inv w. red in H1. eapply Sk.wf_canon.
       match goal with
       | H: Sk.wf ?l0 |- Sk.wf ?l1 => replace l1 with l0; auto
       end.

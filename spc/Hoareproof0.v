@@ -577,16 +577,17 @@ Section CANCEL.
 
     hexploit (stb_find_iff "main"). i. destruct H as [[_ ?]|?]; des; clarify.
     { Local Transparent ModSemL.prog.
-      seal_right. ss. unfold ms_mid in FINDMID. rewrite FINDMID. steps.
+      seal_right. ss. unfold ms_mid in FINDMID. rewrite FINDMID. 
+      unfold ModL.wf_bool. destruct ModL.wf_dec; ss; steps.
       Local Opaque ModSemL.prog. }
     rename f into main_fsb. hexploit MAINM; et.
     i. des.
 
-    unfold assume.
-    steps. unfold ModL.wf in *. des.
+    unfold ModL.wf_bool. destruct ModL.wf_dec; ss; steps.
+    unfold ModL.wf in *. des.
     assert (NODUP: List.NoDup (map fst ms_tgt.(ModSemL.initial_mrs))).
     { inv WF. rewrite fst_initial_mrs_eq. unfold ms_mid. auto. }
-    esplits; et.
+    destruct ModL.wf_dec; ss; [|exfalso; apply n; econs]; cycle 1.
     { inv WF. econs; auto. rewrite fns_eq. auto. }
     { rewrite sk_eq. auto. }
 
@@ -604,7 +605,7 @@ Section CANCEL.
     steps.
     eexists. steps. unshelve esplits; et. steps.
     guclo bindC_spec. econs.
-    { deflag. gfinal. right. fold simg.
+    { apply simg_flag_down. gfinal. right. fold simg.
       eapply adequacy_type_aux; ss.
       { r_solve. }
     }

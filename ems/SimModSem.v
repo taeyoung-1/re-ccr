@@ -1273,8 +1273,8 @@ Section ADEQUACY.
     Hypothesis INIT:
       exists w, g_lift_rel w (ModSemL.initial_p_state ms_src) (ModSemL.initial_p_state ms_tgt).
 
-    Lemma adequacy_local_aux (P Q: Prop)
-          (WF: Q -> P)
+    Lemma adequacy_local_aux (P Q: bool)
+          (WF: Q = true -> P = true)
       :
         (Beh.of_program (ModSemL.compile ms_tgt (Some P)))
         <1=
@@ -1285,17 +1285,18 @@ Section ADEQUACY.
       { eapply cpn7_wcompat; eauto with paco. }
       unfold ModSemL.initial_itr, assume.
       hexploit (fnsems_find_iff "main"). i. des.
-      { steps. unshelve esplits; et. unfold ITree.map, unwrapU, triggerUB. steps.
+      { unfold triggerUB. destruct Q; steps; ss. unshelve esplits; et. unfold ITree.map, unwrapU, triggerUB. steps.
         rewrite NONE. steps. ss. }
-      { steps. unshelve esplits; et. unfold ITree.map, unwrapU. steps.
+      { unfold triggerUB. destruct Q; steps; ss. unshelve esplits; et. unfold ITree.map, unwrapU. steps.
         rewrite SRC. rewrite TGT.
-        steps. force. esplits; et. steps.
+        steps. rewrite WF; et. steps.
         guclo bindC_spec. econs.
-        { eapply simg_progress_flag. gfinal. right. eapply sim_lift. right. econs; et. }
+        { gfinal. right. eapply sim_lift. right. econs; et. }
         { i. destruct vret_src, vret_tgt. des; clarify. steps. }
       }
       { inv H. hexploit (SIM (None, initial_arg) (None, initial_arg)); et. i. des.
-        steps. force. esplits; et.
+        unfold triggerUB. destruct Q; steps; ss. 
+        rewrite WF; et.
         steps. unfold ITree.map, unwrapU. steps.
         rewrite SRC. rewrite TGT. steps. guclo bindC_spec. econs.
         { eapply simg_flag_down. gfinal. right. eapply sim_lift. left. econs; et. }
@@ -1313,13 +1314,13 @@ Section ADEQUACY.
       <<CR: (refines_strong (Mod.add_list mds_tgt) (Mod.add_list mds_src))>>
   .
   Proof.
-    ii. unfold ModL.compile, ModL.enclose in *.
-    set (ModL.wf _) as wf_src. set (ModL.wf _) as wf_tgt in PR.
+    ii. unfold ModL.compile, ModL.enclose, ModL.wf_bool in *.
+    set (ModL.wf_dec _) as wf_src. set (ModL.wf_dec _) as wf_tgt in PR.
     set (ModL.sk _) as sk_src. set (ModL.sk _) as sk_tgt in PR.
     specialize (SIM (Sk.canon sk_tgt)). inv SIM.
-    destruct (classic wf_src); cycle 1.
+    destruct wf_src; cycle 1.
     { eapply ModSemL.compile_not_wf; et. }
-    rename H0 into SKWF.
+    ss. rename w into SKWF.
     assert (SKEQ: sk_src = sk_tgt).
     { unfold sk_src, sk_tgt. ss. f_equal. clear -sim_sk.
       ginduction mds_src; i.
@@ -1335,10 +1336,10 @@ Section ADEQUACY.
       apply Sk.le_add_r. }
     { inv SKWF. rewrite <- SKEQ. apply Sk.wf_canon; et. }
     intro SIM.
-    assert (wf_src -> wf_tgt).
-    { i. unfold wf_tgt, wf_src in *. et. unfold ModL.wf in *.
-      fold sk_tgt. rewrite <- SKEQ. des. split; et. ss. fold sk_tgt.
-      rewrite <- SKEQ. inv WF. econs; ss; rewrite map_app in *.
+    destruct wf_tgt; cycle 1.
+    { exfalso. apply n. unfold ModL.wf in *. ss.
+      fold sk_tgt. rewrite <- SKEQ. des. split; et. ss.
+      inv WF. econs; ss; rewrite map_app in *.
       - i. set (List.map fst _) as ndom_src at 2.
         set (List.map fst _) as ndom_tgt in wf_fnsems at 2.
         replace ndom_src with ndom_tgt; et.
@@ -1359,11 +1360,9 @@ Section ADEQUACY.
         revert mds_tgt SIM. induction mds_src; i. 
         { inv SIM. destruct mds_tgt; clarify. }
         destruct mds_tgt; inv SIM. ss. inv H3. f_equal; et. }
-    replace wf_src with wf_tgt in *; cycle 1.
-    { eapply prop_ext. split; auto. }
-    clear wf_src. rewrite SKEQ. unfold wf_tgt in SKWF.
-    red in SIM. inv SKWF. rename H1 into MSWFTGT. red in MSWFTGT. ss. fold sk_tgt in MSWFTGT. 
-    clearbody sk_tgt wf_tgt. clear -SIM PR MSWFTGT.
+    ss. rewrite SKEQ.
+    red in SIM. inv w. rename H0 into MSWFTGT. red in MSWFTGT. ss. fold sk_tgt in MSWFTGT. 
+    clearbody sk_tgt. clear -SIM PR MSWFTGT.
     revert mds_tgt SIM ctx MSWFTGT x0 PR.
     induction mds_src; i.
     { destruct mds_tgt; inv SIM. ss. }

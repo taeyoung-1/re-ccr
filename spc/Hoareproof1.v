@@ -384,15 +384,16 @@ Section CANCEL.
     eapply adequacy_global_itree; ss.
     ginit.
     { eapply cpn7_wcompat; eauto with paco. }
-    unfold ModSemL.initial_itr, ModSemL.initial_itr. Local Opaque ModSemL.prog. ss.
+    unfold ModSemL.initial_itr, ModSemL.initial_itr, ModL.wf_bool. Local Opaque ModSemL.prog. 
+    destruct ModL.wf_dec; ss; steps.
     unfold ITree.map. steps.
     Local Transparent ModSemL.prog.
     unfold ModSemL.prog at 4.
     unfold ModSemL.prog at 2.
     Local Opaque ModSemL.prog.
     ss. steps_strong.
-    esplits; et.
-    { des. inv x. split.
+    destruct ModL.wf_dec; ss; steps; cycle 1.
+    { apply n. inv w. split.
       { inv H. econs.
         { rewrite fns_eq. auto. }
         { pose proof initial_mrs_eq. unfold ms_mid, ms_mid2 in H.

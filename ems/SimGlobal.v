@@ -691,7 +691,7 @@ Let ms_src: ModSemL.t := md_src.(ModL.enclose).
 Let ms_tgt: ModSemL.t := md_tgt.(ModL.enclose).
 
 Section ADEQUACY.
-Hypothesis (SIM: simg eq false false (@ModSemL.initial_itr ms_src CONFS (Some (ModL.wf md_src))) (@ModSemL.initial_itr ms_tgt CONFT (Some (ModL.wf md_tgt)))).
+Hypothesis (SIM: simg eq false false (@ModSemL.initial_itr ms_src CONFS (Some (ModL.wf_bool md_src))) (@ModSemL.initial_itr ms_tgt CONFT (Some (ModL.wf_bool md_tgt)))).
 
 
 Theorem adequacy_global: Beh.of_program (@ModL.compile _ CONFT md_tgt) <1= Beh.of_program (@ModL.compile _ CONFS md_src).

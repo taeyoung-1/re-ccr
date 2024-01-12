@@ -19,6 +19,7 @@ Module Sk.
     add: t -> t -> t;
     canon: t -> t;
     wf: t -> Prop;
+    wf_dec: forall a, {wf a} + {~ wf a} ;
     le: t -> t -> Prop;
     le_PreOrder:> PreOrder le;
     le_canon: forall a, le a (canon a);

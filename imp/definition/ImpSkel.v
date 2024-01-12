@@ -53,7 +53,7 @@ forall gn gd (IN: List.In (gn, gd) sk0),
     List.In (gn, gd) sk1.
 
 Program Definition gdefs: Sk.ld := 
-  @Sk.mk (alist gname gdef) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) incl
+  @Sk.mk (alist gname gdef) nil (@List.app _) sort (fun sk => @List.NoDup _ (List.map fst sk)) (fun sk => ListDec.NoDup_dec string_dec (List.map fst sk)) incl
   _ _ _ _ _ _ _ _ _ _ _ _ _ _.
 Next Obligation.
   econs.
