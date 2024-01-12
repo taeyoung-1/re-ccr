@@ -6,7 +6,7 @@ Require Export Axioms.
 Require Export sflib.
 Require Export ITreelib.
 Require Export AList.
-Require Export ImpSkeleton.
+Require Export ImpSkel.
 Require Import ModSem.
 Require Import PCM.
 

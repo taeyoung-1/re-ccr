@@ -3,7 +3,7 @@
 Require Import Coqlib.
 Require Import ITreelib.
 Require Import ImpPrelude.
-Require Import ImpSkeleton.
+Require Import ImpSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
