@@ -28,6 +28,8 @@ Section SIM.
   Let W: Type := (Any.t) * (Any.t).
   Variable wf : world -> W -> Prop.
   Variable le: relation world.
+  Variable fl_src fl_tgt: alist gname (Any.t -> itree Es Any.t).
+
 
 
   Inductive _sim_itree (sim_itree: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
@@ -58,6 +60,26 @@ Section SIM.
     :
       _sim_itree sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                  (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
+
+  | sim_itree_inline_src
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg k_src i_tgt
+      (FUN: alist_find fn fl_src = Some f)
+      (* (IN: In (fn, f) fl_src ) *)
+      (K: _sim_itree sim_itree RR true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
+    :
+      _sim_itree sim_itree RR i_src0 i_tgt0 w (st_src, trigger (Call fn varg) >>= k_src)
+                 (st_tgt, i_tgt)
+
+  | sim_itree_inline_tgt
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg i_src k_tgt
+      (FUN: alist_find fn fl_tgt = Some f)
+      (* (IN: In (fn, f) fl_tgt ) *)
+      (K: _sim_itree sim_itree RR i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
+    :
+      _sim_itree sim_itree RR i_src0 i_tgt0 w (st_src, i_src)
+                 (st_tgt, trigger (Call fn varg) >>= k_tgt)
 
   | sim_itree_tau_src
       i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
@@ -159,6 +181,24 @@ Section SIM.
                 sim_itree _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
             P i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
               (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt))
+        (INLINESRC: forall
+            i_src0 i_tgt0 w st_src st_tgt
+            f fn varg k_src i_tgt
+            (FUN: alist_find fn fl_src = Some f)
+            (* (IN: In (fn, f) fl_src )  *)
+            (K: _sim_itree sim_itree RR true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
+            (IH: P true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt)),
+            P i_src0 i_tgt0 w (st_src, trigger (Call fn varg) >>= k_src)
+              (st_tgt, i_tgt))
+        (INLINETGT: forall
+            i_src0 i_tgt0 w st_src st_tgt
+            f fn varg i_src k_tgt
+            (FUN: alist_find fn fl_tgt = Some f)
+            (* (IN: In (fn, f) fl_tgt )  *)
+            (K: _sim_itree sim_itree RR i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
+            (IH: P i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt)),
+            P i_src0 i_tgt0 w (st_src, i_src)
+              (st_tgt, trigger (Call fn varg) >>= k_tgt)) 
         (TAUSRC: forall
             i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
             i_src i_tgt
@@ -224,6 +264,8 @@ Section SIM.
     { eapply RET; eauto. }
     { eapply CALL; eauto. }
     { eapply SYSCALL; eauto. }
+    { eapply INLINESRC; eauto. }
+    { eapply INLINETGT; eauto. }
     { eapply TAUSRC; eauto. }
     { eapply TAUTGT; eauto. }
     { eapply CHOOSESRC; eauto. des. esplits; eauto. }
@@ -274,6 +316,22 @@ Section SIM.
                 paco8 _sim_itree bot8 _ _ RR true true w0 (st_src0, k_src vret) (st_tgt0, k_tgt vret)),
             P i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
               (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt))
+        (INLINESRC: forall
+            i_src0 i_tgt0 w0 st_src st_tgt
+            f fn varg k_src i_tgt
+            (FUN: alist_find fn fl_src = Some f)
+            (* (IN: In (fn, f) fl_src) *)
+            (K: paco8 _sim_itree bot8 _ _ RR true i_tgt0 w0 (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
+            (IH: P true i_tgt0 w0 (st_src, (f varg) >>= k_src) (st_tgt, i_tgt)),
+            P i_src0 i_tgt0 w0 (st_src, trigger (Call fn varg) >>= k_src) (st_tgt, i_tgt))
+        (INLINETGT: forall
+            i_src0 i_tgt0 w0 st_src st_tgt
+            f fn varg i_src k_tgt
+            (FUN: alist_find fn fl_tgt = Some f)
+            (* (IN: In (fn, f) fl_tgt) *)
+            (K: paco8 _sim_itree bot8 _ _ RR i_src0 true w0 (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
+            (IH: P i_src0 true w0 (st_src, i_src) (st_tgt, (f varg) >>= k_tgt)),
+            P i_src0 i_tgt0 w0 (st_src, i_src) (st_tgt, trigger (Call fn varg) >>= k_tgt))            
         (TAUSRC: forall
             i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
             i_src i_tgt
@@ -341,6 +399,8 @@ Section SIM.
     { eapply RET; eauto. }
     { eapply CALL; eauto. i. exploit K; eauto. i. pclearbot. eauto. }
     { eapply SYSCALL; eauto. i. exploit K; eauto. i. pclearbot. eauto. }
+    { eapply INLINESRC; et. }
+    { eapply INLINETGT; et. }
     { eapply TAUSRC; eauto. }
     { eapply TAUTGT; eauto. }
     { eapply CHOOSESRC; eauto. des. esplits; eauto. }
@@ -382,6 +442,24 @@ Section SIM.
       sim_itree_indC  sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                      (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
 
+  | sim_itree_indC_inline_src
+      i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
+      f fn varg k_src i_tgt
+      (FUN: alist_find fn fl_src = Some f)
+      (* (IN: In (fn, f) fl_src) *)
+      (K: sim_itree _ _ RR true i_tgt0 w0 (st_src0, (f varg) >>= k_src) (st_tgt0, i_tgt))
+    :
+      sim_itree_indC  sim_itree RR i_src0 i_tgt0 w0 (st_src0, trigger (Call fn varg) >>= k_src) (st_tgt0, i_tgt)
+
+  | sim_itree_indC_inline_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
+      f fn varg i_src k_tgt
+      (FUN: alist_find fn fl_tgt = Some f)
+      (* (IN: In (fn, f) fl_tgt) *)
+      (K: sim_itree _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, (f varg) >>= k_tgt))
+    :
+      sim_itree_indC  sim_itree RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (Call fn varg) >>= k_tgt)
+ 
   | sim_itree_indC_tau_src
       i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
       i_src i_tgt
@@ -458,14 +536,16 @@ Section SIM.
     { econs 2; eauto. i. exploit K; eauto. i. des.
       esplits; eauto. eapply rclo8_base. eauto. }
     { econs 3; eauto. i. eapply rclo8_base. eauto. }
-    { econs 4; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 5; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 6; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 7; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 8; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 9; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
-    { econs 10; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto.  }
-    { econs 11; eauto. des. esplits; eauto.  eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto.  }
+    { econs 4; et. eapply sim_itree_mon; et. eapply rclo8_base. }
+    { econs 5; et. eapply sim_itree_mon; et. eapply rclo8_base. }
+    { econs 6; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 7; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 8; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 9; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 10; eauto. i. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 11; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto. }
+    { econs 12; eauto. des. esplits; eauto. eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto.  }
+    { econs 13; eauto. des. esplits; eauto.  eapply sim_itree_mon; eauto. i. eapply rclo8_base. eauto.  }
   Qed.
 
   Variant sim_itreeC (r g: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
@@ -494,6 +574,24 @@ Section SIM.
     :
       sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Syscall fn varg rvs) >>= k_src)
                  (st_tgt0, trigger (Syscall fn varg rvs) >>= k_tgt)
+
+  | sim_itreeC_inline_src
+      i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
+      f fn varg k_src i_tgt
+      (FUN: alist_find fn fl_src = Some f)
+      (* (IN: In (fn, f) fl_src) *)
+      (K: r _ _ RR true i_tgt0 w0 (st_src0, (f varg) >>= k_src) (st_tgt0, i_tgt))
+    :
+      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, trigger (Call fn varg) >>= k_src) (st_tgt0, i_tgt)
+
+  | sim_itreeC_inline_tgt
+      i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
+      f fn varg i_src k_tgt
+      (FUN: alist_find fn fl_tgt = Some f)
+      (* (IN: In (fn, f) fl_tgt) *)
+      (K: r _ _ RR i_src0 true w0 (st_src0, i_src) (st_tgt0, (f varg) >>= k_tgt))
+    :
+      sim_itreeC r g RR i_src0 i_tgt0 w0 (st_src0, i_src) (st_tgt0, trigger (Call fn varg) >>= k_tgt)
 
   | sim_itreeC_tau_src
       i_src0 i_tgt0 w0 (st_src0: st_local) (st_tgt0: st_local)
@@ -565,12 +663,14 @@ Section SIM.
     { gstep. econs 3; eauto. i. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 4; eauto. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 5; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 6; eauto. des. esplits; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 6; eauto. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 7; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 8; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 9; eauto. des. esplits; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 8; eauto. des. esplits; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 9; eauto. gbase. eauto. }
     { guclo sim_itree_indC_spec. econs 10; eauto. gbase. eauto. }
-    { guclo sim_itree_indC_spec. econs 11; eauto.  gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 11; eauto. des. esplits; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 12; eauto. gbase. eauto. }
+    { guclo sim_itree_indC_spec. econs 13; eauto.  gbase. eauto. }
   Qed.
 
   Lemma sim_itreeC_spec r g
@@ -612,12 +712,14 @@ Section SIM.
     { econs 3; eauto. }
     { econs 4; eauto. }
     { econs 5; eauto. } 
-    { econs 6; eauto. des. esplits; eauto. }
-    { econs 7; eauto. i. exploit K; eauto. i. des. eauto. }
-    { econs 8; eauto. i. exploit K; eauto. i. des. eauto. }
-    { econs 9; eauto. des. esplits; eauto. }
-    { econs 10; eauto. }
-    { econs 11; eauto. } 
+    { econs 6; eauto. } 
+    { econs 7; eauto. } 
+    { econs 8; eauto. des. esplits; eauto. }
+    { econs 9; eauto. i. exploit K; eauto. i. des. eauto. }
+    { econs 10; eauto. i. exploit K; eauto. i. des. eauto. }
+    { econs 11; eauto. des. esplits; eauto. }
+    { econs 12; eauto. }
+    { econs 13; eauto. } 
     { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs; eauto. }
   Qed.
 
@@ -665,13 +767,15 @@ Section SIM.
     { econs 3; eauto. i. eapply rclo8_base. eauto. }
     { econs 4; eauto. }
     { econs 5; eauto. }
-    { econs 6; eauto.  des. esplits; eauto. }
-    { econs 7; eauto. i. exploit K; eauto. i. des. esplits; eauto. }
-    { econs 8; eauto. i. exploit K; eauto. i. des. esplits; eauto. }
-    { econs 9; eauto. des. esplits; eauto. }
-    { econs 10; eauto. }
-    { econs 11; eauto. }
-    { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs 12; eauto.
+    { econs 6; eauto. }
+    { econs 7; eauto. }
+    { econs 8; eauto.  des. esplits; eauto. }
+    { econs 9; eauto. i. exploit K; eauto. i. des. esplits; eauto. }
+    { econs 10; eauto. i. exploit K; eauto. i. des. esplits; eauto. }
+    { econs 11; eauto. des. esplits; eauto. }
+    { econs 12; eauto. }
+    { econs 13; eauto. }
+    { exploit SRC0; auto. exploit TGT0; auto. i. clarify. econs 14; eauto.
       eapply rclo8_base; auto. }
   Qed.
 
@@ -705,12 +809,14 @@ Section SIM.
     { gstep. econs 3; eauto. i. gbase. eapply CIH; eauto. }
     { guclo sim_itree_indC_spec. econs 4; eauto. }
     { guclo sim_itree_indC_spec. econs 5; eauto. } 
-    { guclo sim_itree_indC_spec. econs 6; eauto. des. esplits; eauto. }
-    { guclo sim_itree_indC_spec. econs 7; eauto. i. hexploit K; eauto. i. des. esplits; eauto. }
-    { guclo sim_itree_indC_spec. econs 8; eauto. i. hexploit K; eauto. i. des. esplits; eauto. }
-    { guclo sim_itree_indC_spec. econs 9; eauto. des. esplits; eauto. }
-    { guclo sim_itree_indC_spec. econs 10; eauto. } 
-    { guclo sim_itree_indC_spec. econs 11; eauto. } 
+    { guclo sim_itree_indC_spec. econs 6; eauto. } 
+    { guclo sim_itree_indC_spec. econs 7; eauto. } 
+    { guclo sim_itree_indC_spec. econs 8; eauto. des. esplits; eauto. }
+    { guclo sim_itree_indC_spec. econs 9; eauto. i. hexploit K; eauto. i. des. esplits; eauto. }
+    { guclo sim_itree_indC_spec. econs 10; eauto. i. hexploit K; eauto. i. des. esplits; eauto. }
+    { guclo sim_itree_indC_spec. econs 11; eauto. des. esplits; eauto. }
+    { guclo sim_itree_indC_spec. econs 12; eauto. } 
+    { guclo sim_itree_indC_spec. econs 13; eauto. } 
     { eapply sim_itree_flag_down. gfinal. right.
       eapply paco8_mon; eauto. ss.
     }
@@ -763,6 +869,8 @@ Section SIM.
       eapply rclo8_clo_base. econs; eauto.
     + rewrite ! bind_bind. econs; eauto. i.
       eapply rclo8_clo_base. econs; eauto.
+    + exploit IHSIM; et. i. rewrite ! bind_bind in *. econs; et. 
+    + exploit IHSIM; et. i. rewrite ! bind_bind in *. econs; et. 
     + rewrite ! bind_tau. econs; eauto.
     + rewrite ! bind_tau. econs; eauto.
     + rewrite ! bind_bind. econs; eauto. des. esplits; eauto.
@@ -786,8 +894,8 @@ Hint Resolve sim_itree_mon: paco.
 Hint Resolve cpn8_wcompat: paco.
 
 Lemma self_sim_itree:
-  forall st itr,
-    sim_itree (fun _ '(src, tgt) => src = tgt) top2 false false tt (st, itr) (st, itr).
+  forall st itr fl,
+    sim_itree (fun _ '(src, tgt) => src = tgt) top2 fl fl false false tt (st, itr) (st, itr).
 Proof.
   ginit. gcofix CIH. i. ides itr.
   { gstep. eapply sim_itree_ret; ss. }
@@ -808,11 +916,11 @@ Proof.
     }
   }
   { rewrite <- ! bind_trigger. resub. dependent destruction e.
-    { guclo sim_itree_indC_spec. econs 7. i.
+    { guclo sim_itree_indC_spec. econs 9. i.
       guclo sim_itree_indC_spec. econs. eexists.
       eapply sim_itree_progress_flag. gbase. eauto.
     }
-    { guclo sim_itree_indC_spec. econs 8. i.
+    { guclo sim_itree_indC_spec. econs 10. i.
       guclo sim_itree_indC_spec. econs. eexists.
       eapply sim_itree_progress_flag. gbase. eauto.
     }
@@ -833,6 +941,9 @@ Module ModSemPair.
 Section SIMMODSEM.
 
   Variable (ms_src ms_tgt: ModSem.t).
+  
+  Definition fl_src := ms_src.(ModSem.fnsems).
+  Definition fl_tgt := ms_tgt.(ModSem.fnsems).
 
   Let W: Type := (Any.t) * (Any.t).
   Inductive sim: Prop := mk {
@@ -840,7 +951,10 @@ Section SIMMODSEM.
     wf: world -> W -> Prop;
     le: world -> world -> Prop;
     le_PreOrder: PreOrder le;
-    sim_fnsems: Forall2 (sim_fnsem wf le) ms_src.(ModSem.fnsems) ms_tgt.(ModSem.fnsems);
+    sim_fnsems: Forall2 (sim_fnsem wf le fl_src fl_tgt) ms_src.(ModSem.fnsems) ms_tgt.(ModSem.fnsems);
+    (* sim_fnsems: forall fn f_src (FINDS: In (fn, f_src) ms_src.(ModSem.fnsems)),
+                  exists f_tgt, <<FINDT: In (fn, f_tgt) ms_tgt.(ModSem.fnsems)>>
+                                  /\ <<SIM: sim_fsem wf le ms_src.(ModSem.fnsems) ms_tgt.(ModSem.fnsems) f_src f_tgt>>; *)
     sim_initial: exists w_init, wf w_init (ms_src.(ModSem.init_st), ms_tgt.(ModSem.init_st));
   }.
 
@@ -854,7 +968,7 @@ Proof.
   - instantiate (1:=(fun (_: unit) '(src, tgt) => src = tgt)). (* fun p => fst p = snd p *)
     generalize (ModSem.fnsems ms).
     induction a; ii; ss.
-    econs; eauto. econs; ss. ii; clarify.
+    econs; et. econs; ss. ii; clarify.
     destruct w. exploit self_sim_itree; et.
   - ss.
 Qed.
@@ -951,10 +1065,8 @@ Import TAC.
 Section SEMPAIR.
   Variable ms_src: ModSem.t.
   Variable ms_tgt: ModSem.t.
-  (* Variable ctx: ModSem.t.
-  Definition ms_src := ModSem.add ctx ms_src'.
-  Definition ms_tgt := ModSem.add ctx ms_tgt'. *)
-  (* Variable mn: mname. *)
+  Definition fl_src := ms_src.(ModSem.fnsems).
+  Definition fl_tgt := ms_tgt.(ModSem.fnsems).
   Variable world: Type.
   Variable wf: world -> Any.t * Any.t -> Prop.
   Variable le: world -> world -> Prop.
@@ -966,7 +1078,7 @@ Section SEMPAIR.
       (exists (f_src f_tgt: _ -> itree _ _),
           (<<SRC: alist_find fn ms_src.(ModSem.fnsems) = Some f_src>>) /\
           (<<TGT: alist_find fn ms_tgt.(ModSem.fnsems) = Some f_tgt>>) /\
-          (<<SIM: sim_fsem wf le f_src f_tgt>>)).
+          (<<SIM: sim_fsem wf le fl_src fl_tgt f_src f_tgt>>)).
           
   Variant g_lift_rel
           (w0: world) st_src0 st_tgt0: Prop :=
@@ -984,7 +1096,7 @@ Section SEMPAIR.
       w0
       (itr_src itr_tgt: itree Es Any.t)
       st_src0 st_tgt0 o_src o_tgt
-      (SIM: sim_itree wf le o_src o_tgt w0 (st_src0, itr_src) (st_tgt0, itr_tgt))
+      (SIM: sim_itree wf le fl_src fl_tgt o_src o_tgt w0 (st_src0, itr_src) (st_tgt0, itr_tgt))
       (* (STATE: forall mn' (MN: mn <> mn'), st_local mn' = st_local mn') *)
     :
       my_r0 (fun '(st_src, ret_src) '(st_tgt, ret_tgt) =>
@@ -1010,7 +1122,7 @@ Section SEMPAIR.
     | |- ?P o_src o_tgt w p p0 => set P
     end.
     revert o_src o_tgt w p p0 SIM.
-    eapply (@sim_itree_ind world wf le Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; clarify.
+    eapply (@sim_itree_ind world wf le fl_src fl_tgt Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; clarify.
     - rr in RET. des. step. splits; auto. econs; et.
     - hexploit (fnsems_find_iff fn). i. des.
       { step. rewrite interp_Es_bind.  steps. rewrite NONE. unfold unwrapU, triggerUB. grind. step. ss. }
@@ -1029,6 +1141,12 @@ Section SEMPAIR.
     - step. i. subst. apply simg_progress_flag.
       hexploit (K x_tgt). i. des. pclearbot.
       steps. gbase. eapply CIH. econs; et.
+    - steps. unfold fl_src in FUN. rewrite FUN. grind.
+      rewrite <- interp_Es_bind.
+      eapply IH; et.
+    - steps. unfold fl_tgt in FUN. rewrite FUN. grind.
+      rewrite <- interp_Es_bind.
+      eapply IH; et.
     - steps.
     - steps. 
     - des. force. exists x. steps. eapply IH; eauto. 
@@ -1039,6 +1157,7 @@ Section SEMPAIR.
     - steps. destruct run. steps. eapply IH; eauto.
     - eapply simg_progress_flag. gbase. eapply CIH. econs; eauto.
   Qed.
+  (* Admitted. *)
 
   Context `{CONF: EMSConfig}.
   Hypothesis INIT:
@@ -1091,19 +1210,35 @@ Definition wf_lift {world} wf  :=
     end
   ).
 
+Definition addf f1 f2 : alist gname (Any.t -> itree _ Any.t) :=
+    (List.map trans_l f1) ++ (List.map trans_r f2).
+
+
 Lemma sim_ctx_aux {world}
       w wf le
+      (* ctx ms_src ms_tgt *)
       a b c
+      fa fb fc 
       ol or stl str itl itr
 
       (SRC: Any.split stl = Some (a, b))
       (TGT: Any.split str = Some (a, c))
-      (SIM: sim_itree wf le ol or w (b, itl) (c, itr))
+      (* (SRC: Any.split stl = Some (ctx.(init_st), ms_src.(init_st))) *)
+      (* (TGT: Any.split str = Some (ctx.(init_st), ms_tgt.(init_st))) *)
+
+      (NODUPS: NoDup (List.map fst (fa ++ fb)))
+      (NODUPT: NoDup (List.map fst (fa ++ fc)))
+
+
+      (SIM: sim_itree wf le fb fc ol or w (b, itl) (c, itr))
+      (* (SIM: sim_itree wf le ms_src.(fnsems) ms_tgt.(fnsems) ol or w (ms_src.(init_st), itl) ((ms_tgt.(init_st)), itr)) *)
 :
-      @sim_itree world (wf_lift wf) le ol or w (stl, translate emb_r itl) 
+      @sim_itree world (wf_lift wf) le (addf fa fb) (addf fa fc) ol or w (stl, translate emb_r itl) 
                                               (str, translate emb_r itr)
+      (* @sim_itree world (wf_lift wf) le (add ctx ms_src).(fnsems) (add ctx ms_tgt).(fnsems) ol or w (stl, translate emb_r itl) 
+                                              (str, translate emb_r itr) *)
 .
-Proof.
+Proof. 
   ginit.
 
   revert_until wf.
@@ -1122,7 +1257,7 @@ Proof.
   match goal with
   | |- ?P ol or w p p0 => set P
   end.
-  eapply (@sim_itree_ind world wf le Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; des; clarify.
+  eapply (@sim_itree_ind world wf le fb fc Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; des; clarify.
 
   - rr in RET. des. clarify.
     erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
@@ -1148,25 +1283,63 @@ Proof.
       ss; des_ifs. inv WF1. 
       eapply CIH with (a:= t2); et.
       specialize (K0 _ vret _ _ WLE H2).
-      pclearbot. apply K0. 
-    + pclearbot. punfold SIM0. inv SIM0; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
-      apply inj_pair2 in H0, H1.
-      erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
+      pclearbot. apply K0.
+    + 
+      (* erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
       unfold trigger.
       erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
-      rewrite <- ! bind_trigger.
-      grind. resub.
-      gstep. econs.
-      { unfold wf_lift. rewrite SRC, TGT. split; auto.
-        apply WF0.  }
-      ii. 
-      erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
-      grind.
-      gfinal. left.
-      ss; des_ifs. inv WF1. 
-      eapply CIH with (a:= t2); et.
-      specialize (K0 _ vret _ _ WLE H2).
-      pclearbot. apply K0.
+      rewrite <- ! bind_trigger. grind.  *)
+      erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      unfold trigger at 1.
+      erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+      rewrite <- bind_trigger. grind. 
+      guclo sim_itree_indC_spec. econs.
+      (* gstep. eapply sim_itree_inline_src; et; cycle 1. eapply sim_itree_inline_tgt; et; cycle 1.
+      eapply sim_itree_progress; et. gfinal. left. eapply CIH. *)
+      { 
+        (* instantiate (1:= fun args => translate emb_r (f args)). *)
+        unfold addf. rewrite alist_find_app_o.
+        unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
+        destruct (alist_find fn fa) eqn:FA.
+        - apply alist_find_some in FA, FUN.
+          rewrite List.map_app in NODUPS.
+          eapply NoDup_app_disjoint in NODUPS; et; clarify.
+          + instantiate (1:= fn). eapply in_map in FA.
+            hexploit FA. instantiate (1:= fst). et. 
+          + eapply in_map in FUN.
+            hexploit FUN. instantiate (1:= fst). et.
+        - rewrite FUN. et.
+      }
+      grind. 
+      rewrite <- bind_bind.
+      erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+      rewrite bind_ret_r.
+      gfinal. right.
+      (* erewrite <- ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)). *)
+
+      admit.
+    + admit.  
+    + pclearbot. punfold SIM0. inv SIM0; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
+      * apply inj_pair2 in H0, H1.
+        erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
+        unfold trigger.
+        erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+        rewrite <- ! bind_trigger.
+        grind. resub.
+        gstep. econs.
+        { unfold wf_lift. rewrite SRC, TGT. split; auto.
+          apply WF0.  }
+        ii. 
+        erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+        grind.
+        gfinal. left.
+        ss; des_ifs. inv WF1. 
+        eapply CIH with (a:= t2); et.
+        specialize (K0 _ vret _ _ WLE H2).
+        pclearbot. apply K0.
+      * admit.
+      * admit.  
+    
   - punfold SIM. inv SIM; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
     + apply inj_pair2 in H0, H1.
       erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
@@ -1198,6 +1371,34 @@ Proof.
       eapply CIH with (a:= a); et.
       specialize (K0 vret).
       pclearbot. apply K0.
+  - erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+    unfold trigger.
+    erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+    rewrite <- bind_trigger. grind.
+    guclo sim_itree_indC_spec. econs; et.
+    { 
+      (* instantiate (1:= fun args => translate emb_r (f args)). *)
+      unfold addf. rewrite alist_find_app_o.
+      unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
+      destruct (alist_find fn fa) eqn:FA.
+      - apply alist_find_some in FA, FUN.
+        rewrite List.map_app in NODUPS.
+        eapply NoDup_app_disjoint in NODUPS; et; clarify.
+        + instantiate (1:= fn). eapply in_map in FA.
+          hexploit FA. instantiate (1:= fst). et. 
+        + eapply in_map in FUN.
+          hexploit FUN. instantiate (1:= fst). et.
+      - rewrite FUN. et.
+    }
+    ss. rewrite <- bind_bind.
+    (* Set Printing All. *)
+    erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
+    eapply IH; et. f_equal. grind. f_equal.
+    apply func_ext. i.
+    (* rewrite <- bind_bind. *)
+    rewrite bind_ret_l. et.
+
+  - admit.
   - erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
     guclo sim_itree_indC_spec. econs; et.
   - erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
@@ -1283,7 +1484,7 @@ Proof.
     match goal with
     | |- ?P o_src o_tgt w1 p1 p2 => set P
     end.
-    eapply (@sim_itree_ind world wf le Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; des; clarify.
+    eapply (@sim_itree_ind world wf le fb fc Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; des; clarify.
     + rr in RET. des. clarify.
       erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
       gstep. apply sim_itree_ret.
@@ -1308,24 +1509,28 @@ Proof.
         eapply CIH with (a:= t2); et.
         specialize (K0 _ vret _ _ WLE H2).
         pclearbot. apply K0. 
+      * admit.
+      * admit. 
       * pclearbot. punfold SIM1. inv SIM1; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
-        apply inj_pair2 in H0, H1.
-        erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
-        unfold trigger.
-        erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
-        rewrite <- ! bind_trigger.
-        grind. resub.
-        gstep. econs.
-        { unfold wf_lift. rewrite SRC0, TGT0. split; auto.
-          apply WF0.  }
-        ii. 
-        erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
-        grind.
-        gfinal. left.
-        ss; des_ifs. inv WF1. 
-        eapply CIH with (a:= t2); et.
-        specialize (K0 _ vret _ _ WLE H2).
-        pclearbot. apply K0.
+        -- apply inj_pair2 in H0, H1.
+          erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
+          unfold trigger.
+          erewrite ! (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
+          rewrite <- ! bind_trigger.
+          grind. resub.
+          gstep. econs.
+          { unfold wf_lift. rewrite SRC0, TGT0. split; auto.
+            apply WF0.  }
+          ii. 
+          erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
+          grind.
+          gfinal. left.
+          ss; des_ifs. inv WF1. 
+          eapply CIH with (a:= t2); et.
+          specialize (K0 _ vret _ _ WLE H2).
+          pclearbot. apply K0.
+        -- admit.
+        -- admit.
     + punfold SIM0. inv SIM0; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
       * apply inj_pair2 in H0, H1.
         erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
@@ -1356,6 +1561,8 @@ Proof.
         eapply CIH with (a:= a); et.
         specialize (K0 vret).
         pclearbot. apply K0.
+    + admit.
+    + admit.
     + erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
       guclo sim_itree_indC_spec. econs. et. 
     + erewrite ! (bisimulation_is_eq _ _ (translate_tau _ _)).
@@ -1428,10 +1635,31 @@ Proof.
       gfinal. left. eapply CIH; et.
 Qed.
 
+Lemma fst_trans_l : forall x, fst (trans_l x) = fst x.
+Proof. i. destruct x. ss. Qed.
+
+Lemma fst_trans_r : forall x, fst (trans_r x) = fst x.
+Proof. i. destruct x. ss. Qed.
+
+Lemma fun_fst_trans_l : 
+  (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_l x)) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+Proof.
+  extensionality x. rewrite fst_trans_l. et.
+Qed.
+
+Lemma fun_fst_trans_r : 
+  (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_r x)) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+Proof.
+  extensionality x. rewrite fst_trans_r. et.
+Qed.
+
 Theorem sim_ctx
       ctx ms1 ms2
       (SIM: ModSemPair.sim ms1 ms2)
       (* (SIM: ModSemPair.sim ms1' ms2') *)
+
+      (WFS: wf (add ctx ms1))
+      (WFT: wf (add ctx ms2)) 
 
     :
       ModSemPair.sim (add ctx ms1) (add ctx ms2)
@@ -1542,6 +1770,15 @@ Proof.
     specialize (H1 eq_refl SIMMRS0).
     eapply sim_ctx_aux; et.
     (* Admitted. *)
+    + inv WFS. ss. unfold add_fnsems in wf_fnsems0.
+      rewrite List.map_app in wf_fnsems0. rewrite ! List.map_map in wf_fnsems0. 
+      rewrite fun_fst_trans_l, fun_fst_trans_r in wf_fnsems0.
+      rewrite List.map_app. ss.
+    + inv WFT. ss. unfold add_fnsems in wf_fnsems0.
+      rewrite List.map_app in wf_fnsems0. rewrite ! List.map_map in wf_fnsems0. 
+      rewrite fun_fst_trans_l, fun_fst_trans_r in wf_fnsems0.
+      rewrite List.map_app. ss.
+
 Qed.
 
 End SIMCTX.
