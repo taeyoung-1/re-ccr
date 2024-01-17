@@ -360,6 +360,53 @@ Section MOD.
 End MOD.
 End Mod.
 
+Section TRANSL.
+  Import ModSem.
+
+  Lemma fst_trans_l : forall x, fst (trans_l x) = fst x.
+  Proof. i. destruct x. ss. Qed.
+  
+  Lemma fst_trans_r : forall x, fst (trans_r x) = fst x.
+  Proof. i. destruct x. ss. Qed.
+  
+  Lemma fun_fst_trans_l : 
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_l x)) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite fst_trans_l. et.
+  Qed.
+  
+  Lemma fun_fst_trans_r : 
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_r x)) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite fst_trans_r. et.
+  Qed.
+  
+  Lemma fun_fst_trans_l_l :
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_l (trans_l x))) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite ! fst_trans_l. et.
+  Qed.
+  
+  Lemma fun_fst_trans_l_r :
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_l (trans_r x))) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite fst_trans_l. rewrite fst_trans_r. et.
+  Qed.
+  
+  Lemma fun_fst_trans_r_l:
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_r (trans_l x))) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite fst_trans_r. rewrite fst_trans_l. et.
+  Qed.
+  
+  Lemma fun_fst_trans_r_r:
+    (fun x : string * (Any.t -> itree Es Any.t) => fst (trans_r (trans_r x))) = (fun x : string * (Any.t -> itree Es Any.t) => fst x).
+  Proof.
+    extensionality x. rewrite ! fst_trans_r. et.
+  Qed.
+
+End TRANSL.
+
 Section REFINE.
   Context `{Sk.ld}.
 

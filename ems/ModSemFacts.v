@@ -47,12 +47,12 @@ Section COMM.
     snd stp = Any.pair b a.
 
   Lemma add_comm_aux
-        itl itr stl str (w: unit)
+        fl fr itl itr stl str (w: unit)
         (COMM: comm_ems itl itr)
         (STATE: comm_st (stl, str))
 
   :
-      sim_itree (fun _ => comm_st) top2 false false w (stl, itl) (str, itr).
+      sim_itree (fun _ => comm_st) top2 fl fr false false w (stl, itl) (str, itr).
   Proof.   
     destruct COMM, STATE. des. ss.
     (* unfold assoc_st. *)
@@ -259,12 +259,12 @@ Definition assoc_rev_st (stp: Any.t * Any.t) : Prop :=
 .
 
 Lemma add_assoc_aux
-        itl itr stl str (w: unit)
+        fl fr itl itr stl str (w: unit)
         (ASSOC: assoc_ems itl itr)
         (STATE: assoc_st (stl, str))
 
   :
-      sim_itree (fun _ => assoc_st) top2 false false w (stl, itl) (str, itr).
+      sim_itree (fun _ => assoc_st) top2 fl fr false false w (stl, itl) (str, itr).
 Proof.
   destruct ASSOC, STATE. des. ss.
   (* unfold assoc_st. *)
@@ -357,12 +357,12 @@ Proof.
 Qed. 
 
 Lemma add_assoc_rev_aux
-        itl itr stl str (w: unit)
+        fl fr itl itr stl str (w: unit)
         (ASSOC: assoc_ems itr itl)
         (STATE: assoc_rev_st (stl, str))
 
   :
-      sim_itree (fun _ => assoc_rev_st) top2 false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => assoc_rev_st) top2 fl fr false false w (stl, itl) (str, itr)
 .
 Proof.
 destruct ASSOC, STATE. des. ss.
@@ -592,12 +592,12 @@ Definition empty_rev_st (stp: Any.t * Any.t) : Prop :=
 
 
 Lemma add_empty_aux
-        itl itr stl str (w: unit)
+        fl fr itl itr stl str (w: unit)
         (EMPTY: empty_ems itl itr)
         (STATE: empty_st (stl, str))
 
   :
-      sim_itree (fun _ => empty_st) top2 false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => empty_st) top2 fl fr false false w (stl, itl) (str, itr)
 .
 Proof.
   destruct EMPTY, STATE. des. ss.
@@ -656,12 +656,12 @@ Proof.
 Qed.
 
 Lemma add_empty_rev_aux
-        itl itr stl str (w: unit)
+        fl fr itl itr stl str (w: unit)
         (EMPTY: empty_ems itr itl)
         (STATE: empty_rev_st (stl, str))
 
   :
-      sim_itree (fun _ => empty_rev_st) top2 false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => empty_rev_st) top2 fl fr false false w (stl, itl) (str, itr)
 .
 Proof.
   destruct EMPTY, STATE. des. ss.
