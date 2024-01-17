@@ -182,37 +182,34 @@ Section MODSEM.
     .
 
     Definition memcpyF: Z * Z * list val -> itree Es val :=
-      fun varg => Ret Vundef.
-        (* mp <- trigger (PGet);;
-        m <- mp↓?;;
-        match Archi.ptr64, varg with
-        | _, (al, sz, [vaddr; vaddr']) =>
-          let vp := to_ptr_val m vaddr in
-          let vp' := to_ptr_val m vaddr' in
-          match vp, vp' with
-          | Vptr b ofs, Vptr b' ofs' =>
-            if negb (dec al 1 && dec al 2 && dec al 4 && dec al 8) then triggerUB
-            else if negb (Coqlib.zle 0 sz && Zdivide_dec al sz) then triggerUB
-                 else 
-                  let chk1 := if negb (Coqlib.zlt 0 sz) then true
-                              else (Zdivide_dec al (Ptrofs.unsigned ofs'))
-                                    && (Zdivide_dec al (Ptrofs.unsigned ofs)) in
-                  if negb chk1 then triggerUB
-                  else
-                    let odst := Ptrofs.unsigned ofs in
-                    let osrc := Ptrofs.unsigned ofs' in
-                    let chk2 := (Coqlib.zle (osrc + sz) odst)
-                                  || (Coqlib.zle (odst + sz) osrc)
-                                      || (negb (dec b' b))
-                                          || (dec odst osrc) in
-                  if negb chk2 then triggerUB
-                  else bytes <- (Mem.loadbytes m b' osrc sz)?;;
-                       m' <- (Mem.storebytes m b odst bytes)?;;
-                       trigger (PPut m'↑);;; Ret Vundef
-          | _, _ => triggerUB
-          end
-        | _, _ => triggerUB
-        end. *)
+      fun varg =>
+        let '(al, sz, vl) := varg in
+        match vl with
+        | [vaddr; vaddr'] =>
+          if dec sz 0 then Ret Vundef
+          else
+            mp <- trigger (PGet);;
+            m <- mp↓?;;
+            vp <- (Mem.to_ptr vaddr m)?;;
+            vp' <- (Mem.to_ptr vaddr' m)?;;
+            match vp, vp' with
+            | Vptr b ofs, Vptr b' ofs' =>
+              let chk1 := dec al 1 || dec al 2 || dec al 4 || dec al 8 in
+              let chk2 := Coqlib.zle 0 sz && Zdivide_dec al sz in
+              let chk3 := Zdivide_dec al (Ptrofs.unsigned ofs') && Zdivide_dec al (Ptrofs.unsigned ofs) in
+              if negb (chk1 && chk2 && chk3) then triggerUB
+              else
+                let odst := Ptrofs.unsigned ofs in
+                let osrc := Ptrofs.unsigned ofs' in
+                let chk4 := Coqlib.zle (osrc + sz) odst || Coqlib.zle (odst + sz) osrc || negb (dec b' b) || dec odst osrc in
+                if negb chk2 then triggerUB
+                else bytes <- (Mem.loadbytes m b' osrc sz)?;;
+                     m' <- (Mem.storebytes m b odst bytes)?;;
+                     trigger (PPut m'↑);;; Ret Vundef
+            | _, _ => triggerUB
+            end
+        | _ => triggerUB
+        end.
     
     Definition captureF : list val -> itree Es val :=
       fun varg =>
