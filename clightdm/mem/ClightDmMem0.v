@@ -9,7 +9,7 @@ Require Import AList.
 Require Import ClightDmExprgen.
 
 From compcert Require Import
-     AST Maps Globalenvs Memory Values Linking Integers.
+     AST Maps Globalenvs Memory Values Linking Integers IntPtrRel.
 From compcert Require Import
      Ctypes Clight Clightdefs.
 Import Clightdefs.ClightNotations.
@@ -46,6 +46,7 @@ Section MODSEM.
         Ret tt
     .
 
+    (* corresponds to Mem.loadv *)
     Definition loadF: memory_chunk * val -> itree Es val :=
       fun varg =>
         mp0 <- trigger (PGet);;
@@ -68,6 +69,7 @@ Section MODSEM.
         end
     .
 
+    (* corresponds to Mem.storev *)
     Definition storeF: memory_chunk * val * val -> itree Es unit :=
       fun varg =>
         mp0 <- trigger (PGet);;
@@ -92,36 +94,44 @@ Section MODSEM.
         end
     .
 
+    Definition cmp_ptr m c v1 v2 : itree Es (option bool) :=
+      if Archi.ptr64
+      then Ret (Val.cmplu_bool (Mem.valid_pointer m) c v1 v2)
+      else Ret (Val.cmpu_bool (Mem.valid_pointer m) c v1 v2).
+
+    Definition cmp_ptr_join m c v1 v2 : itree Es (option bool) :=
+      ob1 <- cmp_ptr m c (to_ptr_val m v1) (to_ptr_val m v2);;
+      ob2 <- cmp_ptr m c (to_int_val m v1) (to_int_val m v2);;
+      match ob1, ob2 with
+      | Some b1, Some b2 =>
+        if Bool.eqb b1 b2 then Ret ob1
+        else Ret None
+      | Some b, None => Ret ob1
+      | None, Some b => Ret ob2
+      | None, None => Ret None
+      end.
+
+    (* corresponds to Cop.cmp_ptr_join_common *)
     Definition cmp_ptrF : comparison * val * val -> itree Es bool :=
-      fun varg => Ret true.
-        (* mp <- trigger PGet;;
+      fun varg =>
+        mp <- trigger PGet;;
         m <- mp↓?;;
         let '(c, v1, v2) := varg in
-        let p1 := to_ptr_val m v1 in
-        let p2 := to_ptr_val m v2 in
-        let i1 := to_int_val m v1 in
-        let i2 := to_int_val m v2 in
-        let ret1 := (if Archi.ptr64
-                     then Val.cmplu_bool (Mem.valid_pointer m) c p1 p2
-                     else Val.cmpu_bool (Mem.valid_pointer m) c p1 p2) in
-        let ret2 := (if Archi.ptr64
-                     then Val.cmplu_bool (Mem.valid_pointer m) c i1 i2
-                     else Val.cmpu_bool (Mem.valid_pointer m) c i1 i2) in
-        match ret1, ret2 with
-        | Some b1, Some b2 =>
-          if (b1 && b2) || ((negb b1) && (negb b2)) then Ret b1
-          else triggerUB
-        | Some b, None => Ret b
-        | None, Some b => Ret b
-        | None, None => triggerUB
-        end. *)
+        match v1, v2 with
+        | Vint _, Vint _ | Vlong _, Vlong _ | Vptr _ _, Vptr _ _ => ob <- cmp_ptr m c v1 v2;; ob?
+        | Vint n, Vptr _ _ | Vptr _ _, Vint n => ob <- (if Int.eq n Int.zero then cmp_ptr m c v1 v2
+                                                        else cmp_ptr_join m c v1 v2);; ob?
+        | Vlong n, Vptr _ _ | Vptr _ _, Vlong n => ob <- (if Int64.eq n Int64.zero then cmp_ptr m c v1 v2
+                                                          else cmp_ptr_join m c v1 v2);; ob?
+        | _, _ => triggerUB
+        end.
 
     Definition sub_ptrF : Z * val * val -> itree Es val :=
       fun varg =>
         let '(sz, v1, v2) := varg in
         mp <- trigger (PGet);;
         m <- mp↓?;;
-        n <- (Cop._sem_ptr_sub_join v1 v2 m)?;;
+        n <- (Cop._sem_ptr_sub_join_common v1 v2 m)?;;
         if Coqlib.proj_sumbool (Coqlib.zlt 0 sz) &&
             Coqlib.proj_sumbool (Coqlib.zle sz Ptrofs.max_signed)
         then Ret (Vptrofs (Ptrofs.divs n (Ptrofs.repr sz)))
