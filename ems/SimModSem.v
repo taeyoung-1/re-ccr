@@ -1324,7 +1324,21 @@ Proof.
     unfold trigger.
     erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
     rewrite <- bind_trigger. grind.
-    guclo sim_itree_indC_spec. econs; et.
+    guclo sim_itree_indC_spec.
+
+
+    (* destruct (alist_find fn fa) eqn:FA.
+    { econs; et.
+      { 
+        unfold addf. rewrite alist_find_app_o.
+        unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
+        rewrite FA. et.
+      }
+    } *)
+
+
+    
+    econs; et.
     { 
       unfold addf. rewrite alist_find_app_o.
       unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
@@ -1635,6 +1649,8 @@ Theorem sim_ctx
 
       (WFS: wf (add ctx ms1))
       (WFT: wf (add ctx ms2)) 
+
+      (* (WF: NoDup (List.map fst (fnsems ctx ++ fnsems ms1)) /\ NoDup (List.map fst (fnsems ctx ++ fnsems ms2))) *)
 
     :
       ModSemPair.sim (add ctx ms1) (add ctx ms2)

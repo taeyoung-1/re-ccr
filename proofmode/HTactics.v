@@ -76,6 +76,9 @@ Section SIM.
   Variable wf: world -> W -> Prop.
   Variable le: relation world.
 
+  Variable fl_src fl_tgt: alist gname (Any.t -> itree Es Any.t).
+
+
   Variant _safe_sim_itree
           (r g: forall (R_src R_tgt: Type) (RR: st_local -> st_local -> R_src -> R_tgt -> Prop), bool -> bool -> world -> st_local * itree Es R_src -> st_local * itree Es R_tgt -> Prop)
           {R_src R_tgt} (RR: st_local -> st_local -> R_src -> R_tgt -> Prop)
@@ -96,6 +99,23 @@ Section SIM.
     :
       _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                       (st_tgt0, trigger (Call fn varg) >>= k_tgt)
+
+  | safe_sim_itree_inline_src
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg k_src i_tgt
+      (FUN: alist_find fn fl_src = Some f)
+      (K: r _ _ RR true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
+    :
+      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, trigger (Call fn varg) >>= k_src)
+                      (st_tgt, i_tgt)
+  | safe_sim_itree_inline_tgt
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg i_src k_tgt
+      (FUN: alist_find fn fl_tgt = Some f)
+      (K: r _ _ RR i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
+    :
+      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, i_src) (st_tgt, trigger (Call fn varg) >>= k_tgt)  
+
   | safe_sim_itree_syscall
       i_src0 i_tgt0 w0 st_src0 st_tgt0
       fn varg rvs k_src k_tgt
@@ -155,9 +175,9 @@ Section SIM.
   .
 
   Lemma safe_sim_sim r g:
-    @_safe_sim_itree (gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r g) (gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) g g)
+    @_safe_sim_itree (gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r g) (gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) g g)
     <8=
-    gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r g.
+    gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r g.
   Proof.
     i. eapply sim_itreeC_spec. inv PR; try by (econs; eauto).
     des. econs; eauto.
