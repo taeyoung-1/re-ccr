@@ -115,6 +115,7 @@ Section MEM.
         ** (vaddr (↦_m,q1) mvs
             ** vaddr (⊨_m,tg,q0) ofs 
             ** ⌜List.length mvs = size_chunk_nat chunk
+               /\ decode_val chunk mvs <> Vundef
                /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)%Z⌝)
                   
         ** (∀ st_src st_tgt,

@@ -818,6 +818,16 @@ Section RULES.
     - iDestruct "A" as (ofs) "[_ [_ %]]". des. clarify.
   Qed.
 
+  Lemma equiv_notundef p q m
+    : 
+      p (≃_m) q ⊢ ⌜p <> Vundef⌝.
+  Proof.
+    iIntros "A". 
+    destruct p;
+      try solve [iDestruct "A" as (ofs) "[A _]"; iDestruct "A" as "[? []]"].
+    all : iPureIntro; ss.
+  Qed.
+
   Lemma point_notnull 
       vaddr m q mvs
     : 
@@ -835,6 +845,14 @@ Section RULES.
     rewrite Z.add_0_l in H5. apply H7. clear H7.
   Admitted.
 
+  Lemma point_notundef p q m mvs
+    : 
+      p (↦_m, q) mvs ⊢ ⌜p <> Vundef⌝.
+  Proof.
+    iIntros "A". unfold points_to.
+    des_ifs; try solve [iDestruct "A" as "[_ A]"; iDestruct "A" as (ofs) "[? []]"].
+  Qed.
+
   Lemma offset_notnull 
       vaddr m tg q ofs
     : 
@@ -851,6 +869,15 @@ Section RULES.
     replace (Ptrofs.unsigned _) with (Ptrofs.max_unsigned - Ptrofs.unsigned a) in H3.
     2:{ admit "with H5". }
     nia.
+  Qed.
+
+  Lemma offset_notundef
+      p m tg q ofs
+    : 
+      p (⊨_m,tg,q) ofs ⊢ ⌜p <> Vundef⌝.
+  Proof.
+    iIntros "A". unfold has_offset, _has_offset.
+    des_ifs. iDestruct "A" as "[_ [_ []]]".
   Qed.
 
   (* Lemma valid_ofs_same_meta
@@ -1040,6 +1067,7 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (chunk, vaddr)↑
                                  /\ List.length mvs = size_chunk_nat chunk
+                                 /\ decode_val chunk mvs <> Vundef
                                  /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)⌝
                                  ** vaddr (⊨_m,tg,q0) ofs
                                  ** vaddr (↦_m,q1) mvs),
