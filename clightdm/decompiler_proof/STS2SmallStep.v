@@ -54,6 +54,13 @@ Section Beh.
       (MT : Forall2 match_event tr mtr)
       (TB : behavior_prefix tr tgtb)
     :
+      _match_beh match_beh tgtb srcb
+  | match_beh_PTerm
+      mtr tr
+      (TB : tgtb = Partial_terminates tr)
+      (MT : Forall2 match_event tr mtr)
+      (SB : Tr.prefix mtr srcb)
+    :
       _match_beh match_beh tgtb srcb.
 
   Definition match_beh : _ -> _ -> Prop := paco2 _match_beh bot2.
@@ -65,6 +72,7 @@ Section Beh.
     - econs 2; eauto.
     - econs 3; eauto.
     - econs 4; eauto.
+    - econs 5; eauto.
   Qed.
 
 End Beh.
@@ -161,7 +169,7 @@ Record wf_at (L: Smallstep.semantics) (s:L.(Smallstep.state)) : Prop :=
       wf_at_determ:
         forall s1 t2 s2
                (STEP0: Step L s E0 s1)
-               (STEP1 :Step L s t2 s2),
+               (STEP1: Step L s t2 s2),
           (<<EQ: s1 = s2 /\ t2 = E0>>);
       wf_at_final:
         forall tr s' retv
@@ -206,6 +214,7 @@ Definition wf (L: semantics) (st0: L.(state)): Prop :=
 
 
 Section STAR.
+(* there's well formed path s.t. st_src0 ->_es st_src1 *)
   Variable L: semantics.
   Variable P: L.(state) -> Prop.
   Inductive pstar: L.(state) -> list event -> L.(state) -> Prop :=
@@ -539,6 +548,9 @@ Definition transl_beh (p: program_behavior): Tr.t :=
   | Goes_wrong tr =>
     let '(es, succ) := squeeze (List.map decompile_event tr) in
     Tr.app es Tr.ub
+  | Partial_terminates tr =>
+    let '(es, succ) := squeeze (List.map decompile_event tr) in
+    Tr.app es (if succ then (Tr.nb) else Tr.ub)
   end
 .
 
@@ -660,7 +672,7 @@ Proof.
   rewrite unfold_decompile_trinf. des_ifs.
   - eapply match_event_iff in Heq. dup Heq. inv Heq.
     pfold. eapply match_beh_Reacts; et.
-  - pfold. econsr; ss; et.
+  - pfold. econs 4; ss; et.
     r. esplits; ss; et. rewrite behavior_app_E0. ss.
 Qed.
 
@@ -692,6 +704,7 @@ Section SIM.
       (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
       (SIM: forall ev_tgt st_tgt1
           (STEP: Step L1 st_tgt0 ev_tgt st_tgt1)
+          (NPTERM: ev_tgt <> Some Event_pterm)
         ,
           exists st_src1 ev_src (STEP: _.(step) st_src0 (Some ev_src) st_src1),
             (<<MATCH: Forall2 match_event ev_tgt [ev_src]>>) /\
@@ -707,6 +720,8 @@ Section SIM.
           <<SIM: _sim sim true f_tgt st_src1 st_tgt0>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
+
+  (* target semantics should be determinisitic in existence of silent step *)
   | sim_demonic_tgt_dtm
       (SIM: exists st_tgt1
           (STEP: Step L1 st_tgt0 E0 st_tgt1)
@@ -714,6 +729,8 @@ Section SIM.
           <<SIM: _sim sim f_src true st_src0 st_tgt1>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
+
+  (* generated source semantics should have no anglic step <this is for UB> *)
   | sim_angelic_src
       (SRT: _.(state_sort) st_src0 = angelic)
       (DTM: forall st1 st2, (<<DTM1: _.(step) st_src0 None st1>>) -> (<<DTM2: _.(step) st_src0 None st2>>) -> st1 = st2)
@@ -724,6 +741,7 @@ Section SIM.
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
 
+  (* case 3 + 4 *)
   | sim_demonic_both
       (SRT: _.(state_sort) st_src0 = demonic)
       (SIM: exists st_tgt1
@@ -733,7 +751,14 @@ Section SIM.
             <<SIM: sim true true st_src1 st_tgt1>>)
     :
       _sim sim f_src f_tgt st_src0 st_tgt0
-  
+
+  (* additional case for partial termination of target *)
+  | sim_pterm_tgt
+      (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+      (SRT: forall tr_tgt _st_tgt1, Step L1 st_tgt0 tr_tgt _st_tgt1 -> tr_tgt = [Event_pterm])
+    :
+      _sim sim f_src f_tgt st_src0 st_tgt0
+
   | sim_progress 
       (SIM: sim false false st_src0 st_tgt0)
       (SRC: f_src = true)
@@ -742,7 +767,7 @@ Section SIM.
       _sim sim f_src f_tgt st_src0 st_tgt0
   .
 
-  Lemma _sim_ind2 
+  Lemma _sim_ind2
     (r : bool -> bool -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop)
     (P : bool -> bool -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop)
     (RET: forall retv f_src f_tgt st_src0 st_tgt0
@@ -752,7 +777,8 @@ Section SIM.
     (VIS: forall f_src f_tgt st_src0 st_tgt0
             (SRT: _.(state_sort) st_src0 = vis)
             (TSAFE: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
-            (SIM: forall ev_tgt st_tgt1 (STEP: Step L1 st_tgt0 ev_tgt st_tgt1),
+            (SIM: forall ev_tgt st_tgt1 (STEP: Step L1 st_tgt0 ev_tgt st_tgt1)
+                    (NPTERM: ev_tgt <> Some Event_pterm),
                     exists st_src1 ev_src (STEP: _.(step) st_src0 (Some ev_src) st_src1),
                       (<<MATCH: Forall2 match_event ev_tgt [ev_src]>>) /\
                       (<<SIM: r true true st_src1 st_tgt1>>)),
@@ -782,6 +808,10 @@ Section SIM.
                         exists st_src1 (STEP: _.(step) st_src0 None st_src1),
                           <<SIM: r true true st_src1 st_tgt1>>),
                 P f_src f_tgt st_src0 st_tgt0)
+    (PTERM: forall f_src f_tgt st_src0 st_tgt0
+            (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+            (SRT: forall tr_tgt _st_tgt1, Step L1 st_tgt0 tr_tgt _st_tgt1 -> tr_tgt = [Event_pterm]),
+            P f_src f_tgt st_src0 st_tgt0 )
     (PROG: forall f_src f_tgt st_src0 st_tgt0
             (SRC: f_src = true)
             (TGT: f_tgt = true)
@@ -799,6 +829,7 @@ Section SIM.
     { eapply DTGT_STL; et. des. et. }
     { eapply ASRC_STL; et. i. exploit SIM0; et. }
     { eapply D_PROG; et. }
+    { eapply PTERM; et. }
     { eapply PROG; et. }
   Qed.
 
@@ -814,6 +845,7 @@ Section SIM.
     - econs 5; et. i. exploit SIM; et. i. des. et.
     - econs 6; et. des. esplits; et.
     - econs 7; et.
+    - econs 8; et.
   Qed.
 
   Hint Constructors _sim.
@@ -834,6 +866,7 @@ Section SIM.
 
   Ltac pc H := rr in H; desH H; ss.
 
+  (* no ub along tr *)
   Definition safe_along_events (st_src0: state L0) (tr: list Events.event): Prop := forall
       st_src1
       tx ty tx_src
@@ -876,6 +909,9 @@ Section SIM.
       { econs; ss; et. }
       rr in TB. des. subst.
       rr. esplits; ss; et. rewrite <- behavior_app_assoc. ss.
+    - pfold. econs 5; ss.
+      { econs; et. }
+      unfold Tr.prefix in *. des. exists tl. ss. rr. f_equal. et.
   Qed.
 
   Lemma match_val_inj
@@ -962,10 +998,10 @@ Section SIM.
 
   Lemma simulation_star b1 b2
         st_src0 tr_tgt st_tgt1 st_tgt0
-        (* (MATCH: Forall2 match_event tr_tgt tr_src) *)
         (STEP: Star L1 st_tgt0 tr_tgt st_tgt1)
         (SIM: sim b1 b2 st_src0 st_tgt0)
         (SAFE: safe_along_events st_src0 tr_tgt)
+        (NOPTERM: trace_intact tr_tgt)
     :
       exists b1' b2' st_src1 tr_src,
         (<<MB: squeeze (List.map decompile_event tr_tgt) = (tr_src, true)>>) /\
@@ -973,7 +1009,7 @@ Section SIM.
         (<<SIM: sim b1' b2' st_src1 st_tgt1>>)
   .
   Proof.
-    revert SAFE. revert SIM. depgen st_src0. revert b1 b2.
+    revert SAFE SIM NOPTERM. depgen st_src0. revert b1 b2.
     induction STEP; ii; ss.
     { esplits; et. econs; ss. }
     subst. rename s1 into st_tgt0. rename s2 into st_tgt1. rename s3 into st_tgt2.
@@ -983,10 +1019,14 @@ Section SIM.
     - (* fin *)
       exploit wf_at_final; [apply WFSEM|..]; et. ss.
     - (* vis *)
+      destruct (classic (tr_tgt0 = Some Event_pterm)).
+      { exfalso. subst. apply NOPTERM. ss. et. }
+      rename H0 into D.
       exploit SIM; et. i; des. pclearbot.
       inv MATCH; ss. inv H4; ss. rename H3 into MB. eapply match_event_iff in MB. des_ifs.
       exploit IHSTEP; et.
       { eapply safe_along_events_step_some; et. unfold wf. i. rewrite ANG in SRT. ss. }
+      { red. red. i. apply NOPTERM. ss. et. }
       i; des. clarify.
       esplits; et. rewrite cons_app.
       change [ev_src] with (option_to_list (Some ev_src)).
@@ -1023,13 +1063,15 @@ Section SIM.
     - (* dboth *)
       des. pclearbot.
       exploit wf_at_determ;[apply WFSEM|apply STEP0|apply H|]. i; des. subst.
-      exploit IHSTEP; et.
+      exploit IHSTEP;[|et|et|].
       { eapply safe_along_events_step_none; et. unfold wf. i. rewrite ANG in SRT. ss. }
       i; des.
       esplits; et. rewrite <- (app_nil_l tr_src).
       change [] with (@option_to_list event None).
       econs; et.
       unfold wf. i. rewrite ANG in SRT. ss.
+    - (* pterm *)
+      des. apply SRT0 in H. subst. ss. exfalso. apply NOPTERM. ss. et.
     - pclearbot. punfold SIM. clear SRC TGT f_src f_tgt.
       set false as b1 in SIM at 1. set false as b2 in SIM.
       assert (E2: b2 = false) by et. 
@@ -1038,10 +1080,14 @@ Section SIM.
     + (* fin *)
       exploit wf_at_final; [apply WFSEM|..]; et. ss.
     + (* vis *)
+      destruct (classic (tr_tgt0 = Some Event_pterm)).
+      { exfalso. subst. apply NOPTERM. ss. et. }
+      rename H0 into D.
       exploit SIM; et. i; des. pclearbot.
       inv MATCH; ss. inv H4; ss. rename H3 into MB. eapply match_event_iff in MB. des_ifs.
       exploit IHSTEP; et.
       { eapply safe_along_events_step_some; et. unfold wf. i. rewrite ANG in SRT. ss. }
+      { red. red. i. apply NOPTERM. ss. et. }
       i; des. clarify.
       esplits; et. rewrite cons_app.
       change [ev_src] with (option_to_list (Some ev_src)).
@@ -1078,13 +1124,15 @@ Section SIM.
     + (* dboth *)
       des. pclearbot.
       exploit wf_at_determ;[apply WFSEM|apply STEP0|apply H|]. i; des. subst.
-      exploit IHSTEP; et.
+      exploit IHSTEP; [|et|et|].
       { eapply safe_along_events_step_none; et. unfold wf. i. rewrite ANG in SRT. ss. }
       i; des.
       esplits; et. rewrite <- (app_nil_l tr_src).
       change [] with (@option_to_list event None).
       econs; et.
       unfold wf. i. rewrite ANG in SRT. ss.
+    + (* pterm *)
+      des. apply SRT0 in H. subst. ss. exfalso. apply NOPTERM. ss. et.
     + clarify.
   Qed.
 
@@ -1107,6 +1155,7 @@ Section SIM.
       hexploit SIM; et. i. des. left. eapply H2; et. }
     { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
       pclearbot. pfold. econs 2; et. esplits; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply H|apply SRT|]. i. des. clarify. }
     { pclearbot. clear SRC TGT f_src f_tgt.
       remember false as b1 in SIM at 1. set false as b2 in SIM. clearbody b2.
       punfold SIM. depgen s2. induction SIM using _sim_ind2; i.
@@ -1120,6 +1169,7 @@ Section SIM.
       hexploit SIM; et. i. des. right. eapply CIH; et. econs; et. }
     { des. hexploit wf_at_determ; [apply WFSEM|apply STEP|apply H|]. i. des. clarify.
       pclearbot. pfold. econs 2; et. esplits; et. }
+    { des. hexploit wf_at_determ; [apply WFSEM|apply H|apply SRT|]. i. des. clarify. }
     clarify. }
   Qed.
 
@@ -1149,6 +1199,7 @@ Section SIM.
       { eapply cpn2_wcompat. eapply Beh.of_state_mon. }
       et. }
     { des. exfalso. eapply NOSTEP; et. }
+    { des. exfalso. eapply NOSTEP; et. }
     { pclearbot. clear SRC TGT f_src f_tgt.
       remember false as b2 in SIM at 2. set false as b1 in SIM. clearbody b1.
       punfold SIM. induction SIM using _sim_ind2; i.
@@ -1165,6 +1216,7 @@ Section SIM.
       { apply Beh.of_state_mon. }
       { eapply cpn2_wcompat. eapply Beh.of_state_mon. }
       et. }
+    { des. exfalso. eapply NOSTEP; et. }
     { des. exfalso. eapply NOSTEP; et. }
     clarify. }
   Qed.
@@ -1222,6 +1274,7 @@ Section SIM.
             eapply H0; et. 
             eapply safe_along_events_step_none; et. unfold wf; i. eapply DTM; eauto.
           * des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          * des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
           * pclearbot. clear SRC TGT f_src f_tgt.
             remember false as b2 in SIM at 2. set false as b1 in SIM. clearbody b1.
             punfold SIM. induction SIM using _sim_ind2; i.
@@ -1240,6 +1293,7 @@ Section SIM.
             eapply H0; et. 
             eapply safe_along_events_step_none; et. unfold wf; i. eapply DTM; eauto.
           ** des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
+          ** des. exploit wf_at_final; [apply WFSEM|..]; et. ss.
           ** clarify.
         + ss. clear.
           induction tr; ii; ss.
@@ -1250,8 +1304,9 @@ Section SIM.
             { instantiate (1:=Terminates tr r). instantiate (1:=a). ss. }
             { ss. }
             { eapply decompile_match_event; ss. }
-          * des_ifs_safe. ss. pfold; econsr; et; ss. r. esplits; et.
+          * des_ifs_safe. ss. pfold; econs 4; et; ss. r. esplits; et.
             rewrite behavior_app_E0; et.
+      - admit.
 
       - (* diverge *)
         (rename t into tr).
@@ -1276,7 +1331,7 @@ Section SIM.
             { instantiate (1:=Diverges tr). instantiate (1:=a). ss. }
             { ss. }
             { eapply decompile_match_event; ss. }
-          * des_ifs_safe. ss. pfold; econsr; et; ss. r. esplits; et.
+          * des_ifs_safe. ss. pfold; econs 4; et; ss. r. esplits; et.
             rewrite behavior_app_E0; et.
 
       - (* forever_reactive *)
@@ -1342,7 +1397,7 @@ Section SIM.
             { instantiate (1:=Goes_wrong tr). instantiate (1:=a). ss. }
             { ss. }
             { eapply decompile_match_event; ss. }
-          * des_ifs_safe. ss. pfold; econsr; et; ss. r. esplits; et.
+          * des_ifs_safe. ss. pfold; econs 4; et; ss. r. esplits; et.
             rewrite behavior_app_E0; et.
     }
     { (*** unsafe ***)
@@ -1370,7 +1425,7 @@ Section SIM.
         exploit STUCK0; ss; et.
       - r in B. des. subst. clear - MB.
         ginduction thd_tgt; ii; ss; clarify.
-        { ss. pfold. econsr; ss; et.
+        { ss. pfold. econs 4; ss; et.
           { r. esplits; ss; et. }
         }
         des_ifs. ss.
