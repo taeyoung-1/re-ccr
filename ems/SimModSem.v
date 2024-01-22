@@ -1204,8 +1204,7 @@ Definition wf_lift {world} wf  :=
   fun (w:world) => 
   (fun '(src, tgt) =>
     match (Any.split src), (Any.split tgt) with
-    (* | Some (l1, r1), Some (l2, r2) => (exists wf1 wf2, wf1 w (l1, l2) /\ wf2 w (r1, r2)) *)
-    | Some (l1, r1), Some (l2, r2) => ( l1 = l2 /\ wf w (r1, r2))
+    | Some (l1, r1), Some (l2, r2) => ( wf w (l1, l2) /\ r1 = r2)
     | _, _ => False
     end
   ).
@@ -1221,20 +1220,13 @@ Lemma sim_ctx_aux {world}
       fa fb fc 
       ol or stl str itl itr
 
-      (SRC: Any.split stl = Some (a, b))
-      (TGT: Any.split str = Some (a, c))
-      (* (SRC: Any.split stl = Some (ctx.(init_st), ms_src.(init_st))) *)
-      (* (TGT: Any.split str = Some (ctx.(init_st), ms_tgt.(init_st))) *)
-
-      (NODUPS: NoDup (List.map fst (fa ++ fb)))
-      (NODUPT: NoDup (List.map fst (fa ++ fc)))
-
+      (SRC: Any.split stl = Some (b, a))
+      (TGT: Any.split str = Some (c, a))
 
       (SIM: sim_itree wf le fb fc ol or w (b, itl) (c, itr))
-      (* (SIM: sim_itree wf le ms_src.(fnsems) ms_tgt.(fnsems) ol or w (ms_src.(init_st), itl) ((ms_tgt.(init_st)), itr)) *)
 :
-      @sim_itree world (wf_lift wf) le (addf fa fb) (addf fa fc) ol or w (stl, translate emb_r itl) 
-                                              (str, translate emb_r itr)
+      @sim_itree world (wf_lift wf) le (addf fb fa) (addf fc fa) ol or w (stl, translate emb_l itl) 
+                                              (str, translate emb_l itr)
       (* @sim_itree world (wf_lift wf) le (add ctx ms_src).(fnsems) (add ctx ms_tgt).(fnsems) ol or w (stl, translate emb_r itl) 
                                               (str, translate emb_r itr) *)
 .
@@ -1287,7 +1279,7 @@ Proof.
     try (unfold wf_lift; rewrite SRC0, TGT0; split; auto; apply WF);
     ii; erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _));
     grind; gfinal; left; ss; des_ifs; try (rename WF0 into WF1); inv WF1;
-    eapply CIH with (a:= t2); et; specialize (K _ vret _ _ WLE H0); pclearbot; apply K.
+    eapply CIH with (a:= t3); et; specialize (K _ vret _ _ WLE H); pclearbot; apply K.
     
   - punfold SIM. inv SIM; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
     + apply inj_pair2 in H0, H1.
@@ -1340,18 +1332,11 @@ Proof.
     
     econs; et.
     { 
-      unfold addf. rewrite alist_find_app_o.
-      unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
-      destruct (alist_find fn fa) eqn:FA.
-      - apply alist_find_some in FA, FUN.
-        rewrite List.map_app in NODUPS.
-        eapply NoDup_app_disjoint in NODUPS; et; clarify.
-        + instantiate (1:= fn). eapply in_map in FA.
-          hexploit FA. instantiate (1:= fst). et. 
-        + eapply in_map in FUN.
-          hexploit FUN. instantiate (1:= fst). et.
-      - rewrite FUN. et.
+      unfold addf. apply alist_find_app.
+      unfold trans_l. rewrite alist_find_map. unfold o_map.
+      rewrite FUN. et.
     }
+
     ss. rewrite <- bind_bind.
     erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
     eapply IH; et. f_equal. grind. f_equal.
@@ -1362,19 +1347,7 @@ Proof.
     erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
     rewrite <- bind_trigger. grind.
     guclo sim_itree_indC_spec. econs; et.
-    { 
-      unfold addf. rewrite alist_find_app_o.
-      unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
-      destruct (alist_find fn fa) eqn:FA.
-      - apply alist_find_some in FA, FUN.
-        rewrite List.map_app in NODUPT.
-        eapply NoDup_app_disjoint in NODUPT; et; clarify.
-        + instantiate (1:= fn). eapply in_map in FA.
-          hexploit FA. instantiate (1:= fst). et. 
-        + eapply in_map in FUN.
-          hexploit FUN. instantiate (1:= fst). et.
-      - rewrite FUN. et.
-    }
+    { unfold addf. apply alist_find_app. unfold trans_l. rewrite alist_find_map. unfold o_map. rewrite FUN. et. }
     ss. rewrite <- bind_bind.
     erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
     eapply IH; et. f_equal. grind. f_equal.
@@ -1432,7 +1405,7 @@ Proof.
     guclo sim_itree_indC_spec. econs; et.
     erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
     rewrite bind_ret_l.
-    unfold run_r. rewrite SRC.
+    unfold run_l. rewrite SRC.
     des_ifs; ss.
     eapply IH; et.
     rewrite Any.pair_split. et.
@@ -1444,7 +1417,7 @@ Proof.
     guclo sim_itree_indC_spec. econs; et.
     erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
     rewrite bind_ret_l.
-    unfold run_r. rewrite TGT.
+    unfold run_l. rewrite TGT.
     des_ifs; ss.
     eapply IH; et.
     rewrite Any.pair_split. et.   
@@ -1493,7 +1466,7 @@ Proof.
       (* try (unfold wf_lift; rewrite SRC0, TGT0; split; auto; apply WF); *)
       ii; erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _));
       grind; gfinal; left; ss; des_ifs; try (rename WF0 into WF1); inv WF1;
-      eapply CIH with (a:= t2); et; specialize (K _ vret _ _ WLE H0); pclearbot; apply K.
+      eapply CIH with (a:= t3); et; specialize (K _ vret _ _ WLE H); pclearbot; apply K.
     + punfold SIM0. inv SIM0; (try rewrite ! bind_trigger in H4); (try rewrite ! bind_trigger in H6); clarify.
       * apply inj_pair2 in H0, H1.
         erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _ )).
@@ -1529,19 +1502,7 @@ Proof.
       erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
       rewrite <- bind_trigger. grind.
       guclo sim_itree_indC_spec. econs; et.
-      { 
-        unfold addf. rewrite alist_find_app_o.
-        unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
-        destruct (alist_find fn fa) eqn:FA.
-        - apply alist_find_some in FA, FUN.
-          rewrite List.map_app in NODUPS.
-          eapply NoDup_app_disjoint in NODUPS; et; clarify.
-          + instantiate (1:= fn). eapply in_map in FA.
-            hexploit FA. instantiate (1:= fst). et. 
-          + eapply in_map in FUN.
-            hexploit FUN. instantiate (1:= fst). et.
-        - rewrite FUN. et.
-      }
+      { unfold addf. apply alist_find_app. unfold trans_l. rewrite alist_find_map. unfold o_map. rewrite FUN. et. }
       ss. rewrite <- bind_bind.
       erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
       eapply IH; et. f_equal. grind. f_equal.
@@ -1552,19 +1513,7 @@ Proof.
       erewrite (bisimulation_is_eq _ _ (translate_vis _ _ _ _)).
       rewrite <- bind_trigger. grind.
       guclo sim_itree_indC_spec. econs; et.
-      { 
-        unfold addf. rewrite alist_find_app_o.
-        unfold trans_l, trans_r. rewrite ! alist_find_map. unfold o_map.
-        destruct (alist_find fn fa) eqn:FA.
-        - apply alist_find_some in FA, FUN.
-          rewrite List.map_app in NODUPT.
-          eapply NoDup_app_disjoint in NODUPT; et; clarify.
-          + instantiate (1:= fn). eapply in_map in FA.
-            hexploit FA. instantiate (1:= fst). et. 
-          + eapply in_map in FUN.
-            hexploit FUN. instantiate (1:= fst). et.
-        - rewrite FUN. et.
-      }
+      { unfold addf. apply alist_find_app. unfold trans_l. rewrite alist_find_map. unfold o_map. rewrite FUN. et. }
       ss. rewrite <- bind_bind.
       erewrite <- ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
       eapply IH; et. f_equal. grind. f_equal.
@@ -1622,7 +1571,7 @@ Proof.
       guclo sim_itree_indC_spec. econs; et.
       erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
       rewrite bind_ret_l.
-      unfold run_r. rewrite SRC0.
+      unfold run_l. rewrite SRC0.
       des_ifs; ss.
       eapply IH; et.
       rewrite Any.pair_split. et.
@@ -1634,7 +1583,7 @@ Proof.
       guclo sim_itree_indC_spec. econs; et.
       erewrite ! (bisimulation_is_eq _ _ (translate_ret _ _)).
       rewrite bind_ret_l.
-      unfold run_r. rewrite TGT0.
+      unfold run_l. rewrite TGT0.
       des_ifs; ss.
       eapply IH; et.
       rewrite Any.pair_split. et.   
@@ -1645,16 +1594,8 @@ Qed.
 Theorem sim_ctx
       ctx ms1 ms2
       (SIM: ModSemPair.sim ms1 ms2)
-      (* (SIM: ModSemPair.sim ms1' ms2') *)
-
-      (WFS: wf (add ctx ms1))
-      (WFT: wf (add ctx ms2)) 
-
-      (* (WF: NoDup (List.map fst (fnsems ctx ++ fnsems ms1)) /\ NoDup (List.map fst (fnsems ctx ++ fnsems ms2))) *)
-
     :
-      ModSemPair.sim (add ctx ms1) (add ctx ms2)
-      (* ModSemPair.sim (add ms1 ms1') (add ms2 ms2') *)
+      ModSemPair.sim (add ms1 ctx) (add ms2 ctx)
 .
 Proof.
   inv SIM. inv sim_initial.
@@ -1666,7 +1607,7 @@ Proof.
        splits; et.
   }
   s. unfold add_fnsems, trans_l, trans_r.
-  apply Forall2_app; eapply Forall2_apply_Forall2; et.
+  apply Forall2_app; eapply Forall2_apply_Forall2; et; cycle 1.
   - instantiate (1:= eq). induction (fnsems ctx); et.
   - i. clarify. econs; et. ii; clarify.
     destruct b. ss.
@@ -1674,9 +1615,9 @@ Proof.
     2: { destruct p. clarify. }
     destruct p, p0. des. clarify.
     (* assert (exists w1, le w w1 /\ wf1 w1 (t0, t2) /\ wf2 w1 (t1, t3)). *)
-    assert (exists w1, le w w1 /\ wf0 w1 (t1, t3)).
+    assert (exists w1, le w w1 /\ wf0 w1 (t0, t2)).
     { exists w. splits; et. refl. }
-    clear SIMMRS0.
+    clear SIMMRS.
     (* clear SIMMRS SIMMRS0. *)
     des.
     ginit.
@@ -1684,7 +1625,7 @@ Proof.
     revert w1 w.
     
     revert SRC TGT.
-    revert t1 t2 t3.
+    revert t0 t2 t3.
     revert mrs_src mrs_tgt.
     (* revert wf1 wf2. *)
     
@@ -1733,8 +1674,8 @@ Proof.
          gstep. destruct s'.
          apply sim_itree_supdate_src. apply sim_itree_supdate_tgt.
          eapply sim_itree_progress; et.
-         unfold ModSem.run_l. rewrite ! Any.pair_split.
-         gfinal. left. destruct (run t2). ss. eapply CIH; et; rewrite ! Any.pair_split; et.
+         unfold ModSem.run_r. rewrite ! Any.pair_split.
+         gfinal. left. destruct (run t3). ss. eapply CIH; et; rewrite ! Any.pair_split; et.
       
       * (* eventE *)
         gstep. destruct e'.
@@ -1750,6 +1691,7 @@ Proof.
         -- apply sim_itree_syscall. i.
            eapply sim_itree_flag_down.
            gfinal. left. eapply CIH; et; rewrite ! Any.pair_split; et.
+  
 
   - i. destruct H0. r in H0. rr in H1. 
     destruct a, b. econs; et. ss.
@@ -1757,19 +1699,9 @@ Proof.
     destruct (Any.split mrs_src) eqn: SRC; destruct (Any.split mrs_tgt) eqn:TGT; clarify.
     2: { destruct p. clarify. }
     destruct p, p0. des. clarify.
-    specialize H1 with (x:=y) (y:=y) (w:=w) (mrs_src := t1) (mrs_tgt := t3).
-    specialize (H1 eq_refl SIMMRS0).
+    specialize H1 with (x:=y) (y:=y) (w:=w) (mrs_src := t0) (mrs_tgt := t2).
+    specialize (H1 eq_refl SIMMRS).
     eapply sim_ctx_aux; et.
-    (* Admitted. *)
-    + inv WFS. ss. unfold add_fnsems in wf_fnsems0.
-      rewrite List.map_app in wf_fnsems0. rewrite ! List.map_map in wf_fnsems0. 
-      rewrite fun_fst_trans_l, fun_fst_trans_r in wf_fnsems0.
-      rewrite List.map_app. ss.
-    + inv WFT. ss. unfold add_fnsems in wf_fnsems0.
-      rewrite List.map_app in wf_fnsems0. rewrite ! List.map_map in wf_fnsems0. 
-      rewrite fun_fst_trans_l, fun_fst_trans_r in wf_fnsems0.
-      rewrite List.map_app. ss.
-
 Qed.
 
 End SIMCTX.

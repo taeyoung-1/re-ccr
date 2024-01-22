@@ -59,7 +59,7 @@ Section MODE.
   Lemma harg_clo
         A Rn Invsn Invtn
         r rg
-        X (P: X -> Any.t -> Any.t -> iProp) varg
+        X (P: X -> Any.t -> Any.t -> iProp) varg fl_src fl_tgt
         mp_src mp_tgt (mr_src mr_tgt: Σ) f_tgt k_src
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
@@ -71,11 +71,11 @@ Section MODE.
                   (ACC: current_iPropL ctx [(Rn, P x varg_src varg);
                                            (Invsn, R a mp_src mp_tgt);
                                            (Invtn, OwnT mr_tgt)]),
-             gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr true n a
+             gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr true n a
                     (Any.pair mp_src mr_src↑, k_src (ctx, (x, varg_src)))
                     (Any.pair mp_tgt mr_tgt↑, f_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              ((Any.pair mp_src mr_src↑), (HoareFunArg P varg >>= k_src))
              ((Any.pair mp_tgt mr_tgt↑), f_tgt)
   .
@@ -154,7 +154,7 @@ Section MODE.
         A Xn Xtra Rn Invtn mp_tgt mr_tgt
         Invtn' Xn'
         r rg
-        X (P: X -> Any.t -> Any.t -> iProp) varg
+        X (P: X -> Any.t -> Any.t -> iProp) varg fl_src fl_tgt
         mp_src (mr_src: Σ) f_src k_tgt
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
@@ -165,11 +165,11 @@ Section MODE.
         (ARG: forall
             rx
             (ACC: current_iPropL ctx [(Invtn', OwnT mr_tgt); (Xn', Exactly rx Xtra)]),
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m true a
                    (Any.pair mp_src mr_src↑, f_src)
                    (Any.pair mp_tgt mr_tgt↑, k_tgt (ctx ⋅ rx, (x, varg_tgt))))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              (Any.pair mp_src mr_src↑, f_src)
              (Any.pair mp_tgt mr_tgt↑, (HoareFunArg P varg >>= k_tgt))
   .
@@ -237,7 +237,7 @@ Section MODE.
   Lemma harg_clo_tgt'
         A Xn Invtn Xtra mp_tgt mr_tgt
         r rg
-        X (P: X -> Any.t -> Any.t -> iProp) varg
+        X (P: X -> Any.t -> Any.t -> iProp) varg fl_src fl_tgt
         mp_src (mr_src: Σ) f_src k_tgt
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
@@ -249,11 +249,11 @@ Section MODE.
         (ARG: forall
             rx
             (ACC: current_iPropL ctx [(Invtn, OwnT mr_tgt); (Xn, Exactly rx Xtra%I)]),
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m true a
                    (Any.pair mp_src mr_src↑, f_src)
                    (Any.pair mp_tgt mr_tgt↑, k_tgt (ctx ⋅ rx, (x, varg_tgt))))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              (Any.pair mp_src mr_src↑, f_src)
              (Any.pair mp_tgt mr_tgt↑, (HoareFunArg P varg >>= k_tgt))
   .
@@ -271,7 +271,7 @@ Section MODE.
         r rg n m mp_src mp_tgt (mr_src mr_tgt: Σ) a0
         Xs (Qs: Xs -> Any.t -> Any.t -> iProp)
         Xt (Qt: Xt -> Any.t -> Any.t -> iProp)
-        xs xt vret_src vret_tgt
+        xs xt vret_src vret_tgt fl_src fl_tgt
         (le: A -> A -> Prop)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
@@ -295,7 +295,7 @@ Section MODE.
         (*             (WF: mk_wf R a (Any.pair mp_src mr_src1↑, Any.pair mp_tgt mr_tgt1↑)), *)
         (*     eqr (Any.pair mp_src mr_src1↑) (Any.pair mp_tgt mr_tgt1↑) vret_tgt vret_tgt_tgt) *)
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a0
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a0
              (Any.pair mp_src mr_src↑, (HoareFunRet Qs xs (ctx, vret_src)))
              (Any.pair mp_tgt mr_tgt↑, (HoareFunRet Qt xt (ctx ⋅ rx, vret_tgt)))
   .
@@ -384,7 +384,7 @@ Section MODE.
         fsp_src (x_src: shelve__ fsp_src.(meta))
         fsp_tgt
 
-        A (a0: shelve__ A) FR
+        A (a0: shelve__ A) FR fl_src fl_tgt
 
         (le: A -> A -> Prop) r rg _a n m mp_src0 mp_tgt0 (mr_src0 mr_tgt0: Σ)
         k_tgt k_src
@@ -421,18 +421,18 @@ Section MODE.
                       (ACC: current_iPropL ctx1 [("FR", FR); ("FRT", OwnT fr_tgt); ("INV", R a1 mp_src1 mp_tgt1 ** OwnT mr_tgt1);
                                                 ("POST", fsp_src.(postcond) x_src vret_src vret_tgt)])
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true _a
+                gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true _a
                        (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src))
                        (Any.pair mp_tgt1 mr_tgt1↑, HoareCallPost tbr_tgt ord_cur_tgt fsp_tgt.(postcond) vret_tgt x_tgt fr_tgt >>= k_tgt)
         )
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n _a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n _a
              (Any.pair mp_src0 mr_src0↑, (HoareCall tbr_src ord_cur_src fsp_src fn varg_src) ctx0 >>= k_src)
              (Any.pair mp_tgt0 mr_tgt0↑, (HoareCall tbr_tgt ord_cur_tgt fsp_tgt fn varg_tgt) (ctx0 ⋅ rx) >>= k_tgt)
   .
   Proof.
     subst. rewrite ! HoareCall_parse. unfold HoareCallPre, ASSUME, ASSERT, mput, mget, assume, guarantee.
-    steps.
+    steps_safe_l.
     rename c into mr_tgt1. rename c0 into ro_tgt. rename c1 into fr_tgt.
     assert(x1 = varg_tgt).
     { exploit SIMPLE; et. intros T. uipropall.
@@ -472,14 +472,15 @@ Section MODE.
       { eapply wf_extends; et. r. exists b. r_solve. }
     }
     des.
-    (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
-    (ired_both; apply sim_itreeC_spec; econs). exists (ro_src, fr_src ⋅ fr_tgt, mr_src1 ⋅ mr_tgt1).
-    steps.
-    (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
+    (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
+    (ired_both; apply sim_itreeC_spec; econs 8). exists (ro_src, fr_src ⋅ fr_tgt, mr_src1 ⋅ mr_tgt1).
+    steps_safe_l. force_l. s.
+    (ired_both; apply sim_itreeC_spec; econs 12).
+    (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     { r_wf UPDATABLE0. }
-    (ired_both; apply sim_itreeC_spec; econs). esplits.
-    (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
-    (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
+    (ired_both; apply sim_itreeC_spec; econs 8). esplits.
+    (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
+    (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     ired_both. gstep. econs; eauto.
     { econs; et. i. unfold OwnT. uipropall. esplits; eauto. refl. }
     i. inv WF.
@@ -501,10 +502,10 @@ Section MODE.
   Lemma hcall_clo_ord_weaken''
         fsp_src (x_src: shelve__ fsp_src.(meta))
         A (a0: shelve__ A) FR
-        fsp_tgt
+        fsp_tgt 
 
 
-        (le: A -> A -> Prop) r rg _a n m mp_src0 mp_tgt0 (mr_src0 mr_tgt0: Σ)
+        (le: A -> A -> Prop) r rg _a n m mp_src0 mp_tgt0 (mr_src0 mr_tgt0: Σ) fl_src fl_tgt
         k_tgt k_src
         fn tbr_src tbr_tgt ord_cur_src ord_cur_tgt varg_src varg_tgt
         (R: A -> Any.t -> Any.t -> iProp)
@@ -540,12 +541,12 @@ Section MODE.
                       (ACC: current_iPropL ctx1 [("FR", FR); ("FRT", OwnT fr_tgt); ("INV", R a1 mp_src1 mp_tgt1 ** OwnT mr_tgt1);
                                                 ("POST", fsp_src.(postcond) x_src vret_src vret_tgt)])
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true _a
+                gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true _a
                        (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src))
                        (Any.pair mp_tgt1 mr_tgt1↑, HoareCallPost tbr_tgt ord_cur_tgt fsp_tgt.(postcond) vret_tgt x_tgt fr_tgt >>= k_tgt)
         )
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n _a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n _a
              (Any.pair mp_src0 mr_src0↑, (HoareCall tbr_src ord_cur_src fsp_src fn varg_src) ctx0 >>= k_src)
              (Any.pair mp_tgt0 mr_tgt0↑, (HoareCall tbr_tgt ord_cur_tgt fsp_tgt fn varg_tgt) (ctx0 ⋅ rx) >>= k_tgt)
   .
@@ -562,7 +563,7 @@ Section MODE.
         r rg
         Invtn' Xn'
         X (Q: X -> Any.t -> Any.t -> iProp)
-        mpr_src f_src k_tgt
+        mpr_src f_src k_tgt fl_src fl_tgt
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
@@ -572,12 +573,12 @@ Section MODE.
         (ARG: forall
             rx
             (ACC: current_iPropL ctx [(Invtn', OwnT mr_tgt); (Xn', (Exactly rx Xtra)%I)]),
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m true a
                    (mpr_src, f_src)
                    (Any.pair mp_tgt mr_tgt↑, k_tgt (ctx ⋅ rx, vret_src)))
         tbr ord_tgt
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              (mpr_src, f_src)
              (Any.pair mp_tgt mr_tgt↑, (HoareCallPost tbr ord_tgt Q vret_tgt x fr_tgt >>= k_tgt))
   .
@@ -614,7 +615,7 @@ Section MODE.
         A Xn Invtn Xtra mp_tgt mr_tgt
         r rg
         X (Q: X -> Any.t -> Any.t -> iProp)
-        mpr_src f_src k_tgt
+        mpr_src f_src k_tgt fl_src fl_tgt
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
@@ -625,12 +626,12 @@ Section MODE.
         (ARG: forall
             rx
             (ACC: current_iPropL ctx [(Invtn, OwnT mr_tgt); (Xn, (Exactly rx Xtra)%I)]),
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m true a
                    (mpr_src, f_src)
                    (Any.pair mp_tgt mr_tgt↑, k_tgt (ctx ⋅ rx, vret_src)))
         tbr ord_tgt
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              (mpr_src, f_src)
              (Any.pair mp_tgt mr_tgt↑, (HoareCallPost tbr ord_tgt Q vret_tgt x fr_tgt >>= k_tgt))
   .
@@ -658,7 +659,7 @@ Section MODE.
   Lemma hAPC_both
         A (a0: shelve__ A) mp_src0 mp_tgt0 (mr_src0 mr_tgt0: Σ)
         r rg
-        k_src k_tgt
+        k_src k_tgt fl_src fl_tgt
         _a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
@@ -688,11 +689,11 @@ Section MODE.
             ctx1 rx1
             (ACC: current_iPropL ctx1 [("INVT", OwnT mr_tgt1);
                                       ("X", (Exactly rx1 (R a1 mp_src1 mp_tgt1 ** FR))%I)]),
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true _a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true _a
                    (Any.pair mp_src1 mr_src1↑, k_src (ctx1, tt))
                    (Any.pair mp_tgt1 mr_tgt1↑, k_tgt (ctx1 ⋅ rx1, tt)))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n _a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n _a
              (Any.pair mp_src0 mr_src0↑, (interp_hCallE_tgt stb_src d APC ctx0) >>= k_src)
              (Any.pair mp_tgt0 mr_tgt0↑, (interp_hCallE_tgt stb_tgt d APC (ctx0 ⋅ rx0)) >>= k_tgt)
   .
@@ -756,20 +757,22 @@ Section MODE.
         }
         des. subst.
 
-        steps. force_l. exists x0. steps. force_l; ss. steps. unfold HoareCall, ASSUME, ASSERT, mput, mget. steps.
+        steps. force_l. exists x0. steps. force_l; ss. steps. unfold HoareCall, ASSUME, ASSERT, mput, mget. steps_safe_l.
         des; ss.
         assert(STB: stb_src s = Some f).
         { eapply STBINCL; et. r. esplits; et. }
-        force_l. eexists (_, _). steps. rewrite STB. steps. instantiate (1:=t).
-        unfold HoareCall, ASSUME, ASSERT, mput, mget. steps.
+        force_l. eexists (_, _). steps_safe_l. rewrite STB. steps_safe_l. instantiate (1:=t).
+        unfold HoareCall, ASSUME, ASSERT, mput, mget. steps_safe_l.
 
         force_l. rename c into mr_tgt1. rename c0 into ro. rename c1 into rf. esplits; et.
-        steps. force_l; ss.
+        steps_safe_l. force_l; ss.
         exists (ro, rf ⋅ rf_src, rm_src ⋅ mr_tgt1). 
-        steps. force_l.
+        steps_safe_l. force_l. s. rewrite Any.pair_split. 
+        steps_safe_l. force_l. s.
+        steps_safe_l. force_l.
         { r_wf _GUARANTEE1. }
-        steps. force_l. esplits; et. steps. force_l. esplits; et.
-        steps. force_l; et. steps. gstep. econs; eauto.
+        steps_safe_l. force_l. esplits; et. steps_safe_l. force_l. esplits; et.
+        steps_safe_l. force_l; et. steps. gstep. econs; eauto.
         { econs. eapply to_semantic. iIntros "[A B]". iFrame. iStopProof.
           uipropall. i. eapply iProp_mono; et.
         }

@@ -34,6 +34,9 @@ Section SIM.
   Variable stb: gname -> option fspec.
   Variable o: ord.
 
+  Variable fl_src: alist gname (Any.t -> itree hEs Any.t).
+  Variable fl_tgt: alist gname (Any.t -> itree Es Any.t).
+
   Definition option_Ord_lt (o0 o1: option Ord.t): Prop :=
     match o0, o1 with
     | None, Some _ => True
@@ -175,6 +178,24 @@ Section SIM.
           hsim _ _ Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret))
     :
       _hsim hsim Q ctx fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt)
+  (* | hsim_inline_src
+    fsp fn f arg_src
+    st_src st_tgt ktr_src itr_tgt
+    fuel f_src f_tgt
+    (SPEC: stb fn = Some fsp)
+    (FUN: alist_find fn fl_src = Some f)
+    (SIM: _hsim hsim Q ctx fuel true f_tgt (st_src, (f arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+  :
+    _hsim hsim Q ctx fuel f_src f_tgt (st_src, trigger (Call fn arg_src) >>= ktr_src) (st_tgt, itr_tgt)
+  | hsim_inline_tgt
+    fsp fn f arg_tgt
+    st_src st_tgt itr_src ktr_tgt
+    fuel f_src f_tgt
+    (SPEC: stb fn = Some fsp)
+    (FUN: alist_find fn fl_tgt = Some f)
+    (SIM: _hsim hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
+  :
+    _hsim hsim Q ctx fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt) *)
   | hsim_tau_src
       st_src st_tgt itr_src itr_tgt
       fuel f_src f_tgt
@@ -294,6 +315,25 @@ Section SIM.
             (POST: forall ret,
                 hsim _ _ Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret)),
             P fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt))
+        (* (INLINESRC: forall
+            fsp fn f arg_src
+            st_src st_tgt ktr_src itr_tgt
+            fuel f_src f_tgt
+            (SPEC: stb fn = Some fsp)
+            (FUN: alist_find fn fl_src = Some f)
+            (SIM: _hsim hsim Q ctx fuel true f_tgt (st_src, (f arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+            (IH: P fuel true f_tgt (st_src, (f arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+          ,
+            P fuel f_src f_tgt (st_src, trigger (Call fn arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+        (INLINETGT: forall
+            fsp fn f arg_tgt
+            st_src st_tgt itr_src ktr_tgt
+            fuel f_src f_tgt
+            (SPEC: stb fn = Some fsp)
+            (FUN: alist_find fn fl_tgt = Some f)
+            (SIM: _hsim hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
+            (IH: P fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt)),
+            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))         *)
         (TAUSRC: forall
             st_src st_tgt itr_src itr_tgt
             fuel f_src f_tgt
@@ -363,6 +403,8 @@ Section SIM.
     { eapply APCSTART; eauto. }
     { des. eapply APCSTEP; eauto. }
     { eapply SYSCALL; eauto. }
+    (* { eapply INLINESRC; et. }
+    { eapply INLINETGT; et. } *)
     { eapply TAUSRC; eauto. }
     { eapply TAUTGT; eauto. }
     { des. eapply CHOOSESRC; eauto. }
@@ -387,13 +429,15 @@ Section SIM.
     { econs 5; eauto. }
     { econs 6; eauto. }
     { econs 7; eauto. }
-    { econs 8; eauto. des. esplits; eauto. }
-    { econs 9; eauto. i. hexploit SIM; eauto. i. des. eauto. }
-    { econs 10; eauto. i. hexploit SIM; eauto. i. des. eauto. }
-    { econs 11; eauto. des. esplits; eauto. }
-    { econs 12; eauto. }
-    { econs 13; eauto. }
-    { econs 14; eauto. }
+    (* { econs; eauto. }
+    { econs; eauto. } *)
+    { econs; eauto. des. esplits; eauto. }
+    { econs; eauto. i. hexploit SIM; eauto. i. des. eauto. }
+    { econs; eauto. i. hexploit SIM; eauto. i. des. eauto. }
+    { econs; eauto. des. esplits; eauto. }
+    { econs; eauto. }
+    { econs; eauto. }
+    { econs; eauto. }
   Qed.
   Hint Resolve _hsim_mon: paco.
 
@@ -448,6 +492,25 @@ Section SIM.
             (POST: forall ret,
                 hsim Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret)),
             P fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt))
+        (* (INLINESRC: forall
+            fsp fn f arg_src
+            st_src st_tgt ktr_src itr_tgt
+            fuel f_src f_tgt
+            (SPEC: stb fn = Some fsp)
+            (FUN: alist_find fn fl_src = Some f)
+            (SIM: hsim Q ctx fuel true f_tgt (st_src, (f arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+            (IH: P fuel true f_tgt (st_src, (f arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+          ,
+            P fuel f_src f_tgt (st_src, trigger (Call fn arg_src) >>= ktr_src) (st_tgt, itr_tgt))
+        (INLINETGT: forall
+            fsp fn f arg_tgt
+            st_src st_tgt itr_src ktr_tgt
+            fuel f_src f_tgt
+            (SPEC: stb fn = Some fsp)
+            (FUN: alist_find fn fl_tgt = Some f)
+            (SIM: hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
+            (IH: P fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt)),
+            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))             *)
         (TAUSRC: forall
             st_src st_tgt itr_src itr_tgt
             fuel f_src f_tgt
@@ -517,6 +580,8 @@ Section SIM.
     { eapply APCSTART; eauto. pfold. eauto. }
     { des. eapply APCSTEP; eauto. esplits; eauto. i. hexploit SIM; eauto. i. pclearbot. eauto. }
     { eapply SYSCALL; eauto. i. hexploit POST; eauto. i. pclearbot. eauto. }
+    (* { eapply INLINESRC; eauto. pfold. eauto. }
+    { eapply INLINETGT; eauto. pfold. eauto. } *)
     { eapply TAUSRC; eauto. pfold. eauto. }
     { eapply TAUTGT; eauto. pfold. eauto. }
     { des. eapply CHOOSESRC; eauto. esplits; eauto. pfold. eauto. }
@@ -552,10 +617,10 @@ Section SIM.
 
   Lemma hsim_adequacy_aux `{PreOrder _ le}:
     forall
-      f_src f_tgt st_src st_tgt (itr_src: itree (hAPCE +' Es) Any.t) itr_tgt mr_src ctx X (x: X) Q fuel w0
+      f_src f_tgt st_src st_tgt fl_src fl_tgt (itr_src: itree (hAPCE +' Es) Any.t) itr_tgt mr_src ctx X (x: X) Q fuel w0
       (SIM: hsim (fun st_src st_tgt ret_src ret_tgt =>
                     (inv_with w0 st_src st_tgt) ** (Q x ret_src ret_tgt: iProp)) ctx fuel f_src f_tgt (st_src, itr_src) (st_tgt, itr_tgt)),
-      paco8 (_sim_itree (mk_wf I) le) bot8 Any.t Any.t (lift_rel (mk_wf I) le w0 (@eq Any.t))
+      paco8 (_sim_itree (mk_wf I) le fl_src fl_tgt) bot8 Any.t Any.t (lift_rel (mk_wf I) le w0 (@eq Any.t))
             f_src f_tgt w0
             (Any.pair st_src mr_src,
              mylift fuel x ctx Q itr_src)
@@ -572,8 +637,9 @@ Section SIM.
       { unfold inv_with in RET. mDesAll. hret _; eauto.
         iModIntro. iSplitL "H"; auto. }
     }
-    {  eapply current_iPropL_convert in PRE. mDesAll. destruct fuel; steps. 
-      { astop. steps. rewrite SPEC. steps. destruct fsp. ss. 
+    {  eapply current_iPropL_convert in PRE. mDesAll. destruct fuel; steps_safe_l. 
+      { astop. steps_safe_l.
+        rewrite SPEC. steps_safe_l. destruct fsp. ss. 
         unfold inv_with in PRE.  mDesAll. hcall _ _ with "A A1". 
         { iModIntro. iSplitL "A1"; eauto. }
         { rewrite MEASURE in *. splits; ss. unfold ord_lt. des_ifs. }
@@ -586,7 +652,7 @@ Section SIM.
           i. ss. eauto.
         }
       }
-      { rewrite SPEC. steps. destruct fsp. ss.
+      { rewrite SPEC. steps_safe_l. destruct fsp. ss.
         unfold inv_with in PRE. mDesAll. hcall _ _ with "A A1".
         { iModIntro. iSplitL "A1"; eauto. }
         { rewrite MEASURE in *. splits; ss. unfold ord_lt. des_ifs. }
@@ -628,12 +694,12 @@ Section SIM.
         { astop. steps. }
       }
     }
-    { des. steps. rewrite unfold_APC. steps.
-      force_l. exists false. steps.
-      force_l. exists fuel1. steps.
-      force_l; [eauto|..]. steps.
-      force_l. exists (fn, arg_src). steps.
-      rewrite SPEC. steps.
+    { des. steps_safe_l. rewrite unfold_APC. steps_safe_l.
+      force_l. exists false. steps_safe_l.
+      force_l. exists fuel1. steps_safe_l.
+      force_l; [eauto|..]. steps_safe_l.
+      force_l. exists (fn, arg_src). steps_safe_l.
+      rewrite SPEC. steps_safe_l.
       eapply current_iPropL_convert in PRE. mDesAll.
       destruct fsp. ss. unfold inv_with in PRE. mDesAll.
       hcall _ _ with "A A1".
@@ -652,10 +718,18 @@ Section SIM.
       { astop. steps. gbase. hexploit CIH; eauto. }
       { gbase. hexploit CIH; eauto. }
     }
+    (* { des. destruct fuel; steps.
+      { astop. steps. rewrite SPEC. steps.
+      } 
+    
+    }
+    { steps. }  *)
+
     { destruct fuel; steps.
       { astop. steps. exploit IHSIM; eauto. }
       { exploit IHSIM; eauto. }
     }
+  
     { steps. exploit IHSIM; eauto. }
     { des. exploit IH; eauto. i. destruct fuel; steps.
       { astop. steps. force_l. eexists. steps. eauto. }
@@ -677,10 +751,10 @@ Section SIM.
 
   Lemma hsim_adequacy `{PreOrder _ le}:
     forall
-      f_src f_tgt st_src st_tgt (itr_src: itree (hAPCE +' Es) Any.t) itr_tgt mr_src ctx X (x: X) Q w0
+      f_src f_tgt st_src st_tgt fl_src fl_tgt (itr_src: itree (hAPCE +' Es) Any.t) itr_tgt mr_src ctx X (x: X) Q w0
       (SIM: hsim (fun st_src st_tgt ret_src ret_tgt =>
                     (inv_with w0 st_src st_tgt) ** (Q x ret_src ret_tgt: iProp)) ctx None f_src f_tgt (st_src, itr_src) (st_tgt, itr_tgt)),
-      paco8 (_sim_itree (mk_wf I) le) bot8 Any.t Any.t (lift_rel (mk_wf I) le w0 (@eq Any.t))
+      paco8 (_sim_itree (mk_wf I) le fl_src fl_tgt) bot8 Any.t Any.t (lift_rel (mk_wf I) le w0 (@eq Any.t))
             f_src f_tgt w0
             (Any.pair st_src mr_src,
              (interp_hCallE_tgt stb o (interp_hEs_tgt itr_src) ctx) >>= (HoareFunRet Q x))

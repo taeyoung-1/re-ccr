@@ -221,7 +221,7 @@ Section HLEMMAS.
 
         A (a0: shelve__ A) FR
 
-        (le: A -> A -> Prop) r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop) r rg a n m mr_src0 mp_src0 fl_src fl_tgt
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -245,16 +245,16 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iProp ctx1 (FR ** R a1 mp_src1 mp_tgt1 ** fsp1.(postcond) x vret_src vret_tgt))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
+                gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true a
                   (Any.pair mp_src1 mr_src1↑, k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
                 :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              (Any.pair mp_src0 mr_src0, (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
   Proof.
     subst. unfold HoareCall, ASSUME, ASSERT, mput, mget, assume, guarantee.
-    ired_both. apply sim_itreeC_spec. econs.
+    ired_both. apply sim_itreeC_spec. econs 8.
     hexploit (WEAKER x). i. des.
     assert (exists mr_src0' rarg_src fr_src0',
                (<<UPDATABLE: URA.wf (ctx0 ⋅ (mr_src0' ⋅ (rarg_src ⋅ fr_src0')))>>) /\
@@ -274,12 +274,13 @@ Section HLEMMAS.
       { replace (ctx0 ⋅ (b0 ⋅ (r1 ⋅ a2))) with (r1 ⋅ (a2 ⋅ b0 ⋅ ctx0)); auto. r_solve. }
     }
     des. exists x_tgt.
-    repeat (ired_both; apply sim_itreeC_spec; econs). exists (rarg_src, fr_src0', mr_src0').
-    repeat (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
+    repeat (ired_both; apply sim_itreeC_spec; econs 8). exists (rarg_src, fr_src0', mr_src0').
+    repeat (ired_both; apply sim_itreeC_spec; econs 12).
+    repeat (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     { r_wf UPDATABLE0. }
-    repeat (ired_both; apply sim_itreeC_spec; econs). exists varg_tgt.
-    repeat (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
-    repeat (ired_both; apply sim_itreeC_spec; econs). unshelve esplits; eauto.
+    repeat (ired_both; apply sim_itreeC_spec; econs 8). exists varg_tgt.
+    repeat (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
+    repeat (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     { r in MEASURE. des_ifs; ss; des_ifs. eapply Ord.le_lt_lt; et. }
     { i. spc PURE0. r in MEASURE. des_ifs; ss; des_ifs. }
     { i. spc PURE1. r in MEASURE. des_ifs; ss; des_ifs. }
@@ -308,7 +309,7 @@ Section HLEMMAS.
 
         A (a0: shelve__ A)
 
-        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0 fl_src fl_tgt
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -332,10 +333,10 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 ((Invn, R a1 mp_src1 mp_tgt1) :: (Rn, fsp1.(postcond) x vret_src vret_tgt) :: snd (alist_pops Hns l)))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true a
                    ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
@@ -360,7 +361,7 @@ Section HLEMMAS.
 
         A (a0: shelve__ A)
 
-        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0 fl_src fl_tgt
         (fsp0: fspec)
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
@@ -384,10 +385,10 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, fsp1.(postcond) x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-            gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
+            gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true a
                    ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur fsp0 fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
@@ -403,7 +404,7 @@ Section HLEMMAS.
         (D: X -> ord)
         (P: X -> Any.t -> Any.t -> iProp)
         (Q: X -> Any.t -> Any.t -> iProp)
-        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0
+        (le: A -> A -> Prop)  r rg a n m mr_src0 mp_src0 fl_src fl_tgt
         mp_tgt0 k_tgt k_src
         fn tbr ord_cur varg_src varg_tgt
         (R: A -> Any.t -> Any.t -> iProp)
@@ -424,10 +425,10 @@ Section HLEMMAS.
                       ctx1
                       (ACC: current_iPropL ctx1 (@cons (prod string (bi_car iProp)) (Invn, R a1 mp_src1 mp_tgt1) (@cons (prod string (bi_car iProp)) (Rn, Q x vret_src vret_tgt) (snd (alist_pops Hns l)))))
           ,
-                gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) rg rg _ _ eqr true true a
+                gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) rg rg _ _ eqr true true a
                        ((Any.pair mp_src1 mr_src1↑), k_src (ctx1, vret_src)) (mp_tgt1, k_tgt vret_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _ eqr m n a
              ((Any.pair mp_src0 mr_src0), (HoareCall tbr ord_cur (mk_fspec D P Q) fn varg_src) ctx0 >>= k_src)
              (mp_tgt0, trigger (Call fn varg_tgt) >>= k_tgt)
   .
@@ -443,7 +444,7 @@ Section HLEMMAS.
         A Rn Invn 
          r rg
         X (P: X -> Any.t -> Any.t -> iProp) varg
-        mpr_src mp_tgt f_tgt k_src
+        mpr_src mp_tgt f_tgt k_src fl_src fl_tgt
         a (le: A -> A -> Prop)
         (R: A -> Any.t -> Any.t -> iProp)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
@@ -453,11 +454,11 @@ Section HLEMMAS.
            forall x varg_src
                   ctx (mr_src: Σ) mp_src
                   (ACC: current_iPropL ctx (@cons (prod string (bi_car iProp)) (Rn, P  x varg_src varg) (@cons (prod string (bi_car iProp)) (Invn, R a mp_src mp_tgt) (@nil (prod string (bi_car iProp)))))),
-             gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr true n a
+             gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _  eqr true n a
                     ((Any.pair mp_src mr_src↑), k_src (ctx, (x, varg_src)))
                     (mp_tgt, f_tgt))
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr m n a
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _  eqr m n a
              (mpr_src, (HoareFunArg P varg >>= k_src))
              (mp_tgt, f_tgt)
   .
@@ -484,7 +485,7 @@ Section HLEMMAS.
         A (a: shelve__ A) 
          r rg n m mr_src mp_src a0
         X (Q: X -> Any.t -> Any.t -> iProp)
-        x vret_src vret_tgt
+        x vret_src vret_tgt fl_src fl_tgt
         mp_tgt
         (le: A -> A -> Prop)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
@@ -501,7 +502,7 @@ Section HLEMMAS.
         (EQ: forall (mr_src1: Σ) (WLE: le a0 a) (WF: mk_wf R a ((Any.pair mp_src mr_src1↑), mp_tgt)),
             eqr ((Any.pair mp_src mr_src1↑)) mp_tgt vret_tgt vret_tgt)
     :
-      gpaco8 (_sim_itree (mk_wf R) le) (cpn8 (_sim_itree (mk_wf R) le)) r rg _ _  eqr m n a0
+      gpaco8 (_sim_itree (mk_wf R) le fl_src fl_tgt) (cpn8 (_sim_itree (mk_wf R) le fl_src fl_tgt)) r rg _ _  eqr m n a0
              ((Any.pair mp_src mr_src), (HoareFunRet Q x (ctx, vret_src)))
              (mp_tgt, (Ret vret_tgt))
   .
@@ -531,19 +532,19 @@ Section HLEMMAS.
   Lemma APC_start_clo
         (at_most: Ord.t) 
         (o: ord)
-        A  r rg a m n mp_src0
+        A  r rg a m n mp_src0 fl_src fl_tgt
         k_src
         (wf: A -> Any.t * Any.t -> Prop)
         (le: A -> A -> Prop)
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
         stb itr_tgt ctx
 
-        (POST: gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr true n a
+        (POST: gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr true n a
                       (mp_src0,
                        (interp_hCallE_tgt  stb o (_APC at_most) ctx)>>= k_src)
                       (itr_tgt))
     :
-      gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr m n a
              (mp_src0,
               (interp_hCallE_tgt stb o APC ctx) >>= k_src)
              (itr_tgt).
@@ -566,7 +567,7 @@ Section HLEMMAS.
 
   Lemma APC_stop_clo
         (o: ord) 
-        A  r rg a n m mp_src0
+        A  r rg a n m mp_src0 fl_src fl_tgt
         k_src
         (at_most: Ord.t)
         (wf: A -> Any.t * Any.t -> Prop)
@@ -574,11 +575,11 @@ Section HLEMMAS.
         (eqr: Any.t -> Any.t -> Any.t -> Any.t -> Prop)
         stb itr_tgt ctx
 
-        (POST: gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr true n a
+        (POST: gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr true n a
                       (mp_src0, k_src (ctx, ()))
                       (itr_tgt))
     :
-      gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr m n a
               (mp_src0,
               (interp_hCallE_tgt  stb o (_APC at_most) ctx) >>= k_src)
              (itr_tgt).
@@ -596,7 +597,7 @@ Section HLEMMAS.
         (fn: gname) (args: Any.t) (next: Ord.t)
         
         (o: ord)
-        A  r rg a n m mp_src0
+        A  r rg a n m mp_src0 fl_src fl_tgt
         k_src ctx0
         (at_most: Ord.t)
         (wf: A -> Any.t * Any.t -> Prop)
@@ -608,13 +609,13 @@ Section HLEMMAS.
         (FIND: stb fn = Some fsp)
         (NEXT: (next < at_most)%ord)
 
-        (POST: gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr true n a
+        (POST: gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr true n a
                       (mp_src0,
                        ('(ctx1, _) <- (HoareCall true o fsp fn args ctx0);;
                         Tau (ITree.bind (interp_hCallE_tgt  stb o (_APC next) ctx1) k_src)))
                       (itr_tgt))
     :
-      gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) r rg _ _ eqr m n a
+      gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) r rg _ _ eqr m n a
              (mp_src0, (interp_hCallE_tgt  stb o (_APC at_most) ctx0) >>= k_src)
              (itr_tgt).
   Proof. 
@@ -674,20 +675,20 @@ Ltac prep := ired_both.
 Ltac _force_l :=
   prep;
   match goal with
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, unwrapN ?ox >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, unwrapN ?ox >>= _) (_, _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (unwrapN ox) as tvar eqn:thyp; unfold unwrapN in thyp; subst tvar;
     let name := fresh "_UNWRAPN" in
     destruct (ox) eqn:name; [|exfalso]; cycle 1
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, guarantee ?P >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, guarantee ?P >>= _) (_, _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
     let name := fresh "_GUARANTEE" in
     destruct (classic P) as [name|name]; [ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_src; [exists name]|contradict name]; cycle 1
 
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp _ guarantee ?P) _ (_, _))) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp _ guarantee ?P) _ (_, _))) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
@@ -695,14 +696,14 @@ Ltac _force_l :=
     destruct (classic P) as [name|name]; [ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_src; [exists name]|contradict name]; cycle 1
 
    (* TODO: handle interp_hCallE_tgt better and remove this case *)
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp _ (guarantee ?P )) _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp _ (guarantee ?P )) _) (_, _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
     let name := fresh "_GUARANTEE" in
     destruct (classic P) as [name|name]; [ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_src; [exists name]|contradict name]; cycle 1; clear name
 
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, ?i_src) (_, ?i_tgt)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, ?i_src) (_, ?i_tgt)) ] =>
     seal i_tgt; apply sim_itreeC_spec; econs; unseal i_tgt
   end
 .
@@ -710,20 +711,20 @@ Ltac _force_l :=
 Ltac _force_r :=
   prep;
   match goal with
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapU ?ox >>= _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapU ?ox >>= _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (unwrapU ox) as tvar eqn:thyp; unfold unwrapU in thyp; subst tvar;
     let name := fresh "_UNWRAPU" in
     destruct (ox) eqn:name; [|exfalso]; cycle 1
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, assume ?P >>= _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, assume ?P >>= _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (assume P) as tvar eqn:thyp; unfold assume in thyp; subst tvar;
     let name := fresh "_ASSUME" in
     destruct (classic P) as [name|name]; [ired_both; apply sim_itreeC_spec; eapply sim_itreeC_take_tgt; [exists name]|contradict name]; cycle 1
 
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, ?i_src) (_, ?i_tgt)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, ?i_src) (_, ?i_tgt)) ] =>
     seal i_src; apply sim_itreeC_spec; econs; unseal i_src
   end
 .
@@ -732,15 +733,15 @@ Ltac _step :=
   match goal with
   (*** blacklisting ***)
   (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, trigger (Choose _) >>= _) (_, ?i_tgt)) ] => idtac *)
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, triggerUB >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerUB >>= _) (_, _)) ] =>
     unfold triggerUB; ired_l; _step; done
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, unwrapU ?ox >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, unwrapU ?ox >>= _) (_, _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (unwrapU ox) as tvar eqn:thyp; unfold unwrapU in thyp; subst tvar;
     let name := fresh "_UNWRAPU" in
     destruct (ox) eqn:name; [|unfold triggerUB; ired_both; _force_l; ss; fail]
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, assume ?P >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, assume ?P >>= _) (_, _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (assume P) as tvar eqn:thyp; unfold assume in thyp; subst tvar;
@@ -749,23 +750,125 @@ Ltac _step :=
 
   (*** blacklisting ***)
   (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, _) (_, trigger (Take _) >>= _)) ] => idtac *)
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, triggerNB >>= _) (_, _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerNB >>= _) (_, _)) ] =>
     unfold triggerNB; ired_r; _step; done
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapN ?ox >>= _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapN ?ox >>= _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (unwrapN ox) as tvar eqn:thyp; unfold unwrapN in thyp; subst tvar;
     let name := fresh "_UNWRAPN" in
     destruct (ox) eqn:name; [|unfold triggerNB; ired_both; _force_r; ss; fail]
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, guarantee ?P >>= _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, guarantee ?P >>= _)) ] =>
     let tvar := fresh "tmp" in
     let thyp := fresh "TMP" in
     remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
     let name := fresh "_GUARANTEE" in
     ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_tgt; intro name
+ 
+  | _ => (*** default ***)
+    eapply safe_sim_sim; econs; i
+  end;
+  match goal with
+  | [ |- exists (_: unit), _ ] => esplits; [eauto|..]; i
+  | [ |- exists _, _ ] => fail 1
+  | _ => idtac
+  end
+.
 
 
+Ltac _step_safe_l :=
+  match goal with
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, trigger (Choose _) >>= _) (_, ?i_tgt)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerUB >>= _) (_, _)) ] =>
+    unfold triggerUB; ired_l; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, unwrapU ?ox >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapU ox) as tvar eqn:thyp; unfold unwrapU in thyp; subst tvar;
+    let name := fresh "_UNWRAPU" in
+    destruct (ox) eqn:name; [|unfold triggerUB; ired_both; _force_l; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, assume ?P >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (assume P) as tvar eqn:thyp; unfold assume in thyp; subst tvar;
+    let name := fresh "_ASSUME" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_take_src; intro name
 
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, _) (_, trigger (Take _) >>= _)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerNB >>= _) (_, _)) ] =>
+    unfold triggerNB; ired_r; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapN ?ox >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapN ox) as tvar eqn:thyp; unfold unwrapN in thyp; subst tvar;
+    let name := fresh "_UNWRAPN" in
+    destruct (ox) eqn:name; [|unfold triggerNB; ired_both; _force_r; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, guarantee ?P >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
+    let name := fresh "_GUARANTEE" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_tgt; intro name
+ 
+  (*** blacklisting ***)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call _ _) >>= _)) ] =>
+   try (eapply safe_sim_sim; econs 6)
+
+    
+  | _ => (*** default ***)
+    eapply safe_sim_sim; econs; i
+  end;
+  match goal with
+  | [ |- exists (_: unit), _ ] => esplits; [eauto|..]; i
+  | [ |- exists _, _ ] => fail 1
+  | _ => idtac
+  end
+.
+
+Ltac _step_safe_r :=
+  match goal with
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, trigger (Choose _) >>= _) (_, ?i_tgt)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerUB >>= _) (_, _)) ] =>
+    unfold triggerUB; ired_l; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, unwrapU ?ox >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapU ox) as tvar eqn:thyp; unfold unwrapU in thyp; subst tvar;
+    let name := fresh "_UNWRAPU" in
+    destruct (ox) eqn:name; [|unfold triggerUB; ired_both; _force_l; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, assume ?P >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (assume P) as tvar eqn:thyp; unfold assume in thyp; subst tvar;
+    let name := fresh "_ASSUME" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_take_src; intro name
+
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, _) (_, trigger (Take _) >>= _)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerNB >>= _) (_, _)) ] =>
+    unfold triggerNB; ired_r; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapN ?ox >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapN ox) as tvar eqn:thyp; unfold unwrapN in thyp; subst tvar;
+    let name := fresh "_UNWRAPN" in
+    destruct (ox) eqn:name; [|unfold triggerNB; ired_both; _force_r; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, guarantee ?P >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
+    let name := fresh "_GUARANTEE" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_tgt; intro name
+ 
+  (*** blacklisting ***)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, trigger (Call _ _) >>= _) (_, _)) ] =>
+    try (eapply safe_sim_sim; econs 7)
+
+
+    
   | _ => (*** default ***)
     eapply safe_sim_sim; econs; i
   end;
@@ -777,20 +880,26 @@ Ltac _step :=
 .
 
 Ltac _steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl).
-
 Ltac steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl; des_ifs_safe).
+
+Ltac _steps_safe_l := repeat ((*** pre processing ***) prep; try _step_safe_l; (*** post processing ***) simpl).
+Ltac steps_safe_l := repeat ((*** pre processing ***) prep; try _step_safe_l; (*** post processing ***) simpl; des_ifs_safe).
+
+Ltac _steps_safe_r := repeat ((*** pre processing ***) prep; try _step_safe_r; (*** post processing ***) simpl).
+Ltac steps_safe_r := repeat ((*** pre processing ***) prep; try _step_safe_r; (*** post processing ***) simpl; des_ifs_safe).
+
 Ltac force_l := _force_l.
 Ltac force_r := _force_r.
 
 Notation "wf n '------------------------------------------------------------------' src0 tgt0 '------------------------------------------------------------------' src1 '------------------------------------------------------------------' src2 tgt2"
   :=
-    (gpaco8 (_sim_itree wf _) _ _ _ _ _ _ _ _ n ((Any.pair src0 src1), src2) (tgt0, tgt2))
+    (gpaco8 (_sim_itree wf _ _ _) _ _ _ _ _ _ _ _ n ((Any.pair src0 src1), src2) (tgt0, tgt2))
       (at level 60,
        format "wf  n '//' '------------------------------------------------------------------' '//' src0 '//' tgt0 '//' '------------------------------------------------------------------' '//' src1 '//' '------------------------------------------------------------------' '//' src2 '//' '//' '//' tgt2 '//' ").
 
 Notation "wf n '------------------------------------------------------------------' src0 tgt0 '------------------------------------------------------------------' '------------------------------------------------------------------' src2 tgt2"
   :=
-    (gpaco8 (_sim_itree wf _) _ _ _ _ _ _ _ _ n (src0, src2) (tgt0, tgt2))
+    (gpaco8 (_sim_itree wf _ _ _) _ _ _ _ _ _ _ _ n (src0, src2) (tgt0, tgt2))
       (at level 60,
        format "wf  n '//' '------------------------------------------------------------------' '//' src0 '//' tgt0 '//' '------------------------------------------------------------------' '//' '//' '------------------------------------------------------------------' '//' src2 '//' '//' '//' tgt2 '//' ").
 
@@ -800,14 +909,15 @@ Section TEST.
   Let le := fun (_ _: unit) => True.
   Variable srcs0: Any.t.
   Variable tgts0: Any.t.
+  Variable fl_src fl_tgt: alist gname (Any.t -> itree Es Any.t).
 
-  Goal gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) bot8 bot8 Any.t Any.t (fun _ _ => eq) false false tt
+  Goal gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) bot8 bot8 Any.t Any.t (fun _ _ => eq) false false tt
        (srcs0, triggerUB >>= idK) (tgts0, triggerUB >>= idK).
   Proof.
     steps.
   Qed.
 
-  Goal gpaco8 (_sim_itree wf le) (cpn8 (_sim_itree wf le)) bot8 bot8 Any.t Any.t (fun _ _ => eq) false false tt
+  Goal gpaco8 (_sim_itree wf le fl_src fl_tgt) (cpn8 (_sim_itree wf le fl_src fl_tgt)) bot8 bot8 Any.t Any.t (fun _ _ => eq) false false tt
        (srcs0, triggerNB >>= idK) (tgts0, triggerNB >>= idK).
   Proof.
     steps.
@@ -830,7 +940,7 @@ Ltac astep _fn _args :=
 
 Ltac acatch :=
   match goal with
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call ?fn ?args) >>= _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call ?fn ?args) >>= _)) ] =>
     astep fn args
   end.
 
@@ -840,7 +950,7 @@ Ltac astart _at_most :=
 
 Ltac astop :=
   match goal with
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, interp_hCallE_tgt _ _ APC _ >>= _) (_, _)) ] => astart 0
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, interp_hCallE_tgt _ _ APC _ >>= _) (_, _)) ] => astart 0
   | _ => idtac
   end;
   eapply APC_stop_clo.

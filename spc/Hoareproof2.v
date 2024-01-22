@@ -70,13 +70,13 @@ Section CANCEL.
   Require Import IRed.
 
 
-  Lemma my_lemma__APC o (w: unit) st
+  Lemma my_lemma__APC o (w: unit) st fl fr
     :
-      paco8 (_sim_itree (fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt) top2) bot8 unit unit
+      paco8 (_sim_itree (fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt) top2 fl fr) bot8 unit unit
             (fun st_src st_tgt _ _ => st_src = st_tgt)
             false false w
             (st, Ret tt)
-            (st, interp_hCallE_mid2 (_APC o)).
+            (st, interp_hCallE_mid2 (_APC o)). 
   Proof.
     ginit. revert w st.
     induction (Ord.lt_well_founded o); i. clear H. rename x into o. rename H0 into IH.

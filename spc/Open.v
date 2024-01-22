@@ -261,7 +261,10 @@ Section MODAUX.
   Proof.
     econs; ss. i. econs.
     { instantiate (1:=fun (_ _: unit) => True). ss. }
-    { instantiate (1:=fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt). ss.
+    { instantiate (1:=fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt).
+      ss.
+      remember (sim_fnsem (λ (_ : ()) '(st_src, st_tgt), st_src = st_tgt) top2 (ModSemPair.fl_src (Mod.get_modsem md sk))
+      (map (map_snd (addtau_ktr (T:=Any.t))) (ModSem.fnsems (Mod.get_modsem md sk)))) as simfns.
       erewrite <- map_id at 1. eapply Forall2_fmap_2. eapply Forall2_impl.
       { refl. }
       i. subst. destruct y as [fn f]. econs; ss. ii. subst. ss.

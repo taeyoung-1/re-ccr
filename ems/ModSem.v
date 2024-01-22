@@ -415,8 +415,8 @@ Section REFINE.
   Definition refines {CONF: EMSConfig} (md_tgt md_src: Mod.t): Prop :=
     (* forall (ctx: Mod.t), Beh.of_program (ModL.compile (add_list (md_tgt :: ctx))) <1= *)
     (*                           Beh.of_program (ModL.compile (add_list (md_src :: ctx))) *)
-    forall (ctx: Mod.t), Beh.of_program (Mod.compile (Mod.add ctx md_tgt)) <1=
-                              Beh.of_program (Mod.compile (Mod.add ctx md_src))
+    forall (ctx: Mod.t), Beh.of_program (Mod.compile (Mod.add md_tgt ctx)) <1=
+                              Beh.of_program (Mod.compile (Mod.add md_src ctx))
   .
   Definition refines_strong (md_tgt md_src: Mod.t): Prop :=
     forall {CONF: EMSConfig}, refines md_tgt md_src.

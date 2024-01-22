@@ -28,12 +28,9 @@ Section ADEQUACY.
   Lemma sim_ctx_mod
     ctx md1 md2
     (SIM: ModPair.sim md1 md2)
-    (WF: forall sk, (ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md1 sk)))
-                 /\ (ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md2 sk))))
-    (* (WF: Mod.wf (Mod.add ctx md1) /\ Mod.wf (Mod.add ctx md2)) *)
 
   :
-    ModPair.sim (Mod.add ctx md1) (Mod.add ctx md2)
+    ModPair.sim (Mod.add md1 ctx) (Mod.add md2 ctx)
   .
   Proof.
     inv SIM.
@@ -41,10 +38,7 @@ Section ADEQUACY.
     (* - i. ss. hexploit (sim_modsem sk); et. *)
     - i. ss. hexploit (sim_modsem sk); et.
 
-      2: { ii. des. hexploit (WF sk). i. inv H0.
-           (* inv WF. inv WF0. des.  *)
-           apply sim_ctx; et.
-      }
+      2: { ii. des. apply sim_ctx; et. }
       unfold Sk.incl, Sk.add in *. i. ss.
       apply SKINCL.
       rewrite in_app_iff. et.
@@ -143,41 +137,24 @@ Section ADEQUACY.
 
   Theorem adequacy_local_strong md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
-          (WF: forall ctx,  forall sk : Sk.t,
-          ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md_src sk)) /\
-          ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md_tgt sk)))
     :
     <<CR: (refines_strong md_tgt md_src)>>
   .
   Proof.
-  (* Admitted. *)
+
     ii.
-    (* destruct (classic (Mod.wf (Mod.add ctx md_src))).
-    2: { eapply ModSem.compile_not_wf. et. } *)
-
-
-
-    (* inv H. des. *)
-
     apply sim_ctx_mod with (ctx:=ctx) in SIM.
 
-    2: { apply WF. }
-
-
-    pose (Mod.add ctx md_src) as mds.
-    pose (Mod.add ctx md_tgt) as mdt.
+    pose (Mod.add md_src ctx) as mds.
+    pose (Mod.add md_tgt ctx) as mdt.
     fold mds. fold mdt in PR.
     apply adequacy_mod with (md_src := mds) in PR; et.
-
   Qed.
 
   Context {CONF: EMSConfig}.
 
   Theorem adequacy_local md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
-          (WF: forall (ctx : Mod.t) (sk : Sk.t),
-          ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md_src sk)) /\
-          ModSem.wf (ModSem.add (Mod.get_modsem ctx sk) (Mod.get_modsem md_tgt sk)))
     :
       <<CR: (refines md_tgt md_src)>>
   .

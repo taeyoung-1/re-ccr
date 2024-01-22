@@ -1015,24 +1015,12 @@ Section REFINE.
     pose proof ModFacts.add_assoc as ASSOC. 
     pose proof ModFacts.add_assoc_rev as ASSOC'. 
     r in COMM. r in ASSOC. r in ASSOC'.
-    apply ASSOC. 
-    apply SIM1.
-    apply ASSOC'. apply COMM. apply ASSOC'. apply COMM.
+    apply ASSOC'. 
     apply SIM0.
-    apply ASSOC'. apply COMM. apply ASSOC'.
+    apply ASSOC. apply COMM. apply ASSOC. apply COMM.
+    apply SIM1.
+    apply ASSOC. apply COMM. apply ASSOC.
     apply PR.
-  Qed.
-
-  Theorem refines_proper_l
-    (mds0_src mds0_tgt: list Mod.t) (ctx: Mod.t)
-    (SIM0: refines (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
-  :
-    <<SIM: refines (Mod.add ctx (Mod.add_list mds0_tgt)) (Mod.add ctx (Mod.add_list mds0_src))>>
-  .
-  Proof.
-    ii. r in SIM0.
-    apply ModFacts.add_assoc. apply ModFacts.add_assoc_rev in PR.
-    apply SIM0. apply PR. 
   Qed.
 
   Theorem refines_proper_r
@@ -1043,9 +1031,22 @@ Section REFINE.
   .
   Proof.
     ii. r in SIM0.
+    apply ModFacts.add_assoc_rev. apply ModFacts.add_assoc in PR.
+    apply SIM0. apply PR. 
+  Qed.
+
+  Theorem refines_proper_l
+    (mds0_src mds0_tgt: list Mod.t) (ctx: Mod.t)
+    (SIM0: refines (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
+  :
+    <<SIM: refines (Mod.add ctx (Mod.add_list mds0_tgt)) (Mod.add ctx (Mod.add_list mds0_src))>>
+  .
+
+  Proof.
+    ii. r in SIM0.
     pose proof ModFacts.add_comm as COMM.
     apply COMM. apply COMM in PR.
-    apply ModFacts.add_assoc_rev. apply ModFacts.add_assoc in PR.
+    apply ModFacts.add_assoc. apply ModFacts.add_assoc_rev in PR.
     apply COMM. apply COMM in PR.
     apply SIM0. apply PR.  
   Qed.
@@ -1053,10 +1054,10 @@ Section REFINE.
   Lemma refines_close: refines <2= refines_closed.
   Proof. 
     ii. specialize (PR Mod.empty). ss.
-    pose proof ModFacts.add_empty_l as EMP.
+    pose proof ModFacts.add_empty_r as EMP.
     r in EMP.
     apply EMP with (x0 := x2) in PR.
-    2: { apply ModFacts.add_empty_rev_l. et. } 
+    2: { apply ModFacts.add_empty_rev_r. et. } 
     apply PR.
   Qed.
 

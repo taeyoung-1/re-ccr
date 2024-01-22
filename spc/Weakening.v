@@ -50,11 +50,11 @@ Section PROOF.
         st_src = Any.pair mp mr↑ /\
         st_tgt = Any.pair mp mr↑.
 
-  Lemma weakening_itree
+  Lemma weakening_itree fl fr
     :
       forall
         R mp (mr: Σ) ord_cur_src ord_cur_tgt (ORD: ord_weaker ord_cur_tgt ord_cur_src)  ctx itr,
-        paco8 (_sim_itree wf top2) bot8 (Σ * R)%type (Σ * R)%type
+        paco8 (_sim_itree wf top2 fl fr) bot8 (Σ * R)%type (Σ * R)%type
               (fun st_src st_tgt vret_src vret_tgt =>
                  exists mp (mr: Σ) ctx vret,
                    st_src = Any.pair mp mr↑ /\
@@ -72,8 +72,9 @@ Section PROOF.
     destruct e.
     { resub. destruct h. steps.
       hexploit stb_stronger; et. i. des. rewrite FINDSRC. steps.
-      Local Transparent HoareCall. unfold HoareCall, ASSUME, ASSERT, mput, mget. Local Opaque HoareCall.
-      steps. specialize (WEAKER x ). des.
+      Local Transparent HoareCall. unfold HoareCall, ASSUME, ASSERT, mput, mget. Local Opaque HoareCall. 
+
+      steps_safe_l. specialize (WEAKER x ). des.
       assert (exists rarg_src,
                  (<<PRE: precond fsp_src x_tgt varg_src x0 rarg_src>>) /\
                  (<<VALID: URA.wf (rarg_src ⋅ c1 ⋅ ctx ⋅ c)>>)
@@ -84,11 +85,16 @@ Section PROOF.
         i. des. esplits; et. r_wf H0.
       }
       des. force_l. exists x_tgt.
-      steps. force_l; et. exists (rarg_src, c1, c).
-      steps. force_l; et.
-      steps. force_l. exists x0.
-      steps. force_l; et.
-      steps. force_l; et.
+      steps_safe_l. force_l; et. exists (rarg_src, c1, c).
+      steps_safe_l. force_l; et.
+      
+      s. rewrite Any.pair_split. s. 
+      steps_safe_l. force_l; et.
+      steps_safe_l. force_l; et.
+
+      steps_safe_l. force_l. exists x0.
+      steps_safe_l. force_l; et.
+      steps_safe_l. force_l; et.
       { esplits; et.
         - r in MEASURE. des_ifs; ss; des_ifs. ss. eapply Ord.le_lt_lt; et. eapply Ord.lt_le_lt; et.
         - i. spc _GUARANTEE2. r in MEASURE. des_ifs; ss; des_ifs.
@@ -96,9 +102,11 @@ Section PROOF.
       }
       steps.
       { esplits; et. }
+
       i. destruct w1. red in WF. des; clarify.
       rewrite Any.pair_split in _UNWRAPU. des; clarify.
       steps. rewrite Any.upcast_downcast in *. sym in _UNWRAPU0. clarify.
+
       assert (exists rret_tgt,
                  (<<POSTTGT: postcond f x x1 vret rret_tgt>>) /\
                  (<<VALIDTGT: URA.wf (rret_tgt ⋅ c1 ⋅ c3 ⋅ mr0)>>)
@@ -135,8 +143,8 @@ Section PROOF.
 
   Variable body: Any.t -> itree hEs Any.t.
 
-  Lemma weakening_fn arg mrs_src mrs_tgt (WF: wf tt (mrs_src, mrs_tgt)):
-    sim_itree wf top2 false false tt
+  Lemma weakening_fn arg mrs_src mrs_tgt fl fr (WF: wf tt (mrs_src, mrs_tgt)):
+    sim_itree wf top2 fl fr false false tt
               (mrs_src, fun_to_tgt stb_src (mk_specbody fsp_src body) arg)
               (mrs_tgt, fun_to_tgt stb_tgt (mk_specbody fsp_tgt body) arg).
   Proof.
@@ -185,8 +193,8 @@ Section PROOF.
     Unshelve. all: ss. all: try exact 0.
   Qed.
 
-  Lemma weakening_fsem:
-    sim_fsem wf top2
+  Lemma weakening_fsem fl fr :
+    sim_fsem wf top2 fl fr 
              (fun_to_tgt stb_src (mk_specbody fsp_src body))
              (fun_to_tgt stb_tgt (mk_specbody fsp_tgt body)).
   Proof.
