@@ -36,14 +36,17 @@ Section MODSEM.
         trigger (PPut m1↑);;;
         Ret blk.
 
-    Definition sfreeF: block * Z -> itree Es unit :=
+    Definition sfreeF: option block * Z -> itree Es unit :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        let '(b, sz) := varg in
-        m1 <- (Mem.free m0 b 0 sz)?;;
-        trigger (PPut m1↑);;;
-        Ret tt
+        let '(ob, sz) := varg in
+        match ob with
+        | Some b => m1 <- (Mem.free m0 b 0 sz)?;;
+                   trigger (PPut m1↑);;;
+                   Ret tt
+        | None => triggerUB
+        end
     .
 
     Definition loadF: memory_chunk * val -> itree Es val :=
