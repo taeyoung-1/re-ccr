@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import Skeleton.
 Require Import PCM.
 Require Import HoareDef.

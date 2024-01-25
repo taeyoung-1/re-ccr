@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 From Ordinal Require Import Ordinal.
 
 Set Implicit Arguments.

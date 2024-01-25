@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
@@ -219,7 +219,7 @@ Section MODE.
   (*   set (from_iPropL l) as x. *)
   (*   set (x ** emp) as y. *)
   (*   assert(x = y). *)
-  (*   { subst y. uipropall. extensionality r. apply Axioms.prop_ext. split; i; et. *)
+  (*   { subst y. uipropall. extensionality r. apply AxiomsCCR.prop_ext. split; i; et. *)
   (*     - esplits; et. { rewrite URA.unit_id; ss. } r. uipropall. *)
   (*     - des. clarify. ss. *)
   (*   Check (from_iPropL l). *)

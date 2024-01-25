@@ -1,6 +1,6 @@
 From compcert Require Import Globalenvs Smallstep AST Integers Events Behaviors Errors Memory Values Maps.
 From compcert Require Import Ctypes Clight Clightdefs Globalenvs.
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import Skeleton.
 Require Import PCM.

@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import ITreelib.
 Require Import STS.
 Require Import Behavior.

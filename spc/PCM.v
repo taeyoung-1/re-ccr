@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Import String.
 Require Import ITreelib.
 Require Import ClassicalChoice ChoiceFacts.
@@ -616,6 +616,16 @@ Module URA.
     intros [f EQ]. exists f. apply func_ext_dep. i. apply EQ.
   Qed.
 
+
+  Theorem pw_updatable K M (a b : @car (pointwise K M)) 
+    (UPD: forall k, updatable (a k) (b k))
+    : <<UPD: updatable a b>>.
+  Proof.
+    rr. i.
+    try rewrite ! URA.unfold_wf; try rewrite ! URA.unfold_add; cbn. i.
+    eapply UPD. try rewrite ! URA.unfold_wf in H; try rewrite ! URA.unfold_add in H; cbn. ss.
+  Qed.
+
 End URA.
 
 (* Coercion URA.to_RA: URA.t >-> RA.t. *)
@@ -1120,7 +1130,6 @@ End Consent.
 
 Arguments Consent.t: clear implicits.
 
-
 (**********************************************************************************)
 (*** For backward compatibility, I put below definitions "outside" Auth module. ***)
 (*** TODO: put it inside ***)
@@ -1443,3 +1452,4 @@ Module FOO.
 End FOO.
 
 Global Opaque URA.unit.
+

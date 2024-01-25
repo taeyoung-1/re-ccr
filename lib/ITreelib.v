@@ -19,7 +19,7 @@ From ExtLib Require Export
      Structures.Maps
      (* Data.List *)
 .
-Require Import Coqlib.
+Require Import CoqlibCCR.
 
 Export SumNotations.
 (* Export ITreeNotations. *)
