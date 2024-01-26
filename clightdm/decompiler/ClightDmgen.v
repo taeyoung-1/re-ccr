@@ -44,11 +44,8 @@ Fixpoint alloc_variables_c (ce: comp_env) (e: env)
   match vars with
   | [] => Ret e
   | (id, ty) :: vars' =>
-    v <- ccallU "salloc" (sizeof ce ty);;
-    match v with
-    | Vptr b ofs => alloc_variables_c ce (alist_add (string_of_ident id) (b, ty) e) vars'
-    | _ => triggerUB (* dummy *)
-    end
+    b <- ccallU "salloc" (sizeof ce ty);;
+    alloc_variables_c ce (alist_add (string_of_ident id) (b, ty) e) vars'
   end.
 
 Definition function_entry_c
@@ -194,7 +191,7 @@ Section DECOMP.
     match l with
     | nil => Ret tt
     | (b, sz):: l' =>
-      `_ : () <- ccallU "sfree" (b, sz);;
+      `_ : () <- ccallU "sfree" (Some b, sz);;
       free_list_aux l'
     end.
 
@@ -243,7 +240,7 @@ Section DECOMP.
       match ef with
       | EF_malloc => v <- ccallU "malloc" vargs;;
         Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
-      | EF_free => v <- ccallU "mfree" vargs;;
+      | EF_free => v <- ccallU "free" vargs;;
         Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
       | EF_capture => v <- ccallU "capture" vargs;;
         Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)

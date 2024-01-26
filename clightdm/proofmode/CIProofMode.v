@@ -32,11 +32,11 @@ Section MEM.
     :
       bi_entails
         (inv_with le I w0 st_src st_tgt
-        ** ⌜(Z.of_nat n ≤ Ptrofs.max_unsigned)%Z⌝
+        ** ⌜(0 ≤ n ≤ Ptrofs.max_unsigned)%Z⌝
 
         ** (∀ st_src st_tgt vaddr m b,
             ((inv_with le I w0 st_src st_tgt)
-            ** (⌜m.(sz) = Z.of_nat n /\ m.(blk) = Some b⌝ ** vaddr (↦_m,1) List.repeat Undef n ** vaddr (⊨_m,Local,1) Ptrofs.zero))
+            ** (⌜m.(sz) = n /\ m.(blk) = Some b⌝ ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat n) ** vaddr (⊨_m,Local,1) Ptrofs.zero))
 
             -* isim le I mn stb o (g, g, true, true) Q (Some fuel1) (st_src, itr_src) (st_tgt, ktr_tgt b )))
         (isim le I mn stb o (r, g, f_src, f_tgt) Q (Some fuel0) (st_src, itr_src) (st_tgt, ccallU "salloc" n >>= ktr_tgt)).

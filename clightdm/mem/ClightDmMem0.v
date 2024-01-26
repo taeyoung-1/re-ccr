@@ -59,7 +59,8 @@ Section MODSEM.
         Ret v
     .
 
-    Definition loadbytesF: val * Z -> itree Es (list memval) :=
+  (* deprecated, maybe revive in bitfield at v3.11? *)
+    (* Definition loadbytesF: val * Z -> itree Es (list memval) :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
@@ -70,7 +71,7 @@ Section MODSEM.
             Ret v
         | _ => triggerUB
         end
-    .
+    . *)
 
     (* corresponds to Mem.storev *)
     Definition storeF: memory_chunk * val * val -> itree Es unit :=
@@ -83,7 +84,8 @@ Section MODSEM.
         Ret tt
     .
 
-    Definition storebytesF: val * list memval -> itree Es unit :=
+  (* deprecated, maybe revive in bitfield at v3.11? *)
+    (* Definition storebytesF: val * list memval -> itree Es unit :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
@@ -95,7 +97,7 @@ Section MODSEM.
             Ret tt
         | _ => triggerUB
         end
-    .
+    . *)
 
     Definition cmp_ptr m c v1 v2 : itree Es (option bool) :=
       if Archi.ptr64
@@ -240,7 +242,7 @@ Section MODSEM.
         | _ => triggerUB
         end.
     
-    Definition reallocF: list val -> itree Es val :=
+    (* Definition reallocF: list val -> itree Es val :=
       fun varg =>
         match varg with
         | [addr;v_sz'] =>
@@ -282,7 +284,7 @@ Section MODSEM.
             | _, _ => triggerUB
             end
         | _ => triggerUB
-        end.
+        end. *)
     
   End BODY.
 
@@ -351,8 +353,10 @@ Section MODSEM.
     | Some m => 
       {| 
         ModSem.fnsems := [("salloc", cfunU sallocF); ("sfree", cfunU sfreeF);
-                          ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
-                          ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
+                          ("load", cfunU loadF); 
+                          (* ("loadbytes", cfunU loadbytesF); *)
+                          ("store", cfunU storeF); 
+                          (* ("storebytes", cfunU storebytesF); *)
                           ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
                           ("non_null?", cfunU non_nullF);
                           ("malloc", cfunU mallocF); ("free", cfunU mfreeF);
