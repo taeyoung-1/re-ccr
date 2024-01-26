@@ -11,9 +11,6 @@ Require Import ClightDmExprgen.
 Require Import ClightDmgen.
 From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
-(* TODO: 11/29 -- there are another design choices, make null pointer be a read-only pointer *)
-(* TODO: 11/29 -- disjoint resources should be implemented, and blockaddressRA should reject zero in 'Some b'   *)
-
 Set Implicit Arguments.
 
 Inductive tag :=
@@ -104,7 +101,6 @@ Section PROP.
     else 8
   .
 
-  (* TODO: apply this change in original version *)
   Definition _has_offset vaddr m ofs : iProp :=
     OwnM (_has_size m.(blk) m.(sz))
     ** match vaddr with
@@ -731,9 +727,16 @@ Section RULES.
     iCombine "A B" as "C". iOwnWf "C" as wfc.
     iPureIntro. ur in wfc. specialize (wfc (blk m)).
     ur in wfc. unfold _has_base in *. 
-    des_ifs.
-    - admit "".
-    - admit "".
+    des_ifs; unfold Vptrofs in *; des_ifs; rewrite Ptrofs.of_int64_to_int64 in *; et; des; subst.
+    all: match goal with
+         | H : Ptrofs.sub ?i ?x = Ptrofs.sub ?j ?x |- _ =>
+           clear -H;
+           rewrite <- (Ptrofs.add_zero_l x) in H;
+           apply (f_equal ((flip Ptrofs.add) x)) in H
+         end; ss;
+         rewrite <-! Ptrofs.sub_add_l in *;
+         rewrite ! Ptrofs.sub_shifted in *;
+         rewrite ! Ptrofs.sub_zero_l in *; et.
   Qed.
 
   Lemma equiv_ii_eq i j m :
@@ -786,7 +789,19 @@ Section RULES.
         rewrite (Ptrofs.add_commut _ a). rewrite Ptrofs.add_neg_zero.
         rewrite Ptrofs.add_zero. et. }
       unfold Ptrofs.add in H.
-  Admitted.
+      apply (f_equal Ptrofs.unsigned) in H.
+      replace (Ptrofs.unsigned (Ptrofs.of_int64 i0)) with (Int64.unsigned i0) in H.
+      2:{ clear. unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; et.
+          change Ptrofs.max_unsigned with Int64.max_unsigned.
+          apply Int64.unsigned_range_2. }
+      rewrite <- H.
+      rewrite Ptrofs.unsigned_repr_eq.
+      set (Ptrofs.unsigned _ + _) as x in *.
+      hexploit (Z.mod_le x Ptrofs.modulus); ss; try nia.
+      unfold x. clear.
+      destruct (Ptrofs.sub _ _); destruct a; ss.
+      nia.
+  Qed.
 
   Lemma equiv_offset_comm p q tg f m ofs :
     p (≃_m) q ** p (⊨_m,tg,f) ofs ⊢ q (⊨_m,tg,f) ofs.
@@ -826,7 +841,7 @@ Section RULES.
     all : iPureIntro; ss.
   Qed.
 
-  Lemma point_notnull 
+  (* Lemma point_notnull 
       vaddr m q mvs
     : 
       vaddr (↦_m,q) mvs ⊢ ⌜vaddr <> Vnullptr⌝.
@@ -841,7 +856,7 @@ Section RULES.
     assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
     red. i. subst. vm_compute (Int64.unsigned Int64.zero) in *.
     rewrite Z.add_0_l in H5. apply H7. clear H7.
-  Admitted.
+  Admitted. *)
 
   Lemma point_notundef p q m mvs
     : 
@@ -851,7 +866,7 @@ Section RULES.
     des_ifs; try solve [iDestruct "A" as "[_ A]"; iDestruct "A" as (ofs) "[? []]"].
   Qed.
 
-  Lemma offset_notnull 
+  (* Lemma offset_notnull 
       vaddr m tg q ofs
     : 
       vaddr (⊨_m,tg,q) ofs ** ⌜valid m ofs⌝ ⊢ ⌜vaddr <> Vnullptr⌝.
@@ -867,7 +882,7 @@ Section RULES.
     replace (Ptrofs.unsigned _) with (Ptrofs.max_unsigned - Ptrofs.unsigned a) in H3.
     2:{ admit "with H5". }
     nia.
-  Qed.
+  Qed. *)
 
   Lemma offset_notundef
       p m tg q ofs
@@ -877,71 +892,6 @@ Section RULES.
     iIntros "A". unfold has_offset, _has_offset.
     des_ifs. iDestruct "A" as "[_ [_ []]]".
   Qed.
-
-  (* Lemma valid_ofs_same_meta
-      vaddr m m' tg tg' q q' ofs ofs'
-    : 
-      vaddr (⊨_m,tg,q) ofs ** vaddr (⊨_m',tg',q') ofs' ** ⌜valid m ofs /\ valid m' ofs'⌝
-       ⊢ ⌜m = m' /\ tg = tg' /\ ofs = ofs'⌝.
-  Proof.
-  Admitted.
-
-  Lemma same_addr_point_comm
-      vaddr vaddr' m m' q i mvs
-    :
-      vaddr (≃_m) i ** vaddr' (≃_m) i ** vaddr (↦_m', q) mvs
-       ⊢ vaddr (↦_m', q) mvs.
-  Proof.
-  Admitted.
-
-  Lemma replace_meta_to_alive_point
-      vaddr m0 m1 q mvs i
-    :
-      vaddr (↦_m0,q) mvs ** vaddr (≃_m1) i ⊢ vaddr (↦_m0,q) mvs ** vaddr (≃_m0) i.
-  Proof.
-    iIntros "[A B]".
-    unfold points_to, captured_to.
-    des_ifs.
-    - iFrame.
-    - iDestruct "A" as "[A A']".
-      iDestruct "B" as "[B B']".
-      iDestruct "A'" as (ofs) "[[[C C'] %] %]".
-      unfold _has_offset.
-      iDestruct "C'" as "[C' %]".
-      des. clarify.
-      iDestruct "B'" as (a) "[B' %]".
-      des. clarify. rewrite H5.
-      iAssert ⌜m0 = m1⌝ as "%".
-      { iCombine "A B" as "D". iOwnWf "D" as wfc.
-        iPureIntro.
-        ur in wfc. specialize (wfc (blk m1)).
-        ur in wfc. unfold _has_size in wfc.
-        des_ifs. destruct m0. destruct m1. ss. clarify.
-  Admitted.
-
-  Lemma replace_meta_to_alive_offset
-      vaddr m0 m1 q tg ofs i
-    :
-      vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m1) i ⊢ vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m0) i.
-  Proof.
-    iIntros "[A B]".
-    unfold has_offset, captured_to.
-    des_ifs.
-    - iFrame.
-    - iDestruct "A" as "[A A']".
-      iDestruct "B" as "[B B']".
-      unfold _has_offset.
-      iDestruct "A'" as "[A' %]".
-      des. clarify.
-      iDestruct "B'" as (a) "[B' %]".
-      des. clarify. rewrite H3.
-      iAssert ⌜m0 = m1⌝ as "%".
-      { iCombine "A' B" as "D". iOwnWf "D" as wfc.
-        iPureIntro.
-        ur in wfc. specialize (wfc (blk m1)).
-        ur in wfc. unfold _has_size in wfc.
-        des_ifs. destruct m0. destruct m1. ss. clarify.
-  Admitted. *)
 
   Lemma _offset_ptr {eff} {K:eventE -< eff} v m ofs
     : 
