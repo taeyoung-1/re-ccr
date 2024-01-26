@@ -3,7 +3,7 @@ From compcert Require Import
 From compcert Require Import
      Ctypes Clight Clightdefs.
 
-Require Import Coqlib.
+Require Import CoqlibCCR.
 Require Export ZArith.
 Require Import String.
 Require Import Orders.
