@@ -3,9 +3,9 @@ Require Import Skeleton.
 Require Import ModSem Behavior SimModSem.
 Require Import PCM.
 Require Import HoareDef STB.
-Require Import ClightDmMem0 ClightDmMem1.
 Require Import HTactics ProofMode.
-Require Import CoqlibCCR.
+Require Import HSim IProofMode.
+Require Import ClightDmMem0 ClightDmMem1 ClightDmMemAux.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs.
 
 Lemma repeat_nth_some
@@ -97,53 +97,36 @@ Section SIMMODSEM.
   Context `{@GRA.inG blocksizeRA Σ}.
   Context `{@GRA.inG blockaddressRA Σ}.
 
-  (* Context `{@GRA.inG memcntRA Σ}. *)
-  (* Context `{@GRA.inG memszRA Σ}. *)
-
   Definition Q1 : Qp := 1%Qp.
-  (* Definition Q0 : Qp := 0%Qp. *)
 
   (* permission sim for points to *)
   Inductive sim_cnt
   : URA.car (t:=(Consent.t _)) -> (perm_kind -> option permission) -> memval ->  Prop :=
   | sim_cnt_readable (res: Consent.t _) q mv perm p
       (RES: res = Consent.just q mv)
-      (Q: (q < Q1)%Qp)
-      (PERM: perm Cur = Some p)
-      (PORD: perm_order p Readable) :
-    sim_cnt res perm mv
-  | sim_cnt_writable (res: Consent.t _) mv perm p
-      (RES: res = Consent.just Q1 mv)
-      (PERM: perm Cur = Some p)
-      (PORD: perm_order p Writable) :
-    sim_cnt res perm mv
+      (Qwf: (q ≤ Q1)%Qp)
+      (Qread: (q < Q1)%Qp -> perm Cur = Some p /\ perm_order p Readable)
+      (Qwrite: q = Q1 -> perm Cur = Some p /\ perm_order p Writable)
+    : sim_cnt res perm mv
+  (* this condition is okay to be relaxed *)
   | sim_empty mv : sim_cnt ε (fun _ => None) mv
   .
 
-  (* permission sim for allocated with *)
+  (* permission sim for allocated with, block size *)
   Inductive sim_allocated
-  : URA.car (t:=(Consent.t tag)) -> URA.car (t:=(OneShot.t Z)) -> (Z -> perm_kind -> option permission) -> Prop :=
-  | sim_allocated_nonempty (res: Consent.t _) (sres: OneShot.t _) q tag perm p ofs sz
+  : URA.car (t:=(Consent.t tag)) -> URA.car (t:=(OneShot.t Z)) -> (Z -> perm_kind -> option permission) -> Maps.ZMap.t memval -> Prop :=
+  | sim_allocated_nonempty (res: Consent.t _) (sres: OneShot.t _) perm cnt q tag sz init minp
       (RES: res = Consent.just q tag)
       (SRES: sres = OneShot.white sz)
-      (Q: (q < Q1)%Qp)
-      (INRANGE: 0 <= ofs < sz)
-      (PERM: perm ofs Cur = Some p) :
-    sim_allocated res sres perm
-  | sim_allocated_freeable (res: Consent.t _) (sres: OneShot.t _) tag perm ofs sz
-      (RES: res = Consent.just Q1 tag)
-      (SRES: sres = OneShot.white sz)
-      (INRANGE: 0 <= ofs < sz)
-      (PERM: perm ofs Cur = Some Freeable) :
-    sim_allocated res sres perm
-  | sim_allocated_out_range (res: Consent.t _) (sres: OneShot.t _) q tag perm ofs sz
-      (RES: res = Consent.just q tag)
-      (SRES: sres = OneShot.white sz)
-      (INRANGE: ~(0 <= ofs < sz))
-      (PERM: perm ofs Cur = None)
-    :
-    sim_allocated res sres perm
-  | sim_allocated_empty sres : sim_allocated ε sres (fun _ _ => None)
+      (DYNAMIC: tag = Dynamic -> Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt = inj_bytes (encode_int (size_chunk_nat Mptr) sz) /\ init = - size_chunk Mptr)
+      (COMMON: tag <> Dynamic -> init = 0)
+      (Qwf: (q ≤ Q1)%Qp)
+      (Qnonempty: (q < Q1)%Qp -> minp = Nonempty)
+      (Qfree: q = Q1 -> minp = Freeable)
+      (PERMinrange: forall ofs, exists p, init <= ofs < sz -> perm ofs Cur = Some p /\ perm_order p minp)
+      (PERMoutrange: forall ofs, ~ (init <= ofs < sz) -> perm ofs Cur = None)
+    : sim_allocated res sres perm cnt
+  | sim_allocated_empty sres cnt : sim_allocated ε sres (fun _ _ => None) cnt
   .
 
   (* block underlying concrete address sim *)
@@ -157,35 +140,8 @@ Section SIMMODSEM.
     sim_concrete cres None
   .
 
-  (* block size sim *)
-  Inductive sim_size
-  : URA.car (t:=(Consent.t tag)) -> URA.car (t:=(OneShot.t Z)) -> Maps.ZMap.t memval
-    -> (Z -> perm_kind -> option permission) -> Prop :=
-  | sim_size_dynamic (tres: Consent.t _) (sres: OneShot.t Z) sz q cnt perm p
-      (TAG: tres = Consent.just q Dynamic)
-      (SZ: sres = OneShot.white sz)
-      (POS: sz > 0)
-      (CNT: Mem.getN (size_chunk_nat Mptr) (- size_chunk Mptr) cnt
-            = inj_bytes (encode_int (size_chunk_nat Mptr) sz))
-      (HEADER: forall ofs, (- size_chunk Mptr <= ofs < 0)%Z -> perm ofs Cur = Some Freeable)
-      (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
-    :
-    sim_size tres sres cnt perm
-  | sim_size_common (tres: Consent.t _) (sres: OneShot.t Z) sz cnt perm q p t
-      (NOTDYN: t <> Dynamic)
-      (TAG: tres = Consent.just q t)
-      (SZ: sres = OneShot.white sz)
-      (* (POS: sz >= 0) *)
-      (PERM: forall ofs, (0 <= ofs < sz)%Z -> perm ofs Cur = Some p)
-    :
-    sim_size tres sres cnt perm
-  | sim_size_not cnt sres
-      (SZ: sres = OneShot.black)
-    :
-    sim_size ε sres cnt (fun _ _ => None)
-  .
 
-  Lemma sim_cnt_alloc res m m' b' lo hi
+  (* Lemma sim_cnt_alloc res m m' b' lo hi
     (PRE: forall b ofs, 0 ≤ ofs ->
             sim_cnt (res b ofs) (Maps.PMap.get b (m.(Mem.mem_access)) ofs)
               (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents m))))
@@ -243,28 +199,7 @@ Section SIMMODSEM.
         replace (strings.length _) with 1%nat by refl; nia.
   Qed.
 
-  Lemma setN_inside x l i c entry
-      (IN_RANGE: (i <= x)%Z /\ (x < i + Z.of_nat (length l))%Z)
-      (ENTRY: nth_error l (Z.to_nat (x - i)%Z) = Some entry)
-    :
-      Maps.ZMap.get x (Mem.setN l i c) = entry.
-  Proof.
-    assert (Z.to_nat (x - i)%Z < length l)%nat by nia.
-    apply nth_error_Some in H3. destruct (nth_error _ _) eqn: E in H3; clarify.
-    clear H1. move l at top. revert_until l. induction l; i; ss; try nia.
-    destruct (Nat.eq_dec (Z.to_nat (x - i)) 0).
-    - rewrite e in *. ss. clarify. assert (x = i) by nia. rewrite H1 in *.
-      rewrite Mem.setN_outside; try nia. apply Maps.ZMap.gss.
-    - change (a :: l) with ([a] ++ l) in E. rewrite nth_error_app2 in E; ss; try nia.
-      replace (Z.to_nat (x - i) - 1)%nat with (Z.to_nat (x - (i + 1))) in E by nia.
-      eapply IHl; et. nia.
-  Qed.
 
-
-  Local Ltac solve_len := unfold encode_int, bytes_of_int, rev_if_be, inj_bytes in *;
-                            change Archi.big_endian with false in *;
-                            change Archi.ptr64 with true in *; ss.
-  Local Ltac case_points_to := unfold __points_to; destruct (AList.dec _ _); destruct (Coqlib.zle _ _); destruct (Coqlib.zlt).
 
   Lemma sim_cnt_store_initial_data sk res c m m' perm start l b'
     (PRE: forall b ofs, 0 ≤ ofs -> not (b = b' /\ start ≤ ofs < start + init_data_list_size l) ->
@@ -376,7 +311,7 @@ Section SIMMODSEM.
       (*   rewrite FILLED_ZERO; try nia.  *)
       (*   rewrite nth_error_repeat in X; try nia; clarify. *)
       (* + rewrite repeat_length in g. nia. *)
-  Qed.
+  Qed. *)
 
   (* Lemma sim_cnt_drop_perm m m' res q b lo hi *)
   (*   (PRE: forall ofs, 0 ≤ ofs -> lo ≤ ofs < hi -> *)
@@ -435,37 +370,12 @@ Section SIMMODSEM.
   (*     rewrite repeat_length in g0. nia. *)
   (* Qed. *)
 
-  Lemma alloc_store_zero_condition m m0 m1 start len b
-    (ALLOC: Mem.alloc m start (start + len) = (m0, b))
-    (STORE_ZEROS: Globalenvs.R_store_zeros m0 b start len (Some m1))
-  :
-    <<FILLED_ZERO: forall ofs, start ≤ ofs < start + len ->
-                    Maps.ZMap.get ofs (Maps.PMap.get b m1.(Mem.mem_contents)) = Byte Byte.zero>>.
-  Proof.
-    Local Transparent Mem.alloc. Local Transparent Mem.store.
-    unfold Mem.alloc in ALLOC. clarify.
-    remember (Some m1) as optm in STORE_ZEROS.
-    move STORE_ZEROS at top. revert_until STORE_ZEROS.
-    induction STORE_ZEROS; red; i; ss; try nia.
-    destruct (Coqlib.zlt ofs (p + 1)).
-    - assert (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents m1)) =
-                Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents m'))).
-      { set (p + 1) as p' in *. set (n - 1) as n' in *.
-        clear -l STORE_ZEROS Heqoptm. clearbody p' n'. move STORE_ZEROS at top.
-        revert_until STORE_ZEROS.
-        induction STORE_ZEROS; i; ss; clarify; try nia.
-        rewrite IHSTORE_ZEROS; et; try nia. unfold Mem.store in e0.
-        des_ifs. ss. rewrite Maps.PMap.gss. rewrite Mem.setN_outside; et. }
-      rewrite H4. unfold Mem.store in e0. des_ifs. ss.
-      rewrite Maps.PMap.gss. erewrite setN_inside; solve_len; try nia.
-      replace (ofs - p) with 0 by nia. et.
-    - hexploit IHSTORE_ZEROS; et. i. des. eapply H4. nia.
-  Qed.
+  Local Ltac case_points_to := unfold __points_to; destruct (AList.dec _ _); destruct (Coqlib.zle _ _); destruct (Coqlib.zlt).
 
-  Hint Constructors sim_cnt: core.
-  Hint Constructors sim_allocated: core.
-  Hint Constructors sim_concrete: core.
-  Hint Constructors sim_size: core.
+
+  Local Hint Constructors sim_cnt: core.
+  Local Hint Constructors sim_allocated: core.
+  Local Hint Constructors sim_concrete: core.
 
   Let world := unit.
 
@@ -473,37 +383,36 @@ Section SIMMODSEM.
   Let wf: world -> Any.t * Any.t -> Prop :=
     mk_wf
       (fun _ _ _mem_tgt0 =>
-         (∃ (mem_tgt0: Mem.mem) (memcnt_src0: ClightDmMem1._pointstoRA)
+          ∃ (mem_tgt0: Mem.mem) (memcnt_src0: ClightDmMem1._pointstoRA)
             (memalloc_src0: ClightDmMem1._allocatedRA)
-            (memconc_src0: blockaddressRA)
             (memsz_src0: blocksizeRA)
-           ,
-             ⌜(<<TGT: _mem_tgt0 = mem_tgt0↑>>) /\
-              (<<SIM_CNT: forall b ofs, 0 <= ofs ->
-                          sim_cnt (memcnt_src0 b ofs)
+            (memconc_src0: blockaddressRA),
+
+          ⌜(<<TGT: _mem_tgt0 = mem_tgt0↑>>)
+          /\ (<<SIM_CNT: forall b ofs (POSOFS: 0 ≤ ofs),
+                         sim_cnt (memcnt_src0 b ofs)
                             ((Maps.PMap.get b mem_tgt0.(Mem.mem_access)) ofs)
-                            (Maps.ZMap.get ofs (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)))>>) /\
-              (<<SIM_ALLOC: forall b, sim_allocated (memalloc_src0 b) (memsz_src0 (Some b)) (Maps.PMap.get b mem_tgt0.(Mem.mem_access))>>) /\
-              (<<SIM_CONC: forall ob, match ob with
-                                 | Some b => sim_concrete (memconc_src0 (Some b)) (Maps.PTree.get b mem_tgt0.(Mem.mem_concrete))
-                                 | None => True
-                                 end>>) /\
-              (<<SIM_SZ: forall ob, match ob with
-                               | Some b => if Pos.ltb b (Mem.nextblock mem_tgt0)
-                                          then sim_size (memalloc_src0 b) (memsz_src0 (Some b)) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)) (Maps.PMap.get b mem_tgt0.(Mem.mem_access))
-                                          else (memsz_src0 (Some b)) = OneShot.black
-                               | None => True
-                               end>>)⌝
-             ** OwnM ((Auth.black memcnt_src0): URA.car (t:=pointstoRA))
-             ** OwnM ((Auth.black memalloc_src0): URA.car (t:=allocatedRA))
-             ** OwnM memconc_src0
-             ** OwnM memsz_src0
-         )%I)
+                            (Maps.ZMap.get ofs (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)))>>)
+          /\ (<<SIM_CONC: forall ob,
+                          match ob with
+                          | Some b => sim_concrete (memconc_src0 (Some b)) (Maps.PTree.get b mem_tgt0.(Mem.mem_concrete))
+                          | None => memconc_src0 None = OneShot.white Ptrofs.zero
+                          end>>)
+          /\ (<<SIM_ALLOC: forall ob,
+                           match ob with
+                           | Some b => sim_allocated (memalloc_src0 b) (memsz_src0 (Some b))
+                                          (Maps.PMap.get b mem_tgt0.(Mem.mem_access)) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents))
+                                       /\ ((mem_tgt0.(Mem.nextblock) ≤ b)%positive -> memsz_src0 (Some b) = OneShot.black)
+                           | None => memsz_src0 None = OneShot.white 0
+                           end>>)⌝
+          ** OwnM (Auth.black memcnt_src0)
+          ** OwnM (Auth.black memalloc_src0)
+          ** OwnM memconc_src0
+          ** OwnM memsz_src0)%I
   .
 
-  Hint Resolve sim_itree_mon: paco.
+  Local Hint Resolve sim_itree_mon: paco.
 
-  Opaque URA.unit.
 
   (* Ltac renamer := *)
 (*     let tmp := fresh "_tmp_" in *)
@@ -526,14 +435,34 @@ Section SIMMODSEM.
 (*              end *)
 (*     end *)
 (*   . *)
-  Arguments URA.car: simpl never.
 
-  Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
+  (* Opaque URA.unit. *)
+  (* Arguments URA.car: simpl never. *)
+  Local Transparent Mem.alloc Mem.store.
+
+  (* TODO: rollback memory local state formulation *)
+  (* TODO: add UB condition in main function invocation *)
+  Lemma wf_iff sk : res_init sk = None <-> load_mem sk = None.
   Proof.
-    Local Transparent Mem.alloc. Local Transparent Mem.store.
-    econs; ss.
-    i. econstructor 1 with (wf:=wf) (le:=top2); et; ss; swap 2 3.
-    { admit "initialization". }
+  Admitted.
+
+  Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m) :
+    wf () (Any.pair ()↑ 
+            (c ⋅ GRA.embed (A:=blockaddressRA) (λ ob : option block, 
+                                                  match ob with
+                                                  | Some _ => OneShot.black
+                                                  | None => OneShot.white Ptrofs.zero
+                                                  end)
+              ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
+                                                  match ob with
+                                                  | Some b =>
+                                                    if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b
+                                                    then OneShot.black
+                                                    else OneShot.unit
+                                                  | None => OneShot.white 0
+                                                  end))↑,
+            Any.upcast m).
+  Proof.
       (* eexists. econs; ss. eapply to_semantic. *)
       (* iIntros "H". iDestruct "H" as "[A B]". iSplits.  *)
       (* iSplitR "B"; [iSplitR "A"; [|iApply "A"]|iApply "B"].  *)
@@ -792,203 +721,124 @@ Section SIMMODSEM.
       (*   destruct (Pos.eq_dec b b0); *)
       (*     [subst; rewrite Maps.PMap.gss|rewrite Maps.PMap.gso; et]. *)
       (*   destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia. } *)
-    econs; ss.
+  Admitted.
+
+  Local Transparent _points_to _has_offset _has_size _has_base.
+
+  Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
+  Proof.
+    econs; ss. i.
+    econstructor 1 with (wf:=wf) (le:=top2); ss; cycle 1.
+    { exists tt. des_ifs.
+      - apply init_wf; et.
+      - rewrite <- wf_iff in Heq0. clarify.
+      - rewrite wf_iff in Heq. clarify.
+      - admit "". }
+    repeat (match goal with |- Forall2 _ _ _ => econs end).
     (* salloc *)
-    { unfold sallocF. init.
-      harg. fold wf. steps. hide_k. rename x into sz.
-      { mDesAll; ss. des; subst.
-        mRename "A3" into "CNT". mRename "A2" into "ALLOCATED". mRename "A1" into "CONC". mRename "A" into "SZ".
-        rewrite Any.upcast_downcast in *.
-        steps. unhide_k. steps. astart (Ord.from_nat 0%nat). astop.
-        mAssert _ with "CNT" as "CNT".
-        { iApply (OwnM_Upd with "CNT").
-          eapply Auth.auth_alloc2.
-          instantiate (1:=(__points_to (Mem.nextblock a) 0 (repeat (Undef) (Z.to_nat sz)) Q1)).
-          mOwnWf "CNT".
-          clear - WF0 SIM_CNT.
-          do 2 ur. ii.
-          unfold __points_to. case_points_to; destruct nth_error;
-          ss; try rewrite URA.unit_id.
-          all: try solve [do 2 eapply lookup_wf; eapply Auth.black_wf; et].
-          specialize (SIM_CNT k k0 l). inv SIM_CNT.
-          - rewrite (Mem.nextblock_noaccess a) in PERM; clarify; eapply Coqlib.Plt_strict.
-          - rewrite (Mem.nextblock_noaccess a) in PERM; clarify; eapply Coqlib.Plt_strict.
-          - rewrite URA.unit_idl. ur. ss.
-        }
-        mUpd "CNT". mDesOwn "CNT". steps.
+    { econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+      i. iIntros "[INV PRE]".
+      iDestruct "PRE" as "%"; des; clarify. rename x into sz. unfold inv_with.
+      iDestruct "INV" as (tt) "[INV %]".
+      iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+      des; clarify.
 
-        mAssert _ with "ALLOCATED" as "ALLOCATED".
-        { iApply (OwnM_Upd with "ALLOCATED").
-          eapply Auth.auth_alloc2.
-          instantiate (1:=(__allocated_with (Mem.nextblock a) Local Q1)).
-          mOwnWf "ALLOCATED".
-          clear - WF0 SIM_ALLOC SIM_SZ.
-          ur. ur in WF0. des. ur in WF1. i.
-          destruct (Pos.eq_dec k (Mem.nextblock a)) eqn:NXT; cycle 1.
-          { specialize (WF1 k). unfold __allocated_with. des_ifs. rewrite URA.unit_id. et. }
-          clarify. unfold __allocated_with. des_ifs.
-          assert (a1 (Mem.nextblock a) = Consent.unit).
-          { specialize (SIM_ALLOC (Mem.nextblock a)). inv SIM_ALLOC.
-            - rewrite (Mem.nextblock_noaccess a) in PERM; clarify; eapply Coqlib.Plt_strict.
-            - rewrite (Mem.nextblock_noaccess a) in PERM; clarify; eapply Coqlib.Plt_strict.
-            - specialize (SIM_SZ (Some (Mem.nextblock a))). ss. des_ifs.
-              + rewrite Pos.ltb_irrefl in Heq. clarify.
-              + setoid_rewrite SRES in SIM_SZ. clarify.
-            - ss. }
-          rewrite H. repeat ur. ss. }
-        mUpd "ALLOCATED". mDesOwn "ALLOCATED". steps.
+      unfold sallocF. hred_r.
+      iApply isim_pget_tgt. hred_r.
+      iApply isim_pput_tgt. hred_r.
+      iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_upd.
 
-        mAssert _ with "SZ" as "SZ".
-        { iApply (OwnM_Upd with "SZ").
-          eapply URA.pw_updatable. i.
-          instantiate (1:= fun ok => match ok with
-                             | Some k => if (Pos.eq_dec k (Mem.nextblock a))
-                                        then (_has_size (Some (Mem.nextblock a)) sz) ok
-                                        else a3 ok
-                             | None => a3 ok
-                                  end).
-          ss. destruct k; ss. des_ifs. specialize (SIM_SZ (Some (Mem.nextblock a))). ss.
-          des_ifs. rewrite Pos.ltb_irrefl in Heq. clarify.
-          replace (a3 (Some (Mem.nextblock a))) with (OneShot.black: OneShot.t Z).
-          { Local Transparent _has_size. ss. des_ifs. eapply OneShot.oneshot_black_updatable. } }
-        mUpd "SZ".
+      (* resource formation starts *)
+      (* cnt *)
+      iOwnWf "CNT" as wfcnt.
+      iPoseProof (OwnM_Upd with "CNT") as ">[CNT CNT_POST]".
+      { eapply Auth.auth_alloc2.
+        instantiate (1:=(__points_to (Mem.nextblock mem_tgt) 0 (repeat (Undef) (Z.to_nat sz)) Q1)).
+        do 2 ur. i. ur. specialize (SIM_CNT k k0).
+        do 3 ur in wfcnt. des. specialize (wfcnt0 k k0).
+        ur in wfcnt0. destruct (Coqlib.zle 0 k0); cycle 1.
+        { case_points_to; des_ifs. }
+        spc SIM_CNT. inv SIM_CNT; cycle 1.
+        { des_ifs; unfold __points_to in *; des_ifs. }
+        destruct __points_to eqn: ?; unfold __points_to in *; try solve [des_ifs].
+        destruct dec; ss; clarify.
+        rewrite mem_tgt.(Mem.nextblock_noaccess) in *; unfold Coqlib.Plt; try nia.
+        rewrite Qp_le_lteq in Qwf. des; try spc Qwrite; try spc Qread; des; clarify. }
 
-        force_l. eexists. steps. hret _; ss.
-        set (updated_memsz := (λ ok : option block,
-                    match ok with
-                    | Some k =>
-                        if Pos.eq_dec k (Mem.nextblock a)
-                        then
-                          match ok with
-                          | Some _b => if AList.dec _b (Mem.nextblock a) then OneShot.white sz else OneShot.unit
-                          | None => OneShot.unit
-                          end
-                        else a3 ok
-                    | None => a3 ok
-                    end :OneShot.t _ )).
-        assert (updated_memsz = (_has_size (Some (Mem.nextblock a)) sz) ⋅ updated_memsz).
-        { unfold updated_memsz. ur. apply func_ext. ii. des_ifs; ur; ss; des_ifs. }
-        des. rewrite H3. iDestruct "SZ" as "[SZ CTX]".
-        (* iPoseProof (_has_size_dup with "SZ") as "[SZ1 SZ2]". *)
-        iModIntro. iSplitR "SZ A A1"; cycle 1.
-        (* post condition *)
-        { iSplitL; ss.
-          set md := (@Build_metadata (Some (Mem.nextblock a)) sz PURE2).
-          iExists md, (Vptr (Mem.nextblock a) Ptrofs.zero), (Mem.nextblock a).
-          (* assert (exists ctx, (λ ok : option block, *)
-          (*                    match ok with *)
-          (*                    | Some k => *)
-          (*                        if Pos.eq_dec k (Mem.nextblock a) *)
-          (*                        then *)
-          (*                          match ok with *)
-          (*                          | Some _b => if AList.dec _b (Mem.nextblock a) then OneShot.white sz else OneShot.unit *)
-          (*                          | None => OneShot.unit *)
-          (*                          end *)
-          (*                        else a3 ok *)
-          (*                    | None => a3 ok *)
-          (*                    end) = (_has_size (Some (Mem.nextblock a)) sz) ⋅ ctx). *)
-          (* { exists (λ ok : option block, *)
-          (*         match ok with *)
-          (*         | Some k => *)
-          (*             if Pos.eq_dec k (Mem.nextblock a) *)
-          (*             then OneShot.unit *)
-          (*             else a3 ok *)
-          (*         | None => a3 ok *)
-          (*         end). unfold _has_size. ss. ur. apply func_ext. i. *)
-          (*   des_ifs; ur; ss; des_ifs. } *)
-          (* des. rewrite H3. iDestruct "SZ" as "[SZ CTX]". *)
-          iPoseProof (_has_size_dup with "SZ") as "[SZ1 SZ2]".
-          iSplitL "A SZ1"; ss. iSplitR; ss.
-          (* points to *)
-          - Local Transparent _points_to. unfold points_to, _points_to. unfold md. ss.
-            iPoseProof (_has_size_dup with "SZ1") as "[SZ1 SZ2]".
-            iFrame. iExists (Ptrofs.zero). iFrame. unfold _has_offset. ss. iPureIntro.
-            esplits; eauto.
-            { rewrite repeat_length. rewrite Ptrofs.unsigned_zero. rewrite Z2Nat.id; try lia. }
-            { rewrite repeat_length. rewrite Ptrofs.unsigned_zero. lia. }
-          (* alloc with *)
-          - Local Transparent _allocated_with. unfold has_offset, _allocated_with. unfold md. ss.
-            iFrame. ss. }
-        (* wf preservation *)
-        iExists _, _, _, _, _.
-        iSplitR "CTX"; cycle 1.
-        { eauto. }
-        iSplitR "CONC"; cycle 1.
-        { eauto. }
-        iSplitR "ALLOCATED"; [|ss]. iSplitR "CNT"; [|ss].
-        assert (EPS: a1 (Mem.nextblock a) = ε).
-        { specialize (SIM_ALLOC (Mem.nextblock a)).
-          inv SIM_ALLOC; try solve [rewrite (Mem.nextblock_noaccess a) in PERM; clarify;
-                                    eapply Coqlib.Plt_strict]; et.
-          specialize (SIM_SZ (Some (Mem.nextblock a))). ss.
-          rewrite Pos.ltb_irrefl in SIM_SZ. unfold block in *. rewrite SIM_SZ in SRES. clarify. }
-        iPureIntro. esplits; et; i.
-        (* sim contents *)
-        - destruct (Pos.eq_dec b (Mem.nextblock a)).
-          + ss. subst. do 2 ur.
-            specialize (SIM_CNT (Mem.nextblock a) ofs H4).
-            inv SIM_CNT;
-              try solve [rewrite (Mem.nextblock_noaccess a) in PERM; clarify;
-                         eapply Coqlib.Plt_strict].
-            rewrite URA.unit_idl; ss. do 2 rewrite Maps.PMap.gss. des_ifs.
-            { econs 2; eauto; [|apply perm_F_any].
-              unfold __points_to. rewrite repeat_length. replace (0 + Z.to_nat sz) with sz by lia.
-              assert ((Coqlib.zle 0 ofs) && (Coqlib.zlt ofs sz) = true).
-              { unfold Coqlib.proj_sumbool in Heq. des_ifs. }
-              eapply andb_prop in H5. destruct H5 as [LE LT]. rewrite LE. rewrite LT.
-              destruct Coqlib.zle in LE; clarify. destruct Coqlib.zlt in LT; clarify.
-              replace (Z.to_nat (ofs - 0)) with (Z.to_nat ofs) by lia.
-              rewrite repeat_nth. do 2 rewrite andb_true_r. des_ifs; cycle 1.
-              { destruct AList.dec in Heq0; clarify. rewrite Nat.ltb_ge in Heq2.
-                eapply inj_le in Heq2. do 2 rewrite Z2Nat.id in Heq2; try lia. }
-              { destruct AList.dec in Heq0; clarify. }
-              rewrite Maps.ZMap.gi. et. }
-            unfold _points_to, __points_to. des_ifs.
-            replace (Z.to_nat (ofs - 0)) with (Z.to_nat ofs) in Heq1 by lia.
-            rewrite andb_false_iff in Heq. des.
-            { assert (0 > ofs) by (unfold Coqlib.proj_sumbool in Heq; des_ifs; lia). lia. }
-            { rewrite repeat_nth_none in Heq1; clarify. ii.
-              assert (sz < ofs) by (unfold Coqlib.proj_sumbool in Heq; des_ifs; lia).
-              eapply Z2Nat.inj_lt in H8; lia. }          + ss. do 2 (rewrite Maps.PMap.gso; et).
-            specialize (SIM_CNT b ofs). exploit SIM_CNT; eauto. i. do 2 ur.
-            unfold __points_to. des_ifs.
-            { eapply andb_prop in Heq. des. eapply andb_prop in Heq. des.
-              destruct (AList.dec b (Mem.nextblock a)); clarify. }
-            all : rewrite URA.unit_id; ss.
-        (* sim alloc *)
-        - destruct (Pos.eq_dec b (Mem.nextblock a)).
-          + ss. subst. ur. specialize (SIM_ALLOC (Mem.nextblock a)).
-            inv SIM_ALLOC; try solve [rewrite (Mem.nextblock_noaccess a) in PERM; clarify;
-                                      eapply Coqlib.Plt_strict].
-            * des_ifs_safe. rewrite EPS in RES. clarify.
-            * rewrite Maps.PMap.gss; et.
-              rewrite URA.unit_idl. unfold __allocated_with. des_ifs.
-              destruct (Z.eq_dec sz 0); subst.
-              { eapply sim_allocated_out_range with (ofs:=0); et. lia. }
-              eapply sim_allocated_freeable with (ofs:=0); et; [lia|]. des_ifs.
-              unfold Coqlib.proj_sumbool in Heq. des_ifs; lia.
-          + ss. rewrite Maps.PMap.gso; et.
-            specialize (SIM_ALLOC b).
-            unfold __allocated_with. ur. des_ifs. rewrite URA.unit_id; eauto.
-        (* sim size *)
-        - simpl. destruct ob; ss.
-          destruct (Pos.ltb p (Pos.succ (Mem.nextblock a))) eqn:POS.
-        + destruct (Pos.eq_dec p (Mem.nextblock a)).
-          * subst. des_ifs. do 2 rewrite Maps.PMap.gss.
-            eapply sim_size_common with (t:=Local) (q:=Q1) (p:=Freeable); clarify.
-            { ur. rewrite EPS. rewrite URA.unit_idl.
-              unfold __allocated_with. des_ifs. }
-            ii. des_ifs_safe. unfold Coqlib.proj_sumbool in Heq. des_ifs; lia.
-          * ss. do 2 (rewrite Maps.PMap.gso; et). ur. unfold __allocated_with. des_ifs.
-            rewrite URA.unit_id. specialize (SIM_SZ (Some p)). ss. des_ifs.
-            rewrite Pos.ltb_lt in POS.
-            assert ((p < Mem.nextblock a)%positive) by lia.
-            rewrite Pos.ltb_ge in Heq. lia.
-        + des_ifs.
-        * rewrite Pos.ltb_nlt in POS. lia.
-        * specialize (SIM_SZ (Some p)). ss. des_ifs.
-          rewrite Pos.ltb_lt in Heq.
-          rewrite Pos.ltb_ge in POS. lia. } }
+      (* alloc resource *)
+      iOwnWf "ALLOC" as wfalloc.
+      iPoseProof (OwnM_Upd with "ALLOC") as ">[ALLOC ALLOC_POST]".
+      { eapply Auth.auth_alloc2.
+        instantiate (1:=(__allocated_with (Mem.nextblock mem_tgt) Local Q1)).
+        do 2 ur. i. specialize (SIM_ALLOC (Some k)). ss. des.
+        do 2 ur in wfalloc. des. specialize (wfalloc0 k).
+        ur in wfalloc0. inv SIM_ALLOC; cycle 1.
+        { des_ifs; unfold __allocated_with in *; des_ifs. }
+        destruct __allocated_with eqn: ?; unfold __allocated_with in *; try solve [des_ifs]; cycle 1.
+        destruct dec; ss; clarify. hexploit SIM_ALLOC0; try nia.
+        i. rewrite SRES in *. clarify. }
+
+      (* size *)
+      iOwnWf "SZ" as wfsz.
+      iPoseProof (OwnM_Upd with "SZ") as ">[SZ SZ_POST]".
+      { instantiate (1:= _has_size (Some (mem_tgt.(Mem.nextblock))) sz).
+        instantiate (1:= update memsz_src (Some (mem_tgt.(Mem.nextblock))) (OneShot.white sz)).
+        apply URA.pw_updatable. i. ur. unfold update, _has_size.
+        destruct dec; clarify; try solve [des_ifs; ur; des_ifs]. 
+        destruct dec; clarify. specialize (SIM_ALLOC (Some (mem_tgt.(Mem.nextblock)))).
+        ss. des. hexploit SIM_ALLOC0; try nia.
+        let X := fresh in intro X; rewrite X.
+        etrans; try apply OneShot.oneshot_black_updatable with (a:=sz).
+        ur. des_ifs. }
+
+      (* start proving conditions *)
+      iModIntro. iApply isim_ret. iModIntro. iSplitR "CNT_POST ALLOC_POST SZ_POST"; cycle 1.
+      (* post condition *)
+      { iSplit; et.
+        set {| blk := Some (mem_tgt.(Mem.nextblock)); sz := sz; SZPOS := H5 |} as m.
+        iExists m, (Vptr (mem_tgt.(Mem.nextblock)) Ptrofs.zero). 
+        iSplits; et.
+        unfold m, points_to, has_offset, _points_to, _has_offset; ss.
+        iPoseProof (_has_size_dup with "SZ_POST") as "[? SZ_POST]".
+        iPoseProof (_has_size_dup with "SZ_POST") as "[? ?]".
+        iFrame. iSplits; ss; et; iPureIntro.
+        all: rewrite repeat_length; change (Ptrofs.unsigned _) with 0; nia. }
+      (* invariant *)
+      iExists _. iSplits; ss. iFrame.
+      iPureIntro. splits; ss; ss.
+      (* sim_cnt *)
+      - i. hexploit (SIM_CNT b); et. intro SIM_CNT0.
+        destruct (Pos.eq_dec b (mem_tgt.(Mem.nextblock))); clarify; cycle 1.
+        { rewrite ! Maps.PMap.gso; et. do 2 ur. case_points_to; ss; rewrite URA.unit_id; et. }
+        rewrite ! Maps.PMap.gss. inv SIM_CNT0.
+        { rewrite Mem.nextblock_noaccess in Qread; unfold Coqlib.Plt; try nia.
+          rewrite Mem.nextblock_noaccess in Qwrite; unfold Coqlib.Plt; try nia.
+          rewrite Qp_le_lteq in Qwf. des; try spc Qwrite; try spc Qread; des; clarify. }
+        do 2 ur. rewrite <- H7. rewrite URA.unit_idl. rewrite Maps.ZMap.gi.
+        case_points_to; ss; cycle 1.
+        { rewrite repeat_length in *. destruct Coqlib.zlt; ss. nia. }
+        destruct nth_error eqn: ?; cycle 1.
+        { rewrite nth_error_None in Heqo. nia. }
+        rewrite repeat_length in *. destruct Coqlib.zlt; ss; try nia.
+        rewrite repeat_nth in *. des_ifs.
+        econs; ss. i. split; ss. econs.
+      (* sim_alloc *)
+      - i. des_ifs; cycle 1.
+        { specialize (SIM_ALLOC None); ss. }
+        destruct (Pos.eq_dec b (mem_tgt.(Mem.nextblock))); clarify; cycle 1.
+        { specialize (SIM_ALLOC (Some b)); ss; des. rewrite ! Maps.PMap.gso; et. ur.
+          unfold __allocated_with. destruct dec; clarify; rewrite URA.unit_id.
+          unfold update. des_ifs. split; et. i. apply SIM_ALLOC0; nia. }
+        rewrite ! Maps.PMap.gss. specialize (SIM_ALLOC (Some (mem_tgt.(Mem.nextblock)))); ss; des.
+        split; i; try nia. hexploit SIM_ALLOC0; try nia. i. rewrite H4 in *. ur.
+        inv SIM_ALLOC; clarify. rewrite URA.unit_idl. unfold __allocated_with.
+        des_ifs. econs. 7: et. all: et. all: i; clarify.
+        { unfold update. des_ifs. }
+        { exists Freeable. i. destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia. split; econs. }
+        { destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia. } }
+
     econs; ss.
     (* sfree *)
     { unfold sfreeF. init.
