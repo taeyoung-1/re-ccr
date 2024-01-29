@@ -1419,31 +1419,20 @@ Section SMOD.
   .
 
   Definition SMemSem sk : SModSem.t := 
-  match res_init sk with
-  | Some res =>
     {|
       SModSem.fnsems := MemSbtb;
       SModSem.mn := "Mem";
-      SModSem.initial_mr := res ⋅ GRA.embed ((fun ob => match ob with
-                                                            | Some _ => OneShot.black
-                                                            | None => OneShot.white Ptrofs.zero
-                                                    end) : blockaddressRA)
-                              ⋅ GRA.embed ((fun ob => match  ob with
-                                                  | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
-                                                  | None => OneShot.white 0
-                                                  end) : blocksizeRA);
+      SModSem.initial_mr := (match res_init sk with Some res => res | None => ε end)
+                            ⋅ GRA.embed ((fun ob => match ob with
+                                                   | Some _ => OneShot.black
+                                                   | None => OneShot.white Ptrofs.zero
+                                                   end) : blockaddressRA)
+                            ⋅ GRA.embed ((fun ob => match  ob with
+                                                   | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
+                                                   | None => OneShot.white 0
+                                                   end) : blocksizeRA);
       SModSem.initial_st := tt↑;
-    |}
-  | None =>
-    (* should replace with dummy function *)
-    {| 
-      SModSem.fnsems := [("", mk_pure salloc_spec); ("", mk_pure salloc_spec)];
-      SModSem.mn := "Mem";
-      SModSem.initial_mr := ε;
-      SModSem.initial_st := tt↑;
-    |}
-  end
-  .
+    |} .
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
