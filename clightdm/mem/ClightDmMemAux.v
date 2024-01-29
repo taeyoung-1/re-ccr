@@ -4,6 +4,36 @@ From stdpp Require Import numbers.
 
 Local Open Scope Z.
 
+Lemma repeat_nth_some
+  X (x: X) n ofs
+  (IN: (ofs < n)%nat):
+  <<NTH: nth_error (repeat x n) ofs = Some x>>.
+Proof.
+  ginduction n; ii; ss.
+  - lia.
+  - destruct ofs; ss. exploit IHn; et. lia.
+Qed.
+
+Lemma repeat_nth_none
+  X (x: X) sz ofs
+  (IN: ~(ofs < sz)%nat) :
+  <<NTH: nth_error (repeat x sz) ofs = None>>.
+Proof.
+  generalize dependent ofs. induction sz; ii; ss.
+  - destruct ofs; ss.
+  - destruct ofs; ss. { lia. } hexploit (IHsz ofs); et. lia.
+Qed.
+
+Lemma repeat_nth
+  X (x: X) sz ofs :
+  nth_error (repeat x sz) ofs = if (ofs <? sz)%nat then Some x else None
+.
+Proof.
+  des_ifs.
+  - eapply repeat_nth_some; et. rewrite <- Nat.ltb_lt. et.
+  - eapply repeat_nth_none; et. rewrite Nat.ltb_ge in Heq. lia.
+Qed.
+
 Local Transparent Mem.alloc.
 Local Transparent Mem.store.
 
