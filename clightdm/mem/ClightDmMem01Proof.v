@@ -1371,6 +1371,196 @@ Section SIMMODSEM.
       ("cmp_ptr", fun_to_tgt "Mem" (to_stb []) (mk_pure cmp_ptr_spec))
       ("cmp_ptr", cfunU cmp_ptrF).
   Proof.
+    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+    i. unfold "@".
+    iIntros "[INV PRE]".
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify. unfold cmp_ptrF. do 8 (try destruct x as [?|x]).
+    - ss. iDestruct "PRE" as "%". des. clarify. hred_r.
+      iApply isim_pget_tgt. hred_r. destruct Vnullptr eqn:?; clarify.
+      rewrite <- Heqv. unfold cmp_ptr. des_ifs_safe.
+      unfold Val.cmplu_bool. destruct Vnullptr eqn:?; clarify.
+      hred_r. 
+      iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+      { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+      iSplit; ss. iPureIntro. unfold Vnullptr in Heqv0. des_ifs. 
+    - unfold cmp_ptr_hoare1. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[[% P] %]".
+      do 2 unfold has_offset, _has_offset.
+      destruct blk; clarify.
+      iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+      des; clarify. hred_r.
+      iApply isim_pget_tgt. hred_r. destruct Vnullptr eqn:?; clarify.
+      destruct v; clarify; des_ifs_safe.
+      + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. ss. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. destruct (Int64.eq i0 i1) eqn: ?.
+        { apply Int64.same_if_eq in Heqb0. subst. 
+          unfold Vnullptr in Heqv0. des_ifs.
+          unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
+          unfold weak_valid in H5.
+          rewrite Ptrofs.unsigned_repr_eq in H5.
+          rewrite Z_mod_nz_opp_full in H5.
+          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
+          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
+          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
+          nia. }
+        iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
+      + iDestruct "P" as "%". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
+        rewrite Int64.eq_true. ss. des_ifs_safe. rewrite Int64.eq_true. ss.
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1)
+                || Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1 - 1) = true).
+        { admit "". }
+        rewrite H4. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. ss. 
+    - unfold cmp_ptr_hoare2. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[[% P] %]".
+      do 2 unfold has_offset, _has_offset.
+      destruct blk; clarify.
+      iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+      des; clarify. hred_r.
+      iApply isim_pget_tgt. hred_r. destruct Vnullptr eqn:?; clarify.
+      destruct v; clarify; des_ifs_safe.
+      + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. ss. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. destruct (Int64.eq i0 i1) eqn: ?.
+        { apply Int64.same_if_eq in Heqb0. subst. 
+          unfold Vnullptr in Heqv0. des_ifs.
+          unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
+          unfold weak_valid in H5.
+          rewrite Ptrofs.unsigned_repr_eq in H5.
+          rewrite Z_mod_nz_opp_full in H5.
+          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
+          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
+          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
+          nia. }
+        iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
+      + iDestruct "P" as "%". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
+        rewrite Int64.eq_true. ss. des_ifs_safe. rewrite Int64.eq_true. ss.
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1)
+                || Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1 - 1) = true).
+        { admit "". }
+        rewrite H4. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. ss. 
+    - unfold cmp_ptr_hoare3. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[[% P] %]".
+      do 2 unfold has_offset, _has_offset.
+      destruct blk; clarify.
+      iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+      des; clarify. hred_r.
+      iApply isim_pget_tgt. hred_r. destruct Vnullptr eqn:?; clarify.
+      destruct v; clarify; des_ifs_safe.
+      + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. ss. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. destruct (Int64.eq i1 i0) eqn: ?.
+        { apply Int64.same_if_eq in Heqb0. subst. 
+          unfold Vnullptr in Heqv0. des_ifs.
+          unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
+          unfold weak_valid in H5.
+          rewrite Ptrofs.unsigned_repr_eq in H5.
+          rewrite Z_mod_nz_opp_full in H5.
+          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
+          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
+          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
+          nia. }
+        iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
+      + iDestruct "P" as "%". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
+        rewrite Int64.eq_true. ss. des_ifs_safe. rewrite Int64.eq_true. ss.
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1)
+                || Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1 - 1) = true).
+        { admit "". }
+        rewrite H4. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. ss. 
+    - unfold cmp_ptr_hoare4. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[[% P] %]".
+      do 2 unfold has_offset, _has_offset.
+      destruct blk; clarify.
+      iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+      des; clarify. hred_r.
+      iApply isim_pget_tgt. hred_r. destruct Vnullptr eqn:?; clarify.
+      destruct v; clarify; des_ifs_safe.
+      + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. ss. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. destruct (Int64.eq i1 i0) eqn: ?.
+        { apply Int64.same_if_eq in Heqb0. subst. 
+          unfold Vnullptr in Heqv0. des_ifs.
+          unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
+          unfold weak_valid in H5.
+          rewrite Ptrofs.unsigned_repr_eq in H5.
+          rewrite Z_mod_nz_opp_full in H5.
+          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
+          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
+          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
+          nia. }
+        iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
+      + iDestruct "P" as "%". des. clarify.
+        unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
+        rewrite Int64.eq_true. ss. des_ifs_safe. rewrite Int64.eq_true. ss.
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1)
+                || Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1 - 1) = true).
+        { admit "". }
+        rewrite H4. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. ss. 
+    (* special cases *)
+    - unfold cmp_ptr_hoare5. des_ifs_safe. ss. clarify.
+    - unfold cmp_ptr_hoare6. des_ifs_safe. ss. clarify.
+    - unfold cmp_ptr_hoare7. des_ifs_safe. ss. clarify.
+
+
+    des_ifs; ss; clarify. 3:{  } destruct x
+    iIntros "[INV PRE]". des_ifs. ss.
+    do 2 unfold has_offset, _has_offset, points_to, _points_to.
+    iDestruct "PRE" as "[[[% A] P] %]"; des; clarify.
+    destruct blk; clarify.
+    iDestruct "A" as "[ALLOC_PRE [SZ1_PRE A]]".
+    iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+    unfold inv_with.
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify.
+
+    unfold sub_ptrF. hred_r.
+    iApply isim_pget_tgt. hred_r.
+    destruct Coqlib.zlt; destruct Coqlib.zle; ss; try nia. hred_r.
+    iAssert ⌜Cop._sem_ptr_sub_join_common v0 v mem_tgt = Some (Ptrofs.sub i0 i)⌝%I as "%"; cycle 1.
   Admitted.
 
   Lemma sim_non_null :
