@@ -1,5 +1,5 @@
 Require Import CoqlibCCR.
-From compcert Require Import Integers Memory Globalenvs.
+From compcert Require Import AST Integers Values Memory Globalenvs.
 From stdpp Require Import numbers.
 
 Local Open Scope Z.
@@ -83,4 +83,48 @@ Proof.
     rewrite Maps.PMap.gss. erewrite setN_inside; solve_len; try nia.
     replace (ofs - p) with 0 by nia. et.
   - hexploit IHSTORE_ZEROS; et. i. des. eapply H0. nia.
+Qed.
+
+Lemma match_mem_getN f (c d: Maps.ZMap.t memval) n p
+    (MM: forall i mv, Maps.ZMap.get i c = mv -> Maps.ZMap.get i d = f mv)
+  :
+    Mem.getN n p d = map f (Mem.getN n p c).
+Proof.
+  revert p. induction n; i; ss.
+  rewrite IHn. f_equal. erewrite <- MM; try reflexivity.
+Qed.
+
+Lemma proj_determines_decode_val l :
+  proj_bytes l = None -> proj_fragment l = None -> decode_val Mptr l = Vundef.
+Proof.
+  i. unfold decode_val. des_ifs.
+  destruct l; ss. destruct m; et.
+  destruct proj_fragment eqn: X; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 5 (destruct n; clarify).
+  destruct n; clarify.
+  destruct n; clarify.
+  destruct n; clarify.
+  ss. destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 7 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 6 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 5 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 4 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 3 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  do 2 (destruct n; clarify). ss.
+  destruct l; clarify. destruct m; clarify.
+  destruct Val.eq; ss. destruct quantity_eq; ss.
+  destruct n; clarify. ss.
+  destruct l; clarify.
 Qed.

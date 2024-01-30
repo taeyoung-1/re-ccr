@@ -140,14 +140,6 @@ Section MEM.
       hexploit IHl; et.
   Qed.
 
-  Lemma match_mem_getN f (c d: ZMap.t memval) n p
-      (MM: forall i mv, c !! i = mv -> d !! i = f mv)
-    :
-      Mem.getN n p d = map f (Mem.getN n p c).
-  Proof.
-    revert p. induction n; i; ss.
-    rewrite IHn. f_equal. erewrite <- MM; try reflexivity.  
-  Qed.
 
   Lemma match_proj_bytes sk tge l : proj_bytes (map (map_memval sk tge) l) = proj_bytes l. 
   Proof. induction l; ss. rewrite IHl. destruct a; ss. Qed.
