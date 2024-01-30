@@ -41,6 +41,24 @@ Local Ltac solve_len := unfold encode_int, bytes_of_int, rev_if_be, inj_bytes in
                         change Archi.big_endian with false in *;
                         change Archi.ptr64 with true in *; ss.
 
+Lemma nth_error_ext A (l0 l1: list A) : (forall i, nth_error l0 i = nth_error l1 i) -> l0 = l1.
+Proof.
+  revert l1. induction l0; i; ss.
+  - specialize (H 0%nat). ss. destruct l1; ss.
+  - dup H. specialize (H 0%nat). ss. destruct l1; ss. clarify. f_equal.
+    apply IHl0. i. specialize (H0 (S i)). ss.
+Qed.
+
+Lemma nth_error_getN n i m idx : 
+  (idx < n)%nat ->
+  nth_error (Mem.getN n i m) idx = Some (Maps.ZMap.get (i + (Z.of_nat idx)) m).
+Proof.
+  i. ginduction n; i; ss; try nia.
+  destruct idx.
+  - ss. rewrite Z.add_0_r. et.
+  - ss. replace (i + S idx) with ((i + 1) + idx) by nia. apply IHn. nia.
+Qed.
+
 Lemma setN_inside x l i c entry
   (IN_RANGE: i ≤ x /\ (x < i + Z.of_nat (length l)))
   (ENTRY: nth_error l (Z.to_nat (x - i)) = Some entry)

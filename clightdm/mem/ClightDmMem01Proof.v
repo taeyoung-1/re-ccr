@@ -945,7 +945,48 @@ Section SIMMODSEM.
     (* prove safety of loadv *)
     unfold Mem.loadv. destruct v; clarify; iDestruct "LEN" as "%"; des; cycle 1.
     (* case: ptr *)
-    - admit "".
+    - iDestruct "A" as "%". iDestruct "A0" as "%". des. clarify.
+      iCombine "CNT CNT_PRE" as "CNT".
+      iOwnWf "CNT" as wfcnt.
+      iPureIntro.
+
+      ur in wfcnt. rewrite URA.unit_idl in wfcnt. des. apply pw_extends in wfcnt.
+      spc wfcnt. apply pw_extends in wfcnt. red in wfcnt. do 2 ur in wfcnt0.
+
+      unfold Mem.load. des_ifs; cycle 1.
+      { exfalso. apply n. split; cycle 1.
+        { etrans; et. destruct m0; ss; solve [exists 1;ss|exists 2;ss|exists 4;ss|exists 8;ss]. } 
+        unfold Mem.range_perm. i. spc wfcnt. unfold __points_to in wfcnt.
+        case_points_to; ss; try nia; cycle 1.
+        { destruct m0; unfold size_chunk_nat in *; ss; nia. }
+        destruct nth_error eqn: ?; cycle 1. { rewrite nth_error_None in *. nia. }
+        apply Consent.extends in wfcnt; et.
+        red in wfcnt. des. do 2 spc SIM_CNT.
+        hexploit SIM_CNT. { destruct i0; ss; nia. }
+        i. rewrite wfcnt1 in H12.
+        inv H12. clarify. unfold Mem.perm. rewrite PERM. et. }
+      do 2 f_equal.
+      replace (Mem.getN _ _ _) with l.
+      { unfold Mem.decode_normalize. des_ifs.
+        { hexploit Mem.decode_normalize_all_fragment; et. i. red in H10.
+          unfold Mem.decode_normalize in H10. des_ifs. }
+        exfalso. clear - H6 Heq Heq0.
+        apply H6. apply proj_determines_decode_val; et. }
+      apply nth_error_ext. i.
+      destruct (Coqlib.zlt i (size_chunk_nat m0)); cycle 1.
+      { edestruct nth_error_None. rewrite H11; try nia.
+        edestruct nth_error_None. rewrite H13; et.
+        rewrite Mem.getN_length. nia. }
+      rewrite nth_error_getN; try nia.
+      specialize (wfcnt (Ptrofs.unsigned i0 + i)).
+      unfold __points_to in wfcnt.
+      case_points_to; ss; try nia.
+      destruct nth_error eqn: ?; cycle 1. { rewrite nth_error_None in *. nia. }
+      apply Consent.extends in wfcnt; et.
+      red in wfcnt. des. spc SIM_CNT.
+      specialize (SIM_CNT (Ptrofs.unsigned i0 + i)).
+      hexploit SIM_CNT. { destruct i0; ss; nia. }
+      i. rewrite wfcnt1 in H10. inv H10. clarify. rewrite <- Heqo. f_equal. nia.
     (* case: long *)
     - des_ifs_safe.
       iDestruct "A" as (a) "[CONC_PRE %]".
@@ -1017,106 +1058,21 @@ Section SIMMODSEM.
           unfold Mem.decode_normalize in H18. des_ifs. }
         exfalso. clear - H6 Heq1 Heq6.
         apply H6. apply proj_determines_decode_val; et. }
-      admit "".
-
-        
-
-    (* { unfold loadF. init.
-      harg. fold wf. steps. hide_k.
-      { mDesAll; ss. des; subst.
-        mRename "A5" into "CNT". mRename "A4" into "ALLOCATED". mRename "A3" into "CONC". mRename "A2" into "SZ".
-        mRename "A1" into "OFS". mRename "A" into "PTRTO".
-        rewrite Any.upcast_downcast in *.
-        steps. unhide_k. steps. astart (Ord.from_nat 0%nat). astop.
-        steps. force_l. eexists.
-        mAssertPure (Mem.loadv m0 a v = Some (decode_val m0 l)).
-        { iClear "SZ CONC ALLOCATED". unfold points_to. des_ifs_safe.
-          iDestruct "PTRTO" as "[SZ PTRTO]". iDestruct "PTRTO" as (ofs) "[A B]".
-          iDestruct "A" as "[PTRTO LEN]". iDestruct "PTRTO" as "[PTRTO OFS2]".
-          iAssert (⌜i = ofs⌝)%I with "[OFS OFS2]" as "%".
-          { unfold has_offset. rewrite Heq. iDestruct "OFS" as "[OFS OFS']".
-            iApply _has_offset_unique. iFrame. }
-          subst i. Local Transparent Mem.load. des_ifs.
-          - unfold _has_offset. des_ifs. iDestruct "OFS2" as "[_ EXFALSO]". clarify.
-          (* Long *)
-          - mAssertPure (Archi.ptr64 = true).
-            { unfold _has_offset. des_ifs. }
-            (* TODO : make lemmas for mAsserts *)
-            rename PURE into SF. unfold Mem.loadv. rewrite SF.
-            (* mAssertPure (exists base, a2 (Some b) = OneShot.white base). *)
-            (* { unfold has_offset. des_ifs. iDestruct "OFS" as "[OWNOFS OFS]". *)
-            (*   unfold _has_offset. rewrite SF. simpl. iDestruct "OFS" as "[HASSZ BASE]". *)
-            (*   iDestruct "BASE" as (a4) "[BASE %]". des. *)
-            (*   Local Transparent _has_base. specialize (SIM_CONC (Some b)). ss. *)
-            (*   inv SIM_CONC; et. iCombine "CONC BASE" as "BASE". do 2 ur. iOwnWf "BASE". *)
-            (*   rewrite ! URA.unfold_wf in H3. ss. specialize (H3 (Some b)). rewrite RES in H3. *)
-            (*   rewrite Heq0 in H3. ss. des_ifs; ur in H3; clarify. } *)
-            (* destruct PURE as [base BASE]. specialize (SIM_CONC (Some b)). ss. *)
-            (* inv SIM_CONC; rewrite BASE in RES; clarify. *)
-            mAssertPure (Mem.ptr2int b (Ptrofs.unsigned ofs) a = Some (Int64.unsigned i)).
-            { unfold has_offset. des_ifs. iDestruct "OFS" as "[OWNOFS OFS]".
-              unfold _has_offset. rewrite SF. simpl. iDestruct "OFS" as "[HASSZ BASE]".
-              iDestruct "BASE" as (a4) "[BASE %]". des.
-              Local Transparent _has_base. specialize (SIM_CONC (Some b)). ss.
-              inv SIM_CONC; ss.
-              2:{ iCombine "CONC BASE" as "AAA". ur. iOwnWf "AAA".
-                  ur in H3. specialize (H3 (Some b)). ss. rewrite RES in H3. ss.
-                  rewrite Heq0 in H3. ss. des_ifs. ur in H3. clarify. }
-              iAssert (⌜a4 = base⌝)%I with "[CONC BASE]" as "%".
-              { iCombine "CONC BASE" as "CONC2". iOwnWf "CONC2".
-                ur in H3. specialize (H3 (Some b)). rewrite RES in H3. rewrite Heq0 in H3. ss.
-                des_ifs. eapply OneShot.oneshot_degen in H3. et. }
-              subst a4. unfold Mem.ptr2int. rewrite <- H7. ss. iPureIntro. f_equal.
-              unfold Ptrofs.sub. ss. admit "mod". }
-            mAssertPure (Mem.valid_pointer a b (Ptrofs.unsigned ofs) = true).
-            { unfold has_offset. des_ifs. iDestruct "OFS" as "[LIVE OFS]".
-              specialize (SIM_ALLOC b). admit "". }
-            mAssertPure (Mem.denormalize (Int64.unsigned i) a = Some (b, Ptrofs.unsigned ofs)).
-            { iPureIntro. eapply Mem.ptr2int_to_denormalize; eauto. eapply Ptrofs.unsigned_range_2. }
-            rewrite PURE3. ss.
-            assert (Mem.valid_access a m0 b (Ptrofs.unsigned ofs) Readable).
-            { admit "". }
-            iPureIntro. unfold Mem.load. des_ifs. admit "".
-          (* Pointer *)
-          - iAssert (⌜b = b0 /\ i = ofs⌝)%I with "[SZ OFS2]" as "%".
-            { unfold _has_offset. rewrite Heq. iDestruct "OFS2" as "[SZ1 %]".
-              des; clarify. }
-            des. subst b0 i.
-            (* iAssert (⌜i = ofs⌝)%I with "[OFS OFS2]" as "%". *)
-            (* { unfold has_offset. rewrite Heq. iDestruct "OFS" as "[OFS OFS']". *)
-            (*   iApply _has_offset_unique. iFrame. } *)
-            (* subst i. *)
-            iCombine "CNT PTRTO" as "PTRTO2". iOwnWf "PTRTO2". clear - PURE1 PURE2 H3 SIM_CNT.
-            dup H3. eapply Auth.auth_included in H3. des. eapply pw_extends in H3. r in H3.
-            specialize (H3 b). eapply pw_extends in H3. r in H3.
-            iDestruct "LEN" as "%". iDestruct "B" as "%".
-            iPureIntro. unfold Mem.loadv, Mem.load.
-            assert (Mem.valid_access a m0 b (Ptrofs.unsigned ofs) Readable).
-            { split.
-              (* range perm *)
-              - r. i. specialize (SIM_CNT b ofs0). exploit SIM_CNT; eauto.
-                { destruct ofs; ss. lia. }
-                i. specialize (H3 ofs0). unfold __points_to in H3. case_points_to; try lia.
-                + ss. des_ifs.
-                  2:{ rewrite nth_error_None in Heq. lia. }
-                  apply Consent.extends in H3; eauto.
-                  2:{ eapply URA.wf_mon in H4. ur in H4. des. ur in H9. spc H9. ur in H9.
-                      eauto. }
-                  rr in H3. des. inv x0; ss.
-                  3:{ rewrite <- H11 in H9. clarify. }
-                  * unfold Mem.perm. rewrite PERM. ss.
-                  * unfold Mem.perm. rewrite PERM. eapply perm_order_trans; eauto. eapply perm_W_R.
-                + clear - PURE1 H7 g. exfalso. rewrite size_chunk_conv in H7. lia.
-              (* alignement *)
-              - eapply Z.divide_transitive; et. eapply align_size_chunk_divides; et. }
-            des_ifs. admit "". }
-        rename PURE into LOAD. rewrite LOAD. steps. hret _; ss.
-        iModIntro. iSplitR "PTRTO OFS"; cycle 1.
-        (* post condition *)
-        { iSplitL; eauto. iExists (decode_val m0 l). iFrame. iPureIntro. esplits; eauto. }
-        (* wf *)
-        { iExists _, _, _, _, _.
-          iSplitR "SZ"; et. iSplitR "CONC"; et. iSplitR "ALLOCATED"; et. } } } *)
+      apply nth_error_ext. i.
+      destruct (Coqlib.zlt i (size_chunk_nat m0)); cycle 1.
+      { pose proof nth_error_None. edestruct H18.
+        rewrite H20; try nia. edestruct H18. rewrite H22; et.
+        rewrite Mem.getN_length. nia. }
+      rewrite nth_error_getN; try nia.
+      specialize (wfcnt (Int64.unsigned i0 - Ptrofs.unsigned base + i)).
+      unfold __points_to in wfcnt.
+      case_points_to; ss; try nia.
+      destruct nth_error eqn: ?; cycle 1. { rewrite nth_error_None in *. nia. }
+      apply Consent.extends in wfcnt; et.
+      red in wfcnt. des. spc SIM_CNT.
+      specialize (SIM_CNT (Int64.unsigned i0 - Ptrofs.unsigned base + i)).
+      hexploit SIM_CNT; try nia. i. rewrite wfcnt1 in H18.
+      inv H18. clarify. rewrite <- Heqo0. f_equal. nia.
   Unshelve. all: et.
   Qed.
 
