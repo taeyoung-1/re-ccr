@@ -168,6 +168,30 @@ Notation "vaddr '(≃_' m ) vaddr'" := (equiv_prov vaddr vaddr' m) (at level 20)
 
 Section AUX.
 
+  Lemma ptrofs_int64_neg i :
+    Archi.ptr64 = true -> Ptrofs.neg (Ptrofs.of_int64 i) = Ptrofs.of_int64 (Int64.neg i).
+  Proof.
+    i. unfold Ptrofs.neg, Ptrofs.of_int64, Int64.neg.
+    apply Ptrofs.eqm_samerepr.
+    rewrite <- Ptrofs.eqm64; try apply H.
+    eapply Int64.eqm_trans.
+    2:{ apply Int64.eqm_unsigned_repr. }
+    apply Int64.eqm_neg. apply Int64.eqm_sym.
+    apply Int64.eqm_unsigned_repr.
+  Qed.
+
+  Lemma int64_ptrofs_neg p :
+    Archi.ptr64 = true -> Int64.neg (Ptrofs.to_int64 p) = Ptrofs.to_int64 (Ptrofs.neg p).
+  Proof.
+    i. unfold Ptrofs.neg, Ptrofs.to_int64, Int64.neg.
+    apply Int64.eqm_samerepr.
+    apply Ptrofs.eqm64; et.
+    eapply Ptrofs.eqm_trans.
+    2:{ apply Ptrofs.eqm_unsigned_repr. }
+    apply Ptrofs.eqm_neg. apply Ptrofs.eqm_sym.
+    apply Ptrofs.eqm_unsigned_repr.
+  Qed.
+
   Lemma ptrofs_int64_add i k :
     Archi.ptr64 = true -> Ptrofs.add (Ptrofs.of_int64 i) k = Ptrofs.of_int64 (Int64.add i (Ptrofs.to_int64 k)).
   Proof.
@@ -1172,10 +1196,11 @@ Section SPEC.
       (fun '(size, vaddr0, vaddr1, m, ofs0, ofs1, q0, q1, tg) => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = (size, vaddr0, vaddr1)↑ /\ 0 < size ≤ Ptrofs.max_signed
+                         /\ Ptrofs.min_signed ≤ Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1 ≤ Ptrofs.max_signed
                          /\ weak_valid m ofs0 /\ weak_valid m ofs1⌝
                          ** vaddr0 (⊨_m,tg,q0) ofs0
                          ** vaddr1 (⊨_m,tg,q1) ofs1),
-            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size)))↑⌝
+            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.quot (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size)))↑⌝
                          ** vaddr0 (⊨_m,tg,q0) ofs0
                          ** vaddr1 (⊨_m,tg,q1) ofs1)
     )))%I.

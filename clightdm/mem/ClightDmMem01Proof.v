@@ -1250,14 +1250,121 @@ Section SIMMODSEM.
   Unshelve. all: et. { apply Eqsth. } { apply Qp_le_po. }
   Qed. 
 
-  Admitted.
-
   Lemma sim_sub_ptr :
     sim_fnsem wf top2
       ("sub_ptr", fun_to_tgt "Mem" (to_stb []) (mk_pure sub_ptr_spec))
       ("sub_ptr", cfunU sub_ptrF).
   Proof.
-  Admitted.
+    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+    i. iIntros "[INV PRE]". des_ifs. ss.
+    do 2 unfold has_offset, _has_offset, points_to, _points_to.
+    iDestruct "PRE" as "[[[% A] P] %]"; des; clarify.
+    destruct blk; clarify.
+    iDestruct "A" as "[ALLOC_PRE [SZ1_PRE A]]".
+    iDestruct "P" as "[ALLOC_PRE0 [SZ_PRE P]]".
+    unfold inv_with.
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify.
+
+    unfold sub_ptrF. hred_r.
+    iApply isim_pget_tgt. hred_r.
+    destruct Coqlib.zlt; destruct Coqlib.zle; ss; try nia. hred_r.
+    iAssert ⌜Cop._sem_ptr_sub_join_common v0 v mem_tgt = Some (Ptrofs.sub i0 i)⌝%I as "%"; cycle 1.
+    { rewrite H4. hred_r.
+      iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+      { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+      iSplit; ss. iFrame. iPureIntro. do 2 f_equal.
+      unfold Ptrofs.divs, Ptrofs.sub. f_equal. 
+      rewrite (Ptrofs.signed_repr z). 2:{ split; et. change Ptrofs.min_signed with (- Ptrofs.max_signed - 1). nia. }
+      f_equal. rewrite Ptrofs.signed_repr; et. }
+    destruct v; destruct v0; clarify; des_ifs.
+    - ss. des_ifs.
+      iDestruct "A" as (a) "[CONC_PRE %]".
+      iDestruct "P" as (a0) "[CONC0_PRE %]".
+      des; clarify.
+      iCombine "CONC_PRE CONC0_PRE" as "CONC_PRE".
+      iPoseProof (_has_base_unique with "CONC_PRE") as "%". subst.
+      iDestruct "CONC_PRE" as "[CONC_PRE _]".
+      iPureIntro. f_equal.
+      rewrite !(Ptrofs.sub_add_opp _ a0).
+      rewrite Ptrofs.sub_shifted.
+      rewrite Ptrofs.sub_add_opp.
+      rewrite Int64.sub_add_opp.
+      rewrite ptrofs_int64_add; et.
+      do 2 f_equal. clear. rewrite ptrofs_int64_neg; et.
+      rewrite Ptrofs.to_int64_of_int64; et.
+    - iDestruct "A" as "%".
+      iDestruct "P" as (a0) "[CONC0_PRE %]".
+      des; clarify. ss. unfold Cop._sem_ptr_sub_join. ss.
+      assert (IntPtrRel.to_int_val mem_tgt (Vptr b i2) = Vlong (Int64.repr (Ptrofs.unsigned a0 + Ptrofs.unsigned i2))).
+      { admit "". }
+      assert (IntPtrRel.to_ptr_val mem_tgt (Vlong i1) = Vptr b (Ptrofs.repr (Int64.unsigned i1 - Ptrofs.unsigned a0))).
+      { admit "". }
+      rewrite H4. rewrite H11. ss. des_ifs.
+      { iPureIntro. do 2 f_equal. rewrite Ptrofs.sub_add_opp.
+        rewrite ptrofs_int64_add; et. unfold Ptrofs.of_int64.
+        apply Ptrofs.eqm_samerepr. rewrite <- Ptrofs.eqm64; et.
+        unfold Int64.add. eapply Int64.eqm_trans.
+        2:{ apply Int64.eqm_unsigned_repr. }
+        rewrite <- int64_ptrofs_neg; et.
+        unfold Int64.neg, Ptrofs.to_int64.
+        rewrite (Int64.unsigned_repr (Ptrofs.unsigned _)).
+        2:{ apply Ptrofs.unsigned_range_2. }
+        apply Int64.eqm_add. apply Int64.eqm_refl.
+        apply Int64.eqm_unsigned_repr. }
+      exfalso. epose proof (Ptrofs.eq_spec _ _).
+      rewrite Heq2 in H14. apply H14.
+      unfold Ptrofs.sub, Ptrofs.of_int64, Int64.sub.
+      apply Ptrofs.eqm_samerepr.
+      rewrite <- Ptrofs.eqm64; et.
+      eapply Int64.eqm_trans. 2:{ apply Int64.eqm_unsigned_repr. }
+      eapply Int64.eqm_trans.
+      { apply Int64.eqm_sub. { apply Int64.eqm_refl. }
+        apply Int64.eqm_sym. apply Int64.eqm_unsigned_repr. }
+      eapply Int64.eqm_trans.
+      2:{ apply Int64.eqm_sub. 2:{ apply Int64.eqm_refl. }
+          apply Int64.eqm_unsigned_repr. }
+      apply Int64.eqm_refl2. nia.
+    - iDestruct "A" as (a) "[CONC_PRE %]".
+      iDestruct "P" as "%".
+      des; clarify. ss. unfold Cop._sem_ptr_sub_join. ss.
+      assert (IntPtrRel.to_int_val mem_tgt (Vptr b i1) = Vlong (Int64.repr (Ptrofs.unsigned a + Ptrofs.unsigned i1))).
+      { admit "". }
+      assert (IntPtrRel.to_ptr_val mem_tgt (Vlong i2) = Vptr b (Ptrofs.repr (Int64.unsigned i2 - Ptrofs.unsigned a))).
+      { admit "". }
+      rewrite H4. rewrite H11. ss. des_ifs.
+      { iPureIntro. do 2 f_equal. rewrite Ptrofs.sub_add_opp.
+        rewrite ptrofs_int64_add; et. unfold Ptrofs.of_int64.
+        apply Ptrofs.eqm_samerepr. rewrite <- Ptrofs.eqm64; et.
+        unfold Int64.add. eapply Int64.eqm_trans.
+        2:{ apply Int64.eqm_unsigned_repr. }
+        rewrite <- int64_ptrofs_neg; et.
+        unfold Int64.neg, Ptrofs.to_int64.
+        rewrite (Int64.unsigned_repr (Ptrofs.unsigned _)).
+        2:{ apply Ptrofs.unsigned_range_2. }
+        apply Int64.eqm_add. apply Int64.eqm_refl.
+        apply Int64.eqm_unsigned_repr. }
+      exfalso. epose proof (Ptrofs.eq_spec _ _).
+      rewrite Heq2 in H12. apply H12.
+      unfold Ptrofs.sub, Ptrofs.of_int64, Int64.sub.
+      apply Ptrofs.eqm_samerepr.
+      rewrite <- Ptrofs.eqm64; et.
+      eapply Int64.eqm_trans. 2:{ apply Int64.eqm_unsigned_repr. }
+      eapply Int64.eqm_trans.
+      { apply Int64.eqm_sub. 2:{ apply Int64.eqm_refl. }
+        apply Int64.eqm_sym. apply Int64.eqm_unsigned_repr. }
+      eapply Int64.eqm_trans.
+      2:{ apply Int64.eqm_sub. { apply Int64.eqm_refl. }
+          apply Int64.eqm_unsigned_repr. }
+      apply Int64.eqm_refl2. nia.
+    - iDestruct "P" as "%".
+      iDestruct "A" as "%".
+      des. clarify. ss. des_ifs.
+    Unshelve. et.
+  Qed.
 
   Lemma sim_cmp_ptr :
     sim_fnsem wf top2
