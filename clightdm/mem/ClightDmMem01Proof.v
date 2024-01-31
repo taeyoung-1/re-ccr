@@ -1299,10 +1299,44 @@ Section SIMMODSEM.
     - iDestruct "A" as "%".
       iDestruct "P" as (a0) "[CONC0_PRE %]".
       des; clarify. ss. unfold Cop._sem_ptr_sub_join. ss.
+      iCombine "CONC CONC0_PRE" as "CONC".
+      iOwnWf "CONC" as wfconc.
       assert (IntPtrRel.to_int_val mem_tgt (Vptr b i2) = Vlong (Int64.repr (Ptrofs.unsigned a0 + Ptrofs.unsigned i2))).
-      { admit "". }
+      { ur in wfconc. specialize (wfconc (Some b)). specialize (SIM_CONC (Some b)).
+        ss. destruct dec; clarify.
+        apply OneShot.oneshot_initialized in wfconc.
+        des; rewrite wfconc in *; inv SIM_CONC; clarify.
+        unfold to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int. 
+        rewrite <- H14. des_ifs. }
+      assert (i1 <> Int64.zero).
+      { ii. subst. clear -H8 H12 H13. unfold weak_valid in *.
+        unfold Ptrofs.sub in *.
+        change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0 in *.
+        rewrite Ptrofs.unsigned_repr_eq in *.
+        rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
+        all: try apply Ptrofs.unsigned_range.
+        change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
+        destruct a0; ss. nia. }
       assert (IntPtrRel.to_ptr_val mem_tgt (Vlong i1) = Vptr b (Ptrofs.repr (Int64.unsigned i1 - Ptrofs.unsigned a0))).
-      { admit "". }
+      { ur in wfconc. specialize (wfconc (Some b)). specialize (SIM_CONC (Some b)).
+        ss. destruct dec; clarify.
+        apply OneShot.oneshot_initialized in wfconc.
+        des; rewrite wfconc in *; inv SIM_CONC; clarify.
+        unfold to_ptr_val, Mem.to_ptr. pose proof (Int64.eq_spec i1 Int64.zero).
+        destruct Int64.eq eqn:?; clarify.
+        unfold Mem.denormalize.
+        destruct Maps.PTree.select eqn: X; first [apply Maps.PTree.gselectf in X|apply Maps.PTree.gselectnf in X]; des; cycle 1.
+        { exfalso. apply X. esplits; et. unfold Mem.denormalize_aux, Mem.addr_is_in_block, Mem.is_valid.
+        (* TODO: kokokara *)
+          rewrite <- H17. des_ifs; bsimpl; ss; cycle 1.
+          { hexploit mem_tgt.(Mem.access_max). rewrite PERM. rewrite Heq2. i. clarify. }
+          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
+          des; try nia. rewrite Pos.ltb_ge in Heq1.
+          rewrite Mem.nextblock_noaccess in Heq2; unfold Coqlib.Plt; try nia; clarify. }
+        destruct p0. unfold Mem.denormalize_aux, Mem.is_valid, Mem.addr_is_in_block in *.
+        rewrite <- H14. des_ifs. }
+      {
+         admit "". }
       rewrite H4. rewrite H11. ss. des_ifs.
       { iPureIntro. do 2 f_equal. rewrite Ptrofs.sub_add_opp.
         rewrite ptrofs_int64_add; et. unfold Ptrofs.of_int64.
