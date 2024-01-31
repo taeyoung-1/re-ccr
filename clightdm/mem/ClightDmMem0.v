@@ -146,7 +146,7 @@ Section MODSEM.
       fun varg =>
         mp <- trigger (PGet);;
         m <- mp↓?;;
-        match varg with
+        match to_ptr_val m varg with
         | Vptr b ofs =>
           if (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)) then Ret true
           else triggerUB
@@ -217,7 +217,7 @@ Section MODSEM.
                 let odst := Ptrofs.unsigned ofs in
                 let osrc := Ptrofs.unsigned ofs' in
                 let chk4 := Coqlib.zle (osrc + sz) odst || Coqlib.zle (odst + sz) osrc || negb (dec b' b) || dec odst osrc in
-                if negb chk2 then triggerUB
+                if negb chk4 then triggerUB
                 else bytes <- (Mem.loadbytes m b' osrc sz)?;;
                      m' <- (Mem.storebytes m b odst bytes)?;;
                      trigger (PPut m'↑);;; Ret Vundef

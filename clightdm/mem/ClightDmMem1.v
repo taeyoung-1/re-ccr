@@ -1212,7 +1212,7 @@ Section SPEC.
             (ord_pure 0%nat),
             (fun varg => ⌜varg = vaddr↑ /\ weak_valid m ofs⌝
                          ** vaddr (⊨_m,tg,q) ofs),
-            (fun vret => ⌜vret = true↑⌝ 
+            (fun vret => ⌜vret = true↑⌝
                          ** vaddr (⊨_m,tg,q) ofs)
     )))%I.
 
@@ -1240,32 +1240,56 @@ Section SPEC.
     )))%I.
 
   (* memcpy *)
-  Definition memcpy_resource (vaddr vaddr': val) (m_src m_dst: metadata) (mvs_src mvs_dst: list memval) : iProp :=
-    if Val.eq vaddr' vaddr then vaddr (↦_m_dst,1) mvs_dst
-    else vaddr' (↦_m_src,1) mvs_src ** vaddr (↦_m_dst,1) mvs_dst.
-
-  Definition memcpy_spec: fspec :=
-    (mk_simple
-       (fun '(vaddr, vaddr', m_src, m_dst, mvs_dst) => (
+  Definition memcpy_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(vaddr, vaddr', tg, tg', q, q', ofs_src, ofs_dst, m_src, m_dst, mvs_dst) => (
             (ord_pure 0%nat),
             (fun varg => ∃ al sz mvs_src,
                          ⌜varg = (al, sz, [vaddr; vaddr'])↑
                          /\ List.length mvs_src = List.length mvs_dst
-                         /\ List.length mvs_dst = sz
-                         /\ (al | sz)⌝
-                         ** memcpy_resource vaddr vaddr' m_src m_dst mvs_src mvs_dst),
-            (fun vret => ⌜vret = Vundef↑⌝ ** memcpy_resource vaddr vaddr' m_src m_dst mvs_dst mvs_dst)
-    )))%I.
+                         /\ List.length mvs_dst = Z.to_nat sz
+                         /\ (al = 1 \/ al = 2 \/ al = 4 \/ al = 8)
+                         /\ (al | Ptrofs.unsigned ofs_src)
+                         /\ (al | Ptrofs.unsigned ofs_dst)
+                         /\ 0 ≤ sz /\ (al | sz)⌝
+                         ** vaddr' (⊨_m_src,tg',q') ofs_src
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr' (↦_m_src,1) mvs_src
+                         ** vaddr (↦_m_dst,1) mvs_dst),
+            (fun vret => ⌜vret = Vundef↑⌝
+                         ** vaddr' (⊨_m_src,tg',q') ofs_src
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr' (↦_m_src,1) mvs_dst
+                         ** vaddr (↦_m_dst,1) mvs_dst)
+          )%I.
+
+  Definition memcpy_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(vaddr, m_dst, tg, q, ofs_dst, mvs_dst) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ al sz,
+                         ⌜varg = (al, sz, [vaddr; vaddr])↑
+                         /\ List.length mvs_dst = Z.to_nat sz
+                         /\ (al = 1 \/ al = 2 \/ al = 4 \/ al = 8)
+                         /\ (al | Ptrofs.unsigned ofs_dst)
+                         /\ 0 ≤ sz /\ (al | sz)⌝
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr (↦_m_dst,1) mvs_dst),
+            (fun vret => ⌜vret = Vundef↑⌝
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr (↦_m_dst,1) mvs_dst)
+          )%I.
+
+  Definition memcpy_spec: fspec :=
+    mk_simple (memcpy_hoare0 @ memcpy_hoare1).
 
   (* capture *)
-  Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+  Definition capture_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '() => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = [Vnullptr]↑⌝),
             (fun vret => ⌜vret = (Vnullptr)↑⌝ )
           )%I.
 
-  Definition capture_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+  Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(vaddr, m, q, ofs, tg) => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = [vaddr]↑⌝
@@ -1276,7 +1300,7 @@ Section SPEC.
           )%I.
 
   Definition capture_spec: fspec :=
-    mk_simple (capture_hoare1 @ capture_hoare2).
+    mk_simple (capture_hoare0 @ capture_hoare1).
 
   (* sealed *)
   Definition MemStb: list (gname * fspec).
