@@ -18,7 +18,7 @@ Inductive tag :=
 | Local
 | Unfreeable.
 
-Record metadata := { blk : option block; sz : Z ; SZPOS: 0 ≤ sz }.
+Record metadata := { blk : option block; sz : Z ; SZPOS: blk <> None -> 0 < sz }.
 
 Let _pointstoRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
 Let _allocatedRA: URA.t := (block ==> (Consent.t tag))%ra.
@@ -146,7 +146,7 @@ Section PROP.
 
   Definition m_null : metadata.
   Proof.
-    eapply Build_metadata. eapply None. instantiate (1:=0). lia.
+    eapply Build_metadata. instantiate (1:=0). instantiate (1:=None). i. clarify.
   Defined.
 
   Definition disjoint (m m0: metadata) : Prop :=
@@ -1014,7 +1014,7 @@ Section SPEC.
   Definition salloc_spec: fspec :=
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = n↑ /\ 0 ≤ n ≤ Ptrofs.max_unsigned⌝),
+                    (fun varg => ⌜varg = n↑ /\ 0 < n ≤ Ptrofs.max_unsigned⌝),
                     (fun vret => ∃ m vaddr b,
                                  ⌜vret = b↑ /\ m.(blk) = Some b /\ m.(sz) = n ⌝
                                  ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat n)
