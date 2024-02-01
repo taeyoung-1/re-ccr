@@ -1249,6 +1249,28 @@ Section SIMMODSEM.
         destruct i; ss; nia.
   Unshelve. all: et. { apply Eqsth. } { apply Qp_le_po. }
   Qed. 
+  
+  Lemma paddr_no_overflow_cond i a sz:
+        Ptrofs.unsigned (Ptrofs.sub (Ptrofs.of_int64 i) a) ≤ sz ->
+        Ptrofs.unsigned a + sz ≤ Ptrofs.max_unsigned ->
+        0 ≤ Int64.unsigned i - Ptrofs.unsigned a ≤ sz.
+  Proof.
+    i. unfold Ptrofs.sub, Ptrofs.of_int64 in *.
+    rewrite (Ptrofs.unsigned_repr (_ i)) in H3.
+    2:{ apply Int64.unsigned_range_2. }
+    rewrite Ptrofs.unsigned_repr_eq in *.
+    destruct (Coqlib.zle 0 (Ptrofs.unsigned a - Int64.unsigned i)).
+    { destruct (Coqlib.zeq 0 (Int64.unsigned i - Ptrofs.unsigned a)).
+      { rewrite <- e in *. ss. }
+      replace (Int64.unsigned i - Ptrofs.unsigned a) with (- (Ptrofs.unsigned a - Int64.unsigned i)) in H3 by nia.
+      rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
+      all: try apply Ptrofs.unsigned_range; try nia.
+      change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H3.
+      all: destruct a; destruct i; ss; nia. }
+    rewrite Z.mod_small in *.
+    2:{ destruct a; destruct i; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
+    nia.
+  Qed.
 
   Lemma sim_sub_ptr :
     sim_fnsem wf top2
@@ -1309,23 +1331,7 @@ Section SIMMODSEM.
         unfold to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int. 
         rewrite <- H14. des_ifs. }
       assert (0 ≤ Int64.unsigned i1 - Ptrofs.unsigned a0 ≤ sz m).
-      { ii. subst. clear -H8 H13. unfold weak_valid in *.
-        unfold Ptrofs.sub in *.
-        unfold Ptrofs.of_int64 in *.
-        rewrite (Ptrofs.unsigned_repr (_ i1)) in H8.
-        2:{ apply Int64.unsigned_range_2. }
-        rewrite Ptrofs.unsigned_repr_eq in *.
-        destruct (Coqlib.zle 0 (Ptrofs.unsigned a0 - Int64.unsigned i1)).
-        { destruct (Coqlib.zeq 0 (Int64.unsigned i1 - Ptrofs.unsigned a0)).
-          { rewrite <- e in *. ss. }
-          replace (Int64.unsigned i1 - Ptrofs.unsigned a0) with (- (Ptrofs.unsigned a0 - Int64.unsigned i1)) in H8 by nia.
-          rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-          all: try apply Ptrofs.unsigned_range; try nia.
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H8.
-          all: destruct a0; destruct i1; ss; nia. }
-        rewrite Z.mod_small in *.
-        2:{ destruct a0; destruct i1; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-        nia. }
+      { ii. unfold weak_valid in *. apply paddr_no_overflow_cond; et. }
       assert (Ptrofs.of_int64 (Int64.sub (Int64.repr (Ptrofs.unsigned a0 + Ptrofs.unsigned i2)) i1) = Ptrofs.sub i2 (Ptrofs.sub (Ptrofs.of_int64 i1) a0)).
       { unfold Ptrofs.of_int64, Ptrofs.sub, Int64.sub. apply Ptrofs.eqm_samerepr.
         rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)).
@@ -1365,23 +1371,7 @@ Section SIMMODSEM.
         unfold to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int. 
         rewrite <- H12. des_ifs. }
       assert (0 ≤ Int64.unsigned i2 - Ptrofs.unsigned a ≤ sz m).
-      { ii. subst. clear -H7 H14. unfold weak_valid in *.
-        unfold Ptrofs.sub in *.
-        unfold Ptrofs.of_int64 in *.
-        rewrite (Ptrofs.unsigned_repr (_ i2)) in H7.
-        2:{ apply Int64.unsigned_range_2. }
-        rewrite Ptrofs.unsigned_repr_eq in *.
-        destruct (Coqlib.zle 0 (Ptrofs.unsigned a - Int64.unsigned i2)).
-        { destruct (Coqlib.zeq 0 (Int64.unsigned i2 - Ptrofs.unsigned a)).
-          { rewrite <- e in *. ss. }
-          replace (Int64.unsigned i2 - Ptrofs.unsigned a) with (- (Ptrofs.unsigned a - Int64.unsigned i2)) in H7 by nia.
-          rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-          all: try apply Ptrofs.unsigned_range; try nia.
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H7.
-          all: destruct a; destruct i2; ss; nia. }
-        rewrite Z.mod_small in *.
-        2:{ destruct a; destruct i2; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-        nia. }
+      { ii. unfold weak_valid in *. apply paddr_no_overflow_cond; et. } 
       assert (Ptrofs.of_int64 (Int64.sub i2 (Int64.repr (Ptrofs.unsigned a + Ptrofs.unsigned i1))) = Ptrofs.sub (Ptrofs.sub (Ptrofs.of_int64 i2) a) i1).
       { unfold Ptrofs.of_int64, Ptrofs.sub, Int64.sub. apply Ptrofs.eqm_samerepr.
         rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)).
@@ -1413,6 +1403,43 @@ Section SIMMODSEM.
       iDestruct "A" as "%".
       des. clarify. ss. des_ifs.
     Unshelve. et.
+  Qed.
+
+  Lemma weak_valid_nil_paddr_base a sz :
+    Ptrofs.unsigned (Ptrofs.repr (- Ptrofs.unsigned a)) ≤ sz ->
+    Ptrofs.unsigned a <> 0 ->
+    Ptrofs.unsigned a + sz ≤ Ptrofs.max_unsigned -> False.
+  Proof.
+    unfold Ptrofs.sub.
+    change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z.
+    rewrite Ptrofs.unsigned_repr_eq. i.
+    rewrite Z_mod_nz_opp_full in *.
+    2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
+    rewrite Z.mod_small in *. 2:{ destruct a; ss; nia. }
+    change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
+    nia.
+  Qed.
+
+  Lemma paddr_no_overflow_cond_lt i a sz:
+        Ptrofs.unsigned (Ptrofs.sub (Ptrofs.of_int64 i) a) < sz ->
+        Ptrofs.unsigned a + sz ≤ Ptrofs.max_unsigned ->
+        0 ≤ Int64.unsigned i - Ptrofs.unsigned a < sz.
+  Proof.
+    i. unfold Ptrofs.sub, Ptrofs.of_int64 in *.
+    rewrite (Ptrofs.unsigned_repr (_ i)) in H3.
+    2:{ apply Int64.unsigned_range_2. }
+    rewrite Ptrofs.unsigned_repr_eq in *.
+    destruct (Coqlib.zle 0 (Ptrofs.unsigned a - Int64.unsigned i)).
+    { destruct (Coqlib.zeq 0 (Int64.unsigned i - Ptrofs.unsigned a)).
+      { rewrite <- e in *. ss. }
+      replace (Int64.unsigned i - Ptrofs.unsigned a) with (- (Ptrofs.unsigned a - Int64.unsigned i)) in H3 by nia.
+      rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
+      all: try apply Ptrofs.unsigned_range; try nia.
+      change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H3.
+      all: destruct a; destruct i; ss; nia. }
+    rewrite Z.mod_small in *.
+    2:{ destruct a; destruct i; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
+    nia.
   Qed.
 
   Lemma sim_cmp_ptr :
@@ -1452,15 +1479,8 @@ Section SIMMODSEM.
         { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
         iSplit; ss. iFrame. destruct (Int64.eq i0 i1) eqn: ?.
         { apply Int64.same_if_eq in Heqb0. subst. 
-          unfold Vnullptr in Heqv0. des_ifs.
-          unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
-          unfold weak_valid in H5.
-          rewrite Ptrofs.unsigned_repr_eq in H5.
-          rewrite Z_mod_nz_opp_full in H5.
-          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
-          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-          nia. }
+          unfold Vnullptr in Heqv0. des_ifs. exfalso.
+          eapply weak_valid_nil_paddr_base; et. }
         iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
       + iDestruct "P" as "%". des. clarify.
         unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
@@ -1518,13 +1538,7 @@ Section SIMMODSEM.
         { apply Int64.same_if_eq in Heqb0. subst. 
           unfold Vnullptr in Heqv0. des_ifs.
           unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
-          unfold weak_valid in H5.
-          rewrite Ptrofs.unsigned_repr_eq in H5.
-          rewrite Z_mod_nz_opp_full in H5.
-          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
-          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-          nia. }
+          exfalso. eapply weak_valid_nil_paddr_base; et. }
         iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
       + iDestruct "P" as "%". des. clarify.
         unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
@@ -1582,13 +1596,7 @@ Section SIMMODSEM.
         { apply Int64.same_if_eq in Heqb0. subst. 
           unfold Vnullptr in Heqv0. des_ifs.
           unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
-          unfold weak_valid in H5.
-          rewrite Ptrofs.unsigned_repr_eq in H5.
-          rewrite Z_mod_nz_opp_full in H5.
-          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
-          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-          nia. }
+          exfalso. eapply weak_valid_nil_paddr_base; et. }
         iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
       + iDestruct "P" as "%". des. clarify.
         unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
@@ -1646,13 +1654,7 @@ Section SIMMODSEM.
         { apply Int64.same_if_eq in Heqb0. subst. 
           unfold Vnullptr in Heqv0. des_ifs.
           unfold Ptrofs.sub in H5. change (Ptrofs.unsigned (Ptrofs.of_int64 _)) with 0%Z in H5.
-          unfold weak_valid in H5.
-          rewrite Ptrofs.unsigned_repr_eq in H5.
-          rewrite Z_mod_nz_opp_full in H5.
-          2:{ rewrite Z.mod_small; et. destruct a; ss; nia. }
-          rewrite Z.mod_small in H5. 2:{ destruct a; ss; nia. }
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-          nia. }
+          exfalso. eapply weak_valid_nil_paddr_base; et. }
         iSplit; ss. iExists _. iFrame. iPureIntro. splits; ss.
       + iDestruct "P" as "%". des. clarify.
         unfold cmp_ptr. des_ifs_safe. unfold Vnullptr in Heqv0. clarify.
@@ -1720,42 +1722,8 @@ Section SIMMODSEM.
         iSplit; cycle 1.
         { iExists _. iFrame. ss. } 
         unfold cmp_ofs. unfold Int64.cmpu.
-        assert (X0:0 ≤ Int64.unsigned i1 - Ptrofs.unsigned a0 ≤ sz m).
-        { ii. subst. clear -H5 H8. unfold weak_valid in *.
-          unfold Ptrofs.sub in *.
-          unfold Ptrofs.of_int64 in *.
-          rewrite (Ptrofs.unsigned_repr (_ i1)) in H5.
-          2:{ apply Int64.unsigned_range_2. }
-          rewrite Ptrofs.unsigned_repr_eq in *.
-          destruct (Coqlib.zle 0 (Ptrofs.unsigned a0 - Int64.unsigned i1)).
-          { destruct (Coqlib.zeq 0 (Int64.unsigned i1 - Ptrofs.unsigned a0)).
-            { rewrite <- e in *. ss. }
-            replace (Int64.unsigned i1 - Ptrofs.unsigned a0) with (- (Ptrofs.unsigned a0 - Int64.unsigned i1)) in H5 by nia.
-            rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-            all: try apply Ptrofs.unsigned_range; try nia.
-            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-            all: destruct a0; destruct i1; ss; nia. }
-          rewrite Z.mod_small in *.
-          2:{ destruct a0; destruct i1; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-          nia. }
-        assert (X1:0 ≤ Int64.unsigned i2 - Ptrofs.unsigned a0 ≤ sz m).
-        { ii. subst. clear -H6 H8. unfold weak_valid in *.
-          unfold Ptrofs.sub in *.
-          unfold Ptrofs.of_int64 in *.
-          rewrite (Ptrofs.unsigned_repr (_ i2)) in H6.
-          2:{ apply Int64.unsigned_range_2. }
-          rewrite Ptrofs.unsigned_repr_eq in *.
-          destruct (Coqlib.zle 0 (Ptrofs.unsigned a0 - Int64.unsigned i2)).
-          { destruct (Coqlib.zeq 0 (Int64.unsigned i2 - Ptrofs.unsigned a0)).
-            { rewrite <- e in *. ss. }
-            replace (Int64.unsigned i2 - Ptrofs.unsigned a0) with (- (Ptrofs.unsigned a0 - Int64.unsigned i2)) in H6 by nia.
-            rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-            all: try apply Ptrofs.unsigned_range; try nia.
-            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H6.
-            all: destruct a0; destruct i2; ss; nia. }
-          rewrite Z.mod_small in *.
-          2:{ destruct a0; destruct i2; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-          nia. }
+        hexploit paddr_no_overflow_cond; et.
+        hexploit (paddr_no_overflow_cond i1); et. i.
         replace (Ptrofs.unsigned _) with (Int64.unsigned i1 - Ptrofs.unsigned a0).
         2:{ unfold Ptrofs.sub, Ptrofs.of_int64.
             rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)); try apply Int64.unsigned_range_2.
@@ -1768,12 +1736,12 @@ Section SIMMODSEM.
         * pose proof (Int64.eq_spec i1 i2).
           destruct (Int64.eq i1 i2) eqn:?.
           { subst. symmetry. rewrite Z.eqb_eq. et. }
-          symmetry. rewrite Z.eqb_neq. ii. apply H4.
+          symmetry. rewrite Z.eqb_neq. ii. apply H12.
           apply Int64.same_if_eq. unfold Int64.eq. destruct Coqlib.zeq; nia.
         * f_equal. pose proof (Int64.eq_spec i1 i2).
           destruct (Int64.eq i1 i2) eqn:?.
           { subst. symmetry. rewrite Z.eqb_eq. et. }
-          symmetry. rewrite Z.eqb_neq. ii. apply H4.
+          symmetry. rewrite Z.eqb_neq. ii. apply H12.
           apply Int64.same_if_eq. unfold Int64.eq. destruct Coqlib.zeq; nia.
         * unfold Int64.ltu. destruct Coqlib.zlt; clarify.
           { symmetry. rewrite Z.ltb_lt. nia. }
@@ -1804,13 +1772,7 @@ Section SIMMODSEM.
         hexploit SZPOS; et. i.
         pose proof (Int64.eq_spec i1 Int64.zero).
         destruct (Int64.eq i1 Int64.zero) eqn: ?.
-        { subst. exfalso. apply H7.
-          unfold weak_valid, Ptrofs.sub, Ptrofs.of_int64 in *.
-          change (Ptrofs.unsigned (Ptrofs.repr (Int64.unsigned _))) with 0 in *.
-          rewrite Ptrofs.unsigned_repr_eq in *.
-          rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-          all: try apply Ptrofs.unsigned_range.
-          change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+        { subst. exfalso. eapply weak_valid_nil_paddr_base; et. }
         unfold cmp_ptr_join. ss.
         iCombine "CONC CONC_PRE" as "CONC".
         iOwnWf "CONC" as wfconc.
@@ -1821,23 +1783,7 @@ Section SIMMODSEM.
           des; rewrite wfconc in *; inv SIM_CONC; clarify.
           unfold to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int. 
           rewrite <- H12. des_ifs. }
-        assert (0 ≤ Int64.unsigned i1 - Ptrofs.unsigned a ≤ sz).
-        { clear -H5 H8 SZPOS. hexploit SZPOS; et. i.
-          unfold Ptrofs.sub, Ptrofs.of_int64 in *.
-          rewrite (Ptrofs.unsigned_repr (_ i1)) in H5.
-          2:{ apply Int64.unsigned_range_2. }
-          rewrite Ptrofs.unsigned_repr_eq in *.
-          destruct (Coqlib.zle 0 (Ptrofs.unsigned a - Int64.unsigned i1)).
-          { destruct (Coqlib.zeq 0 (Int64.unsigned i1 - Ptrofs.unsigned a)).
-            { rewrite <- e in *. ss. }
-            replace (Int64.unsigned i1 - Ptrofs.unsigned a) with (- (Ptrofs.unsigned a - Int64.unsigned i1)) in H5 by nia.
-            rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-            all: try apply Ptrofs.unsigned_range; try nia.
-            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H5.
-            all: destruct a; destruct i1; ss; nia. }
-          rewrite Z.mod_small in *.
-          2:{ destruct a; destruct i1; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-          nia. }
+        hexploit paddr_no_overflow_cond; et. i.
         rewrite H10. unfold to_ptr_val at 2. unfold to_int_val. ss.
         unfold cmp_ptr. unfold Val.cmplu_bool at 1. des_ifs_safe. hred_r.
         des_ifs; hred_r.
@@ -1964,23 +1910,7 @@ Section SIMMODSEM.
           des; rewrite wfconc in *; inv SIM_CONC; clarify.
           unfold to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int. 
           rewrite <- H12. des_ifs. }
-        assert (0 ≤ Int64.unsigned i1 - Ptrofs.unsigned a ≤ sz).
-        { clear -H6 H8 SZPOS. hexploit SZPOS; et. i.
-          unfold Ptrofs.sub, Ptrofs.of_int64 in *.
-          rewrite (Ptrofs.unsigned_repr (_ i1)) in H6.
-          2:{ apply Int64.unsigned_range_2. }
-          rewrite Ptrofs.unsigned_repr_eq in *.
-          destruct (Coqlib.zle 0 (Ptrofs.unsigned a - Int64.unsigned i1)).
-          { destruct (Coqlib.zeq 0 (Int64.unsigned i1 - Ptrofs.unsigned a)).
-            { rewrite <- e in *. ss. }
-            replace (Int64.unsigned i1 - Ptrofs.unsigned a) with (- (Ptrofs.unsigned a - Int64.unsigned i1)) in H6 by nia.
-            rewrite Z_mod_nz_opp_full in *; [>rewrite Z.mod_small in *|rewrite Z.mod_small..]; et.
-            all: try apply Ptrofs.unsigned_range; try nia.
-            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in H6.
-            all: destruct a; destruct i1; ss; nia. }
-          rewrite Z.mod_small in *.
-          2:{ destruct a; destruct i1; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
-          nia. }
+        hexploit paddr_no_overflow_cond; et. i.
         rewrite H10. unfold to_ptr_val at 1. unfold to_int_val. ss.
         unfold cmp_ptr. unfold Val.cmplu_bool at 1. des_ifs_safe.
         Local Opaque Val.cmplu_bool. hred_r.
@@ -2134,10 +2064,10 @@ Section SIMMODSEM.
     - unfold cmp_ptr_hoare6. des_ifs_safe. ss. clarify.
       iDestruct "PRE" as "[[[% P] A] %]".
       do 2 unfold has_offset, _has_offset.
-      destruct blk; clarify.
-      iDestruct "P" as "[ALLOC_PRE [SZ_PRE P]]".
-      destruct blk; clarify.
-      iDestruct "A" as "[ALLOC0_PRE [SZ0_PRE A]]".
+      destruct (blk m) eqn:?; clarify.
+      iDestruct "A" as "[ALLOC_PRE [SZ_PRE A]]".
+      destruct (blk m0) eqn:?; clarify.
+      iDestruct "P" as "[ALLOC0_PRE [SZ0_PRE P]]".
       des; clarify. hred_r.
       iApply isim_pget_tgt. hred_r.
       destruct v0; clarify; des_ifs_safe;
@@ -2145,24 +2075,427 @@ Section SIMMODSEM.
       + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
         iDestruct "A" as (a0) "[CONC0_PRE %]". des. clarify.
         unfold cmp_ptr. unfold Val.cmplu_bool. des_ifs_safe. hred_r.
+        iCombine "ALLOC ALLOC_PRE" as "ALLOC". 
+        iCombine "SZ SZ_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc.
+        iOwnWf "SZ" as wfsz.
+        iDestruct "ALLOC" as "[ALLOC ALLOC_PRE]".
+        iDestruct "SZ" as "[SZ SZ_PRE]".
+        iCombine "ALLOC ALLOC0_PRE" as "ALLOC". 
+        iCombine "SZ SZ0_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc0.
+        iOwnWf "SZ" as wfsz0.
+        iDestruct "ALLOC" as "[ALLOC ALLOC0_PRE]".
+        iDestruct "SZ" as "[SZ SZ0_PRE]".
+        ur in wfalloc. ur in wfsz. rewrite URA.unit_idl in wfalloc. des.
+        apply pw_extends in wfalloc. red in wfalloc.
+        ur in wfalloc0. ur in wfsz0. rewrite URA.unit_idl in wfalloc0. des.
+        apply pw_extends in wfalloc0. red in wfalloc0. ur in wfalloc1.
+        specialize (wfsz (Some b)).
+        specialize (wfsz0 (Some b0)).
+        specialize (wfalloc b).
+        specialize (wfalloc0 b0).
+        hexploit (SIM_ALLOC (Some b)).
+        hexploit (SIM_ALLOC (Some b0)).
+        i. des. unfold __allocated_with in *. destruct dec; clarify.
+        destruct dec; clarify.
+        apply Consent.extends in wfalloc; et. red in wfalloc. des. rewrite wfalloc3 in *.
+        apply Consent.extends in wfalloc0; et. red in wfalloc0. des. rewrite wfalloc4 in *.
+        apply OneShot.oneshot_initialized in wfsz.
+        apply OneShot.oneshot_initialized in wfsz0.
+        destruct wfsz as [wfsz|wfsz]; rewrite wfsz in H12; inv H12; clarify.
+        destruct wfsz0 as [wfsz0|wfsz0]; rewrite wfsz0 in H4; inv H4; clarify.
+        iCombine "CONC CONC_PRE" as "CONC". 
+        iOwnWf "CONC" as wfconc.
+        iDestruct "CONC" as "[CONC CONC_PRE]".
+        iCombine "CONC CONC0_PRE" as "CONC". 
+        iOwnWf "CONC" as wfconc0.
+        iDestruct "CONC" as "[CONC CONC0_PRE]".
+        ur in wfconc. specialize (wfconc (Some b0)).
+        ur in wfconc0. specialize (wfconc0 (Some b)).
+        ss. destruct dec; clarify. destruct dec; clarify.
+        apply OneShot.oneshot_initialized in wfconc.
+        apply OneShot.oneshot_initialized in wfconc0.
+        hexploit (SIM_CONC (Some b)). i. 
+        hexploit (SIM_CONC (Some b0)). i.
+        destruct wfconc as [wfconc|wfconc]; rewrite wfconc in H12; inv H12; clarify.
+        destruct wfconc0 as [wfconc0|wfconc0]; rewrite wfconc0 in H4; inv H4; clarify.
+
         iApply isim_apc. iExists None.
         hred_l. iApply isim_choose_src. iExists _.
         iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
         { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-        iSplit; ss. iFrame. iSplitL "CONC_PRE".
-        { iSplit; ss. 2:{ iExists _. iFrame. ss. }
-          iPureIntro. f_equal. admit "". }
+        iSplit; ss. iFrame. iSplitL "CONC_PRE"; cycle 1.
         { iExists _. iFrame. ss. }
+        iSplit; ss. 2:{ iExists _. iFrame. ss. }
+        iPureIntro. f_equal. pose proof (Int64.eq_spec i2 i1).
+        destruct (Int64.eq i2 i1); et. subst. exfalso.
+        hexploit paddr_no_overflow_cond_lt; et. i.
+        unfold size_chunk in *. des_ifs.
+        hexploit (paddr_no_overflow_cond_lt i1 base); et. i.
+        assert (init ≤ 0) by now destruct tag; try solve [hexploit COMMON; et; nia|hexploit DYNAMIC; et; des; nia].
+        hexploit (PERMinrange (Int64.unsigned i1 - Ptrofs.unsigned base0)); try nia.
+        assert (init0 ≤ 0) by now destruct tag0; try solve [hexploit COMMON0; et; nia|hexploit DYNAMIC0; et; des; nia].
+        hexploit (PERMinrange0 (Int64.unsigned i1 - Ptrofs.unsigned base)); try nia.
+        i. des. pose proof (mem_tgt.(Mem.no_concrete_overlap) (Int64.unsigned i1)).
+        red in H25. hexploit (H25 b b0).
+        { econs; et.
+          - pose proof (mem_tgt.(Mem.access_max) b (Int64.unsigned i1 - Ptrofs.unsigned base0)).
+            rewrite H20 in H26. unfold Mem.perm_order'' in *. des_ifs. et.
+          - destruct base0; destruct i1; ss.
+            change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+        { econs; et.
+          - pose proof (mem_tgt.(Mem.access_max) b0 (Int64.unsigned i1 - Ptrofs.unsigned base)).
+            rewrite H19 in H26. unfold Mem.perm_order'' in *. des_ifs. et.
+          - destruct base; destruct i1; ss.
+            change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+            change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+        i. unfold "#^" in *. subst. rewrite <- Heqo in Heqo0. clarify.
       + iDestruct "P" as "%". des. clarify.
         iDestruct "A" as (a) "[CONC_PRE %]". des. clarify.
-        admit "no_overflow lemma needed".
+        iCombine "ALLOC ALLOC_PRE" as "ALLOC". 
+        iCombine "SZ SZ_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc.
+        iOwnWf "SZ" as wfsz.
+        iDestruct "ALLOC" as "[ALLOC ALLOC_PRE]".
+        iDestruct "SZ" as "[SZ SZ_PRE]".
+        iCombine "ALLOC ALLOC0_PRE" as "ALLOC". 
+        iCombine "SZ SZ0_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc0.
+        iOwnWf "SZ" as wfsz0.
+        iDestruct "ALLOC" as "[ALLOC ALLOC0_PRE]".
+        iDestruct "SZ" as "[SZ SZ0_PRE]".
+        ur in wfalloc. ur in wfsz. rewrite URA.unit_idl in wfalloc. des.
+        apply pw_extends in wfalloc. red in wfalloc.
+        ur in wfalloc0. ur in wfsz0. rewrite URA.unit_idl in wfalloc0. des.
+        apply pw_extends in wfalloc0. red in wfalloc0. ur in wfalloc1.
+        specialize (wfsz (Some b)).
+        specialize (wfsz0 (Some b0)).
+        specialize (wfalloc b).
+        specialize (wfalloc0 b0).
+        hexploit (SIM_ALLOC (Some b)).
+        hexploit (SIM_ALLOC (Some b0)).
+
+        i. des. unfold __allocated_with in *. destruct dec; clarify.
+        destruct dec; clarify.
+        apply Consent.extends in wfalloc; et. red in wfalloc. des. rewrite wfalloc3 in *.
+        apply Consent.extends in wfalloc0; et. red in wfalloc0. des. rewrite wfalloc4 in *.
+        apply OneShot.oneshot_initialized in wfsz.
+        apply OneShot.oneshot_initialized in wfsz0.
+        destruct wfsz as [wfsz|wfsz]; rewrite wfsz in H10; inv H10; clarify.
+        destruct wfsz0 as [wfsz0|wfsz0]; rewrite wfsz0 in H4; inv H4; clarify.
+        destruct m, m0. unfold "#^", valid in *. ss. rewrite Heqo in *. rewrite Heqo0 in *.
+        hexploit SZPOS; et. i.
+        hexploit SZPOS0; et. i.
+        pose proof (Int64.eq_spec i1 Int64.zero).
+        destruct (Int64.eq i1 Int64.zero) eqn: ?.
+        { subst. exfalso. 
+          unfold weak_valid, Ptrofs.sub, Ptrofs.of_int64 in *.
+          change (Ptrofs.unsigned (Ptrofs.repr (Int64.unsigned _))) with 0 in *.
+          change (0 - Ptrofs.unsigned a) with (- Ptrofs.unsigned a) in *.
+          eapply weak_valid_nil_paddr_base; et. nia. }
+        unfold cmp_ptr_join. ss.
+        iCombine "CONC CONC_PRE" as "CONC".
+        iOwnWf "CONC" as wfconc.
+        ur in wfconc. specialize (wfconc (Some b)). ss. destruct dec; clarify.
+        hexploit (SIM_CONC (Some b)). i.
+        apply OneShot.oneshot_initialized in wfconc. 
+        des; rewrite wfconc in *; inv H14; clarify.
+        hexploit paddr_no_overflow_cond_lt; et. i.
+        assert (to_ptr_val mem_tgt (Vlong i1) = Vptr b (Ptrofs.repr (Int64.unsigned i1 - Ptrofs.unsigned base))).
+        { unfold to_ptr_val, Mem.to_ptr.
+          des_ifs; [apply Maps.PTree.gselectf in Heq1|apply Maps.PTree.gselectnf in Heq1]; des.
+          - ss. unfold Mem.denormalize_aux, Mem.is_valid, Mem.addr_is_in_block in *.
+            des_ifs; bsimpl; des; clarify.
+            hexploit (PERMinrange (Int64.unsigned i1 - Ptrofs.unsigned base)).
+            { unfold size_chunk in *. des_ifs. destruct tag; (hexploit COMMON + hexploit DYNAMIC); et; nia. }
+            i. des. 
+            pose proof (mem_tgt.(Mem.no_concrete_overlap) (Int64.unsigned i1)).
+            red in H19. hexploit (H19 b b1).
+            { econs; et.
+              - epose proof (mem_tgt.(Mem.access_max) b _).
+                rewrite H16 in H20. unfold Mem.perm_order'' in *. des_ifs. et.
+              - destruct base; destruct i1; ss.
+                change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+                change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+            { econs; et. destruct i1; ss. nia. }
+            i. subst. rewrite Heq3 in *. clarify.
+          - exfalso. apply Heq1. esplits; et. unfold Mem.denormalize_aux.
+            rewrite <- H17. unfold size_chunk in *. des_ifs. bsimpl.
+            hexploit (PERMinrange (Int64.unsigned i1 - Ptrofs.unsigned base)); try solve [destruct tag; (hexploit COMMON + hexploit DYNAMIC); et; nia].
+            i. unfold Mem.is_valid, Mem.addr_is_in_block in *. rewrite <- H17 in Heq2. des.
+            { hexploit (mem_tgt.(Mem.nextblock_noaccess) b); try solve [rewrite H13; et].
+              apply Pos.ltb_ge in Heq2. unfold Coqlib.Plt. nia. rewrite H16. et. }
+            { des_ifs; bsimpl; des.
+              { rewrite PERMoutrange in H16; clarify. destruct tag; (hexploit COMMON + hexploit DYNAMIC); et; nia. }
+              { destruct i1; destruct base; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
+              { hexploit (mem_tgt.(Mem.access_max)). rewrite Heq4. rewrite H16. i. inv H19. } } }
+        rewrite H15. unfold to_ptr_val at 1. unfold to_int_val at 2. ss.
+        unfold cmp_ptr. des_ifs_safe. unfold Val.cmplu_bool at 2.
+        rewrite Ptrofs.unsigned_repr; [|destruct base; ss; nia].
+        assert (Mem.valid_pointer mem_tgt b0 (Ptrofs.unsigned i2) = true).
+        { bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i2; ss.
+          hexploit (PERMinrange0 intval).
+          { destruct tag0; try solve [hexploit COMMON0; et; nia| hexploit DYNAMIC0; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H16 in *. apply n. econs. }
+        assert (Mem.valid_pointer mem_tgt b (Int64.unsigned i1 - Ptrofs.unsigned base) = true).
+        { clear H16. bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i1; destruct base; ss.
+          hexploit (PERMinrange (intval - intval0)).
+          { destruct tag; try solve [hexploit COMMON; et; nia| hexploit DYNAMIC; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H16 in *. apply n. econs. }
+        rewrite H18. rewrite H16. ss. destruct eq_block; clarify.
+        Local Opaque Val.cmplu_bool.
+        des_ifs; hred_r; des_ifs; hred_r.
+        Local Transparent Val.cmplu_bool.
+        * iApply isim_apc. iExists None.
+          hred_l. iApply isim_choose_src. iExists _.
+          iDestruct "CONC" as "[CONC ?]".
+          iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+          iSplit; ss. iFrame. iSplit; ss. iExists _. iFrame. ss.
+        * unfold Val.cmplu_bool, to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int in *.
+          des_ifs. ss. clarify. hexploit Int64.eq_spec. rewrite H20.
+          i. subst. unfold Mem.valid_pointer in *.
+          do 2 destruct Mem.perm_dec; ss; clarify.
+          unfold Mem.perm, Mem.perm_order' in *. des_ifs.
+          hexploit (mem_tgt.(Mem.weak_valid_address_range) b0); et.
+          { apply Ptrofs.unsigned_range. }
+          { unfold Mem._weak_valid_pointer, Mem._valid_pointer.
+            pose proof (mem_tgt.(Mem.access_max) b0 (Ptrofs.unsigned i2)).
+            rewrite Heq4 in H19. unfold Mem.perm_order'' in *.
+            des_ifs. rewrite Heq6. left. econs. }
+          i. inv H19; ss.
+          rewrite Int64.unsigned_repr in *.
+          2,3,4: change Int64.max_unsigned with (Ptrofs.modulus - 1); nia.
+          pose proof (mem_tgt.(Mem.no_concrete_overlap) (z0 + Ptrofs.unsigned i2)).
+          red in H19. hexploit (H19 b b0).
+          { econs; et.
+            - pose proof (mem_tgt.(Mem.access_max) b (z0 + Ptrofs.unsigned i2 - Ptrofs.unsigned base)).
+              rewrite Heq2 in H21. unfold Mem.perm_order'' in *. des_ifs. et.
+            - destruct base; destruct i2; ss.
+              change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+              change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+          { econs; et.
+            - pose proof (mem_tgt.(Mem.access_max) b0 (Ptrofs.unsigned i2)).
+              rewrite Heq4 in H21. unfold Mem.perm_order'' in *. des_ifs.
+              replace (_ + _ - _) with (Ptrofs.unsigned i2) by nia. et.
+            - destruct i2; ss. nia. }
+        i. clarify.
+        * iApply isim_apc. iExists None.
+          hred_l. iApply isim_choose_src. iExists _.
+          iDestruct "CONC" as "[CONC ?]".
+          iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+          iSplit; ss. iFrame. iSplit; ss. iExists _. iFrame. ss.
       + iDestruct "P" as (a) "[CONC_PRE %]". des. clarify.
         iDestruct "A" as "%". des. clarify.
-        admit "no_overflow lemma needed".
+        iCombine "ALLOC ALLOC_PRE" as "ALLOC". 
+        iCombine "SZ SZ_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc.
+        iOwnWf "SZ" as wfsz.
+        iDestruct "ALLOC" as "[ALLOC ALLOC_PRE]".
+        iDestruct "SZ" as "[SZ SZ_PRE]".
+        iCombine "ALLOC ALLOC0_PRE" as "ALLOC". 
+        iCombine "SZ SZ0_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc0.
+        iOwnWf "SZ" as wfsz0.
+        iDestruct "ALLOC" as "[ALLOC ALLOC0_PRE]".
+        iDestruct "SZ" as "[SZ SZ0_PRE]".
+        ur in wfalloc. ur in wfsz. rewrite URA.unit_idl in wfalloc. des.
+        apply pw_extends in wfalloc. red in wfalloc.
+        ur in wfalloc0. ur in wfsz0. rewrite URA.unit_idl in wfalloc0. des.
+        apply pw_extends in wfalloc0. red in wfalloc0. ur in wfalloc1.
+        specialize (wfsz (Some b)).
+        specialize (wfsz0 (Some b0)).
+        specialize (wfalloc b).
+        specialize (wfalloc0 b0).
+        hexploit (SIM_ALLOC (Some b)).
+        hexploit (SIM_ALLOC (Some b0)).
+
+        i. des. unfold __allocated_with in *. destruct dec; clarify.
+        destruct dec; clarify.
+        apply Consent.extends in wfalloc; et. red in wfalloc. des. rewrite wfalloc3 in *.
+        apply Consent.extends in wfalloc0; et. red in wfalloc0. des. rewrite wfalloc4 in *.
+        apply OneShot.oneshot_initialized in wfsz.
+        apply OneShot.oneshot_initialized in wfsz0.
+        destruct wfsz as [wfsz|wfsz]; rewrite wfsz in H10; inv H10; clarify.
+        destruct wfsz0 as [wfsz0|wfsz0]; rewrite wfsz0 in H4; inv H4; clarify.
+        destruct m, m0. unfold "#^", valid in *. ss. rewrite Heqo in *. rewrite Heqo0 in *.
+        hexploit SZPOS; et. i.
+        hexploit SZPOS0; et. i.
+        pose proof (Int64.eq_spec i2 Int64.zero).
+        destruct (Int64.eq i2 Int64.zero) eqn: ?.
+        { subst. exfalso. 
+          unfold weak_valid, Ptrofs.sub, Ptrofs.of_int64 in *.
+          change (Ptrofs.unsigned (Ptrofs.repr (Int64.unsigned _))) with 0 in *.
+          change (0 - Ptrofs.unsigned a) with (- Ptrofs.unsigned a) in *.
+          eapply weak_valid_nil_paddr_base; et. nia. }
+        unfold cmp_ptr_join. ss.
+        iCombine "CONC CONC_PRE" as "CONC".
+        iOwnWf "CONC" as wfconc.
+        ur in wfconc. specialize (wfconc (Some b0)). ss. destruct dec; clarify.
+        hexploit (SIM_CONC (Some b0)). i. 
+        apply OneShot.oneshot_initialized in wfconc. 
+        des; rewrite wfconc in *; inv H14; clarify.
+        hexploit paddr_no_overflow_cond_lt; et. i.
+        assert (to_ptr_val mem_tgt (Vlong i2) = Vptr b0 (Ptrofs.repr (Int64.unsigned i2 - Ptrofs.unsigned base))).
+        { unfold to_ptr_val, Mem.to_ptr.
+          des_ifs; [apply Maps.PTree.gselectf in Heq1|apply Maps.PTree.gselectnf in Heq1]; des.
+          - ss. unfold Mem.denormalize_aux, Mem.is_valid, Mem.addr_is_in_block in *.
+            des_ifs; bsimpl; des; clarify.
+            hexploit (PERMinrange0 (Int64.unsigned i2 - Ptrofs.unsigned base)).
+            { unfold size_chunk in *. des_ifs. destruct tag0; (hexploit COMMON0 + hexploit DYNAMIC0); et; nia. }
+            i. des. 
+            pose proof (mem_tgt.(Mem.no_concrete_overlap) (Int64.unsigned i2)).
+            red in H19. hexploit (H19 b0 b1).
+            { econs; et.
+              - epose proof (mem_tgt.(Mem.access_max) b0 _).
+                rewrite H16 in H20. unfold Mem.perm_order'' in *. des_ifs. et.
+              - destruct base; destruct i2; ss.
+                change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+                change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+            { econs; et. destruct i2; ss. nia. }
+            i. subst. rewrite Heq3 in *. clarify.
+          - exfalso. apply Heq1. esplits; et. unfold Mem.denormalize_aux.
+            rewrite <- H17. unfold size_chunk in *. des_ifs. bsimpl.
+            hexploit (PERMinrange0 (Int64.unsigned i2 - Ptrofs.unsigned base)); try solve [destruct tag0; (hexploit COMMON0 + hexploit DYNAMIC0); et; nia].
+            i. unfold Mem.is_valid, Mem.addr_is_in_block in *. rewrite <- H17 in Heq2. des.
+            { hexploit (mem_tgt.(Mem.nextblock_noaccess) b0); try solve [rewrite H13; et].
+              apply Pos.ltb_ge in Heq2. unfold Coqlib.Plt. nia. rewrite H16. et. }
+            { des_ifs; bsimpl; des.
+              { rewrite PERMoutrange0 in H16; clarify. destruct tag0; (hexploit COMMON0 + hexploit DYNAMIC0); et; nia. }
+              { destruct i2; destruct base; ss. change Int64.modulus with Ptrofs.modulus in *. nia. }
+              { hexploit (mem_tgt.(Mem.access_max)). rewrite Heq4. rewrite H16. i. inv H19. } } }
+        rewrite H15. unfold to_ptr_val at 1. unfold to_int_val at 2. ss.
+        unfold cmp_ptr. des_ifs_safe. unfold Val.cmplu_bool at 2.
+        rewrite Ptrofs.unsigned_repr; [|destruct base; ss; nia].
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1) = true).
+        { bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i1; ss.
+          hexploit (PERMinrange intval).
+          { destruct tag; try solve [hexploit COMMON; et; nia| hexploit DYNAMIC; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H16 in *. apply n. econs. }
+        assert (Mem.valid_pointer mem_tgt b0 (Int64.unsigned i2 - Ptrofs.unsigned base) = true).
+        { clear H16. bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i2; destruct base; ss.
+          hexploit (PERMinrange0 (intval - intval0)).
+          { destruct tag0; try solve [hexploit COMMON0; et; nia| hexploit DYNAMIC0; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H16 in *. apply n. econs. }
+        rewrite H18. rewrite H16. ss. destruct eq_block; clarify.
+        Local Opaque Val.cmplu_bool.
+        des_ifs; hred_r; des_ifs; hred_r.
+        Local Transparent Val.cmplu_bool.
+        * iApply isim_apc. iExists None.
+          hred_l. iApply isim_choose_src. iExists _.
+          iDestruct "CONC" as "[CONC ?]".
+          iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+          iSplit; ss. iFrame. iSplit; ss. iSplit; ss. iExists _. iFrame. ss.
+        * iApply isim_apc. iExists None.
+          hred_l. iApply isim_choose_src. iExists _.
+          iDestruct "CONC" as "[CONC ?]".
+          iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+          iSplit; ss. iFrame. iSplit; ss. iSplit; ss. iExists _. iFrame. ss.
+        * unfold Val.cmplu_bool, to_int_val, Mem.to_int, Mem.ptr2int_v, Mem.ptr2int in *.
+          des_ifs. ss. clarify. hexploit Int64.eq_spec. rewrite Heq5.
+          i. subst. unfold Mem.valid_pointer in *.
+          do 2 destruct Mem.perm_dec; ss; clarify.
+          unfold Mem.perm, Mem.perm_order' in *. des_ifs.
+          hexploit (mem_tgt.(Mem.weak_valid_address_range) b); et.
+          { apply Ptrofs.unsigned_range. }
+          { unfold Mem._weak_valid_pointer, Mem._valid_pointer.
+            pose proof (mem_tgt.(Mem.access_max) b (Ptrofs.unsigned i1)).
+            rewrite Heq3 in H19. unfold Mem.perm_order'' in *.
+            des_ifs. rewrite Heq7. left. econs. }
+          i. inv H19; ss.
+          rewrite Int64.unsigned_repr in *.
+          2,3,4: change Int64.max_unsigned with (Ptrofs.modulus - 1); nia.
+          pose proof (mem_tgt.(Mem.no_concrete_overlap) (z0 + Ptrofs.unsigned i1)).
+          red in H19. hexploit (H19 b0 b).
+          { econs; et.
+            - pose proof (mem_tgt.(Mem.access_max) b0 (z0 + Ptrofs.unsigned i1 - Ptrofs.unsigned base)).
+              rewrite Heq1 in H20. unfold Mem.perm_order'' in *. des_ifs. et.
+            - destruct base; destruct i1; ss.
+              change Int64.modulus with (Ptrofs.max_unsigned + 1) in *.
+              change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *. nia. }
+          { econs; et.
+            - pose proof (mem_tgt.(Mem.access_max) b (Ptrofs.unsigned i1)).
+              rewrite Heq3 in H20. unfold Mem.perm_order'' in *. des_ifs.
+              replace (_ + _ - _) with (Ptrofs.unsigned i1) by nia. et.
+            - destruct i1; ss. nia. }
+          i. clarify.
       + iDestruct "P" as "%". des. clarify.
         iDestruct "A" as "%". des. clarify.
         unfold cmp_ptr. des_ifs_safe. unfold Val.cmplu_bool.
-        admit "no_overlap lemma needed".
+        unfold "#^" in *. destruct eq_block. { clarify. rewrite <- Heqo in *. clarify. }
+        hred_r.
+        iCombine "ALLOC ALLOC_PRE" as "ALLOC". 
+        iCombine "SZ SZ_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc.
+        iOwnWf "SZ" as wfsz.
+        iDestruct "ALLOC" as "[ALLOC ALLOC_PRE]".
+        iDestruct "SZ" as "[SZ SZ_PRE]".
+        iCombine "ALLOC ALLOC0_PRE" as "ALLOC". 
+        iCombine "SZ SZ0_PRE" as "SZ".
+        iOwnWf "ALLOC" as wfalloc0.
+        iOwnWf "SZ" as wfsz0.
+        iDestruct "ALLOC" as "[ALLOC ALLOC0_PRE]".
+        iDestruct "SZ" as "[SZ SZ0_PRE]".
+        ur in wfalloc. ur in wfsz. rewrite URA.unit_idl in wfalloc. des.
+        apply pw_extends in wfalloc. red in wfalloc.
+        ur in wfalloc0. ur in wfsz0. rewrite URA.unit_idl in wfalloc0. des.
+        apply pw_extends in wfalloc0. red in wfalloc0. ur in wfalloc1.
+        specialize (wfsz (Some b)).
+        specialize (wfsz0 (Some b0)).
+        specialize (wfalloc b).
+        specialize (wfalloc0 b0).
+        hexploit (SIM_ALLOC (Some b)).
+        hexploit (SIM_ALLOC (Some b0)).
+        i. des. unfold __allocated_with in *. destruct dec; clarify.
+        destruct dec; clarify.
+        apply Consent.extends in wfalloc; et. red in wfalloc. des. rewrite wfalloc3 in *.
+        apply Consent.extends in wfalloc0; et. red in wfalloc0. des. rewrite wfalloc4 in *.
+        apply OneShot.oneshot_initialized in wfsz.
+        apply OneShot.oneshot_initialized in wfsz0.
+        destruct wfsz as [wfsz|wfsz]; rewrite wfsz in H8; inv H8; clarify.
+        destruct wfsz0 as [wfsz0|wfsz0]; rewrite wfsz0 in H4; inv H4; clarify.
+        destruct m, m0. unfold "#^", valid in *. ss. rewrite Heqo in *. rewrite Heqo0 in *.
+        hexploit SZPOS; et. i.
+        hexploit SZPOS0; et. i.
+        assert (Mem.valid_pointer mem_tgt b0 (Ptrofs.unsigned i2) = true).
+        { bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i2; ss.
+          hexploit (PERMinrange0 intval).
+          { destruct tag0; try solve [hexploit COMMON0; et; nia| hexploit DYNAMIC0; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H11 in *. apply n0. econs. }
+        assert (Mem.valid_pointer mem_tgt b (Ptrofs.unsigned i1) = true).
+        { bsimpl. unfold Mem.valid_pointer.
+          repeat destruct Mem.perm_dec; ss; clarify; et; exfalso.
+          unfold size_chunk in *. des_ifs. destruct i1; ss.
+          hexploit (PERMinrange intval).
+          { destruct tag; try solve [hexploit COMMON; et; nia| hexploit DYNAMIC; et; des; nia]. }
+          i. des. unfold Mem.perm, Mem.perm_order' in *.
+          rewrite H12 in *. apply n0. econs. }
+        rewrite H11. rewrite H12. des_ifs. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. iSplit; ss.
     - unfold cmp_ptr_hoare7. des_ifs_safe. ss. clarify.
       iDestruct "PRE" as "[[[% P] A] %]".
       do 2 unfold has_offset, _has_offset.
