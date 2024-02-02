@@ -146,10 +146,13 @@ Section MODSEM.
       fun varg =>
         mp <- trigger (PGet);;
         m <- mp↓?;;
-        match to_ptr_val m varg with
+        match varg with
         | Vptr b ofs =>
           if (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)) then Ret true
           else triggerUB
+        (* unreachable case in clightdm *)
+        | Vlong i => if Archi.ptr64 then Ret (Int64.cmpu Cne Int64.zero i) else triggerUB
+        | Vint i => if negb Archi.ptr64 then Ret (Int.cmpu Cne Int.zero i) else triggerUB
         | _ => triggerUB
         end
     .
