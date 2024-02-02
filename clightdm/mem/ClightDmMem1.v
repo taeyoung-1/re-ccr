@@ -488,6 +488,19 @@ Section RULES.
       rewrite _allocated_with_ownership. iFrame.
   Qed.
 
+  Lemma _points_to_nil : forall blk ofs q _b _ofs, __points_to blk ofs [] q _b _ofs = ε.
+  Proof.
+    intros. unfold __points_to. destruct dec; destruct Coqlib.zle; destruct Coqlib.zlt; ss. 
+    edestruct nth_error_None. rewrite H4; et. ss. nia.
+  Qed.
+
+  Lemma points_to_nil : forall blk ofs q, __points_to blk ofs [] q = ε.
+  Proof.
+    i. replace (__points_to blk0 ofs [] q) with ((λ (_ : block) (_ : Z), @URA.unit (Consent.t memval))).
+    2:{ extensionalities. rewrite _points_to_nil. et. }
+    et.
+  Qed.     
+
   Lemma _points_to_content
       b ofs mvs0 mvs1 q
     :
@@ -1241,9 +1254,9 @@ Section SPEC.
 
   (* memcpy *)
   Definition memcpy_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
-      fun '(vaddr, vaddr', tg, tg', q, q', ofs_src, ofs_dst, m_src, m_dst, mvs_dst) => (
+      fun '(vaddr, vaddr', tg, tg', qp, q, q', ofs_src, ofs_dst, m_src, m_dst, mvs_src) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ al sz mvs_src,
+            (fun varg => ∃ al sz mvs_dst,
                          ⌜varg = (al, sz, [vaddr; vaddr'])↑
                          /\ List.length mvs_src = List.length mvs_dst
                          /\ List.length mvs_dst = Z.to_nat sz
@@ -1253,13 +1266,13 @@ Section SPEC.
                          /\ 0 ≤ sz /\ (al | sz)⌝
                          ** vaddr' (⊨_m_src,tg',q') ofs_src
                          ** vaddr (⊨_m_dst,tg,q) ofs_dst
-                         ** vaddr' (↦_m_src,1) mvs_src
+                         ** vaddr' (↦_m_src,qp) mvs_src
                          ** vaddr (↦_m_dst,1) mvs_dst),
             (fun vret => ⌜vret = Vundef↑⌝
                          ** vaddr' (⊨_m_src,tg',q') ofs_src
                          ** vaddr (⊨_m_dst,tg,q) ofs_dst
-                         ** vaddr' (↦_m_src,1) mvs_dst
-                         ** vaddr (↦_m_dst,1) mvs_dst)
+                         ** vaddr' (↦_m_src,qp) mvs_src
+                         ** vaddr (↦_m_dst,1) mvs_src)
           )%I.
 
   Definition memcpy_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
