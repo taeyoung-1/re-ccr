@@ -698,6 +698,226 @@ Section SIMMODSEM.
   Local Transparent _points_to _allocated_with _has_offset _has_size _has_base.
   Local Transparent Mem.free.
 
+  Lemma sim_non_null :
+    sim_fnsem wf top2
+      ("non_null?", fun_to_tgt "Mem" (to_stb []) (mk_pure non_null_spec))
+      ("non_null?", cfunU non_nullF).
+  Proof.
+    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+    i. iIntros "[INV PRE]". des_ifs. ss.
+    do 2 unfold has_offset, _has_offset, points_to, _points_to.
+    iDestruct "PRE" as "[[% P] %]". des.
+    destruct blk; clarify.
+    iDestruct "P" as "[ALLOC_PRE [SZ_PRE A]]".
+    des; clarify. unfold inv_with.
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify.
+    unfold non_nullF. hred_r.
+    iApply isim_pget_tgt. hred_r.
+    assert (IntPtrRel.to_ptr_val mem_tgt v = Vptr b i).
+    { admit "". }
+    rewrite H4.
+    assert (Mem.weak_valid_pointer mem_tgt b (Ptrofs.unsigned i) = true).
+    { admit "". }
+    rewrite H6. hred_r.
+    iApply isim_apc. iExists None.
+    hred_l. iApply isim_choose_src. iExists _.
+    iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
+    { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+    iSplit; ss. iFrame. ss.
+  Unshelve. et.
+  Qed.
+
+  Lemma sim_malloc :
+    sim_fnsem wf top2
+      ("malloc", fun_to_tgt "Mem" (to_stb []) (mk_pure malloc_spec))
+      ("malloc", cfunU mallocF).
+  Proof.
+  Admitted.
+
+  Lemma sim_mfree :
+    sim_fnsem wf top2
+      ("free", fun_to_tgt "Mem" (to_stb []) (mk_pure mfree_spec))
+      ("free", cfunU mfreeF).
+  Proof.
+  Admitted.
+
+  Lemma sim_memcpy :
+    sim_fnsem wf top2
+      ("memcpy", fun_to_tgt "Mem" (to_stb []) (mk_pure memcpy_spec))
+      ("memcpy", cfunU memcpyF).
+  Proof.
+    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+    i. unfold "@".
+    iIntros "[INV PRE]".
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify. unfold memcpyF. do 2 (try destruct x as [?|x]).
+    - unfold memcpy_hoare0. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[PRE %]".
+      iDestruct "PRE" as (al sz mvs_src) "[[[[% F] D] P] A]".
+      do 2 unfold has_offset, points_to, _has_offset, _points_to.
+      destruct blk; clarify.
+      destruct blk; clarify.
+      iDestruct "P" as "[SZ_PRE P]".
+      iDestruct "P" as (ofs) "[[[CNT_PRE [SZ0_PRE P]] %] LEN]".
+      iDestruct "A" as "[SZ1_PRE A]".
+      iDestruct "A" as (ofs0) "[[[CNT0_PRE [SZ2_PRE A]] %] LEN0]".
+      iDestruct "D" as "[ALLOC_PRE [SZ3_PRE D]]".
+      iDestruct "F" as "[ALLOC0_PRE [SZ4_PRE F]]".
+      do 7 (destruct H5 as [? H5]). clarify. hred_r.
+      iApply isim_upd.
+      assert (Mem.loadbytes mem_tgt b (Ptrofs.unsigned ofs) sz = Some mvs_src).
+      { admit "". }
+      assert (Mem.range_perm mem_tgt b0 (Ptrofs.unsigned ofs0) (Ptrofs.unsigned ofs0 + length mvs_src) Cur Writable).
+      { admit "". }
+      iCombine "CNT CNT0_PRE" as "CNT".
+      iPoseProof (OwnM_Upd with "CNT") as ">[CNT CNT0_POST]".
+      + admit "".
+      + iModIntro.
+        destruct dec.
+        { hred_r. subst. destruct l; clarify. destruct mvs_src; clarify.
+          iApply isim_apc. iExists None.
+          hred_l. iApply isim_choose_src. iExists _.
+          iApply isim_ret. admit "".
+          (* iSplitL "CNT CONC ALLOC SZ".
+          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+          iSplit; ss. iFrame. iSplitR "LEN0 A". 2:{ iExists _. iFrame. iSplit; ss. admit "unit". }
+          iSplit; ss. iExists _. iFrame. ss.  *)
+          }
+        hred_r. iApply isim_pget_tgt. hred_r.
+        assert (i0 = ofs) by admit "".
+        assert (i = ofs0) by admit "".
+        subst.
+        assert (Mem.to_ptr v mem_tgt = Some (Vptr b0 ofs0)) by admit "".
+        assert (Mem.to_ptr v0 mem_tgt = Some (Vptr b ofs)) by admit "".
+        rewrite H15. rewrite H16. hred_r.
+        set (_ && _) as chk1.
+        assert (chk1 = true).
+        { unfold chk1. bsimpl.
+          repeat destruct dec; repeat destruct Zdivide_dec; destruct Coqlib.zle; ss; clarify; et; try tauto. }
+        rewrite H17. ss. destruct Coqlib.zle; clarify.
+        destruct Zdivide_dec; clarify. ss.
+        set (_ || _) as chk4.
+        assert (chk4 = true).
+        { admit "". }
+        rewrite H18. ss.
+        rewrite H7. hred_r.
+        Local Transparent Mem.storebytes.
+        unfold Mem.storebytes.
+        destruct Mem.range_perm_dec; clarify. hred_r.
+        iApply isim_pput_tgt. hred_r.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret. iModIntro. admit "".
+    - unfold memcpy_hoare1. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "[PRE %]".
+      iDestruct "PRE" as (al sz) "[[% P] A]".
+      do 2 unfold has_offset, points_to, _has_offset, _points_to.
+      destruct blk; clarify.
+      iDestruct "A" as "[SZ_PRE A]".
+      iDestruct "A" as (ofs) "[[[CNT_PRE [SZ0_PRE A]] %] LEN]".
+      iDestruct "P" as "[ALLOC_PRE [SZ3_PRE P]]".
+      do 5 (destruct H5 as [? H5]). clarify. hred_r.
+      assert (Mem.loadbytes mem_tgt b (Ptrofs.unsigned ofs) sz = Some l).
+      { admit "". }
+      assert (Mem.range_perm mem_tgt b (Ptrofs.unsigned ofs) (Ptrofs.unsigned ofs + length l) Cur Writable).
+      { admit "". }
+      destruct dec.
+      { hred_r. subst. destruct l; clarify.
+        iApply isim_apc. iExists None.
+        hred_l. iApply isim_choose_src. iExists _.
+        iApply isim_ret.
+        iSplitL "CNT CONC ALLOC SZ".
+        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+        iSplit; ss. iFrame. iSplitR "LEN A". 2:{ iExists _. iFrame. iSplit; ss. admit "unit". }
+        ss. }
+      hred_r. iApply isim_pget_tgt. hred_r.
+      assert (i = ofs) by admit "".
+      subst.
+      assert (Mem.to_ptr v mem_tgt = Some (Vptr b ofs)) by admit "".
+      rewrite H12. hred_r.
+      set (_ && _) as chk1.
+      assert (chk1 = true).
+      { unfold chk1. bsimpl.
+        repeat destruct dec; repeat destruct Zdivide_dec; destruct Coqlib.zle; ss; clarify; et; try tauto. }
+      rewrite H13. ss. destruct Coqlib.zle; clarify.
+      destruct Zdivide_dec; clarify. ss.
+      set (_ || _) as chk4.
+      assert (chk4 = true).
+      { admit "". }
+      rewrite H14. ss.
+      rewrite H6. hred_r.
+      Local Transparent Mem.storebytes.
+      unfold Mem.storebytes.
+      destruct Mem.range_perm_dec; clarify. hred_r.
+      iApply isim_pput_tgt. hred_r.
+      iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. admit "".
+    Unshelve. all: et. { admit "". } { admit "". }
+  Qed.
+
+  Lemma sim_capture :
+    sim_fnsem wf top2
+      ("capture", fun_to_tgt "Mem" (to_stb []) (mk_pure capture_spec))
+      ("capture", cfunU captureF).
+  Proof.
+    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
+    i. unfold "@".
+    iIntros "[INV PRE]".
+    iDestruct "INV" as (tt) "[INV %]".
+    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
+    des; clarify. unfold captureF. do 2 (try destruct x as [?|x]).
+    { unfold capture_hoare0. des_ifs_safe. ss. clarify.
+      iDestruct "PRE" as "%". des. clarify. hred_r.
+      iApply isim_pget_tgt. hred_r.
+      change Mem.mem' with Mem.mem in *. hred_r.
+      destruct Vnullptr eqn:?; clarify.
+      rewrite <- Heqv. hred_r.
+      iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. iSplit; ss. 
+      iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+    unfold capture_hoare1. des_ifs_safe. ss. clarify.
+    iDestruct "PRE" as "[[% P] %]". des. clarify. hred_r.
+    unfold has_offset, _has_offset.
+    destruct blk; clarify.
+    iDestruct "P" as "[ALLOC_PRE [SZ_PRE P]]".
+    iApply isim_pget_tgt. hred_r.
+    change Mem.mem' with Mem.mem in *. hred_r.
+    Local Transparent equiv_prov.
+    destruct v; clarify; hred_r; ss.
+    { iApply isim_apc. iExists None.
+      hred_l. iApply isim_choose_src. iExists _.
+      iApply isim_ret. iSplitL "ALLOC CONC SZ CNT".
+      { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+      iSplit; ss. iFrame. iExists _.
+      unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et.
+      iSplit; ss. admit "". }
+    iDestruct "P" as "%". des. clarify.
+    unfold Coqlib.Plt.
+    destruct Coqlib.plt; ss. 2:{ admit "impossible". }
+    hred_r. iApply isim_choose_tgt.
+    iIntros (x). destruct x. destruct x. ss. hred_r.
+    iApply isim_pput_tgt. hred_r.
+    iApply isim_apc. iExists None.
+    hred_l. iApply isim_choose_src. iExists _.
+    iApply isim_upd.
+
+    iPoseProof (OwnM_Upd with "CONC") as ">[CONC CONC_POST]".
+    { admit "". }
+    iModIntro.
+    iApply isim_ret. iModIntro. admit "".
+    (* iSplitL "ALLOC CONC SZ CNT".
+    { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
+    iSplit; ss. iFrame. iExists _.
+    unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et.
+    iSplit; ss. admit "". *)
+  Unshelve. all: et.
+  Qed.
+
   Lemma sim_salloc :
     sim_fnsem wf top2
       ("salloc", fun_to_tgt "Mem" (to_stb []) (mk_pure salloc_spec))
@@ -2936,225 +3156,6 @@ Section SIMMODSEM.
     Unshelve. all: et.
   Qed.
 
-  Lemma sim_non_null :
-    sim_fnsem wf top2
-      ("non_null?", fun_to_tgt "Mem" (to_stb []) (mk_pure non_null_spec))
-      ("non_null?", cfunU non_nullF).
-  Proof.
-    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
-    i. iIntros "[INV PRE]". des_ifs. ss.
-    do 2 unfold has_offset, _has_offset, points_to, _points_to.
-    iDestruct "PRE" as "[[% P] %]". des.
-    destruct blk; clarify.
-    iDestruct "P" as "[ALLOC_PRE [SZ_PRE A]]".
-    des; clarify. unfold inv_with.
-    iDestruct "INV" as (tt) "[INV %]".
-    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
-    des; clarify.
-    unfold non_nullF. hred_r.
-    iApply isim_pget_tgt. hred_r.
-    assert (IntPtrRel.to_ptr_val mem_tgt v = Vptr b i).
-    { admit "". }
-    rewrite H4.
-    assert (Mem.weak_valid_pointer mem_tgt b (Ptrofs.unsigned i) = true).
-    { admit "". }
-    rewrite H6. hred_r.
-    iApply isim_apc. iExists None.
-    hred_l. iApply isim_choose_src. iExists _.
-    iApply isim_ret. iSplitL "CNT CONC ALLOC SZ".
-    { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-    iSplit; ss. iFrame. ss.
-  Unshelve. et.
-  Qed.
-
-  Lemma sim_malloc :
-    sim_fnsem wf top2
-      ("malloc", fun_to_tgt "Mem" (to_stb []) (mk_pure malloc_spec))
-      ("malloc", cfunU mallocF).
-  Proof.
-  Admitted.
-
-  Lemma sim_mfree :
-    sim_fnsem wf top2
-      ("free", fun_to_tgt "Mem" (to_stb []) (mk_pure mfree_spec))
-      ("free", cfunU mfreeF).
-  Proof.
-  Admitted.
-
-  Lemma sim_memcpy :
-    sim_fnsem wf top2
-      ("memcpy", fun_to_tgt "Mem" (to_stb []) (mk_pure memcpy_spec))
-      ("memcpy", cfunU memcpyF).
-  Proof.
-    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
-    i. unfold "@".
-    iIntros "[INV PRE]".
-    iDestruct "INV" as (tt) "[INV %]".
-    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
-    des; clarify. unfold memcpyF. do 2 (try destruct x as [?|x]).
-    - unfold memcpy_hoare0. des_ifs_safe. ss. clarify.
-      iDestruct "PRE" as "[PRE %]".
-      iDestruct "PRE" as (al sz mvs_src) "[[[[% F] D] P] A]".
-      do 2 unfold has_offset, points_to, _has_offset, _points_to.
-      destruct blk; clarify.
-      destruct blk; clarify.
-      iDestruct "P" as "[SZ_PRE P]".
-      iDestruct "P" as (ofs) "[[[CNT_PRE [SZ0_PRE P]] %] LEN]".
-      iDestruct "A" as "[SZ1_PRE A]".
-      iDestruct "A" as (ofs0) "[[[CNT0_PRE [SZ2_PRE A]] %] LEN0]".
-      iDestruct "D" as "[ALLOC_PRE [SZ3_PRE D]]".
-      iDestruct "F" as "[ALLOC0_PRE [SZ4_PRE F]]".
-      do 7 (destruct H5 as [? H5]). clarify. hred_r.
-      iApply isim_upd.
-      assert (Mem.loadbytes mem_tgt b (Ptrofs.unsigned ofs) sz = Some mvs_src).
-      { admit "". }
-      assert (Mem.range_perm mem_tgt b0 (Ptrofs.unsigned ofs0) (Ptrofs.unsigned ofs0 + length mvs_src) Cur Writable).
-      { admit "". }
-      iCombine "CNT CNT0_PRE" as "CNT".
-      iPoseProof (OwnM_Upd with "CNT") as ">[CNT CNT0_POST]".
-      + admit "".
-      + iModIntro.
-        destruct dec.
-        { hred_r. subst. destruct l; clarify. destruct mvs_src; clarify.
-          iApply isim_apc. iExists None.
-          hred_l. iApply isim_choose_src. iExists _.
-          iApply isim_ret. admit "".
-          (* iSplitL "CNT CONC ALLOC SZ".
-          { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-          iSplit; ss. iFrame. iSplitR "LEN0 A". 2:{ iExists _. iFrame. iSplit; ss. admit "unit". }
-          iSplit; ss. iExists _. iFrame. ss.  *)
-          }
-        hred_r. iApply isim_pget_tgt. hred_r.
-        assert (i0 = ofs) by admit "".
-        assert (i = ofs0) by admit "".
-        subst.
-        assert (Mem.to_ptr v mem_tgt = Some (Vptr b0 ofs0)) by admit "".
-        assert (Mem.to_ptr v0 mem_tgt = Some (Vptr b ofs)) by admit "".
-        rewrite H15. rewrite H16. hred_r.
-        set (_ && _) as chk1.
-        assert (chk1 = true).
-        { unfold chk1. bsimpl.
-          repeat destruct dec; repeat destruct Zdivide_dec; destruct Coqlib.zle; ss; clarify; et; try tauto. }
-        rewrite H17. ss. destruct Coqlib.zle; clarify.
-        destruct Zdivide_dec; clarify. ss.
-        set (_ || _) as chk4.
-        assert (chk4 = true).
-        { admit "". }
-        rewrite H18. ss.
-        rewrite H7. hred_r.
-        Local Transparent Mem.storebytes.
-        unfold Mem.storebytes.
-        destruct Mem.range_perm_dec; clarify. hred_r.
-        iApply isim_pput_tgt. hred_r.
-        iApply isim_apc. iExists None.
-        hred_l. iApply isim_choose_src. iExists _.
-        iApply isim_ret. iModIntro. admit "".
-    - unfold memcpy_hoare1. des_ifs_safe. ss. clarify.
-      iDestruct "PRE" as "[PRE %]".
-      iDestruct "PRE" as (al sz) "[[% P] A]".
-      do 2 unfold has_offset, points_to, _has_offset, _points_to.
-      destruct blk; clarify.
-      iDestruct "A" as "[SZ_PRE A]".
-      iDestruct "A" as (ofs) "[[[CNT_PRE [SZ0_PRE A]] %] LEN]".
-      iDestruct "P" as "[ALLOC_PRE [SZ3_PRE P]]".
-      do 5 (destruct H5 as [? H5]). clarify. hred_r.
-      assert (Mem.loadbytes mem_tgt b (Ptrofs.unsigned ofs) sz = Some l).
-      { admit "". }
-      assert (Mem.range_perm mem_tgt b (Ptrofs.unsigned ofs) (Ptrofs.unsigned ofs + length l) Cur Writable).
-      { admit "". }
-      destruct dec.
-      { hred_r. subst. destruct l; clarify.
-        iApply isim_apc. iExists None.
-        hred_l. iApply isim_choose_src. iExists _.
-        iApply isim_ret.
-        iSplitL "CNT CONC ALLOC SZ".
-        { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-        iSplit; ss. iFrame. iSplitR "LEN A". 2:{ iExists _. iFrame. iSplit; ss. admit "unit". }
-        ss. }
-      hred_r. iApply isim_pget_tgt. hred_r.
-      assert (i = ofs) by admit "".
-      subst.
-      assert (Mem.to_ptr v mem_tgt = Some (Vptr b ofs)) by admit "".
-      rewrite H12. hred_r.
-      set (_ && _) as chk1.
-      assert (chk1 = true).
-      { unfold chk1. bsimpl.
-        repeat destruct dec; repeat destruct Zdivide_dec; destruct Coqlib.zle; ss; clarify; et; try tauto. }
-      rewrite H13. ss. destruct Coqlib.zle; clarify.
-      destruct Zdivide_dec; clarify. ss.
-      set (_ || _) as chk4.
-      assert (chk4 = true).
-      { admit "". }
-      rewrite H14. ss.
-      rewrite H6. hred_r.
-      Local Transparent Mem.storebytes.
-      unfold Mem.storebytes.
-      destruct Mem.range_perm_dec; clarify. hred_r.
-      iApply isim_pput_tgt. hred_r.
-      iApply isim_apc. iExists None.
-      hred_l. iApply isim_choose_src. iExists _.
-      iApply isim_ret. admit "".
-    Unshelve. all: et. { admit "". } { admit "". }
-  Qed.
-
-  Lemma sim_capture :
-    sim_fnsem wf top2
-      ("capture", fun_to_tgt "Mem" (to_stb []) (mk_pure capture_spec))
-      ("capture", cfunU captureF).
-  Proof.
-    econs; ss. red; ss. apply isim_fun_to_tgt; ss.
-    i. unfold "@".
-    iIntros "[INV PRE]".
-    iDestruct "INV" as (tt) "[INV %]".
-    iDestruct "INV" as (mem_tgt memcnt_src memalloc_src memsz_src memconc_src) "[[[[% CNT] ALLOC] CONC] SZ]".
-    des; clarify. unfold captureF. do 2 (try destruct x as [?|x]).
-    { unfold capture_hoare0. des_ifs_safe. ss. clarify.
-      iDestruct "PRE" as "%". des. clarify. hred_r.
-      iApply isim_pget_tgt. hred_r.
-      change Mem.mem' with Mem.mem in *. hred_r.
-      destruct Vnullptr eqn:?; clarify.
-      rewrite <- Heqv. hred_r.
-      iApply isim_apc. iExists None.
-      hred_l. iApply isim_choose_src. iExists _.
-      iApply isim_ret. iSplit; ss. 
-      iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-    unfold capture_hoare1. des_ifs_safe. ss. clarify.
-    iDestruct "PRE" as "[[% P] %]". des. clarify. hred_r.
-    unfold has_offset, _has_offset.
-    destruct blk; clarify.
-    iDestruct "P" as "[ALLOC_PRE [SZ_PRE P]]".
-    iApply isim_pget_tgt. hred_r.
-    change Mem.mem' with Mem.mem in *. hred_r.
-    Local Transparent equiv_prov.
-    destruct v; clarify; hred_r; ss.
-    { iApply isim_apc. iExists None.
-      hred_l. iApply isim_choose_src. iExists _.
-      iApply isim_ret. iSplitL "ALLOC CONC SZ CNT".
-      { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-      iSplit; ss. iFrame. iExists _.
-      unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et.
-      iSplit; ss. admit "". }
-    iDestruct "P" as "%". des. clarify.
-    unfold Coqlib.Plt.
-    destruct Coqlib.plt; ss. 2:{ admit "impossible". }
-    hred_r. iApply isim_choose_tgt.
-    iIntros (x). destruct x. destruct x. ss. hred_r.
-    iApply isim_pput_tgt. hred_r.
-    iApply isim_apc. iExists None.
-    hred_l. iApply isim_choose_src. iExists _.
-    iApply isim_upd.
-
-    iPoseProof (OwnM_Upd with "CONC") as ">[CONC CONC_POST]".
-    { admit "". }
-    iModIntro.
-    iApply isim_ret. iModIntro. admit "".
-    (* iSplitL "ALLOC CONC SZ CNT".
-    { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro. et. }
-    iSplit; ss. iFrame. iExists _.
-    unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et.
-    iSplit; ss. admit "". *)
-  Unshelve. all: et.
-  Qed.
 
   Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
   Proof.
