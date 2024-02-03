@@ -179,8 +179,8 @@ Section MODSEM.
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
         match Archi.ptr64, varg with
-        | true, [Vlong (Int64.mkint 0 _)] => Ret Vundef
-        | false, [Vint (Int.mkint 0 _)] => Ret Vundef
+        | true, [Vlong i] => if Int64.eq i Int64.zero then Ret Vundef else triggerUB
+        | false, [Vint i] => if Int.eq i Int.zero then Ret Vundef else triggerUB
         | _, [vaddr] =>
             match Mem.to_ptr vaddr m0 with
             | Some (Vptr b ofs) =>
