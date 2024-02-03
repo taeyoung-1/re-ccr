@@ -878,7 +878,7 @@ Section RULES.
     all : iPureIntro; ss.
   Qed.
 
-  (* Lemma point_notnull 
+  Lemma point_notnull 
       vaddr m q mvs
     : 
       vaddr (↦_m,q) mvs ⊢ ⌜vaddr <> Vnullptr⌝.
@@ -891,9 +891,22 @@ Section RULES.
     iDestruct "A" as (a) "[A %]".
     iPureIntro. des. clarify.
     assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
-    red. i. subst. vm_compute (Int64.unsigned Int64.zero) in *.
+    red. i. subst. change (Int64.unsigned Int64.zero) with 0 in *.
     rewrite Z.add_0_l in H5. apply H7. clear H7.
-  Admitted. *)
+    i. unfold Ptrofs.sub, Ptrofs.of_int64 in *.
+    change (Int64.unsigned Int64.zero) with 0 in *.
+    change (Ptrofs.unsigned (Ptrofs.repr 0)) with 0 in *.
+    rewrite Ptrofs.unsigned_repr_eq in *.
+    destruct (Coqlib.zeq 0 (Ptrofs.unsigned a)); et. exfalso.
+    rewrite Z_mod_nz_opp_full in H3.
+    2: rewrite Z.mod_small; et; apply Ptrofs.unsigned_range.
+    rewrite Z_mod_nz_opp_full in H4.
+    2: rewrite Z.mod_small; et; apply Ptrofs.unsigned_range.
+    rewrite Z.mod_small in *.
+    all: try apply Ptrofs.unsigned_range.
+    change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
+    nia.
+  Qed.
 
   Lemma point_notundef p q m mvs
     : 
