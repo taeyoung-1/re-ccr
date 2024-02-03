@@ -235,7 +235,7 @@ Section MODSEM.
         m <- mp↓?;;
         match varg with
         | [Vptr b ofs] =>
-          if negb (Coqlib.plt m.(Mem.nextblock) b) then triggerUB
+          if negb (Coqlib.plt b m.(Mem.nextblock)) then triggerUB
           else
             '(exist (i, m') _) <- trigger (Choose { im' : Z * mem | Mem.capture m b (fst im') (snd im')});;
             trigger (PPut m'↑);;;
