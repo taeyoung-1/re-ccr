@@ -178,10 +178,16 @@ Section MODSEM.
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        match Archi.ptr64, varg with
-        | true, [Vlong i] => if Int64.eq i Int64.zero then Ret Vundef else triggerUB
-        | false, [Vint i] => if Int.eq i Int.zero then Ret Vundef else triggerUB
-        | _, [vaddr] =>
+        `b: bool <- (match Archi.ptr64, varg with
+                    | true, [Vlong i] => if Int64.eq i Int64.zero then Ret true else Ret false
+                    | false, [Vint i] => if Int.eq i Int.zero then Ret true else Ret false
+                    | _, [_] => Ret false
+                    | _, _ => triggerUB
+                    end);;
+        if b then Ret Vundef
+        else
+          match varg with
+          | [vaddr] => 
             match Mem.to_ptr vaddr m0 with
             | Some (Vptr b ofs) =>
               v_sz <- (Mem.load Mptr m0 b (Ptrofs.unsigned ofs - size_chunk Mptr))?;;
@@ -198,8 +204,8 @@ Section MODSEM.
               else triggerUB
             | _ => triggerUB
             end
-        | _, _ => triggerUB
-        end
+          | _ => triggerUB
+          end
     .
 
     Definition memcpyF: Z * Z * list val -> itree Es val :=
