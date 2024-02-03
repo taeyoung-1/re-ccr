@@ -179,22 +179,25 @@ Section MODSEM.
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
         match Archi.ptr64, varg with
-        | _, [Vptr b ofs] =>
-            v_sz <- (Mem.load Mptr m0 b (Ptrofs.unsigned ofs - size_chunk Mptr))?;;
-            let sz := match Archi.ptr64, v_sz with
-                      | true, Vlong i =>
-                          Int64.unsigned i
-                      | false, Vint i =>
-                          Int.unsigned i
-                      | _, _ => - 1
-                      end in
-            if Coqlib.zlt 0 sz
-            then m1 <- (Mem.free m0 b (Ptrofs.unsigned ofs - size_chunk Mptr) (Ptrofs.unsigned ofs + sz))?;;
-                 trigger (PPut m1↑);;;
-                 Ret Vundef
-            else triggerUB
         | true, [Vlong (Int64.mkint 0 _)] => Ret Vundef
         | false, [Vint (Int.mkint 0 _)] => Ret Vundef
+        | _, [vaddr] =>
+            match Mem.to_ptr vaddr m0 with
+            | Some (Vptr b ofs) =>
+              v_sz <- (Mem.load Mptr m0 b (Ptrofs.unsigned ofs - size_chunk Mptr))?;;
+              let sz := match Archi.ptr64, v_sz with
+                        | true, Vlong i => Int64.unsigned i
+                        | false, Vint i => Int.unsigned i
+                        (* unreachable *)
+                        | _, _ => - 1
+                        end in
+              if Coqlib.zlt 0 sz
+              then m1 <- (Mem.free m0 b (Ptrofs.unsigned ofs - size_chunk Mptr) (Ptrofs.unsigned ofs + sz))?;;
+                  trigger (PPut m1↑);;;
+                  Ret Vundef
+              else triggerUB
+            | _ => triggerUB
+            end
         | _, _ => triggerUB
         end
     .
