@@ -412,11 +412,114 @@ Section SIMMODSEM.
   (* Arguments URA.car: simpl never. *)
   Local Transparent Mem.alloc Mem.store.
 
+  Lemma store_init_data_access sk mem b i a m : ClightDmMem0.store_init_data sk mem b i a = Some m -> Mem.mem_access mem = Mem.mem_access m.
+  Proof. unfold ClightDmMem0.store_init_data, Mem.store. i. des_ifs. Qed.
+  
+
+  Lemma store_iff l : forall sk mem b i res oq, Mem.range_perm mem b i (i + init_data_list_size l) Cur Freeable -> (ClightDmMem0.store_init_data_list sk mem b i l = None <-> store_init_data_list sk res b i oq l = None).
+  Proof.
+    induction l; split; ss; et.
+    - i. des_ifs.
+      + eapply IHl; et. ii. red in H3. unfold Mem.perm in *. hexploit store_init_data_access; et. i.
+        rewrite <- H6. apply H3. unfold init_data_size in *. des_ifs; nia.
+      + exfalso. unfold store_init_data, ClightDmMem0.store_init_data in *.
+        unfold Mem.store in *.
+        des_ifs.
+        all: try solve [apply n; unfold Mem.valid_access; split; et; eapply Mem.range_perm_implies with (p1:=Freeable); try econs; ii; apply H3; ss; pose proof (init_data_list_size_pos l); try nia].
+        { apply n0. unfold Mem.valid_access; split; et. eapply Mem.range_perm_implies with (p1:=Freeable); try econs. ii; apply H3; ss. unfold size_chunk in *. des_ifs. pose proof (init_data_list_size_pos l); try nia. }
+        { apply n0. unfold Mem.valid_access; split; et. eapply Mem.range_perm_implies with (p1:=Freeable); try econs. ii; apply H3; ss. unfold size_chunk in *. des_ifs. pose proof (init_data_list_size_pos l); try nia. }
+    - i. des_ifs.
+      + eapply IHl; et. ii. red in H3. unfold Mem.perm in *. hexploit store_init_data_access; et. i.
+        rewrite <- H6. apply H3. unfold init_data_size in *. des_ifs; nia.
+      + exfalso. unfold store_init_data, ClightDmMem0.store_init_data in *.
+        des_ifs; unfold Mem.store in *; des_ifs; unfold Mem.valid_access in *; des; clarify.
+  Qed.
+
+  Lemma alloc_has_perm mem b lo hi m' : Mem.alloc mem lo hi = (m', b) -> Mem.range_perm m' b lo hi Cur Freeable.
+  Proof. unfold Mem.alloc. i. clarify. unfold Mem.range_perm, Mem.perm. ss. i. rewrite Maps.PMap.gss. destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia. econs. Qed.
+
+  Lemma store_zeros_inv m b lo sz : Mem.range_perm m b lo (lo + sz) Cur Freeable -> exists m', Globalenvs.store_zeros m b lo sz = Some m' /\ Mem.range_perm m' b lo (lo + sz) Cur Freeable.
+  Proof.
+    i. hexploit Globalenvs.Genv.store_zeros_exists. { eapply Mem.range_perm_implies; et. econs. }
+    i. des. esplits; et.
+    symmetry in H4. apply Globalenvs.R_store_zeros_correct in H4.
+    remember (Some m') as om in H4.
+    set (lo + sz) as f in *. assert (lo + sz ≤ f) by nia. clearbody f.
+    set lo as i in H3. change lo with i. assert (i ≤ lo) by nia. clearbody i.
+    revert H5 H6 Heqom. induction H4; i; clarify.
+    unfold Mem.store in e0. des_ifs.
+    hexploit IHR_store_zeros; et; try nia.
+  Qed.
+
+  Lemma store_dl_inv sk m m' b lo l : Mem.range_perm m b lo (lo + (init_data_list_size l)) Cur Freeable -> ClightDmMem0.store_init_data_list sk m b lo l = Some m' -> Mem.range_perm m' b lo (lo + (init_data_list_size l)) Cur Freeable.
+  Proof.
+    set (lo + _) as f in *. assert (lo + (init_data_list_size l) ≤ f) by nia. clearbody f.
+    set lo as i. intros. unfold i in H5. assert (i ≤ lo) by nia. clearbody i.
+    revert m H4 m' lo H3 H5 H6. induction l; ss; i; clarify.
+    des_ifs. eapply IHl. 3: apply H5.
+    { unfold ClightDmMem0.store_init_data, Mem.store in *. des_ifs. }
+    { nia. }
+    { pose proof (init_data_size_pos a). nia. }
+  Qed.
+
+
+  Lemma alloc_gl_iff sk : forall mem g res, ClightDmMem0.alloc_global sk mem g = None <-> alloc_global sk res (Mem.nextblock mem) g = None.
+  Proof.
+    unfold alloc_global, ClightDmMem0.alloc_global in *.
+    i. destruct g.
+    - split; i; clarify.
+      unfold Mem.alloc in H3. unfold Mem.drop_perm in H3.
+      ss. destruct Mem.range_perm_dec; clarify.
+      exfalso. apply n. unfold Mem.range_perm, Mem.perm.
+      i. ss. rewrite Maps.PMap.gss. destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
+      econs.
+    - destruct Mem.alloc eqn:?. hexploit alloc_has_perm; et. i.
+      assert (b = Mem.nextblock mem). { unfold Mem.alloc in Heqp. clarify. }
+      subst.
+      rewrite <- (Z.add_0_l (init_data_list_size _)) in H3.
+      hexploit store_zeros_inv; et. i. des. rewrite H4.
+      hexploit store_iff; et. i.
+      destruct (ClightDmMem0.store_init_data_list sk m' _ 0 (gvar_init v)) eqn:?; cycle 1.
+      { rewrite H6 in Heqo. rewrite Heqo. et. }
+      destruct (store_init_data_list) eqn:?; cycle 1.
+      { destruct H6. hexploit H7; et. i. clarify. }
+      split; i; clarify.
+      exfalso. hexploit store_dl_inv; et. i.
+      unfold Mem.drop_perm in H7. des_ifs.
+  Qed.
+
+  Lemma alloc_gl_nextblock sk mem g m' : ClightDmMem0.alloc_global sk mem g = Some m' -> Mem.nextblock m' = Pos.succ (Mem.nextblock mem).
+  Proof.
+    i. unfold ClightDmMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
+    des_ifs. ss. apply Globalenvs.Genv.store_zeros_nextblock in Heq.
+    ss. rewrite <- Heq. clear -Heq0.
+    set 0 as i in Heq0. set (gvar_init v) as l in Heq0.
+    clearbody i l. revert m i Heq0. induction l; i; ss; clarify.
+    des_ifs. hexploit IHl; et. i. rewrite H.
+    unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs.
+  Qed.
+
   (* TODO: rollback memory local state formulation *)
   (* TODO: add UB condition in main function invocation *)
   Lemma wf_iff sk : res_init sk = None <-> load_mem sk = None.
   Proof.
-  Admitted.
+    unfold res_init. unfold load_mem.
+    set sk as sk' at 2 4.
+    assert (List.incl sk' sk) by refl.
+    clearbody sk'.
+    set ε as res. change xH with (Mem.nextblock Mem.empty). set Mem.empty as mem.
+    clearbody res mem. revert sk H3 res mem.
+    induction sk'; ss.
+    split; ss; i.
+    - des_ifs.
+      + hexploit alloc_gl_nextblock; et. i. rewrite <- H5 in H4.
+        rewrite <- IHsk'; et. etrans; et. unfold incl. i. ss. et.
+      + rewrite <- alloc_gl_iff in Heq0. clarify.
+    - des_ifs.
+      + hexploit alloc_gl_nextblock; et. i. rewrite <- H5.
+        rewrite IHsk'; et. etrans; et. unfold incl. i. ss. et.
+      + rewrite alloc_gl_iff in Heq0. rewrite Heq in Heq0. clarify.
+  Qed.
 
   Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m) :
     wf () (Any.pair ()↑ 
@@ -428,7 +531,7 @@ Section SIMMODSEM.
               ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
                                                   match ob with
                                                   | Some b =>
-                                                    if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b
+                                                    if Coqlib.plt (Pos.of_nat (List.length sk)) b
                                                     then OneShot.black
                                                     else OneShot.unit
                                                   | None => OneShot.white 0
@@ -694,6 +797,37 @@ Section SIMMODSEM.
       (*     [subst; rewrite Maps.PMap.gss|rewrite Maps.PMap.gso; et]. *)
       (*   destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia. } *)
   Admitted.
+
+  Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
+  Proof.
+  Local Opaque Pos.add.
+    econs; ss. i.
+    econstructor 1 with (wf:=wf) (le:=top2); ss; cycle 1.
+    { exists tt. des_ifs.
+      - apply init_wf; et.
+      - rewrite <- wf_iff in Heq0. clarify.
+      - rewrite wf_iff in Heq. clarify.
+      - econs; ss. eapply to_semantic.
+        iIntros "[[[A B] C] D]". iSplits. iFrame. iSplit; ss. iPureIntro.
+        splits; ss.
+        + i. rewrite Maps.PMap.gi. econs 2.
+        + i. des_ifs. rewrite Maps.PTree.gempty. et.
+        + i. destruct ob; et. split; et.
+          i. destruct Coqlib.plt; et. unfold Coqlib.Plt in *. exfalso. apply n. nia. }
+    repeat (match goal with |- Forall2 _ _ _ => econs end).
+    - apply sim_salloc.
+    - apply sim_sfree.
+    - apply sim_load.
+    - apply sim_store.
+    - apply sim_sub_ptr.
+    - apply sim_cmp_ptr.
+    - apply sim_non_null.
+    - apply sim_malloc.
+    - apply sim_mfree.
+    - apply sim_memcpy.
+    - apply sim_capture.
+  Qed.
+
 
   Local Transparent _points_to _allocated_with _has_offset _has_size _has_base.
   Local Transparent Mem.free.
@@ -3977,29 +4111,6 @@ Section SIMMODSEM.
         unfold update. destruct dec; clarify; cycle 1.
         specialize (SIM_ALLOC0 (Some b0)); ss; des. rewrite ! Maps.PMap.gso; et.
     Unshelve. all: et. all: try apply Eqsth; try apply Qp_le_po.
-  Qed.
-
-  Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
-  Proof.
-    econs; ss. i.
-    econstructor 1 with (wf:=wf) (le:=top2); ss; cycle 1.
-    { exists tt. des_ifs.
-      - apply init_wf; et.
-      - rewrite <- wf_iff in Heq0. clarify.
-      - rewrite wf_iff in Heq. clarify.
-      - admit "". }
-    repeat (match goal with |- Forall2 _ _ _ => econs end).
-    - apply sim_salloc.
-    - apply sim_sfree.
-    - apply sim_load.
-    - apply sim_store.
-    - apply sim_sub_ptr.
-    - apply sim_cmp_ptr.
-    - apply sim_non_null.
-    - apply sim_malloc.
-    - apply sim_mfree.
-    - apply sim_memcpy.
-    - apply sim_capture.
   Qed.
 
 
