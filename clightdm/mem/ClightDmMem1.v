@@ -1435,10 +1435,10 @@ Section MRS.
         end
     end.
 
-  Definition alloc_global (res : Σ) (b: block) (gd : globdef fundef type) : option Σ :=
+  Definition alloc_global (res : _pointstoRA * _allocatedRA * blocksizeRA) (b: block) (gd : globdef fundef type) : option (_pointstoRA * _allocatedRA * blocksizeRA) :=
+    let '(p, a, s) := res in
     match gd with
-    | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b Unfreeable (1/2)%Qp))
-                      ⋅ GRA.embed (_has_size (Some b) 1) ⋅ res)
+    | Gfun _ => Some (p, a ⋅ (__allocated_with b Unfreeable (1/2)%Qp), s ⋅ (_has_size (Some b) 1)) 
     | Gvar v =>
       let optq := match Globalenvs.Genv.perm_globvar v with
                   | Freeable | Writable => Some 1%Qp
@@ -1447,14 +1447,12 @@ Section MRS.
                   end
       in
       match store_init_data_list ε b 0 optq (gvar_init v) with
-      | Some res' => Some (GRA.embed (Auth.black (__allocated_with b  Unfreeable (1/2)%Qp))
-                           ⋅ GRA.embed (_has_size (Some b) (init_data_list_size (gvar_init v)))
-                           ⋅ GRA.embed (Auth.black res') ⋅ res)
+      | Some res' => Some (p ⋅ res', a ⋅ (__allocated_with b  Unfreeable (1/2)%Qp), s ⋅ (_has_size (Some b) (init_data_list_size (gvar_init v))))
       | None => None
       end
     end.
 
-  Fixpoint alloc_globals (res: Σ) (b: block) (sk: Sk.t) : option Σ :=
+  Fixpoint alloc_globals (res: _pointstoRA * _allocatedRA * blocksizeRA) (b: block) (sk: Sk.t) : option (_pointstoRA * _allocatedRA * blocksizeRA) :=
     match sk with
     | nil => Some res
     | g :: gl' => 
@@ -1465,7 +1463,11 @@ Section MRS.
       end
     end.
 
-  Definition res_init : option Σ := alloc_globals (GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)) xH sk.
+  Definition res_init : Σ :=
+    match alloc_globals (ε, ε, ε) xH sk with
+    | Some (p, a, s) => GRA.embed (Auth.black p) ⋅ GRA.embed (Auth.black a) ⋅ GRA.embed s
+    | None => GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)
+    end.
 
 End MRS.
 
@@ -1497,7 +1499,7 @@ Section SMOD.
     {|
       SModSem.fnsems := MemSbtb;
       SModSem.mn := "Mem";
-      SModSem.initial_mr := (match res_init sk with Some res => res | None => GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA) end)
+      SModSem.initial_mr := (res_init sk)
                             ⋅ GRA.embed ((fun ob => match ob with
                                                    | Some _ => OneShot.black
                                                    | None => OneShot.white Ptrofs.zero

@@ -59,7 +59,7 @@ From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Cli
 (* (* Qed. *) *)
 (* *) *)
 (* *)
-Section SIMMODSEM.
+Section INV.
   Local Open Scope Z.
 
   Context `{@GRA.inG pointstoRA Σ}.
@@ -405,14 +405,14 @@ Section SIMMODSEM.
   Proof.
     unfold alloc_global, ClightDmMem0.alloc_global in *.
     i. destruct g.
-    - split; i; clarify.
-      unfold Mem.alloc in H3. unfold Mem.drop_perm in H3.
+    - des_ifs. split; i; clarify.
+      unfold Mem.alloc, Mem.drop_perm in *.
       ss. destruct Mem.range_perm_dec; clarify.
       exfalso. apply n. unfold Mem.range_perm, Mem.perm.
       i. ss. rewrite Maps.PMap.gss. destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
       econs.
-    - destruct Mem.alloc eqn:?. hexploit alloc_has_perm; et. i.
-      assert (b = Mem.nextblock mem). { unfold Mem.alloc in Heqp. clarify. }
+    - des_ifs_safe. hexploit alloc_has_perm; et. i.
+      assert (b = Mem.nextblock mem). { unfold Mem.alloc in Heq. clarify. }
       subst.
       rewrite <- (Z.add_0_l (init_data_list_size _)) in H3.
       hexploit store_zeros_inv; et. i. des. rewrite H4.
@@ -437,15 +437,27 @@ Section SIMMODSEM.
     unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs.
   Qed.
 
+  Lemma alloc_gl_concrete sk mem g m' : ClightDmMem0.alloc_global sk mem g = Some m' -> Mem.mem_concrete m' = Mem.mem_concrete mem.
+  Proof.
+    i. unfold ClightDmMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
+    des_ifs. ss. hexploit concrete_store_zeros; et. ss. i. rewrite H3.
+    ss. clear -Heq0.
+    set 0 as i in Heq0. set (gvar_init v) as l in Heq0.
+    clearbody i l. revert m i Heq0. induction l; i; ss; clarify.
+    des_ifs. hexploit IHl; et. i. rewrite H.
+    unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs.
+  Qed.
+
   (* TODO: rollback memory local state formulation *)
   (* TODO: add UB condition in main function invocation *)
-  Lemma wf_iff sk : res_init sk = None <-> load_mem sk = None.
+  Lemma wf_iff sk : alloc_globals sk (ε,ε,ε) xH sk = None <-> load_mem sk = None.
   Proof.
-    unfold res_init. unfold load_mem.
+    unfold load_mem.
     set sk as sk' at 2 4.
     assert (List.incl sk' sk) by refl.
     clearbody sk'.
-    set (_ ⋅ _) as res. change xH with (Mem.nextblock Mem.empty). set Mem.empty as mem.
+    set (ε, ε, ε) as res.
+    change xH with (Mem.nextblock Mem.empty). set Mem.empty as mem.
     clearbody res mem. revert sk H3 res mem.
     induction sk'; ss.
     split; ss; i.
@@ -459,48 +471,32 @@ Section SIMMODSEM.
       + rewrite alloc_gl_iff in Heq0. rewrite Heq in Heq0. clarify.
   Qed.
 
-  (* Lemma initial_wf c (sk: Sk.t) :
-    Own (c ⋅ GRA.embed (A:=blockaddressRA) (λ ob : option block, 
-                                                  match ob with
-                                                  | Some _ => OneShot.black
-                                                  | None => OneShot.white Ptrofs.zero
-                                                  end)
-              ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
-                                                  match ob with
-                                                  | Some b =>
-                                                    if Coqlib.plt b (Pos.of_succ_nat (List.length sk))
-                                                    then OneShot.unit
-                                                    else OneShot.black
-                                                  | None => OneShot.white 0
-                                                  end)) ⊢
-          (∃ (mem_tgt0: Mem.mem) (memcnt_src0: ClightDmMem1._pointstoRA)
-            (memalloc_src0: ClightDmMem1._allocatedRA)
-            (memsz_src0: blocksizeRA)
-            (memconc_src0: blockaddressRA),
-          ⌜(<<TGT: _mem_tgt0 = mem_tgt0↑>>)
-          /\ (<<SIM_CNT: forall b ofs (POSOFS: 0 ≤ ofs),
-                         sim_cnt (memcnt_src0 b ofs)
-                            ((Maps.PMap.get b mem_tgt0.(Mem.mem_access)) ofs)
-                            (Maps.ZMap.get ofs (Maps.PMap.get b mem_tgt0.(Mem.mem_contents)))>>)
-          /\ (<<SIM_CONC: forall ob,
-                          match ob with
-                          | Some b => sim_concrete (memconc_src0 (Some b)) (Maps.PTree.get b mem_tgt0.(Mem.mem_concrete))
-                          | None => memconc_src0 None = OneShot.white Ptrofs.zero
-                          end>>)
-          /\ (<<SIM_ALLOC: forall ob,
-                           match ob with
-                           | Some b => sim_allocated (memalloc_src0 b) (memsz_src0 (Some b))
-                                          (Maps.PMap.get b mem_tgt0.(Mem.mem_access)) (Maps.PMap.get b mem_tgt0.(Mem.mem_contents))
-                                       /\ ((mem_tgt0.(Mem.nextblock) ≤ b)%positive -> memsz_src0 (Some b) = OneShot.black)
-                           | None => memsz_src0 None = OneShot.white 0
-                           end>>)⌝
-          ** OwnM (Auth.black memcnt_src0)
-          ** OwnM (Auth.black memalloc_src0)
-          ** OwnM memconc_src0
-          ** OwnM memsz_src0)%I. *) 
+  Lemma _start_wf :
+    Own ((GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)))
+      ⊢ ∃ (memcnt_src0 : ClightDmMem1._pointstoRA) (memalloc_src0 : ClightDmMem1._allocatedRA), 
+          (((⌜ (<< _
+                : ∀ (b : block) (ofs : Z),
+                    0 ≤ ofs
+                    → sim_cnt (memcnt_src0 b ofs)
+                        (Maps.PMap.get b (Mem.mem_access Mem.empty) ofs)
+                        (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents Mem.empty))) >>)
+                  ∧ << _
+                    : ∀ b : block,
+                            sim_allocated (memalloc_src0 b) (if Coqlib.plt b xH then OneShot.unit else OneShot.black)
+                              (Maps.PMap.get b (Mem.mem_access Mem.empty))
+                              (Maps.PMap.get b (Mem.mem_contents Mem.empty)) >>⌝ 
+                        ** OwnM (Auth.black memcnt_src0)) ** OwnM (Auth.black memalloc_src0))).
+  Proof.
+    iIntros "[A B]".
+    iExists _,_. iFrame. iPureIntro. unfold Mem.empty. ss. split.
+    - red. i. rewrite Maps.PMap.gi. econs 2.
+    - red. i. des_ifs.
+  Qed.
 
-Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m) :
-    Own (c ⋅ GRA.embed (A:= blockaddressRA) (λ ob : option block,
+  Lemma init_wf sk m p a s (RESWF: alloc_globals sk (ε,ε,ε) xH sk = Some (p, a, s)) (MEMWF: load_mem sk = Some m) :
+
+    Own (GRA.embed (Auth.black p) ⋅ GRA.embed (Auth.black a) ⋅ GRA.embed s
+          ⋅ GRA.embed (A:= blockaddressRA) (λ ob : option block,
                         match ob with
                         | Some _ => OneShot.black
                         | None => OneShot.white Ptrofs.zero
@@ -544,6 +540,49 @@ Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m)
             OwnM (Auth.black memalloc_src0)) ** OwnM memconc_src0) ** 
           OwnM memsz_src0.
     Proof.
+    (* Local Opaque Pos.add.
+    assert (Pos.of_succ_nat (strings.length sk) = m.(Mem.nextblock)).
+    { clear - MEMWF. unfold load_mem in *.
+      destruct (length sk) eqn:?. { destruct sk; clarify. ss. clarify. }
+      rewrite <- Heqn. assert (1 ≤ strings.length sk) by nia. clear Heqn.
+      replace (Pos.of_succ_nat (strings.length sk)) with (Pos.add xH (Pos.of_nat (strings.length sk))) by nia.
+      change xH with (Mem.empty.(Mem.nextblock)). set Mem.empty as mi in *. clearbody mi.
+      set sk as l in *. unfold l in MEMWF at 1. clearbody l.
+      ginduction l; i; ss. des_ifs. destruct l.
+      - ss. clarify. hexploit alloc_gl_nextblock; et. i. nia.
+      - eapply IHl in MEMWF; et. 2:{ ss. nia. }
+        hexploit alloc_gl_nextblock; et. i. rewrite <- MEMWF. rewrite H0. ss. nia. }
+    rewrite H3.
+    unfold res_init, load_mem in *.
+    hexploit _start_wf. i.
+    change xH with (Mem.empty.(Mem.nextblock)) in *.
+    set (_ ⋅ _) as res in *.
+    set Mem.empty as mem in RESWF, MEMWF, H4.
+    assert (Mem.mem_concrete mem = Maps.PTree.empty Z) by ss.
+    clearbody res mem.
+    set sk as l in RESWF at 2. change sk with l in MEMWF at 2.
+    clear H3. clearbody l. revert m mem c res RESWF MEMWF H4 H5.
+    induction l; i; ss; clarify.
+    - iIntros "[[A B] C]". iPoseProof (H4 with "A") as "A".
+      iDestruct "A" as (memcnt_src0 memalloc_src0) "[[% A] A']".
+      des. iExists _,_,_,_,_. iFrame. iSplit; ss. iPureIntro. splits; et.
+      + i. des_ifs. rewrite H5. rewrite Maps.PTree.gempty. econs. et.
+      + i. destruct ob; ss. split; et. i. destruct Coqlib.plt; et. unfold Coqlib.Plt in p. nia.
+    - des_ifs. eapply IHl; et; cycle 2.
+      { hexploit alloc_gl_concrete; et. i. rewrite H3. et. }
+      { hexploit alloc_gl_nextblock; et. i. rewrite H3. et. }
+      clear RESWF MEMWF IHl.
+      iIntros "C". unfold alloc_global in Heq0. destruct g.
+      + clarify. iDestruct "C" as "[[A' A''] A]".
+        iPoseProof (H4 with "A") as "A".
+        iDestruct "A" as (memcnt_src0 memalloc_src0) "[[% A] B]". des.
+        hexploit alloc_gl_nextblock; et. i. rewrite H3.
+        iCombine "A' B" as "B".  ur.
+        iExists _,_. iFrame. iPureIntro. split.
+        * 
+
+        assert ((λ ob : option block, match ob with Some b => if Coqlib.plt b (Mem.nextblock mem) then OneShot.black else OneShot.white 0 | None => Oneshot.unit)⋅ (λ ob : option block, match ob with Some b => if dec b (Mem.nextblock mem) then OneShot.black else OneShot.unit | None => Oneshot.unit)) *)
+
     Admitted.
 
 
@@ -604,40 +643,6 @@ Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m)
       - i. rewrite Maps.PMap.gi. econs 2.
       - i. des_ifs. rewrite Maps.PTree.gempty. econs 2. et.
       - i. des_ifs. unfold Coqlib.Plt in p. nia. }
-    assert (URA.wf (res ⋅ GRA.embed (A:=blockaddressRA) (λ ob : option block, 
-                                                          match ob with
-                                                          | Some _ => OneShot.black
-                                                          | None => OneShot.white Ptrofs.zero
-                                                          end)
-                      ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
-                                                          match ob with
-                                                          | Some b =>
-                                                            if Coqlib.plt b (mem.(Mem.nextblock))
-                                                            then OneShot.unit
-                                                            else OneShot.black
-                                                          | None => OneShot.white 0
-                                                          end))).
-    { unfold res.
-      destruct H.
-      destruct H0.
-      destruct H1.
-      destruct H2.
-      ur. unfold URA._wf. Local Transparent GRA.to_URA.
-      unfold GRA.to_URA, URA.pointwise_dep. i. ur. unfold GRA.embed. ss.
-      des_ifs; ss; exfalso; clear - inG_prf inG_prf0 inG_prf1 inG_prf2.
-      { rewrite <- inG_prf in inG_prf0. 
-        assert (@URA.car allocatedRA = @URA.car pointstoRA).
-        { rewrite inG_prf0. et. }
-        ss. assert (forall A B, list A = list B -> A = B). { i.  }
-         Set Printing All.
-        assert (@Auth.car ClightDmMem1._allocatedRA = @Auth.car pointstoRA).
-        apply (f_equal (@URA.car _)) in inG_prf0.
-         unfold allocatedRA, pointstoRA in *.
-
-        Set Printing All.
-
-        clarify.
-
     clearbody res mem.
     set sk as l in RESWF at 2. change sk with l in MEMWF at 2. change sk with l.
     clear H3.
@@ -912,7 +917,7 @@ Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m)
         [subst; rewrite Maps.PMap.gss|rewrite Maps.PMap.gso; et].
       destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia. }
   Admitted. *)
-End SIMMODSEM.
+End INV.
 
 Require Import HTactics ProofMode.
 Require Import HSim IProofMode.
@@ -959,6 +964,7 @@ Section SIMMODSEM.
   .
 
   Local Hint Resolve sim_itree_mon: paco.
+
 
 
 
@@ -4283,7 +4289,7 @@ Section SIMMODSEM.
   Local Opaque Pos.add.
     econs; ss. i.
     econstructor 1 with (wf:=wf) (le:=top2); ss; cycle 1.
-    { exists tt. des_ifs.
+    { exists tt. unfold res_init. des_ifs.
       - econs. apply to_semantic. apply init_wf; et.
       - rewrite <- wf_iff in Heq0. clarify.
       - rewrite wf_iff in Heq. clarify.
@@ -4292,7 +4298,7 @@ Section SIMMODSEM.
         splits; ss.
         + i. rewrite Maps.PMap.gi. econs 2.
         + i. des_ifs. rewrite Maps.PTree.gempty. econs. et.
-        + i. destruct ob; et. split; et.
+        + i. destruct ob; et. split. { econs 2. }
           i. destruct Coqlib.plt; et. unfold Coqlib.Plt in *. nia. }
     repeat (match goal with |- Forall2 _ _ _ => econs end).
     - apply sim_salloc.
@@ -4307,7 +4313,6 @@ Section SIMMODSEM.
     - apply sim_memcpy.
     - apply sim_capture.
   Qed.
-
   (* Theorem correct_modsem: forall sk, ModSemPair.sim (SModSem.to_tgt (to_stb []) *)
 (*                                            (Mem1.SMemSem (negb ∘ csl) sk)) (Mem0.MemSem csl sk). *)
 (*   Proof. *)

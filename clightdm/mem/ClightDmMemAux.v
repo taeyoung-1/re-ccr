@@ -146,3 +146,16 @@ Proof.
   destruct n; clarify. ss.
   destruct l; clarify.
 Qed.
+
+  Lemma concrete_store_zeros m1 b p n m2
+          (STORE: store_zeros m1 b p n = Some m2):
+    m1.(Mem.mem_concrete)= m2.(Mem.mem_concrete).
+  Proof.
+    simpl in STORE. symmetry in STORE. apply Globalenvs.R_store_zeros_correct in STORE.
+    remember (Some m2) as m'. revert m2 Heqm'.
+    induction STORE; i.
+    + clarify.
+    + apply Mem.concrete_store in e0. rewrite e0.
+      apply IHSTORE. assumption.
+    + clarify.
+  Qed.
