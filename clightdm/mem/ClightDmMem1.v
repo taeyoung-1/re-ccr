@@ -1465,7 +1465,7 @@ Section MRS.
       end
     end.
 
-  Definition res_init : option Σ := alloc_globals ε xH sk.
+  Definition res_init : option Σ := alloc_globals (GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)) xH sk.
 
 End MRS.
 
