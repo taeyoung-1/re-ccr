@@ -358,13 +358,13 @@ Section MODSEM.
 
   Definition load_mem := alloc_globals Mem.empty sk.
 
-  (* Definition default_mem : mem.
+  Definition default_mem : mem.
   Proof.
     destruct Mem.empty. unfold block in *.
     eapply (Mem.mkmem mem_contents mem_access mem_concrete (Pos.add nextblock (Pos.of_nat (List.length sk)))); et.
     - i. apply nextblock_noaccess. unfold Coqlib.Plt in *. nia.
     - i. apply nextblocks_logical. unfold Coqlib.Plt in *. nia.
-  Defined. *)
+  Defined.
 
   End STATE.
   
@@ -382,7 +382,7 @@ Section MODSEM.
                           ("memcpy", cfunU memcpyF);
                           ("capture", cfunU captureF)];
         ModSem.mn := "Mem";
-        ModSem.initial_st := (match load_mem with Some m => m | None => Mem.empty end)↑;
+        ModSem.initial_st := (match load_mem with Some m => m | None => default_mem end)↑;
       |}
   .
 

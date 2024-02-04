@@ -1503,7 +1503,7 @@ Section SMOD.
                                                    | None => OneShot.white Ptrofs.zero
                                                    end) : blockaddressRA)
                             ⋅ GRA.embed ((fun ob => match  ob with
-                                                   | Some b => if Coqlib.plt (Pos.of_nat (List.length sk)) b then OneShot.black else OneShot.unit
+                                                   | Some b => if Coqlib.plt b (Pos.of_succ_nat (List.length sk)) then OneShot.unit else OneShot.black
                                                    | None => OneShot.white 0
                                                    end) : blocksizeRA);
       SModSem.initial_st := tt↑;
