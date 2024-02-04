@@ -79,8 +79,7 @@ Section INV.
       (Qread: perm_order p Readable)
       (Qwrite: q = Q1 -> perm_order p Writable)
     : sim_cnt res perm mv
-  (* this condition is okay to be relaxed *)
-  | sim_empty mv : sim_cnt ε (fun _ => None) mv
+  | sim_empty perm mv : sim_cnt ε perm mv
   .
 
   (* permission sim for allocated with, block size *)
@@ -472,29 +471,23 @@ Section INV.
   Qed.
 
   Lemma _start_wf :
-    Own ((GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)))
-      ⊢ ∃ (memcnt_src0 : ClightDmMem1._pointstoRA) (memalloc_src0 : ClightDmMem1._allocatedRA), 
-          (((⌜ (<< _
-                : ∀ (b : block) (ofs : Z),
+          << _ : ∀ (b : block) (ofs : Z),
                     0 ≤ ofs
-                    → sim_cnt (memcnt_src0 b ofs)
+                    → sim_cnt ((ε : ClightDmMem1._pointstoRA) b ofs)
                         (Maps.PMap.get b (Mem.mem_access Mem.empty) ofs)
-                        (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents Mem.empty))) >>)
+                        (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents Mem.empty))) >>
                   ∧ << _
                     : ∀ b : block,
-                            sim_allocated (memalloc_src0 b) (if Coqlib.plt b xH then OneShot.unit else OneShot.black)
+                            sim_allocated ((ε : ClightDmMem1._allocatedRA) b) (((ε : blocksizeRA) (Some b)) ⋅ if Coqlib.plt b xH then OneShot.unit else OneShot.black)
                               (Maps.PMap.get b (Mem.mem_access Mem.empty))
-                              (Maps.PMap.get b (Mem.mem_contents Mem.empty)) >>⌝ 
-                        ** OwnM (Auth.black memcnt_src0)) ** OwnM (Auth.black memalloc_src0))).
+                              (Maps.PMap.get b (Mem.mem_contents Mem.empty)) >>.
   Proof.
-    iIntros "[A B]".
-    iExists _,_. iFrame. iPureIntro. unfold Mem.empty. ss. split.
+    unfold Mem.empty. ss. split.
     - red. i. rewrite Maps.PMap.gi. econs 2.
     - red. i. des_ifs.
   Qed.
 
   Lemma init_wf sk m p a s (RESWF: alloc_globals sk (ε,ε,ε) xH sk = Some (p, a, s)) (MEMWF: load_mem sk = Some m) :
-
     Own (GRA.embed (Auth.black p) ⋅ GRA.embed (Auth.black a) ⋅ GRA.embed s
           ⋅ GRA.embed (A:= blockaddressRA) (λ ob : option block,
                         match ob with
@@ -541,6 +534,7 @@ Section INV.
           OwnM memsz_src0.
     Proof.
     (* Local Opaque Pos.add.
+    Local Transparent _has_size.
     assert (Pos.of_succ_nat (strings.length sk) = m.(Mem.nextblock)).
     { clear - MEMWF. unfold load_mem in *.
       destruct (length sk) eqn:?. { destruct sk; clarify. ss. clarify. }
@@ -552,34 +546,53 @@ Section INV.
       - ss. clarify. hexploit alloc_gl_nextblock; et. i. nia.
       - eapply IHl in MEMWF; et. 2:{ ss. nia. }
         hexploit alloc_gl_nextblock; et. i. rewrite <- MEMWF. rewrite H0. ss. nia. }
-    rewrite H3.
-    unfold res_init, load_mem in *.
+    rewrite H3. unfold load_mem in *.
     hexploit _start_wf. i.
     change xH with (Mem.empty.(Mem.nextblock)) in *.
-    set (_ ⋅ _) as res in *.
+    set ε as pi in RESWF, H4.
+    set ε as ai in RESWF, H4.
+    set ε as si in RESWF, H4.
     set Mem.empty as mem in RESWF, MEMWF, H4.
     assert (Mem.mem_concrete mem = Maps.PTree.empty Z) by ss.
-    clearbody res mem.
+    assert (si None = OneShot.unit) by ss.
+    assert (forall b: block, (Mem.nextblock mem ≤ b)%positive -> si (Some b) = OneShot.unit) by ss.
+    clearbody pi ai si mem.
     set sk as l in RESWF at 2. change sk with l in MEMWF at 2.
-    clear H3. clearbody l. revert m mem c res RESWF MEMWF H4 H5.
+    clear H3. clearbody l. revert m mem pi ai si p a s RESWF MEMWF H4 H5 H6 H7.
     induction l; i; ss; clarify.
-    - iIntros "[[A B] C]". iPoseProof (H4 with "A") as "A".
-      iDestruct "A" as (memcnt_src0 memalloc_src0) "[[% A] A']".
-      des. iExists _,_,_,_,_. iFrame. iSplit; ss. iPureIntro. splits; et.
+    - iIntros "[[[[A B] C] D] E]". des.
+      iCombine "C E" as "C".
+      iExists _,_,_,_,_. iFrame. iSplit; ss. iPureIntro. splits; et.
       + i. des_ifs. rewrite H5. rewrite Maps.PTree.gempty. econs. et.
-      + i. destruct ob; ss. split; et. i. destruct Coqlib.plt; et. unfold Coqlib.Plt in p. nia.
-    - des_ifs. eapply IHl; et; cycle 2.
-      { hexploit alloc_gl_concrete; et. i. rewrite H3. et. }
+      + i. ur. rewrite H6. destruct ob; ss. 2:{ ur. et. }
+        split; et. i. hexploit H7; et. i. rewrite H4. ur.
+        destruct Coqlib.plt; et. unfold Coqlib.Plt in p0. nia.
+    - des_ifs_safe. destruct p0. destruct p0. eapply IHl.
       { hexploit alloc_gl_nextblock; et. i. rewrite H3. et. }
-      clear RESWF MEMWF IHl.
-      iIntros "C". unfold alloc_global in Heq0. destruct g.
-      + clarify. iDestruct "C" as "[[A' A''] A]".
-        iPoseProof (H4 with "A") as "A".
-        iDestruct "A" as (memcnt_src0 memalloc_src0) "[[% A] B]". des.
-        hexploit alloc_gl_nextblock; et. i. rewrite H3.
-        iCombine "A' B" as "B".  ur.
-        iExists _,_. iFrame. iPureIntro. split.
-        * 
+      { et. }
+      all: cycle 1.
+      { hexploit alloc_gl_concrete; et. i. rewrite H3. et. }
+      { des_ifs; ur; rewrite H6; ur; et. }
+      { i. hexploit alloc_gl_nextblock; et. i.
+        rewrite H8 in H3. 
+        destruct (dec b (mem.(Mem.nextblock))). { subst. nia. }
+        des_ifs; ur; rewrite H7; try nia; destruct dec; try nia; ur; et. }
+      clear RESWF MEMWF IHl. destruct g.
+      + clarify. hexploit alloc_gl_nextblock; et. i. rewrite H3. des.
+        split.
+        * red. i. unfold ClightDmMem0.alloc_global in Heq.
+          unfold Mem.alloc, Mem.drop_perm in Heq.
+          des_ifs. ss.
+          destruct (dec b (Mem.nextblock mem)); cycle 1.
+          { rewrite !Maps.PMap.gso; et. }
+          subst. rewrite !Maps.PMap.gss.
+          hexploit (z (Mem.nextblock mem)); et. i.
+          inv H8.
+          { rewrite (mem.(Mem.nextblock_noaccess) mem.(Mem.nextblock)) in PERM; clarify.
+            unfold Coqlib.Plt. nia. }
+          
+          
+            i. inv H8. { rewrite RES. econs. } destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia. }
 
         assert ((λ ob : option block, match ob with Some b => if Coqlib.plt b (Mem.nextblock mem) then OneShot.black else OneShot.white 0 | None => Oneshot.unit)⋅ (λ ob : option block, match ob with Some b => if dec b (Mem.nextblock mem) then OneShot.black else OneShot.unit | None => Oneshot.unit)) *)
 
@@ -1125,12 +1138,10 @@ Section SIMMODSEM.
       { rewrite Mem.nextblock_noaccess in PERM; unfold Coqlib.Plt; try nia; clarify. }
       do 2 ur. rewrite <- H7. rewrite URA.unit_idl. rewrite Maps.ZMap.gi.
       case_points_to; ss; cycle 1.
-      { rewrite repeat_length in *. destruct Coqlib.zlt; ss. nia. }
-      destruct nth_error eqn: ?; cycle 1.
-      { rewrite nth_error_None in Heqo. nia. }
-      rewrite repeat_length in *. destruct Coqlib.zlt; ss; try nia.
-      rewrite repeat_nth in *. des_ifs.
-      econs; ss. { econs. } i. econs.
+      { rewrite repeat_length in *. destruct Coqlib.zlt; try nia. ss.
+        destruct nth_error eqn:?; cycle 1. econs 2.
+        econs; et. { rewrite repeat_nth_some in Heqo; try nia. clarify. }
+        { econs. } i. econs. }
     (* sim_alloc *)
     - i. des_ifs; cycle 1.
       { specialize (SIM_ALLOC None); ss. }
@@ -1485,8 +1496,6 @@ Section SIMMODSEM.
           i. unfold update. destruct dec; try solve [rewrite Maps.PMap.gso; et].
           subst. rewrite Maps.PMap.gss. do 3 spc SIM_CNT.
           des_ifs.
-          2:{ rewrite nth_error_None in Heq0. rewrite encode_val_length in Heq0.
-              destruct m0; unfold size_chunk_nat in *; destruct Coqlib.zlt; ss; nia. }
           2:{ rewrite Mem.setN_outside; et. rewrite encode_val_length.
               bsimpl; des; first [destruct Coqlib.zle|destruct Coqlib.zlt]; ss; try nia. }
           erewrite setN_inside; et; cycle 1.
@@ -1567,15 +1576,13 @@ Section SIMMODSEM.
           i. unfold update. destruct dec; try solve [rewrite Maps.PMap.gso; et].
           subst. rewrite Maps.PMap.gss. specialize (SIM_CNT b0 ofs POSOFS).
           des_ifs.
-          2:{ rewrite nth_error_None in *. rewrite encode_val_length in *. 
-              destruct m0; unfold size_chunk_nat in *; destruct Coqlib.zlt; ss; nia. }
           2:{ rewrite Mem.setN_outside; et. rewrite encode_val_length.
               bsimpl; des; first [destruct Coqlib.zle|destruct Coqlib.zlt]; ss; try nia. }
           erewrite setN_inside; et; cycle 1.
           { destruct Coqlib.zle; destruct Coqlib.zlt; ss. rewrite encode_val_length. nia. }
           specialize (wfcnt ofs). unfold __points_to in wfcnt. case_points_to; ss.
           destruct nth_error eqn: ?; cycle 1. { rewrite nth_error_None in *. nia. }
-          inv SIM_CNT; [rewrite RES in *| rewrite <- H18 in *]. 
+          inv SIM_CNT; [rewrite RES in *| rewrite <- H18 in *].
           all: unfold URA.extends in wfcnt; do 2 ur in wfcnt; des; des_ifs; cycle 1.
           econs; et. apply Qp_not_add_le_l in Qwf0. ss. }
         iSplit; ss. iExists _. iFrame. 
@@ -3407,7 +3414,8 @@ Section SIMMODSEM.
           iApply isim_ret. 
           iSplitL "CNT CONC ALLOC SZ".
           { iExists _. iSplit; ss. iExists _,_,_,_,_. iFrame. iPureIntro.
-            splits; et. i. unfold update. destruct dec; et. subst. des_ifs; et. { destruct (Z.to_nat (ofs1 - _)); clarify. } destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia. }
+            splits; et. i. unfold update. destruct dec; et. subst. des_ifs; et. 
+            { destruct (Z.to_nat (ofs1 - _)); clarify. } }
           iSplit; ss. iFrame. iSplitR "LEN0 A CNT_PRE".
           iSplit; ss. iExists _. iFrame. iSplit; ss. do 2 rewrite points_to_nil. iFrame.
           iExists _. iFrame. iSplit; ss. do 2 rewrite points_to_nil. iFrame. }
@@ -3594,7 +3602,8 @@ Section SIMMODSEM.
           i. unfold update. clear H10.
           destruct (dec b0 b1); subst. 2:{ rewrite Maps.PMap.gso; et. }
           rewrite Maps.PMap.gss. des_ifs.
-          2:{ apply nth_error_None in Heq0. destruct Coqlib.zlt; destruct Coqlib.zle; ss; nia. }
+          2:{ rewrite Mem.setN_outside; et. 
+              destruct Coqlib.zle in Heq; destruct Coqlib.zlt in Heq; ss; try nia. }
           { erewrite setN_inside; et. 2:{ destruct Coqlib.zle in Heq; destruct Coqlib.zlt in Heq; ss; try nia. }
             hexploit (SIM_CNT0 ofs1); try nia. i.
             specialize (wfcnt0 ofs1).
@@ -3603,9 +3612,7 @@ Section SIMMODSEM.
             destruct nth_error eqn:?. 2:{ rewrite nth_error_None in Heqo. nia. }
             apply Consent.extends in wfcnt0; et. red in wfcnt0. des. rewrite wfcnt3 in *.
             inv H10; clarify.
-            econs; et. i. apply Qwrite. eapply antisymmetry; et. }
-          rewrite Mem.setN_outside; et. 
-          destruct Coqlib.zle in Heq; destruct Coqlib.zlt in Heq; ss; try nia. }
+            econs; et. i. apply Qwrite. eapply antisymmetry; et. } }
         iSplit; ss. iFrame. iSplitL "F CNT_PRE LEN".
         { iSplit; ss. iExists _. iFrame. ss. }
         iExists _. iFrame. rewrite H8 in *. iSplit; ss.
@@ -4014,9 +4021,6 @@ Section SIMMODSEM.
       { rewrite Mem.nextblock_noaccess in PERM; unfold Coqlib.Plt; try nia; clarify. }
       do 2 ur. rewrite <- H6. rewrite URA.unit_idl.
       case_points_to; ss; cycle 1.
-      { rewrite repeat_length in *. destruct Coqlib.zlt; ss.
-        { destruct i; ss. rewrite Z2Nat.id in g; try nia. }
-        rewrite andb_comm. ss. }
       destruct nth_error eqn: ?; cycle 1.
       { rewrite nth_error_None in Heqo. nia. }
       rewrite repeat_length in *. destruct Coqlib.zlt; ss; try nia.
@@ -4245,7 +4249,6 @@ Section SIMMODSEM.
         { rewrite ! Maps.PMap.gso; et. }
         rewrite ! Maps.PMap.gss.
         do 2 destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
-        unfold size_chunk in g. des_ifs. nia.
       (* sim_alloc *)
       + i. des_ifs; cycle 1.
         { specialize (SIM_ALLOC0 None); ss. }
@@ -4275,7 +4278,6 @@ Section SIMMODSEM.
         { rewrite ! Maps.PMap.gso; et. }
         rewrite ! Maps.PMap.gss.
         do 2 destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
-        unfold size_chunk in g. des_ifs. nia.
       (* sim_alloc *)
       + i. des_ifs; cycle 1.
         { specialize (SIM_ALLOC0 None); ss. }
@@ -4296,7 +4298,6 @@ Section SIMMODSEM.
       - econs; ss. eapply to_semantic.
         iIntros "[[[A B] C] D]". iSplits. iFrame. iSplit; ss. iPureIntro.
         splits; ss.
-        + i. rewrite Maps.PMap.gi. econs 2.
         + i. des_ifs. rewrite Maps.PTree.gempty. econs. et.
         + i. destruct ob; et. split. { econs 2. }
           i. destruct Coqlib.plt; et. unfold Coqlib.Plt in *. nia. }
