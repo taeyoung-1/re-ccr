@@ -1497,13 +1497,13 @@ Section SMOD.
     {|
       SModSem.fnsems := MemSbtb;
       SModSem.mn := "Mem";
-      SModSem.initial_mr := (match res_init sk with Some res => res | None => ε end)
+      SModSem.initial_mr := (match res_init sk with Some res => res | None => GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA) end)
                             ⋅ GRA.embed ((fun ob => match ob with
                                                    | Some _ => OneShot.black
                                                    | None => OneShot.white Ptrofs.zero
                                                    end) : blockaddressRA)
                             ⋅ GRA.embed ((fun ob => match  ob with
-                                                   | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
+                                                   | Some b => if Coqlib.plt (Pos.of_nat (List.length sk)) b then OneShot.black else OneShot.unit
                                                    | None => OneShot.white 0
                                                    end) : blocksizeRA);
       SModSem.initial_st := tt↑;
