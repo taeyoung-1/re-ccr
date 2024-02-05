@@ -88,9 +88,9 @@ Section PROOF.
       steps_safe_l. force_l; et. exists (rarg_src, c1, c).
       steps_safe_l. force_l; et.
       
-      s. rewrite Any.pair_split. s. 
-      steps_safe_l. force_l; et.
-      steps_safe_l. force_l; et.
+      (* s. rewrite Any.pair_split. s.  *)
+      (* steps_safe_l. force_l; et. *)
+      (* steps_safe_l. force_l; et. *)
 
       steps_safe_l. force_l. exists x0.
       steps_safe_l. force_l; et.

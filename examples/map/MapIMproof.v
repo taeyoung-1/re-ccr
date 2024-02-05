@@ -3,7 +3,7 @@ Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
 Require Import PCM.
-Require Import ModSem Behavior.
+Require Import ModSem ModSemE Behavior.
 Require Import Relation_Definitions.
 
 (*** TODO: export these in Coqlib or Universe ***)
@@ -226,6 +226,116 @@ Section SIMMODSEM.
   Require Import ModSemFacts.
   Require Import SimModSemFacts.
 
+  (* Theorem correct: refines (MapI.Map) (MapM.Map GlobalStbM).
+  Proof.
+    unfold refines. ss.
+    eapply adequacy_local. econs; ss. i. rr. 
+    econstructor 1 with (wf:=wf) (le:=inv_le top2); ss; et; cycle 2.
+    { eexists (inl tt). rr. econs; ss. eapply to_semantic. iIntros "_". iRight. auto.   }
+    { eapply inv_le_PreOrder. ss. }
+    econs; ss.
+    { unfold MapI.initF, MapM.initF, ccallU. init. iarg. mDesAll. subst.
+      mDesOr "INV".
+      { mDesAll. subst. mAssertPure False; ss. iApply (pending0_unique with "A1 A"). }
+      mDesAll. subst. steps_safe_l. rewrite Any.pair_split. steps_safe_l. rewrite Any.pair_split. s.  astart (1 + x). acatch.
+      { eapply STBINCLM. stb_tac. ss. }
+      { eapply OrdArith.lt_from_nat. eapply Nat.lt_succ_diag_r. }
+      icall_open _ with "".
+      { iModIntro. ss. }
+      { ss. }
+      ss. mDesAll. subst. ired_both. force_r. steps.
+      pattern 0%Z at 15.
+      match goal with
+      | |- ?P 0%Z => cut (P (x - x)%Z)
+      end; ss.
+      { rewrite Z.sub_diag. ss. }
+      mAssert (OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - x) ++ repeat Vundef x))) with "A1".
+      { rewrite Nat.sub_diag. ss. }
+      revert ctx1 ACC mr_src1.
+      cut (x <= x).
+      2:{ lia. }
+      generalize x at 1 4 5 7 13. intros n. induction n; i.
+      {  rewrite unfold_iter. steps. des_ifs.
+        { exfalso. lia. }
+        astop. steps. iret _; ss.
+        iModIntro. iSplit.
+        { iLeft. iSplits. iSplitR "A"; eauto. iSplit; eauto.
+          { iPureIntro. esplits; eauto.
+            { instantiate (1:=List.repeat 0%Z (Z.to_nat x)). eapply repeat_length. }
+            { i. rewrite repeat_nth; auto. lia. }
+          }
+          { replace (Z.to_nat x) with (x - 0).
+            2:{ lia. }
+            rewrite app_nil_r. rewrite repeat_map. ss.
+          }
+        }
+        { ss. }
+      }
+    }
+ econs; ss.
+    { unfold MapI.getF, MapM.getF, ccallU. init. iarg. mDesAll. subst.
+      mDesOr "INV".
+      2:{ mDesAll. subst. steps. exfalso. lia. }
+      mDesAll. des. steps. unfold scale_int. des_ifs.
+      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
+      steps. astart 1. acatch.
+      { eapply STBINCLM. stb_tac. ss. }
+      mApply points_to_get_split "A1".
+      2:{ eapply map_nth_error. eauto. }adequacy_local2
+      icall_open _ with "A1".
+      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iSplit; eauto. }
+      { ss. }
+      ss. mDesAll. subst. steps. astop. steps.
+      iret _; ss. iModIntro. iSplit; ss.
+      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
+      iSplit; eauto. iApply "A2". auto.
+    }
+    econs; ss.
+    { unfold MapI.setF, MapM.setF, ccallU. init. iarg. mDesAll. subst.
+      mDesOr "INV".
+      2:{ mDesAll. subst. steps. exfalso. lia. }
+      mDesAll. des. steps. unfold scale_int. des_ifs.
+      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
+      steps. astart 1. acatch.
+      { eapply STBINCLM. stb_tac. ss. }
+      hexploit set_nth_success.
+      { rewrite PURE0. instantiate (1:=Z.to_nat z). lia. }
+      i. des.
+      mApply points_to_set_split "A1".
+      2:{ rewrite set_nth_map. rewrite H1. ss. }
+      mDesAll.
+      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
+      2:{ rewrite Z_div_mult; ss. lia. }
+      icall_open _ with "A1".
+      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iExists _. iSplit; eauto. }
+      { ss. }adequacy_local2
+      ss. mDesAll. subst. steps. astop. steps.
+      iret _; ss. iModIntro. iSplit; ss.
+      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
+      iSplit; eauto.
+      2:{ iApply "A2". eauto. }
+      { iPureIntro. esplits; eauto.
+        { erewrite set_nth_length; eauto. }
+        { i. ss. erewrite set_nth_error; eauto. des_ifs; eauto. exfalso. lia. }
+      }
+    }
+    econs; ss.
+    { unfold MapI.set_by_userF, MapM.set_by_userF, ccallU.
+      init. iarg. mDesAll. subst. steps.
+      rewrite STB_setM. steps.
+      icall_weaken set_specM _ _ with "*".
+      { refl. }
+      { iModIntro. eauto. }
+      { ss. }
+      steps. mDesAll. subst. rewrite _UNWRAPU2. steps.
+      iret _; ss. iModIntro. iSplit; ss.
+    }
+    Unshelve. all: ss.
+  Qed. *)
+
+
+
+
   Theorem correct: refines2 [MapI.Map] [MapM.Map GlobalStbM].
   Proof.
     unfold refines2. ss.
@@ -327,10 +437,7 @@ Section SIMMODSEM.
       steps. astart 1. acatch.
       { eapply STBINCLM. stb_tac. ss. }
       mApply points_to_get_split "A1".
-      2:{ eapply map_nth_error. eauto. }
-      mDesAll.
-      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
-      2:{ rewrite Z_div_mult; ss. lia. }
+      2:{ eapply map_nth_error. eauto. }adequacy_local2
       icall_open _ with "A1".
       { iModIntro. instantiate (1:=Some (_, _, _)). ss. iSplit; eauto. }
       { ss. }
@@ -357,7 +464,7 @@ Section SIMMODSEM.
       2:{ rewrite Z_div_mult; ss. lia. }
       icall_open _ with "A1".
       { iModIntro. instantiate (1:=Some (_, _, _)). ss. iExists _. iSplit; eauto. }
-      { ss. }
+      { ss. }adequacy_local2
       ss. mDesAll. subst. steps. astop. steps.
       iret _; ss. iModIntro. iSplit; ss.
       iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.

@@ -352,6 +352,7 @@ Section MOD.
   Fixpoint add_list (xs: list t): t :=
     match xs with
     | [] => empty
+    | x::[] => x
     | x::l => add x (add_list l)
     end.
 

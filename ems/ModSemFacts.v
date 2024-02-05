@@ -950,22 +950,22 @@ Qed.
 
 
 
-(* Do we still add by list? (and refines2, refines_proper, etc.)
-Definition add_list (xs: list t): t :=
+(* Do we still add by list? (and refines2, refines_proper, etc.) *)
+(* Definition add_list (xs: list t): t :=
   fold_right add empty xs
-.
+. *)
 
-(* Lemma add_list_single: forall (x: t), add_list [x] = x.
-Proof. ii; cbn. rewrite add_empty_r. refl. Qed. *)
+Lemma add_list_single: forall (x: t), add_list [x] = x.
+Proof. ii; cbn. refl. Qed.
 
-Definition add_list_cons
+(* Definition add_list_cons
           x xs
         :
           (add_list (x::xs) = (add x (add_list xs)))
 .
-Proof. ss. Qed.
+Proof. ss. Qed. *)
 
-Definition add_list_snoc
+(* Definition add_list_snoc
           x xs
         :
           << SNOC: Beh.of_program (compile (add_list (snoc xs x))) <1= 
@@ -986,12 +986,23 @@ Section REFINE.
   Section CONF.
   Context {CONF: EMSConfig}.
 
+
+
+
+
   (*** vertical composition ***)
   Global Program Instance refines_PreOrder: PreOrder refines.
 
   Next Obligation. ii. ss. Qed.
   Next Obligation. ii. eapply H1. eapply H0. ss. Qed.
 
+  Global Program Instance refines2_PreOrder: PreOrder refines2.
+  Next Obligation.
+    ii. ss.
+  Qed.
+  Next Obligation.
+    ii. eapply H0 in PR. eapply H1 in PR. eapply PR.
+  Qed.
 
   Global Program Instance refines_strong_PreOrder: PreOrder refines_strong.
   Next Obligation. ii. ss. Qed.
@@ -1061,6 +1072,94 @@ Section REFINE.
     apply PR.
   Qed.
 
+  Lemma refines_empty 
+    (md: Mod.t)
+  :
+    <<SIM: refines md (Mod.add md Mod.empty)>>
+  .
+  Proof. 
+    ii. 
+    pose proof ModFacts.add_comm as COMM. 
+    pose proof ModFacts.add_assoc as ASSOC. 
+    apply COMM. apply COMM in PR. apply ModFacts.add_empty_rev_r in PR.
+    apply ASSOC. et.
+  Qed.
+
+  Lemma refines_empty_rev
+  (md: Mod.t)
+:
+  <<SIM: refines (Mod.add md Mod.empty) md>>
+.
+Proof. 
+  ii. 
+  pose proof ModFacts.add_comm as COMM. 
+  pose proof ModFacts.add_assoc_rev as ASSOC'. 
+  apply COMM. apply COMM in PR. apply ASSOC' in PR. apply ModFacts.add_empty_r in PR.
+  et.
+Qed.
+
+  (*** horizontal composition ***)
+   Theorem refines2_add
+         (s0 s1 t0 t1: list Mod.t)
+         (SIM0: refines2 t0 s0)
+         (SIM1: refines2 t1 s1)
+     :
+       <<SIM: refines2 [Mod.add (Mod.add_list t0) (Mod.add_list t1)] [Mod.add (Mod.add_list s0) (Mod.add_list s1)]>>
+       (* <<SIM: refines2 (t0 ++ t1) (s0 ++ s1)>> *)
+   .
+   Proof.
+    r. unfold refines2. eapply refines_add; et.
+   Qed.
+
+
+   Corollary refines2_pairwise
+             (mds0_src mds0_tgt: list Mod.t)
+             (FORALL: List.Forall2 (fun md_src md_tgt => refines2 [md_src] [md_tgt]) mds0_src mds0_tgt)
+     :
+       refines2 mds0_src mds0_tgt.
+   Proof.
+    induction FORALL; ss.
+    hexploit refines2_add.
+    { eapply H0. }
+    { eapply IHFORALL. }
+    r. i.
+    induction l, l'; et.
+    { r in H1. unfold refines2 in H1. ii. apply refines_empty in PR. apply H1. unfold Mod.add_list.
+      unfold Mod.add_list in PR. apply PR. }
+    { r in H1. unfold refines2 in H1. ii. unfold Mod.add_list in H1 at 2 5 6. apply H1 in PR.
+      unfold Mod.add_list in PR. apply refines_empty_rev in PR. apply PR. }
+
+   Qed.
+
+   Lemma refines2_eq (mds0 mds1: list Mod.t)
+     :
+       refines2 mds0 mds1 <-> refines (Mod.add_list mds0) (Mod.add_list mds1).
+   Proof.
+     split.
+     { ii. eapply H0. auto. }
+     { ii. eapply H0. auto. }
+   Qed.
+
+   (* Lemma refines2_app mhd0 mhd1 mtl0 mtl1
+         (HD: refines2 mhd0 mhd1)
+         (TL: refines2 mtl0 mtl1)
+     :
+       refines2 (mhd0++mtl0) (mhd1++mtl1).
+   Proof.
+     eapply refines2_eq. rewrite ! Mod.add_list_app. etrans.
+     { eapply refines_proper_l. eapply refines2_eq. et. }
+     { eapply refines_proper_r. eapply refines2_eq. et. }
+   Qed.
+
+   Lemma refines2_cons mhd0 mhd1 mtl0 mtl1
+         (HD: refines2 [mhd0] [mhd1])
+         (TL: refines2 mtl0 mtl1)
+     :
+       refines2 (mhd0::mtl0) (mhd1::mtl1).
+   Proof.
+     eapply (refines2_app HD TL).
+   Qed. *)
+
   End CONF.
 
    Theorem refines_strong_add
@@ -1073,8 +1172,35 @@ Section REFINE.
    Proof.
      intros CONF. eapply (@refines_add CONF); et.
    Qed.
+
+   Theorem refines_strong_proper_r
+         (mds0_src mds0_tgt: list Mod.t) (ctx: Mod.t)
+         (SIM0: refines_strong (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
+     :
+       <<SIM: refines_strong (Mod.add (Mod.add_list mds0_tgt) ctx) (Mod.add (Mod.add_list mds0_src) ctx)>>
+   .
+   Proof.
+     intros CONF. eapply (@refines_proper_r CONF); et.
+   Qed.
+
+   Theorem refines_strong_proper_l
+         (mds0_src mds0_tgt: list Mod.t) (ctx: Mod.t)
+         (SIM0: refines_strong (Mod.add_list mds0_tgt) (Mod.add_list mds0_src))
+     :
+       <<SIM: refines_strong (Mod.add ctx (Mod.add_list mds0_tgt)) (Mod.add ctx (Mod.add_list mds0_src))>>
+   .
+   Proof.
+     intros CONF. eapply (@refines_proper_l CONF); et.
+   Qed.
+
    Lemma refines_strong_refines {CONF: EMSConfig}: refines_strong <2= refines.
    Proof. ii. eapply PR; et. Qed.
+
+
+
+
+
+
 
 End REFINE.
 

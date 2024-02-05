@@ -474,8 +474,7 @@ Section MODE.
     des.
     (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     (ired_both; apply sim_itreeC_spec; econs 8). exists (ro_src, fr_src ⋅ fr_tgt, mr_src1 ⋅ mr_tgt1).
-    steps_safe_l. force_l. s.
-    (ired_both; apply sim_itreeC_spec; econs 12).
+    steps_safe_l.
     (ired_both; apply sim_itreeC_spec; econs 8). unshelve esplits; eauto.
     { r_wf UPDATABLE0. }
     (ired_both; apply sim_itreeC_spec; econs 8). esplits.
@@ -767,8 +766,6 @@ Section MODE.
         force_l. rename c into mr_tgt1. rename c0 into ro. rename c1 into rf. esplits; et.
         steps_safe_l. force_l; ss.
         exists (ro, rf ⋅ rf_src, rm_src ⋅ mr_tgt1). 
-        steps_safe_l. force_l. s. rewrite Any.pair_split. 
-        steps_safe_l. force_l. s.
         steps_safe_l. force_l.
         { r_wf _GUARANTEE1. }
         steps_safe_l. force_l. esplits; et. steps_safe_l. force_l. esplits; et.

@@ -163,45 +163,63 @@ Section ADEQUACY.
     eapply adequacy_local_strong; et.
   Qed.
 
-  (* Corollary adequacy_local_list_strong
+  Corollary adequacy_local_list_strong
             mds_src mds_tgt
             (FORALL: List.Forall2 ModPair.sim mds_src mds_tgt)
     :
       <<CR: refines_strong (Mod.add_list mds_tgt) (Mod.add_list mds_src)>>
   .
-  Proof. Admitted. *)
+  Proof.
+    (* apply adequacy_local_strong. *)
+
+  (* Admitted. *)
 
 
-    (* r. induction FORALL; ss.
+    r. induction FORALL; ss.
     { ii. auto. }
-    (* rewrite ! Mod.add_list_cons. *)
-    etrans.
-    { rewrite <- Mod.add_list_single. eapply refines_strong_proper_r.
-      rewrite ! Mod.add_list_single. eapply adequacy_local_strong; et. }
-    replace (Mod.lift x) with (Mod.add_list [x]); cycle 1.
-    { cbn. rewrite Mod.add_empty_r. refl. }
-    eapply refines_strong_proper_l; et.
-  Qed. *)
 
-  (* Theorem adequacy_local2 md_src md_tgt
+      destruct l eqn: L, l' eqn: L'.
+      - apply adequacy_local_strong; et.
+      - etrans.
+        + instantiate (1:= Mod.add x (Mod.add_list [])). apply refines_strong_add.
+          * apply adequacy_local_strong. apply H.
+          * apply IHFORALL.
+        + s. ii.
+          pose proof ModFacts.add_comm as COMM. 
+          pose proof ModFacts.add_assoc_rev as ASSOC'.
+          apply COMM. apply COMM in PR. apply ASSOC' in PR. apply ModFacts.add_empty_r in PR. et.
+      - etrans.
+        + apply adequacy_local_strong. apply H.
+        + etrans.
+          * instantiate (1:= Mod.add x (Mod.add_list [])). s. ii.
+            pose proof ModFacts.add_comm as COMM. 
+            pose proof ModFacts.add_assoc as ASSOC.
+            apply COMM. apply COMM in PR. apply ASSOC. apply ModFacts.add_empty_rev_r. apply PR.
+          * apply refines_strong_add; et. apply adequacy_local_strong.
+            econs; et. ii. rr. apply ModSemPair.self_sim.
+      - apply refines_strong_add; et. apply adequacy_local_strong. apply H.
+    Qed.             
+          
+
+  Theorem adequacy_local2 md_src md_tgt
           (SIM: ModPair.sim md_src md_tgt)
     :
       <<CR: (refines2 [md_tgt] [md_src])>>
   .
   Proof.
-    eapply ModSem.refines_strong_refines.
+    eapply refines_strong_refines.
     eapply adequacy_local_list_strong. econs; ss.
-  Qed. *)
+  Qed.
 
-  (* Corollary adequacy_local_list
+  Corollary adequacy_local_list
             mds_src mds_tgt
             (FORALL: List.Forall2 ModPair.sim mds_src mds_tgt)
     :
       <<CR: refines (Mod.add_list mds_tgt) (Mod.add_list mds_src)>>
   .
   Proof.
-    eapply ModSem.refines_strong_refines.
+    eapply refines_strong_refines.
     eapply adequacy_local_list_strong; et.
-  Qed. *)
+  Qed.
 
 End ADEQUACY.

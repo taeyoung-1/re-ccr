@@ -78,7 +78,8 @@ Definition progVars := list (gname * Z).
 Definition progFuns := list (gname * function).
 
 (** Imp program *)
-Record programL : Type := mk_programL {
+
+(* Record programL : Type := mk_programL {
   nameL : list mname;
   ext_varsL : extVars;
   ext_funsL : extFuns;
@@ -86,10 +87,10 @@ Record programL : Type := mk_programL {
   prog_funsL : list (mname * (gname * function));
   publicL : list gname;
   defsL : list (gname * Sk.gdef);
-}.
+}. *)
 
 Record program : Type := mk_program {
-  name : mname;
+  (* name : mname; *)
   ext_vars : extVars;
   ext_funs : extFuns;
   prog_vars : progVars;
@@ -107,14 +108,14 @@ Record program : Type := mk_program {
     (List.filter (negb ∘ call_ban ∘ fst) (fs ++ vs));
 }.
 
-Definition lift (p : program) : programL :=
+(* Definition lift (p : program) : programL :=
   mk_programL
     [p.(name)]
     p.(ext_vars) p.(ext_funs)
     p.(prog_vars) (List.map (fun pf => (p.(name), pf)) p.(prog_funs))
     p.(public) p.(defs).
 
-Coercion lift : program >-> programL.
+Coercion lift : program >-> programL. *)
 
 
 
@@ -367,8 +368,7 @@ Section MODSEM.
 
   Definition modsem (m : program) (ge: SkEnv.t) : ModSem.t := {|
     ModSem.fnsems := List.map (fun '(fn, f) => (fn, cfunU (eval_imp ge f))) m.(prog_funs);
-    ModSem.mn := m.(name);
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}.
 
   Definition get_mod (m : program) : Mod.t := {|
@@ -376,7 +376,7 @@ Section MODSEM.
     Mod.sk := m.(defs);
   |}.
 
-  Definition modsemL (mL : programL) (ge: SkEnv.t) : ModSemL.t := {|
+  (* Definition modsemL (mL : programL) (ge: SkEnv.t) : ModSemL.t := {|
     ModSemL.fnsems :=
       List.map (fun '(mn, (fn, f)) => (fn, fun a => transl_all mn (cfunU (eval_imp ge f) a))) mL.(prog_funsL);
     ModSemL.initial_mrs :=
@@ -397,7 +397,7 @@ Section MODSEM.
     revert sk. induction (prog_funs p); i; ss; clarify.
     destruct a. unfold map_snd. f_equal.
     apply IHp0.
-  Qed.
+  Qed. *)
 
 End MODSEM.
 End ImpMod.

@@ -17,6 +17,8 @@ From ExtLib Require Import
      Data.Map.FMapAList.
 Require Import HTactics ProofMode.
 
+Require Import SimModSemFacts.
+
 Set Implicit Arguments.
 
 Local Open Scope nat_scope.
@@ -459,9 +461,14 @@ Section SIMMODSEM.
     all: ss. all: try exact 0.
   Qed.
 
-  Theorem correct: refines2 [Mem0.Mem csl] [Mem1.Mem (negb ∘ csl)].
+  Theorem correct: refines (Mem0.Mem csl) (Mem1.Mem (negb ∘ csl)).
+  Proof.
+    eapply adequacy_local. econs; ss; et. i. eapply correct_modsem.
+  Qed.
+
+  (* Theorem correct: refines2 [Mem0.Mem csl] [Mem1.Mem (negb ∘ csl)].
   Proof.
     eapply adequacy_local2. econs; ss; et. i. eapply correct_modsem.
-  Qed.
+  Qed. *)
 
 End SIMMODSEM.

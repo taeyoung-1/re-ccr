@@ -100,22 +100,6 @@ Section SIM.
       _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src0, trigger (Call fn varg) >>= k_src)
                       (st_tgt0, trigger (Call fn varg) >>= k_tgt)
 
-  | safe_sim_itree_inline_src
-      i_src0 i_tgt0 w st_src st_tgt
-      f fn varg k_src i_tgt
-      (FUN: alist_find fn fl_src = Some f)
-      (K: r _ _ RR true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, trigger (Call fn varg) >>= k_src)
-                      (st_tgt, i_tgt)
-  | safe_sim_itree_inline_tgt
-      i_src0 i_tgt0 w st_src st_tgt
-      f fn varg i_src k_tgt
-      (FUN: alist_find fn fl_tgt = Some f)
-      (K: r _ _ RR i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
-    :
-      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, i_src) (st_tgt, trigger (Call fn varg) >>= k_tgt)  
-
   | safe_sim_itree_syscall
       i_src0 i_tgt0 w0 st_src0 st_tgt0
       fn varg rvs k_src k_tgt
@@ -172,6 +156,21 @@ Section SIM.
     _safe_sim_itree r g RR i_src0 i_tgt0 w0 (st_src0, i_src)
                     (st_tgt0, trigger (SUpdate run) >>= k_tgt)
 
+  | safe_sim_itree_inline_src
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg k_src i_tgt
+      (FUN: alist_find fn fl_src = Some f)
+      (K: r _ _ RR true i_tgt0 w (st_src, (f varg) >>= k_src) (st_tgt, i_tgt))
+    :
+      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, trigger (Call fn varg) >>= k_src)
+                      (st_tgt, i_tgt)
+  | safe_sim_itree_inline_tgt
+      i_src0 i_tgt0 w st_src st_tgt
+      f fn varg i_src k_tgt
+      (FUN: alist_find fn fl_tgt = Some f)
+      (K: r _ _ RR i_src0 true w (st_src, i_src) (st_tgt, (f varg) >>= k_tgt))
+    :
+      _safe_sim_itree r g RR i_src0 i_tgt0 w (st_src, i_src) (st_tgt, trigger (Call fn varg) >>= k_tgt)  
   .
 
   Lemma safe_sim_sim r g:
@@ -814,7 +813,7 @@ Ltac _step_safe_l :=
  
   (*** blacklisting ***)
   | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call _ _) >>= _)) ] =>
-   try (eapply safe_sim_sim; econs 6)
+    try (eapply safe_sim_sim; econs 4); try (eapply safe_sim_sim; econs 7); try (eapply safe_sim_sim; econs 8) 
 
     
   | _ => (*** default ***)
@@ -865,7 +864,7 @@ Ltac _step_safe_r :=
  
   (*** blacklisting ***)
   | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, trigger (Call _ _) >>= _) (_, _)) ] =>
-    try (eapply safe_sim_sim; econs 7)
+    try (eapply safe_sim_sim; econs; i)
 
 
     
