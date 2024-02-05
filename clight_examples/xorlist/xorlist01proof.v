@@ -10,7 +10,7 @@ Require Import STB.
 Require Import HTactics ProofMode.
 Require Import HSim IProofMode.
 Require Import ClightDmSkel ClightDmExprgen ClightDmgen.
-Require Import ClightDmMem0 ClightDmMem1.
+Require Import ClightDmMem0 ClightDmMem1 ClightDmMemAux.
 Require Import CIProofMode.
 Require Import xorlist.
 Require Import xorlist0.
@@ -167,7 +167,7 @@ Section PROOF.
     iPoseProof (xorlist_tl_not_Vundef with "LIST") as "%". rename H3 into hd_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV hd_hdl_point hd_hdl_ofs"; iFrame.
-    { iPureIntro. rewrite encode_val_length. rewrite hd_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src1 st_tgt1) "[INV [hd_hdl_point hd_hdl_ofs]]".
     rewrite hd_deen.
     (* node* hd = *hd_handler end *)
@@ -182,7 +182,7 @@ Section PROOF.
     iPoseProof (xorlist_hd_not_Vundef with "LIST") as "%". rename H3 into tl_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV tl_hdl_point tl_hdl_ofs"; iFrame.
-    { iPureIntro. rewrite encode_val_length. rewrite tl_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src2 st_tgt2) "[INV [tl_hdl_point tl_hdl_ofs]]".
     rewrite tl_deen.
     (* node* tl = *tl_handler end *)
@@ -289,7 +289,7 @@ Section PROOF.
     iPoseProof ((@offset_cast_ptr _ _ _ _ Es) with "tl_ofs") as "%".
     rewrite H3. hred_r. rename H3 into hd_cast_ptr.
 
-    iApply isim_ccallU_capture2; ss; oauto.
+    iApply isim_ccallU_capture1; ss; oauto.
     iSplitL "INV tl_ofs"; iFrame.
     iIntros (st_src5 st_tgt5 i_hd) "[INV [tl_ofs tl_addr]]".
 
@@ -313,7 +313,7 @@ Section PROOF.
 
     (* hd->link = hd->link ^ (intptr_t)entry start *)
     rewrite new_cast_ptr. hred_r.
-    iApply isim_ccallU_capture2; ss; oauto.
+    iApply isim_ccallU_capture1; ss; oauto.
     iSplitL "INV new_ofs"; iFrame.
     { iApply offset_slide_rev. et. }
     iIntros (st_src7 st_tgt7 i_new) "[INV [new_ofs new_addr]]".
@@ -398,7 +398,7 @@ Section PROOF.
     iExists _,_,_. iFrame.
     instantiate (1:=i_next).
     replace (Vptrofs (Ptrofs.xor _ _)) with (Vlong (Int64.xor i0 i1)).
-    - iFrame. iSplit; ss. rewrite rev_involutive. admit "".
+    - iFrame. iSplit; ss. rewrite rev_involutive. iApply xorlist_hd_prev_replace. iFrame. iApply equiv_sym. et.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
@@ -482,7 +482,7 @@ Section PROOF.
     iPoseProof (xorlist_hd_not_Vundef with "LIST") as "%". rename H3 into hd_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV hd_hdl_point hd_hdl_ofs"; iFrame.
-    { iPureIntro. rewrite encode_val_length. rewrite hd_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src1 st_tgt1) "[INV [hd_hdl_point hd_hdl_ofs]]".
     rewrite hd_deen.
     (* node* hd = *hd_handler end *)
@@ -497,7 +497,7 @@ Section PROOF.
     iPoseProof (xorlist_tl_not_Vundef with "LIST") as "%". rename H3 into tl_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV tl_hdl_point tl_hdl_ofs"; iFrame.
-    { rewrite encode_val_length. rewrite tl_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src2 st_tgt2) "[INV [tl_hdl_point tl_hdl_ofs]]".
     rewrite tl_deen.
     (* node* tl = *tl_handler end *)
@@ -604,7 +604,7 @@ Section PROOF.
     iPoseProof ((@offset_cast_ptr _ _ _ _ Es) with "hd_ofs") as "%".
     rewrite H3. hred_r. rename H3 into hd_cast_ptr.
 
-    iApply isim_ccallU_capture2; ss; oauto.
+    iApply isim_ccallU_capture1; ss; oauto.
     iSplitL "INV hd_ofs"; iFrame.
     iIntros (st_src5 st_tgt5 i_hd) "[INV [hd_ofs hd_addr]]".
 
@@ -628,7 +628,7 @@ Section PROOF.
 
     (* hd->link = hd->link ^ (intptr_t)entry start *)
     rewrite new_cast_ptr. hred_r.
-    iApply isim_ccallU_capture2; ss; oauto.
+    iApply isim_ccallU_capture1; ss; oauto.
     iSplitL "INV new_ofs"; iFrame.
     { iApply offset_slide_rev. et. }
     iIntros (st_src7 st_tgt7 i_new) "[INV [new_ofs new_addr]]".
@@ -707,7 +707,7 @@ Section PROOF.
     iExists _,_,_. iFrame.
     instantiate (1:=i_next).
     replace (Vptrofs (Ptrofs.xor _ _)) with (Vlong (Int64.xor i0 i1)).
-    - iFrame. iSplit; ss. admit "".
+    - iFrame. iSplit; ss. iApply xorlist_hd_prev_replace. iFrame. iApply equiv_sym. iFrame.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
@@ -765,7 +765,7 @@ Section PROOF.
     iPoseProof (xorlist_hd_not_Vundef with "LIST") as "%". rename H3 into tl_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV tl_hdl_point tl_hdl_ofs"; iFrame.
-    { iPureIntro. rewrite encode_val_length. rewrite tl_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src0 st_tgt0) "[INV [tl_hdl_point tl_hdl_ofs]]".
     rewrite tl_deen.
     (* node hd_old = *hdH end *)
@@ -944,7 +944,7 @@ Section PROOF.
       iPoseProof ((@point_cast_ptr _ _ _ _ Es) with "tl_point_item") as "%".
       rewrite H3. rename H3 into tl_old_cast. hred_r.
 
-      iApply isim_ccallU_capture2; ss; oauto.
+      iApply isim_ccallU_capture1; ss; oauto.
       iSplitL "INV tl_ofs"; iFrame.
       { iApply offset_slide_rev. et. }
       iIntros (st_src7 st_tgt7 i) "[INV [tl_ofs tl_equiv']]".
@@ -1054,7 +1054,7 @@ Section PROOF.
     iPoseProof (xorlist_hd_not_Vundef with "LIST") as "%". rename H3 into hd_notundef.
     iApply isim_ccallU_load; ss; oauto.
     iSplitL "INV hd_hdl_point hd_hdl_ofs"; iFrame.
-    { iPureIntro. rewrite encode_val_length. rewrite hd_deen. et. }
+    { iPureIntro. rewrite encode_val_length. splits; et. apply decode_encode_id_is_pure; et. }
     iIntros (st_src0 st_tgt0) "[INV [hd_hdl_point hd_hdl_ofs]]".
     rewrite hd_deen.
     (* node hd_old = *hdH end *)
@@ -1232,7 +1232,7 @@ Section PROOF.
       iPoseProof ((@point_cast_ptr _ _ _ _ Es) with "hd_point_item") as "%".
       rewrite H3. rename H3 into hd_old_cast. hred_r.
 
-      iApply isim_ccallU_capture2; ss; oauto.
+      iApply isim_ccallU_capture1; ss; oauto.
       iSplitL "INV hd_ofs"; iFrame.
       { iApply offset_slide_rev. et. }
       iIntros (st_src7 st_tgt7 i) "[INV [hd_ofs hd_equiv']]".

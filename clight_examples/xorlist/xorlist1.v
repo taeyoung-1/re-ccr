@@ -259,6 +259,23 @@ Section PROP.
       iApply IHxs. et.
   Qed.
 
+  Lemma xorlist_hd_prev_replace q m_prev m_next hd_prev hd_prev' hd tl tl_next xs
+    : frag_xorlist q m_prev m_next hd_prev hd tl tl_next xs ** hd_prev (≃_m_prev) hd_prev' ⊢ frag_xorlist q m_prev m_next hd_prev' hd tl tl_next xs.
+  Proof.
+    destruct xs; i; ss.
+    - ss. iIntros "[[A B] C]". iFrame. iApply equiv_trans. iFrame. iApply equiv_sym. et.
+    - ss. iIntros "[A B]". destruct v; clarify.
+      iDestruct "A" as (i_prev i_next m_hd) "[[[[% F] D] E] A]". 
+      iExists _,_,_. iFrame. iSplit; ss. iApply equiv_trans. iFrame. iApply equiv_sym. et.
+  Qed.
+
+  Lemma xorlist_tl_next_replace q m_prev m_next hd_prev tl_next' hd tl tl_next xs
+    : frag_xorlist q m_prev m_next hd_prev hd tl tl_next xs ** tl_next (≃_m_next) tl_next' ⊢ frag_xorlist q m_prev m_next hd_prev hd tl tl_next' xs.
+  Proof.
+    iIntros "[A B]". set xs at 1. rewrite <- (rev_involutive xs). unfold l.
+    iApply rev_xorlist. iApply xorlist_hd_prev_replace. iFrame.
+    iApply rev_xorlist. et.
+  Qed.
 
 End PROP.
 
