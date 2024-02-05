@@ -609,8 +609,68 @@ Section INV.
     init_data_list_to_memval_list sk (gvar_init v) = Some mvl ->
     nth_error mvl ofs = Some mv ->
     Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m0)) = mv.
-  Admitted.
+  Proof.
+    i. unfold ClightDmMem0.alloc_global in H3. des_ifs.
+    apply Globalenvs.Genv.store_zeros_loadbytes in Heq0.
+    unfold Mem.drop_perm in H3. des_ifs. ss. unfold Mem.alloc in Heq. clarify.
+    clear - H4 H5 Heq0 Heq1.
+    set (gvar_init v) as l in *. clearbody l.
+    set 0 as i in Heq1, Heq0.
+    assert (0 ≤ i) by ss.
+    assert ((forall ofs, 0 ≤ ofs < i -> Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) m1.(Mem.mem_contents)) = Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) m2.(Mem.mem_contents))) /\ forall ofs mv, nth_error mvl ofs = Some mv -> Maps.ZMap.get (i + ofs) (Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m2)) = mv); cycle 1.
+    { destruct H0. replace (Z.of_nat ofs) with (i + Z.of_nat ofs) by nia. et. }
+    clearbody i. clear H5. revert i m1 m2 mvl ofs Heq0 Heq1 H4 H.
+    induction l; i; ss; clarify.
+    - unfold init_data_list_to_memval_list in H4. ss. clarify.
+      split; et. i. destruct ofs0; ss.
+    - des_ifs. unfold init_data_list_to_memval_list in H4.
+      ss. des_ifs. ss. clarify. pose proof (init_data_size_pos a).
+      hexploit IHl; et; try nia.
+      { unfold ClightDmMem0.store_init_data in Heq. des_ifs.
+        7:{ ii. apply Heq0; et; try nia. }
+        all: ii; erewrite Mem.loadbytes_store_other; et. 
+        all: apply Heq0; et; try nia.  }
+      { unfold init_data_list_to_memval_list. rewrite Heq3. ss. }
+      i. destruct H1. split.
+      + i. rewrite <- (H2 ofs0); try nia. unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+        des_ifs; ss. all: rewrite Maps.PMap.gss; rewrite Mem.setN_outside; et; try nia.
+      + i. 
+        assert (List.length l0 = Z.to_nat (init_data_size a)).
+        { unfold init_data_to_memval in Heq2; des_ifs. rewrite repeat_length. ss. nia. }
+        destruct (lt_dec ofs0 (List.length l0)); cycle 1.
+        { rewrite nth_error_app2 in H4; try nia.
+          hexploit H3; et. i. rewrite <- H6. f_equal. nia. }
+        rewrite nth_error_app1 in H4; try nia.
+        rewrite <- H2; try nia. unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+        des_ifs; ss; clarify.
+        Local Transparent Mem.loadbytes.
+        7:{ rewrite repeat_nth_some in H4; try nia. clarify.
+            red in Heq0. specialize (Heq0 (i + ofs0) 1%nat).
+            hexploit Heq0; try nia.
+            { rewrite repeat_length in *. ss. pose proof (init_data_list_size_pos l). nia. }
+            i. unfold Mem.loadbytes in H4. des_ifs. }
+        all: try rewrite Maps.PMap.gss; try erewrite setN_inside; et.
+        all: try solve [rewrite encode_val_length; ss; nia]. 
+        all: try (rewrite <- H4; f_equal; nia).
+        { rewrite encode_val_length. unfold size_chunk_nat, size_chunk. des_ifs. nia. }
+        rewrite <- H4. des_ifs. f_equal. nia.
+  Qed.
 
+  Lemma decode_init_len sk l mvl : 
+    init_data_list_to_memval_list sk l = Some mvl ->
+    List.length mvl = Z.to_nat (init_data_list_size l).
+  Proof.
+    revert mvl. induction l.
+    - i. unfold init_data_list_to_memval_list in *. ss. clarify.
+    - i. unfold init_data_list_to_memval_list in *. ss. des_ifs. ss. clarify.
+      rewrite app_length. rewrite (IHl (List.concat _)); et.
+      pose proof (init_data_list_size_pos l).
+      unfold init_data_to_memval in Heq. des_ifs.
+      all: try (rewrite encode_val_length; ss; nia).
+      { rewrite repeat_length. ss. nia. }
+      rewrite encode_val_length. unfold size_chunk_nat, size_chunk. ss. des_ifs.
+      nia.
+  Qed.
 
 
   (* TODO: rollback memory local state formulation *)
@@ -840,16 +900,16 @@ Section INV.
           des. rewrite H13 in Heqo.
           hexploit store_init_data_list_content; et.
           i. des.
+          assert (nth_error mvl (Z.to_nat ofs) <> None).
+          { rewrite nth_error_Some. erewrite decode_init_len; et. nia. }
+          destruct nth_error eqn:?; clarify.
           hexploit alloc_gl_modified_content; et.
-          { admit "". }
-          i.
-          econs.
-          { erewrite H15. 2:{ admit "". } clarify. }
-          { admit "". }
+          i. econs.
+          { rewrite <- H17 in Heqo0. erewrite H15; et. rewrite Heqo0. do 2 f_equal. nia. }
+          { unfold d in H13. des_ifs. }
           { rewrite H10; et. }
           { destruct Globalenvs.Genv.perm_globvar; clarify; econs. }
           i. unfold d in H13. des_ifs; econs.
-      Unshelve. exact O. exact Undef.
     Qed.
 
 End INV.
