@@ -147,15 +147,40 @@ Proof.
   destruct l; clarify.
 Qed.
 
-  Lemma concrete_store_zeros m1 b p n m2
-          (STORE: store_zeros m1 b p n = Some m2):
-    m1.(Mem.mem_concrete)= m2.(Mem.mem_concrete).
-  Proof.
-    simpl in STORE. symmetry in STORE. apply Globalenvs.R_store_zeros_correct in STORE.
-    remember (Some m2) as m'. revert m2 Heqm'.
-    induction STORE; i.
-    + clarify.
-    + apply Mem.concrete_store in e0. rewrite e0.
-      apply IHSTORE. assumption.
-    + clarify.
-  Qed.
+Lemma pure_memval_good_decode l chunk mem :
+    bytes_not_pure l = false -> chunk <> Many64 ->
+    decode_val chunk (Mem.normalize_to_fragment chunk (Mem.decode_normalize chunk mem l)) = decode_val chunk l.
+Proof.
+  destruct chunk; clarify.
+  i. rewrite Mem.decode_normalize_pure; et.
+  unfold Mem.normalize_to_fragment.
+  des_ifs.
+  - unfold bytes_not_pure, proj_fragment_byte_mixed, proj_fragment_mixed in *.
+    bsimpl. destruct l; ss. destruct m; clarify.
+  - unfold decode_val. rewrite Heq0. des_ifs.
+    unfold Val.load_result. rewrite proj_inj_value. et.
+  - exfalso. clear - H Heq0 Heq1 Heq2. revert l0 H Heq0 Heq1 Heq2. induction l; ss.
+    i. hexploit Mem.pure_tl_pure; et. unfold bytes_not_pure, proj_fragment_byte_mixed, proj_fragment_mixed in H.
+    destruct a; ss.
+    + destruct proj_bytes eqn:? in Heq0; clarify. des_ifs. bsimpl. destruct H.
+      i. eapply IHl; et. destruct l; ss. clear -H. revert H. induction l; ss; clarify.
+      { i. destruct m; ss. }
+      i. destruct m; ss.
+    + destruct proj_fragment eqn:? in Heq1; clarify. des_ifs. bsimpl. destruct H.
+      i. eapply IHl; et. destruct l; ss. clear - H. revert H. induction l; ss; clarify.
+      { i. destruct m; ss. }
+      i. destruct m; ss.
+Qed.
+
+Lemma concrete_store_zeros m1 b p n m2
+        (STORE: store_zeros m1 b p n = Some m2):
+  m1.(Mem.mem_concrete)= m2.(Mem.mem_concrete).
+Proof.
+  simpl in STORE. symmetry in STORE. apply Globalenvs.R_store_zeros_correct in STORE.
+  remember (Some m2) as m'. revert m2 Heqm'.
+  induction STORE; i.
+  + clarify.
+  + apply Mem.concrete_store in e0. rewrite e0.
+    apply IHSTORE. assumption.
+  + clarify.
+Qed.

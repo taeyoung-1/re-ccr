@@ -61,9 +61,6 @@ From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Cli
 (* *)
 Section INV.
 
-  Lemma asdf l chunk mem : bytes_not_pure l = false -> decode_val chunk (Mem.normalize_to_fragment chunk (Mem.decode_normalize chunk mem l)) = decode_val chunk l.
-  Admitted.
-
   Local Open Scope Z.
 
   Context `{@GRA.inG pointstoRA Σ}.
@@ -1241,7 +1238,7 @@ Section SIMMODSEM.
     iApply isim_pget_tgt. hred_r.
     (* if load is safe, the proof is done easily *)
     iAssert ⌜Mem.loadv m0 mem_tgt v = Some (decode_val m0 l)⌝%I as "%"; cycle 1.
-    { rewrite H8. hred_r.
+    { rewrite H9. hred_r.
       iApply isim_apc. iExists None.
       hred_l. iApply isim_choose_src. iExists _.
       iApply isim_ret. iSplitL "CNT ALLOC CONC SZ".
@@ -1273,15 +1270,15 @@ Section SIMMODSEM.
         apply Consent.extends in wfcnt; et.
         red in wfcnt. des. do 2 spc SIM_CNT.
         hexploit SIM_CNT. { destruct ofs; ss; nia. }
-        i. rewrite wfcnt1 in H10.
-        inv H10. clarify. unfold Mem.perm. rewrite PERM. et. }
+        i. rewrite wfcnt1 in H11.
+        inv H11. clarify. unfold Mem.perm. rewrite PERM. et. }
       (* TODO: should replace to formal proof *)
       replace (Mem.getN _ _ _) with l in *.
-      { rewrite asdf; et. }
+      { rewrite pure_memval_good_decode; et. }
       apply nth_error_ext. i.
       destruct (Coqlib.zlt i (size_chunk_nat m0)); cycle 1.
-      { edestruct nth_error_None. rewrite H9; try nia.
-        edestruct nth_error_None. rewrite H11; et.
+      { edestruct nth_error_None. rewrite H10; try nia.
+        edestruct nth_error_None. rewrite H12; et.
         rewrite Mem.getN_length. nia. }
       rewrite nth_error_getN; try nia.
       specialize (wfcnt (Ptrofs.unsigned ofs + i)).
@@ -1292,7 +1289,7 @@ Section SIMMODSEM.
       red in wfcnt. des. spc SIM_CNT.
       specialize (SIM_CNT (Ptrofs.unsigned ofs + i)).
       hexploit SIM_CNT. { destruct ofs; ss; nia. }
-      i. rewrite wfcnt1 in H8. inv H8. clarify. rewrite <- Heqo. f_equal. nia.
+      i. rewrite wfcnt1 in H9. inv H9. clarify. rewrite <- Heqo. f_equal. nia.
     (* prove safety of loadv *)
     - unfold Mem.loadv. destruct v; clarify; iDestruct "LEN" as "%"; des; cycle 1.
       (* case: ptr *)
@@ -1330,12 +1327,12 @@ Section SIMMODSEM.
       { destruct m0; unfold size_chunk_nat in *; ss; nia. }
       destruct nth_error eqn: ?; cycle 1. { rewrite nth_error_None in *. nia. }
       apply Consent.extends in wfcnt_spc; et.
-      red in wfcnt_spc. des. hexploit SIM_CNT; et. rewrite wfcnt_spc0. i. inv H19.
+      red in wfcnt_spc. des. hexploit SIM_CNT; et. rewrite wfcnt_spc0. i. inv H20.
       clarify. unfold Mem.denormalize.
 
       destruct Maps.PTree.select eqn: X; first [apply Maps.PTree.gselectf in X|apply Maps.PTree.gselectnf in X]; des; cycle 1.
       { exfalso. apply X. esplits; et. unfold Mem.denormalize_aux, Mem.addr_is_in_block, Mem.is_valid.
-        rewrite <- H18. des_ifs; bsimpl; ss; cycle 1.
+        rewrite <- H19. des_ifs; bsimpl; ss; cycle 1.
         { hexploit mem_tgt.(Mem.access_max). rewrite PERM. rewrite Heq2. i. clarify. }
         change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
         des; try nia. rewrite Pos.ltb_ge in Heq1.
@@ -1345,9 +1342,9 @@ Section SIMMODSEM.
       hexploit (Mem.no_concrete_overlap mem_tgt (Int64.unsigned i) p0 b).
       { econs; et. nia. }
       { econs; et.
-        - hexploit mem_tgt.(Mem.access_max). rewrite PERM. i. red in H19. des_ifs. et.
+        - hexploit mem_tgt.(Mem.access_max). rewrite PERM. i. red in H20. des_ifs. et.
         - change Ptrofs.modulus with (Ptrofs.max_unsigned + 1). nia. }
-      i. subst. rewrite <- H18 in *. clarify.
+      i. subst. rewrite <- H19 in *. clarify.
   Unshelve. all: et.
   Qed.
 
