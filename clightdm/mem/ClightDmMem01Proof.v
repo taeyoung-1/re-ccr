@@ -4115,7 +4115,7 @@ Section SIMMODSEM.
       { des_ifs; cycle 1. { iDestruct "A" as "%". des. ss. }
         iDestruct "A" as (a) "[_ %]". des. destruct a; ss. iPureIntro. nia. }
       iPureIntro. f_equal. rewrite H8.
-      erewrite Mem.decode_normalize_all_bytes; ss.
+      rewrite pure_memval_good_decode; et.
       unfold decode_val. des_ifs.
       rewrite proj_inj_bytes in Heq. clarify.
       do 2 f_equal. rewrite decode_encode_int.
