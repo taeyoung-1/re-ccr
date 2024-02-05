@@ -172,6 +172,9 @@ Proof.
       i. destruct m; ss.
 Qed.
 
+Lemma decode_encode_id_is_pure : forall chunk v, decode_val chunk (encode_val chunk v) = v -> bytes_not_pure (encode_val chunk v) = false.
+Proof. i. unfold decode_val, encode_val in H. des_ifs. Qed.
+
 Lemma concrete_store_zeros m1 b p n m2
         (STORE: store_zeros m1 b p n = Some m2):
   m1.(Mem.mem_concrete)= m2.(Mem.mem_concrete).
