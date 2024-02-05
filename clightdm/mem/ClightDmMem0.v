@@ -59,7 +59,8 @@ Section MODSEM.
         Ret v
     .
 
-    Definition loadbytesF: val * Z -> itree Es (list memval) :=
+  (* deprecated, maybe revive in bitfield at v3.11? *)
+    (* Definition loadbytesF: val * Z -> itree Es (list memval) :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
@@ -70,7 +71,7 @@ Section MODSEM.
             Ret v
         | _ => triggerUB
         end
-    .
+    . *)
 
     (* corresponds to Mem.storev *)
     Definition storeF: memory_chunk * val * val -> itree Es unit :=
@@ -83,7 +84,8 @@ Section MODSEM.
         Ret tt
     .
 
-    Definition storebytesF: val * list memval -> itree Es unit :=
+  (* deprecated, maybe revive in bitfield at v3.11? *)
+    (* Definition storebytesF: val * list memval -> itree Es unit :=
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
@@ -95,7 +97,7 @@ Section MODSEM.
             Ret tt
         | _ => triggerUB
         end
-    .
+    . *)
 
     Definition cmp_ptr m c v1 v2 : itree Es (option bool) :=
       if Archi.ptr64
@@ -148,6 +150,9 @@ Section MODSEM.
         | Vptr b ofs =>
           if (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)) then Ret true
           else triggerUB
+        (* unreachable case in clightdm *)
+        | Vlong i => if Archi.ptr64 then Ret (Int64.cmpu Cne Int64.zero i) else triggerUB
+        | Vint i => if negb Archi.ptr64 then Ret (Int.cmpu Cne Int.zero i) else triggerUB
         | _ => triggerUB
         end
     .
@@ -173,25 +178,34 @@ Section MODSEM.
       fun varg =>
         mp0 <- trigger (PGet);;
         m0 <- mp0↓?;;
-        match Archi.ptr64, varg with
-        | _, [Vptr b ofs] =>
-            v_sz <- (Mem.load Mptr m0 b (Ptrofs.unsigned ofs - size_chunk Mptr))?;;
-            let sz := match Archi.ptr64, v_sz with
-                      | true, Vlong i =>
-                          Int64.unsigned i
-                      | false, Vint i =>
-                          Int.unsigned i
-                      | _, _ => - 1
-                      end in
-            if Coqlib.zlt 0 sz
-            then m1 <- (Mem.free m0 b (Ptrofs.unsigned ofs - size_chunk Mptr) (Ptrofs.unsigned ofs + sz))?;;
-                 trigger (PPut m1↑);;;
-                 Ret Vundef
-            else triggerUB
-        | true, [Vlong (Int64.mkint 0 _)] => Ret Vundef
-        | false, [Vint (Int.mkint 0 _)] => Ret Vundef
-        | _, _ => triggerUB
-        end
+        `b: bool <- (match Archi.ptr64, varg with
+                    | true, [Vlong i] => if Int64.eq i Int64.zero then Ret true else Ret false
+                    | false, [Vint i] => if Int.eq i Int.zero then Ret true else Ret false
+                    | _, [_] => Ret false
+                    | _, _ => triggerUB
+                    end);;
+        if b then Ret Vundef
+        else
+          match varg with
+          | [vaddr] => 
+            match Mem.to_ptr vaddr m0 with
+            | Some (Vptr b ofs) =>
+              v_sz <- (Mem.load Mptr m0 b (Ptrofs.unsigned ofs - size_chunk Mptr))?;;
+              let sz := match Archi.ptr64, v_sz with
+                        | true, Vlong i => Int64.unsigned i
+                        | false, Vint i => Int.unsigned i
+                        (* unreachable *)
+                        | _, _ => - 1
+                        end in
+              if Coqlib.zlt 0 sz
+              then m1 <- (Mem.free m0 b (Ptrofs.unsigned ofs - size_chunk Mptr) (Ptrofs.unsigned ofs + sz))?;;
+                  trigger (PPut m1↑);;;
+                  Ret Vundef
+              else triggerUB
+            | _ => triggerUB
+            end
+          | _ => triggerUB
+          end
     .
 
     Definition memcpyF: Z * Z * list val -> itree Es val :=
@@ -215,7 +229,7 @@ Section MODSEM.
                 let odst := Ptrofs.unsigned ofs in
                 let osrc := Ptrofs.unsigned ofs' in
                 let chk4 := Coqlib.zle (osrc + sz) odst || Coqlib.zle (odst + sz) osrc || negb (dec b' b) || dec odst osrc in
-                if negb chk2 then triggerUB
+                if negb chk4 then triggerUB
                 else bytes <- (Mem.loadbytes m b' osrc sz)?;;
                      m' <- (Mem.storebytes m b odst bytes)?;;
                      trigger (PPut m'↑);;; Ret Vundef
@@ -230,7 +244,7 @@ Section MODSEM.
         m <- mp↓?;;
         match varg with
         | [Vptr b ofs] =>
-          if negb (Coqlib.plt m.(Mem.nextblock) b) then triggerUB
+          if negb (Coqlib.plt b m.(Mem.nextblock)) then triggerUB
           else
             '(exist (i, m') _) <- trigger (Choose { im' : Z * mem | Mem.capture m b (fst im') (snd im')});;
             trigger (PPut m'↑);;;
@@ -240,7 +254,7 @@ Section MODSEM.
         | _ => triggerUB
         end.
     
-    Definition reallocF: list val -> itree Es val :=
+    (* Definition reallocF: list val -> itree Es val :=
       fun varg =>
         match varg with
         | [addr;v_sz'] =>
@@ -282,7 +296,7 @@ Section MODSEM.
             | _, _ => triggerUB
             end
         | _ => triggerUB
-        end.
+        end. *)
     
   End BODY.
 
@@ -343,32 +357,33 @@ Section MODSEM.
     end.
 
   Definition load_mem := alloc_globals Mem.empty sk.
-  
+
+  Definition default_mem : mem.
+  Proof.
+    destruct Mem.empty. unfold block in *.
+    eapply (Mem.mkmem mem_contents mem_access mem_concrete (Pos.add nextblock (Pos.of_nat (List.length sk)))); et.
+    - i. apply nextblock_noaccess. unfold Coqlib.Plt in *. nia.
+    - i. apply nextblocks_logical. unfold Coqlib.Plt in *. nia.
+  Defined.
+
   End STATE.
+  
 
   Definition MemSem : ModSem.t :=
-    match load_mem with
-    | Some m => 
       {| 
         ModSem.fnsems := [("salloc", cfunU sallocF); ("sfree", cfunU sfreeF);
-                          ("load", cfunU loadF); ("loadbytes", cfunU loadbytesF);
-                          ("store", cfunU storeF); ("storebytes", cfunU storebytesF);
+                          ("load", cfunU loadF); 
+                          (* ("loadbytes", cfunU loadbytesF); *)
+                          ("store", cfunU storeF); 
+                          (* ("storebytes", cfunU storebytesF); *)
                           ("sub_ptr", cfunU sub_ptrF); ("cmp_ptr", cfunU cmp_ptrF);
                           ("non_null?", cfunU non_nullF);
                           ("malloc", cfunU mallocF); ("free", cfunU mfreeF);
                           ("memcpy", cfunU memcpyF);
                           ("capture", cfunU captureF)];
         ModSem.mn := "Mem";
-        ModSem.initial_st := m↑;
+        ModSem.initial_st := (match load_mem with Some m => m | None => default_mem end)↑;
       |}
-    | None =>
-    (* should replace with dummy function *)
-      {| 
-        ModSem.fnsems := [("", cfunU sallocF); ("", cfunU sallocF)];
-        ModSem.mn := "Mem";
-        ModSem.initial_st := tt↑;
-      |}
-    end
   .
 
 End MODSEM.

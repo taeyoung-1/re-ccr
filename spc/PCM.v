@@ -616,6 +616,14 @@ Module URA.
     intros [f EQ]. exists f. apply func_ext_dep. i. apply EQ.
   Qed.
 
+  Theorem pw_extends K M (a b : @car (pointwise K M)) 
+    (UPD: extends a b)
+    : <<UPD: forall k, extends (a k) (b k)>>.
+  Proof.
+    rr. i. destruct UPD. rewrite <- H. exists (x k).
+    try rewrite ! URA.unfold_wf; try rewrite ! URA.unfold_add; cbn.
+    rewrite URA.unfold_add. et.
+  Qed.
 
   Theorem pw_updatable K M (a b : @car (pointwise K M)) 
     (UPD: forall k, updatable (a k) (b k))
@@ -1015,6 +1023,14 @@ Theorem oneshot_degen
     a = b
 .
 Proof. rewrite URA.unfold_add in WF; rewrite URA.unfold_wf in WF. ss. des_ifs. Qed.
+
+Theorem oneshot_initialized
+        a x
+        (WF: URA.wf (t:=t) (x ⋅ (white a)))
+  :
+    x = white a \/ x = unit
+.
+Proof. rewrite URA.unfold_add in WF; rewrite URA.unfold_wf in WF. ss. unfold _wf, _add in WF. des_ifs; et. Qed.
   
 Theorem oneshot_white_unupdatable
           a0 a1

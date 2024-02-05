@@ -11,9 +11,6 @@ Require Import ClightDmExprgen.
 Require Import ClightDmgen.
 From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
-(* TODO: 11/29 -- there are another design choices, make null pointer be a read-only pointer *)
-(* TODO: 11/29 -- disjoint resources should be implemented, and blockaddressRA should reject zero in 'Some b'   *)
-
 Set Implicit Arguments.
 
 Inductive tag :=
@@ -21,7 +18,7 @@ Inductive tag :=
 | Local
 | Unfreeable.
 
-Record metadata := { blk : option block; sz : Z ; SZPOS: sz >= 0 }.
+Record metadata := { blk : option block; sz : Z ; SZPOS: blk <> None -> 0 < sz }.
 
 Let _pointstoRA: URA.t := (block ==> Z ==> (Consent.t memval))%ra.
 Let _allocatedRA: URA.t := (block ==> (Consent.t tag))%ra.
@@ -104,11 +101,10 @@ Section PROP.
     else 8
   .
 
-  (* TODO: apply this change in original version *)
   Definition _has_offset vaddr m ofs : iProp :=
     OwnM (_has_size m.(blk) m.(sz))
     ** match vaddr with
-       | Vptr b ofs' => ⌜Some b = m.(blk) /\ ofs = ofs'⌝
+       | Vptr b ofs' => ⌜Some b = m.(blk) /\ ofs = ofs' /\ m.(sz) ≤ Ptrofs.max_unsigned⌝
        | Vint i =>
           if Archi.ptr64 then ⌜False⌝
           else ∃ a, OwnM (_has_base m.(blk) a) ** ⌜ofs = Ptrofs.sub (Ptrofs.of_int i) a /\ Ptrofs.unsigned a <> 0 /\ Ptrofs.unsigned a + m.(sz) ≤ Ptrofs.max_unsigned⌝
@@ -150,7 +146,7 @@ Section PROP.
 
   Definition m_null : metadata.
   Proof.
-    eapply Build_metadata. eapply None. instantiate (1:=0). lia.
+    eapply Build_metadata. instantiate (1:=0). instantiate (1:=None). i. clarify.
   Defined.
 
   Definition disjoint (m m0: metadata) : Prop :=
@@ -171,6 +167,30 @@ Notation "m #^ m0" := (disjoint m m0) (at level 20).
 Notation "vaddr '(≃_' m ) vaddr'" := (equiv_prov vaddr vaddr' m) (at level 20).
 
 Section AUX.
+
+  Lemma ptrofs_int64_neg i :
+    Archi.ptr64 = true -> Ptrofs.neg (Ptrofs.of_int64 i) = Ptrofs.of_int64 (Int64.neg i).
+  Proof.
+    i. unfold Ptrofs.neg, Ptrofs.of_int64, Int64.neg.
+    apply Ptrofs.eqm_samerepr.
+    rewrite <- Ptrofs.eqm64; try apply H.
+    eapply Int64.eqm_trans.
+    2:{ apply Int64.eqm_unsigned_repr. }
+    apply Int64.eqm_neg. apply Int64.eqm_sym.
+    apply Int64.eqm_unsigned_repr.
+  Qed.
+
+  Lemma int64_ptrofs_neg p :
+    Archi.ptr64 = true -> Int64.neg (Ptrofs.to_int64 p) = Ptrofs.to_int64 (Ptrofs.neg p).
+  Proof.
+    i. unfold Ptrofs.neg, Ptrofs.to_int64, Int64.neg.
+    apply Int64.eqm_samerepr.
+    apply Ptrofs.eqm64; et.
+    eapply Ptrofs.eqm_trans.
+    2:{ apply Ptrofs.eqm_unsigned_repr. }
+    apply Ptrofs.eqm_neg. apply Ptrofs.eqm_sym.
+    apply Ptrofs.eqm_unsigned_repr.
+  Qed.
 
   Lemma ptrofs_int64_add i k :
     Archi.ptr64 = true -> Ptrofs.add (Ptrofs.of_int64 i) k = Ptrofs.of_int64 (Int64.add i (Ptrofs.to_int64 k)).
@@ -468,6 +488,19 @@ Section RULES.
       rewrite _allocated_with_ownership. iFrame.
   Qed.
 
+  Lemma _points_to_nil : forall blk ofs q _b _ofs, __points_to blk ofs [] q _b _ofs = ε.
+  Proof.
+    intros. unfold __points_to. destruct dec; destruct Coqlib.zle; destruct Coqlib.zlt; ss. 
+    edestruct nth_error_None. rewrite H4; et. ss. nia.
+  Qed.
+
+  Lemma points_to_nil : forall blk ofs q, __points_to blk ofs [] q = ε.
+  Proof.
+    i. replace (__points_to blk0 ofs [] q) with ((λ (_ : block) (_ : Z), @URA.unit (Consent.t memval))).
+    2:{ extensionalities. rewrite _points_to_nil. et. }
+    et.
+  Qed.     
+
   Lemma _points_to_content
       b ofs mvs0 mvs1 q
     :
@@ -731,9 +764,16 @@ Section RULES.
     iCombine "A B" as "C". iOwnWf "C" as wfc.
     iPureIntro. ur in wfc. specialize (wfc (blk m)).
     ur in wfc. unfold _has_base in *. 
-    des_ifs.
-    - admit "".
-    - admit "".
+    des_ifs; unfold Vptrofs in *; des_ifs; rewrite Ptrofs.of_int64_to_int64 in *; et; des; subst.
+    all: match goal with
+         | H : Ptrofs.sub ?i ?x = Ptrofs.sub ?j ?x |- _ =>
+           clear -H;
+           rewrite <- (Ptrofs.add_zero_l x) in H;
+           apply (f_equal ((flip Ptrofs.add) x)) in H
+         end; ss;
+         rewrite <-! Ptrofs.sub_add_l in *;
+         rewrite ! Ptrofs.sub_shifted in *;
+         rewrite ! Ptrofs.sub_zero_l in *; et.
   Qed.
 
   Lemma equiv_ii_eq i j m :
@@ -786,7 +826,19 @@ Section RULES.
         rewrite (Ptrofs.add_commut _ a). rewrite Ptrofs.add_neg_zero.
         rewrite Ptrofs.add_zero. et. }
       unfold Ptrofs.add in H.
-  Admitted.
+      apply (f_equal Ptrofs.unsigned) in H.
+      replace (Ptrofs.unsigned (Ptrofs.of_int64 i0)) with (Int64.unsigned i0) in H.
+      2:{ clear. unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; et.
+          change Ptrofs.max_unsigned with Int64.max_unsigned.
+          apply Int64.unsigned_range_2. }
+      rewrite <- H.
+      rewrite Ptrofs.unsigned_repr_eq.
+      set (Ptrofs.unsigned _ + _) as x in *.
+      hexploit (Z.mod_le x Ptrofs.modulus); ss; try nia.
+      unfold x. clear.
+      destruct (Ptrofs.sub _ _); destruct a; ss.
+      nia.
+  Qed.
 
   Lemma equiv_offset_comm p q tg f m ofs :
     p (≃_m) q ** p (⊨_m,tg,f) ofs ⊢ q (⊨_m,tg,f) ofs.
@@ -839,9 +891,22 @@ Section RULES.
     iDestruct "A" as (a) "[A %]".
     iPureIntro. des. clarify.
     assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
-    red. i. subst. vm_compute (Int64.unsigned Int64.zero) in *.
+    red. i. subst. change (Int64.unsigned Int64.zero) with 0 in *.
     rewrite Z.add_0_l in H5. apply H7. clear H7.
-  Admitted.
+    i. unfold Ptrofs.sub, Ptrofs.of_int64 in *.
+    change (Int64.unsigned Int64.zero) with 0 in *.
+    change (Ptrofs.unsigned (Ptrofs.repr 0)) with 0 in *.
+    rewrite Ptrofs.unsigned_repr_eq in *.
+    destruct (Coqlib.zeq 0 (Ptrofs.unsigned a)); et. exfalso.
+    rewrite Z_mod_nz_opp_full in H3.
+    2: rewrite Z.mod_small; et; apply Ptrofs.unsigned_range.
+    rewrite Z_mod_nz_opp_full in H4.
+    2: rewrite Z.mod_small; et; apply Ptrofs.unsigned_range.
+    rewrite Z.mod_small in *.
+    all: try apply Ptrofs.unsigned_range.
+    change Ptrofs.modulus with (Ptrofs.max_unsigned + 1) in *.
+    nia.
+  Qed.
 
   Lemma point_notundef p q m mvs
     : 
@@ -851,7 +916,7 @@ Section RULES.
     des_ifs; try solve [iDestruct "A" as "[_ A]"; iDestruct "A" as (ofs) "[? []]"].
   Qed.
 
-  Lemma offset_notnull 
+  (* Lemma offset_notnull 
       vaddr m tg q ofs
     : 
       vaddr (⊨_m,tg,q) ofs ** ⌜valid m ofs⌝ ⊢ ⌜vaddr <> Vnullptr⌝.
@@ -867,7 +932,7 @@ Section RULES.
     replace (Ptrofs.unsigned _) with (Ptrofs.max_unsigned - Ptrofs.unsigned a) in H3.
     2:{ admit "with H5". }
     nia.
-  Qed.
+  Qed. *)
 
   Lemma offset_notundef
       p m tg q ofs
@@ -877,71 +942,6 @@ Section RULES.
     iIntros "A". unfold has_offset, _has_offset.
     des_ifs. iDestruct "A" as "[_ [_ []]]".
   Qed.
-
-  (* Lemma valid_ofs_same_meta
-      vaddr m m' tg tg' q q' ofs ofs'
-    : 
-      vaddr (⊨_m,tg,q) ofs ** vaddr (⊨_m',tg',q') ofs' ** ⌜valid m ofs /\ valid m' ofs'⌝
-       ⊢ ⌜m = m' /\ tg = tg' /\ ofs = ofs'⌝.
-  Proof.
-  Admitted.
-
-  Lemma same_addr_point_comm
-      vaddr vaddr' m m' q i mvs
-    :
-      vaddr (≃_m) i ** vaddr' (≃_m) i ** vaddr (↦_m', q) mvs
-       ⊢ vaddr (↦_m', q) mvs.
-  Proof.
-  Admitted.
-
-  Lemma replace_meta_to_alive_point
-      vaddr m0 m1 q mvs i
-    :
-      vaddr (↦_m0,q) mvs ** vaddr (≃_m1) i ⊢ vaddr (↦_m0,q) mvs ** vaddr (≃_m0) i.
-  Proof.
-    iIntros "[A B]".
-    unfold points_to, captured_to.
-    des_ifs.
-    - iFrame.
-    - iDestruct "A" as "[A A']".
-      iDestruct "B" as "[B B']".
-      iDestruct "A'" as (ofs) "[[[C C'] %] %]".
-      unfold _has_offset.
-      iDestruct "C'" as "[C' %]".
-      des. clarify.
-      iDestruct "B'" as (a) "[B' %]".
-      des. clarify. rewrite H5.
-      iAssert ⌜m0 = m1⌝ as "%".
-      { iCombine "A B" as "D". iOwnWf "D" as wfc.
-        iPureIntro.
-        ur in wfc. specialize (wfc (blk m1)).
-        ur in wfc. unfold _has_size in wfc.
-        des_ifs. destruct m0. destruct m1. ss. clarify.
-  Admitted.
-
-  Lemma replace_meta_to_alive_offset
-      vaddr m0 m1 q tg ofs i
-    :
-      vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m1) i ⊢ vaddr (⊨_m0,tg,q) ofs ** vaddr (≃_m0) i.
-  Proof.
-    iIntros "[A B]".
-    unfold has_offset, captured_to.
-    des_ifs.
-    - iFrame.
-    - iDestruct "A" as "[A A']".
-      iDestruct "B" as "[B B']".
-      unfold _has_offset.
-      iDestruct "A'" as "[A' %]".
-      des. clarify.
-      iDestruct "B'" as (a) "[B' %]".
-      des. clarify. rewrite H3.
-      iAssert ⌜m0 = m1⌝ as "%".
-      { iCombine "A' B" as "D". iOwnWf "D" as wfc.
-        iPureIntro.
-        ur in wfc. specialize (wfc (blk m1)).
-        ur in wfc. unfold _has_size in wfc.
-        des_ifs. destruct m0. destruct m1. ss. clarify.
-  Admitted. *)
 
   Lemma _offset_ptr {eff} {K:eventE -< eff} v m ofs
     : 
@@ -1040,7 +1040,7 @@ Section SPEC.
   Definition salloc_spec: fspec :=
     (mk_simple (fun n => (
                     (ord_pure 0%nat),
-                    (fun varg => ⌜varg = n↑ /\ n ≤ Ptrofs.max_unsigned /\ n >= 0⌝),
+                    (fun varg => ⌜varg = n↑ /\ 0 < n ≤ Ptrofs.max_unsigned⌝),
                     (fun vret => ∃ m vaddr b,
                                  ⌜vret = b↑ /\ m.(blk) = Some b /\ m.(sz) = n ⌝
                                  ** vaddr (↦_m,1) List.repeat Undef (Z.to_nat n)
@@ -1065,7 +1065,8 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (chunk, vaddr)↑
                                  /\ List.length mvs = size_chunk_nat chunk
-                                 /\ decode_val chunk mvs <> Vundef
+                                 /\ bytes_not_pure mvs = false
+                                 /\ chunk <> Many64
                                  /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)⌝
                                  ** vaddr (⊨_m,tg,q0) ofs
                                  ** vaddr (↦_m,q1) mvs),
@@ -1222,10 +1223,11 @@ Section SPEC.
       (fun '(size, vaddr0, vaddr1, m, ofs0, ofs1, q0, q1, tg) => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = (size, vaddr0, vaddr1)↑ /\ 0 < size ≤ Ptrofs.max_signed
+                         /\ Ptrofs.min_signed ≤ Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1 ≤ Ptrofs.max_signed
                          /\ weak_valid m ofs0 /\ weak_valid m ofs1⌝
                          ** vaddr0 (⊨_m,tg,q0) ofs0
                          ** vaddr1 (⊨_m,tg,q1) ofs1),
-            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.div (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size)))↑⌝
+            (fun vret => ⌜vret = (Vptrofs (Ptrofs.repr (Z.quot (Ptrofs.unsigned ofs0 - Ptrofs.unsigned ofs1) size)))↑⌝
                          ** vaddr0 (⊨_m,tg,q0) ofs0
                          ** vaddr1 (⊨_m,tg,q1) ofs1)
     )))%I.
@@ -1237,7 +1239,7 @@ Section SPEC.
             (ord_pure 0%nat),
             (fun varg => ⌜varg = vaddr↑ /\ weak_valid m ofs⌝
                          ** vaddr (⊨_m,tg,q) ofs),
-            (fun vret => ⌜vret = true↑⌝ 
+            (fun vret => ⌜vret = true↑⌝
                          ** vaddr (⊨_m,tg,q) ofs)
     )))%I.
 
@@ -1265,32 +1267,56 @@ Section SPEC.
     )))%I.
 
   (* memcpy *)
-  Definition memcpy_resource (vaddr vaddr': val) (m_src m_dst: metadata) (mvs_src mvs_dst: list memval) : iProp :=
-    if Val.eq vaddr' vaddr then vaddr (↦_m_dst,1) mvs_dst
-    else vaddr' (↦_m_src,1) mvs_src ** vaddr (↦_m_dst,1) mvs_dst.
-
-  Definition memcpy_spec: fspec :=
-    (mk_simple
-       (fun '(vaddr, vaddr', m_src, m_dst, mvs_dst) => (
+  Definition memcpy_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(vaddr, vaddr', tg, tg', qp, q, q', ofs_src, ofs_dst, m_src, m_dst, mvs_src) => (
             (ord_pure 0%nat),
-            (fun varg => ∃ al sz mvs_src,
+            (fun varg => ∃ al sz mvs_dst,
                          ⌜varg = (al, sz, [vaddr; vaddr'])↑
                          /\ List.length mvs_src = List.length mvs_dst
-                         /\ List.length mvs_dst = sz
-                         /\ (al | sz)⌝
-                         ** memcpy_resource vaddr vaddr' m_src m_dst mvs_src mvs_dst),
-            (fun vret => ⌜vret = Vundef↑⌝ ** memcpy_resource vaddr vaddr' m_src m_dst mvs_dst mvs_dst)
-    )))%I.
+                         /\ List.length mvs_dst = Z.to_nat sz
+                         /\ (al = 1 \/ al = 2 \/ al = 4 \/ al = 8)
+                         /\ (al | Ptrofs.unsigned ofs_src)
+                         /\ (al | Ptrofs.unsigned ofs_dst)
+                         /\ 0 ≤ sz /\ (al | sz)⌝
+                         ** vaddr' (⊨_m_src,tg',q') ofs_src
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr' (↦_m_src,qp) mvs_src
+                         ** vaddr (↦_m_dst,1) mvs_dst),
+            (fun vret => ⌜vret = Vundef↑⌝
+                         ** vaddr' (⊨_m_src,tg',q') ofs_src
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr' (↦_m_src,qp) mvs_src
+                         ** vaddr (↦_m_dst,1) mvs_src)
+          )%I.
+
+  Definition memcpy_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+      fun '(vaddr, m_dst, tg, q, ofs_dst, mvs_dst) => (
+            (ord_pure 0%nat),
+            (fun varg => ∃ al sz,
+                         ⌜varg = (al, sz, [vaddr; vaddr])↑
+                         /\ List.length mvs_dst = Z.to_nat sz
+                         /\ (al = 1 \/ al = 2 \/ al = 4 \/ al = 8)
+                         /\ (al | Ptrofs.unsigned ofs_dst)
+                         /\ 0 ≤ sz /\ (al | sz)⌝
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr (↦_m_dst,1) mvs_dst),
+            (fun vret => ⌜vret = Vundef↑⌝
+                         ** vaddr (⊨_m_dst,tg,q) ofs_dst
+                         ** vaddr (↦_m_dst,1) mvs_dst)
+          )%I.
+
+  Definition memcpy_spec: fspec :=
+    mk_simple (memcpy_hoare0 @ memcpy_hoare1).
 
   (* capture *)
-  Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+  Definition capture_hoare0 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '() => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = [Vnullptr]↑⌝),
             (fun vret => ⌜vret = (Vnullptr)↑⌝ )
           )%I.
 
-  Definition capture_hoare2 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
+  Definition capture_hoare1 : _ -> ord * (Any.t -> iProp) * (Any.t -> iProp) :=
       fun '(vaddr, m, q, ofs, tg) => (
             (ord_pure 0%nat),
             (fun varg => ⌜varg = [vaddr]↑⌝
@@ -1301,7 +1327,7 @@ Section SPEC.
           )%I.
 
   Definition capture_spec: fspec :=
-    mk_simple (capture_hoare1 @ capture_hoare2).
+    mk_simple (capture_hoare0 @ capture_hoare1).
 
   (* sealed *)
   Definition MemStb: list (gname * fspec).
@@ -1410,10 +1436,10 @@ Section MRS.
         end
     end.
 
-  Definition alloc_global (res : Σ) (b: block) (gd : globdef fundef type) : option Σ :=
+  Definition alloc_global (res : _pointstoRA * _allocatedRA * blocksizeRA) (b: block) (gd : globdef fundef type) : option (_pointstoRA * _allocatedRA * blocksizeRA) :=
+    let '(p, a, s) := res in
     match gd with
-    | Gfun _ => Some (GRA.embed (Auth.black (__allocated_with b Unfreeable (1/2)%Qp))
-                      ⋅ GRA.embed (_has_size (Some b) 1) ⋅ res)
+    | Gfun _ => Some (p, a ⋅ (__allocated_with b Unfreeable (1/2)%Qp), s ⋅ (_has_size (Some b) 1)) 
     | Gvar v =>
       let optq := match Globalenvs.Genv.perm_globvar v with
                   | Freeable | Writable => Some 1%Qp
@@ -1422,14 +1448,12 @@ Section MRS.
                   end
       in
       match store_init_data_list ε b 0 optq (gvar_init v) with
-      | Some res' => Some (GRA.embed (Auth.black (__allocated_with b  Unfreeable (1/2)%Qp))
-                           ⋅ GRA.embed (_has_size (Some b) (init_data_list_size (gvar_init v)))
-                           ⋅ GRA.embed (Auth.black res') ⋅ res)
+      | Some res' => Some (p ⋅ res', a ⋅ (__allocated_with b  Unfreeable (1/2)%Qp), s ⋅ (_has_size (Some b) (init_data_list_size (gvar_init v))))
       | None => None
       end
     end.
 
-  Fixpoint alloc_globals (res: Σ) (b: block) (sk: Sk.t) : option Σ :=
+  Fixpoint alloc_globals (res: _pointstoRA * _allocatedRA * blocksizeRA) (b: block) (sk: Sk.t) : option (_pointstoRA * _allocatedRA * blocksizeRA) :=
     match sk with
     | nil => Some res
     | g :: gl' => 
@@ -1440,7 +1464,11 @@ Section MRS.
       end
     end.
 
-  Definition res_init : option Σ := alloc_globals ε xH sk.
+  Definition res_init : Σ :=
+    match alloc_globals (ε, ε, ε) xH sk with
+    | Some (p, a, s) => GRA.embed (Auth.black p) ⋅ GRA.embed (Auth.black a) ⋅ GRA.embed s
+    | None => GRA.embed (Auth.black ε : pointstoRA) ⋅ GRA.embed (Auth.black ε : allocatedRA)
+    end.
 
 End MRS.
 
@@ -1469,31 +1497,20 @@ Section SMOD.
   .
 
   Definition SMemSem sk : SModSem.t := 
-  match res_init sk with
-  | Some res =>
     {|
       SModSem.fnsems := MemSbtb;
       SModSem.mn := "Mem";
-      SModSem.initial_mr := res ⋅ GRA.embed ((fun ob => match ob with
-                                                            | Some _ => OneShot.black
-                                                            | None => OneShot.white Ptrofs.zero
-                                                    end) : blockaddressRA)
-                              ⋅ GRA.embed ((fun ob => match  ob with
-                                                  | Some b => if Coqlib.plt (Pos.of_succ_nat (List.length sk)) b then OneShot.black else OneShot.unit
-                                                  | None => OneShot.white 0
-                                                  end) : blocksizeRA);
+      SModSem.initial_mr := (res_init sk)
+                            ⋅ GRA.embed ((fun ob => match ob with
+                                                   | Some _ => OneShot.black
+                                                   | None => OneShot.white Ptrofs.zero
+                                                   end) : blockaddressRA)
+                            ⋅ GRA.embed ((fun ob => match  ob with
+                                                   | Some b => if Coqlib.plt b (Pos.of_succ_nat (List.length sk)) then OneShot.unit else OneShot.black
+                                                   | None => OneShot.white 0
+                                                   end) : blocksizeRA);
       SModSem.initial_st := tt↑;
-    |}
-  | None =>
-    (* should replace with dummy function *)
-    {| 
-      SModSem.fnsems := [("", mk_pure salloc_spec); ("", mk_pure salloc_spec)];
-      SModSem.mn := "Mem";
-      SModSem.initial_mr := ε;
-      SModSem.initial_st := tt↑;
-    |}
-  end
-  .
+    |} .
 
   Definition SMem: SMod.t := {|
     SMod.get_modsem := SMemSem;
