@@ -3,7 +3,7 @@ Require Import Skeleton.
 Require Import ModSem Behavior SimModSem.
 Require Import PCM IPM.
 Require Import HoareDef STB.
-Require Import ClightDmMem0 ClightDmMem1 ClightDmMemAux.
+Require Import ClightDmSkel ClightDmMem0 ClightDmMem1 ClightDmMemAux.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs IntPtrRel.
 
 
@@ -60,6 +60,10 @@ From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Cli
 (* *) *)
 (* *)
 Section INV.
+
+  Lemma asdf l chunk mem : bytes_not_pure l = false -> decode_val chunk (Mem.normalize_to_fragment chunk (Mem.decode_normalize chunk mem l)) = decode_val chunk l.
+  Admitted.
+
   Local Open Scope Z.
 
   Context `{@GRA.inG pointstoRA Σ}.
@@ -489,7 +493,8 @@ Section INV.
     rewrite <- H5. et.
   Qed.
 
-  (* Lemma alloc_gl_modified sk mem v m0 :
+
+  Lemma alloc_gl_modified_access sk mem v m0 :
     ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
     (forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m0) ofs Cur = Some (Globalenvs.Genv.perm_globvar v))
     /\ (forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m0) ofs Cur = None).
@@ -497,28 +502,116 @@ Section INV.
     i. unfold ClightDmMem0.alloc_global in H3. des_ifs.
     assert (b = Mem.nextblock mem). { unfold Mem.alloc in Heq. clarify. }
     subst.
-    forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m) ofs Cur = Some Freeable
-    forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m) ofs Cur = Some Freeable
-    assert ( = Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access mem) /\
-              Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m) = Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents mem)).
-    { unfold Mem.alloc in Heq. clarify. ss. rewrite !Maps.PMap.gso; et. }
+    assert ((forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m) ofs Cur = Some Freeable)
+            /\ forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m) ofs Cur = None).
+    { unfold Mem.alloc in Heq. clarify. ss. rewrite !Maps.PMap.gss.
+      split; i; destruct Coqlib.zlt; destruct Coqlib.zle; ss; try nia. }
+    des.
+    assert ((forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m1) ofs Cur = Some Freeable)
+            /\ forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m1) ofs Cur = None).
+    { clear - H5 H4 Heq0. symmetry in Heq0. apply Globalenvs.R_store_zeros_correct in Heq0.
+      remember (Some m1) as om in Heq0.
+      set 0 as i in Heq0. assert (0 ≤ i) by ss.
+      set (_ (_ v)) as n in Heq0. assert (i + n ≤ init_data_list_size (gvar_init v)) by nia.
+      clearbody i n. ginduction Heq0; i; clarify. hexploit IHHeq0; et; try nia.
+      { i. unfold Mem.store in e0. des_ifs. ss. et. }
+      { i. unfold Mem.store in e0. des_ifs. ss. et. } }
+    des.
+    assert ((forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m2) ofs Cur = Some Freeable)
+            /\ forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m2) ofs Cur = None).
+    { clear - H6 H7 Heq1. 
+      set 0 as i in Heq1. assert (0 ≤ i) by ss.
+      set (_ v) as l in Heq1. assert (i + (init_data_list_size l) ≤ init_data_list_size (gvar_init v)). { unfold i, l. nia. }
+      clearbody i l. ginduction l; i; ss; clarify. des_ifs.
+      hexploit IHl; et; try nia. 3:{ pose proof (init_data_size_pos a). nia. }
+      { i. unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs; et. }
+      { i. unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs; et. } }
+    des.
+    unfold Mem.drop_perm in H3. des_ifs. ss. rewrite Maps.PMap.gss.
+    split; i; ss; destruct Coqlib.zlt; destruct Coqlib.zle; ss; try nia; et.
+  Qed.
+
+  Definition init_data_to_memval sk idt : option (list memval) :=
+    match idt with
+    | Init_int8 n => Some (encode_val Mint8unsigned (Vint n))
+    | Init_int16 n => Some (encode_val Mint16unsigned (Vint n))
+    | Init_int32 n => Some (encode_val Mint32 (Vint n))
+    | Init_int64 n => Some (encode_val Mint64 (Vlong n))
+    | Init_float32 n => Some (encode_val Mfloat32 (Vsingle n))
+    | Init_float64 n => Some (encode_val Mfloat64 (Vfloat n))
+    | Init_space z => Some (repeat (Byte Byte.zero) (Z.to_nat z))
+    | Init_addrof symb ofs =>
+      match SkEnv.id2blk (load_skenv sk) (string_of_ident symb) with
+      | Some b' => Some (encode_val Mptr (Vptr (Pos.of_succ_nat b') ofs))
+      | None => None
+      end
+    end.
+
+  Fixpoint option_list_map {A} (l : list (option A)) : option (list A) :=
+    match l with
+    | [] => Some []
+    | Some h :: t =>
+      match option_list_map t with
+      | Some t' => Some (h :: t')
+      | None => None
+      end
+    | _ => None 
+    end.
+
+  Definition init_data_list_to_memval_list sk idl : option (list memval) := option_map (@List.concat _) (option_list_map (map (init_data_to_memval sk) idl)).
+
+  Lemma store_init_data_list_content sk b q l c2 :
+    store_init_data_list sk ε b 0 (Some q) l = Some c2 ->
+    exists mvl, init_data_list_to_memval_list sk l = Some mvl /\ forall ofs mv, 0 ≤ ofs -> nth_error mvl (Z.to_nat ofs) = Some mv -> c2 b ofs = Consent.just q mv.
+  Proof.
+    Local Opaque encode_val.
+    i. set ε as res in H3. set 0 as i in H3.
+    assert (0 ≤ i) by ss.
+    assert (forall ofs, i ≤ ofs -> res b ofs = ε) by ss.
+    assert (exists mvl, init_data_list_to_memval_list sk l = Some mvl /\ (forall ofs, 0 ≤ ofs < i -> res b ofs = c2 b ofs) /\ forall ofs mv, 0 ≤ ofs -> nth_error mvl (Z.to_nat ofs) = Some mv -> c2 b (i + ofs) = Consent.just q mv); cycle 1.
+    { des. esplits; et. }
+    clearbody res i. revert c2 res i H3 H4 H5.
+    induction l; i; ss; clarify.
+    - unfold init_data_list_to_memval_list. ss. esplits; et. i. destruct (Z.to_nat _) in H6; clarify.
+    - des_ifs. pose proof (init_data_size_pos a). hexploit IHl; et; try nia.
+      { i. unfold store_init_data in Heq. des_ifs.
+        all: do 2 ur; rewrite H5; try nia; rewrite URA.unit_id; case_points_to; ss; try nia.
+        all: try (rewrite encode_val_length in *; ss; nia).
+        { rewrite repeat_length in l1. nia. }
+        rewrite encode_val_length in l1. change (size_chunk_nat Mptr) with 8%nat in l1.
+        des_ifs. nia. }
+      i. des. unfold init_data_list_to_memval_list in *. 
+      destruct (option_list_map _) eqn:? in H7; clarify.
+      ss. rewrite Heqo.
+      assert (exists h, init_data_to_memval sk a = Some h).
+      { unfold store_init_data in Heq. des_ifs; ss; et.
+        rewrite Heq0. et. }
+      des. rewrite H10. ss. esplits; et.
+      + i. rewrite <- H8; try nia.
+        unfold store_init_data in Heq. des_ifs.
+        all: ss; do 2 ur; case_points_to; ss; try nia; rewrite URA.unit_idl; et.
+      + i. clarify.
+        assert (List.length h = Z.to_nat (init_data_size a)).
+        { unfold init_data_to_memval in H10; des_ifs. rewrite repeat_length. ss. nia. }
+        destruct (lt_dec (Z.to_nat ofs) (List.length h)); cycle 1.
+        { rewrite nth_error_app2 in H12; try nia.
+          replace (Nat.sub _ _) with (Z.to_nat (ofs - init_data_size a)) in H12 by nia.
+          hexploit H9. 2: et. nia. i. rewrite <- H13. f_equal. nia. }
+        rewrite nth_error_app1 in H12; try nia.
+        rewrite <- H8; try nia. unfold store_init_data in Heq. des_ifs.
+        all: ss; clarify; do 2 ur; rewrite H5; try nia.
+        all: rewrite URA.unit_id; case_points_to; ss; try nia.
+        all: replace (i + ofs - i) with ofs by nia; des_ifs. nia.
+  Qed.
+
+  Lemma alloc_gl_modified_content sk mem v m0 ofs mv mvl :
+    ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
+    init_data_list_to_memval_list sk (gvar_init v) = Some mvl ->
+    nth_error mvl ofs = Some mv ->
+    Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m0)) = mv.
   Admitted.
 
 
-          ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
-          Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m0) ofs Cur = Some (Globalenvs.Genv.perm_globvar v)
-
-
-          ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
-          nth_error (gvar_init v) ofs = Some mv ->
-          Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m0)) = mv
-
-          store_init_data_list sk ε b 0 q l = Some c2 ->
-          nth_error l ofs = Some mv ->
-          c2 b ofs = Consent.just q mv *)
-    
-    
-    
 
   (* TODO: rollback memory local state formulation *)
   (* TODO: add UB condition in main function invocation *)
@@ -535,11 +628,11 @@ Section INV.
     split; ss; i.
     - des_ifs.
       + hexploit alloc_gl_nextblock; et. i. rewrite <- H5 in H4.
-        rewrite <- IHsk'; et. etrans; et. unfold incl. i. ss. et.
+        rewrite <- IHsk'; et. etrans; et. unfold List.incl. i. ss. et.
       + rewrite <- alloc_gl_iff in Heq0. clarify.
     - des_ifs.
       + hexploit alloc_gl_nextblock; et. i. rewrite <- H5.
-        rewrite IHsk'; et. etrans; et. unfold incl. i. ss. et.
+        rewrite IHsk'; et. etrans; et. unfold List.incl. i. ss. et.
       + rewrite alloc_gl_iff in Heq0. rewrite Heq in Heq0. clarify.
   Qed.
 
@@ -606,11 +699,11 @@ Section INV.
             OwnM (Auth.black memalloc_src0)) ** OwnM memconc_src0) ** 
           OwnM memsz_src0.
     Proof.
-    (* Local Opaque Pos.add.
+    Local Opaque Pos.add.
     Local Transparent _has_size.
     assert (Pos.of_succ_nat (strings.length sk) = m.(Mem.nextblock)).
     { clear - MEMWF. unfold load_mem in *.
-      destruct (length sk) eqn:?. { destruct sk; clarify. ss. clarify. }
+      destruct (List.length sk) eqn:?. { destruct sk; clarify. ss. clarify. }
       rewrite <- Heqn. assert (1 ≤ strings.length sk) by nia. clear Heqn.
       replace (Pos.of_succ_nat (strings.length sk)) with (Pos.add xH (Pos.of_nat (strings.length sk))) by nia.
       change xH with (Mem.empty.(Mem.nextblock)). set Mem.empty as mi in *. clearbody mi.
@@ -697,7 +790,7 @@ Section INV.
           subst. rewrite H7; try nia. destruct Coqlib.plt; unfold Coqlib.Plt in *; try nia.
           specialize (z0 (Mem.nextblock mem)).
           inv z0. { destruct Coqlib.plt; unfold Coqlib.Plt in *; try nia. ur in SRES. des_ifs. }
-          ur. destruct ε eqn:?; clarify. hexploit alloc_gl_modified; et.
+          ur. destruct ε eqn:?; clarify. hexploit alloc_gl_modified_access; et.
           i. des. econs; et; ss. i. hexploit H9; et. i. rewrite H13. esplits; et.
           econs.
         * red. i. des. do 2 ur.
@@ -741,346 +834,24 @@ Section INV.
             { rewrite repeat_length in l1. pose proof (init_data_list_size_pos l); nia. }
             rewrite encode_val_length in l1. unfold size_chunk_nat, size_chunk in *. des_ifs.
             pose proof (init_data_list_size_pos l); nia. }
+          hexploit alloc_gl_modified_access; et. i. des.
+          set (match _ with | Readable => _ |Nonempty => _ | _ => _ end) as d in Heqo.
+          assert (exists q, d = Some q). { unfold d. des_ifs; et. }
+          des. rewrite H13 in Heqo.
+          hexploit store_init_data_list_content; et.
+          i. des.
+          hexploit alloc_gl_modified_content; et.
+          { admit "". }
+          i.
           econs.
+          { erewrite H15. 2:{ admit "". } clarify. }
+          { admit "". }
+          { rewrite H10; et. }
+          { destruct Globalenvs.Genv.perm_globvar; clarify; econs. }
+          i. unfold d in H13. des_ifs; econs.
+      Unshelve. exact O. exact Undef.
+    Qed.
 
-
-
-             } *)
-
-    Admitted.
-
-
-
-
-  (* Lemma init_wf sk m c (RESWF: res_init sk = Some c) (MEMWF: load_mem sk = Some m) :
-    wf () (Any.pair ()↑ 
-            (c ⋅ GRA.embed (A:=blockaddressRA) (λ ob : option block, 
-                                                  match ob with
-                                                  | Some _ => OneShot.black
-                                                  | None => OneShot.white Ptrofs.zero
-                                                  end)
-              ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
-                                                  match ob with
-                                                  | Some b =>
-                                                    if Coqlib.plt b (Pos.of_succ_nat (List.length sk))
-                                                    then OneShot.unit
-                                                    else OneShot.black
-                                                  | None => OneShot.white 0
-                                                  end))↑,
-            Any.upcast m).
-  Proof. *)
-    (* Local Opaque Pos.add.
-    assert (Pos.of_succ_nat (strings.length sk) = m.(Mem.nextblock)).
-    { clear - MEMWF. unfold load_mem in *.
-      destruct (length sk) eqn:?. { destruct sk; clarify. ss. clarify. }
-      rewrite <- Heqn. assert (1 ≤ strings.length sk) by nia. clear Heqn.
-      replace (Pos.of_succ_nat (strings.length sk)) with (Pos.add xH (Pos.of_nat (strings.length sk))) by nia.
-      change xH with (Mem.empty.(Mem.nextblock)). set Mem.empty as mi in *. clearbody mi.
-      set sk as l in *. unfold l in MEMWF at 1. clearbody l.
-      ginduction l; i; ss. des_ifs. destruct l.
-      - ss. clarify. hexploit alloc_gl_nextblock; et. i. nia.
-      - eapply IHl in MEMWF; et. 2:{ ss. nia. }
-        hexploit alloc_gl_nextblock; et. i. rewrite <- MEMWF. rewrite H0. ss. nia. }
-    rewrite H3.
-    unfold res_init, load_mem in *.
-    change xH with (Mem.empty.(Mem.nextblock)) in RESWF.
-    set (_ ⋅ _) as res in RESWF.
-    set Mem.empty as mem in RESWF, MEMWF. econs. apply to_semantic.
-    assert (wf () (Any.pair ()↑ 
-                    (res ⋅ GRA.embed (A:=blockaddressRA) (λ ob : option block, 
-                                                          match ob with
-                                                          | Some _ => OneShot.black
-                                                          | None => OneShot.white Ptrofs.zero
-                                                          end)
-                      ⋅ GRA.embed (A:=blocksizeRA) (λ ob : option block,
-                                                          match ob with
-                                                          | Some b =>
-                                                            if Coqlib.plt b (mem.(Mem.nextblock))
-                                                            then OneShot.unit
-                                                            else OneShot.black
-                                                          | None => OneShot.white 0
-                                                          end))↑,
-                    Any.upcast mem)).
-    { unfold mem, res. eexists. eapply to_semantic.
-      iIntros "[[[A B] C] D]". iSplits. iFrame. iSplit; ss.
-      unfold Mem.empty. ss. iPureIntro. splits.
-      - i. rewrite Maps.PMap.gi. econs 2.
-      - i. des_ifs. rewrite Maps.PTree.gempty. econs 2. et.
-      - i. des_ifs. unfold Coqlib.Plt in p. nia. }
-    clearbody res mem.
-    set sk as l in RESWF at 2. change sk with l in MEMWF at 2. change sk with l.
-    clear H3.
-    clearbody l. revert m mem c res RESWF MEMWF H4.
-    induction l; i; ss; clarify.
-    des_ifs. eapply IHl; et.
-    { hexploit alloc_gl_nextblock; et. i. rewrite H3. et. }
-    clear RESWF MEMWF.
-    inv H4. apply Any.pair_inj in H6. red in H6. des. clarify.
-    apply (f_equal (@Any.downcast Σ)) in H3. rewrite !Any.upcast_downcast in H3. clarify.
-    hexploit RSRC.
-    {  }
-
-
-
-
-
-    iSplitR "B"; [iSplitR "A"; [|iApply "A"]|iApply "B"].
-    iPureIntro. splits; et.
-    { clear - Σ H H0. unfold load_mem, ClightlightMem0.load_mem.
-      set sk as sk' at 1 3 5. clearbody sk'.
-      set ε as res. set Mem.empty as m.
-      replace xH with (Mem.nextblock m) by ss.
-      assert (PRE: forall b ofs, 0 <= ofs -> sim_cnt (res b ofs)
-                    (Maps.PMap.get b (Mem.mem_access m) ofs)
-                    (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents m)))) by ss.
-      assert (ORTHO: forall b ofs, Pos.le (Mem.nextblock m) b -> res b ofs = ε) by ss.
-      clearbody res m. revert_until sk. induction sk; ss.
-      unfold alloc_global, ClightlightMem0.alloc_global.
-      des_ifs; i.
-      - des_ifs.
-        + replace (Pos.succ (Mem.nextblock m)) with (Mem.nextblock m0) by now
-            apply Mem.nextblock_alloc in Heq1; unfold Mem.drop_perm in Heq0; des_ifs.
-          eapply IHsk; et.
-          * i. do 2 ur.
-            unfold __points_to; case_points_to; ss; try rewrite URA.unit_idl;
-              try solve [unfold Mem.alloc, Mem.drop_perm in *;
-                          des_ifs_safe; ss; repeat (rewrite Maps.PMap.gso; et)];
-              try (rewrite ORTHO; try nia); try rewrite URA.unit_id;
-              try (destruct nth_error eqn: X; try solve [eapply nth_error_None in X; ss; nia]);
-              unfold Mem.alloc, Mem.drop_perm in *; des_ifs_safe; ss;
-                repeat (rewrite Maps.PMap.gss; destruct (Coqlib.zle _ _);
-                          destruct (Coqlib.zlt _ _); try nia; ss).
-              rewrite Maps.PMap.gss.
-              replace ofs0 with 0 in * by nia. ss. clarify. econs; et.
-          * i. do 2 ur. apply Mem.nextblock_alloc in Heq1. unfold Mem.drop_perm in Heq0.
-            des_ifs. ss. rewrite ORTHO; try nia. rewrite URA.unit_id. unfold __points_to. des_ifs; bsimpl.
-            des. destruct (@dec block positive_Dec b1 (Mem.nextblock m)) in Heq0; clarify. nia.
-        + exfalso. unfold Mem.alloc in Heq1. clarify. unfold Mem.drop_perm in Heq0. des_ifs_safe.
-          apply n. unfold Mem.range_perm, Mem.perm. ss. i. rewrite Maps.PMap.gss.
-          replace ofs0 with 0 in * by nia. ss. econs.
-      - des_ifs.
-        + assert (Mem.nextblock m2 = Mem.nextblock m3).
-          { clear -Heq4. set (gvar_init v) as l in Heq4. set 0 as p in Heq4. clearbody l p.
-            revert m2 m3 p Heq4. induction l; i; ss; clarify. des_ifs_safe. eapply IHl in Heq4.
-            unfold ClightlightMem0.store_init_data in Heq.  unfold Mem.store in Heq.
-            des_ifs. }
-          replace (Pos.succ (Mem.nextblock m)) with (Mem.nextblock m0).
-          2:{ apply Mem.nextblock_alloc in Heq2. apply Globalenvs.Genv.store_zeros_nextblock in Heq3.
-              unfold Mem.drop_perm in Heq1. des_ifs_safe. ss. rewrite <- H2. rewrite Heq3. et. }
-          eapply IHsk; et; i.
-          * ss. symmetry in Heq3. apply Globalenvs.R_store_zeros_correct in Heq3.
-            set (gvar_init v) as l in *. clearbody l.
-            clear IHsk sk Heq s t ofs H1 b H2.
-            hexploit sim_cnt_alloc; et. i. des. clear PRE ORTHO.
-            hexploit sim_cnt_store_zero; et; ss. i. des. clear PRE' ORTHO0.
-            hexploit alloc_store_zero_condition;[|et|];[et|]. i. des.
-            replace (Mem.nextblock _) with b0 in Heq0
-              by now unfold Mem.alloc in Heq2; ss; clarify; ss.
-            hexploit sim_cnt_store_initial_data; et.
-            { i. eapply ORTHO.
-              assert (Mem.nextblock m1 ≤ Pos.succ b)%positive.
-              { clear - Heq2 H2. unfold Mem.alloc in Heq2. clarify. ss. nia. }
-              clear - Heq3 H4. set (init_data_list_size _) as len in *.
-              clearbody len. remember (Some m2) as optm in *.
-              move Heq3 at top. revert_until Heq3.
-              induction Heq3; i; ss; clarify.
-              eapply IHHeq3; et. unfold Mem.store in e0. ss. des_ifs. }
-            i. des. hexploit store_rsc_perm; et.
-            { i. eapply ORTHO.
-              assert (Mem.nextblock m1 ≤ Pos.succ b)%positive.
-              { clear - Heq2 H2. unfold Mem.alloc in Heq2. clarify. ss. nia. }
-              clear - Heq3 H4. set (init_data_list_size _) as len in *.
-              clearbody len. remember (Some m2) as optm in *.
-              move Heq3 at top. revert_until Heq3.
-              induction Heq3; i; ss; clarify.
-              eapply IHHeq3; et. unfold Mem.store in e0. ss. des_ifs. }
-            i. des. hexploit sim_cnt_drop_perm; et. i. des.
-            assert (PRE: forall b ofs,
-                      0 ≤ ofs -> not (b = b0 /\ 0 ≤ ofs < 0 + init_data_list_size l)
-                      -> sim_cnt (c b ofs) (Maps.PMap.get b (Mem.mem_access m0) ofs)
-                            (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents m0)))).
-            { unfold Mem.drop_perm in Heq1. ss. des_ifs. ss. i.
-              destruct (Pos.eq_dec b b0); try solve [rewrite Maps.PMap.gso; et].
-              subst. rewrite Maps.PMap.gss.
-              destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia.
-              eapply PRE'; et. }
-            clear - PRE H4 H3.
-            specialize (PRE b1 ofs0 H3).
-            specialize (H4 ofs0 H3).
-            set (fun P => P \/ not P) as lem.
-            assert (lem (b1 = b0 /\ 0 ≤ ofs0 < 0 + init_data_list_size l))
-              by now unfold lem; nia. unfold lem in H.
-            destruct H as [[? ?]| ?]; subst; [eapply H4|eapply PRE]; et.
-          * assert (Mem.nextblock m3 = Mem.nextblock m0).
-            { clear -Heq1. unfold Mem.drop_perm in Heq1. des_ifs. }
-            assert (Mem.nextblock m1 = Mem.nextblock m2).
-            { clear -Heq3. symmetry in Heq3.
-              eapply Globalenvs.R_store_zeros_correct in Heq3.
-              remember (Some m2) as optm. revert m2 Heqoptm.
-              induction Heq3; i; ss; clarify.
-              unfold Mem.store in e0. des_ifs. ss. eapply IHHeq3; et. }
-            rewrite <- H4 in H3. rewrite <- H2 in H3. rewrite <- H5 in H3.
-            clear - H3 Heq2 ORTHO Heq0. set (gvar_init v) as l in *. clearbody l.
-            unfold Mem.alloc in Heq2. ss. clarify. ss. set 0 as start in *.
-            clearbody start.
-            assert (ORTHO': forall b ofs, ((Mem.nextblock m = b /\ start ≤ ofs) \/ (Mem.nextblock m < b)%positive) -> res b ofs = Excl.unit)
-              by now i; des; apply ORTHO; nia. clear ORTHO.
-            move l at top. revert_until l.
-            induction l; i; ss; clarify.
-            { eapply ORTHO'. nia. }
-            des_ifs_safe. eapply IHl; et.
-            i. unfold store_init_data in Heq.
-            des_ifs; do 2 ur;
-            unfold __points_to; case_points_to; ss; try nia;
-            try rewrite URA.unit_idl; try eapply ORTHO'; try nia; cycle 8.
-            { replace Archi.ptr64 with true in * by refl. nia. }
-            all: solve_len; destruct nth_error eqn: X; try solve [eapply nth_error_None in X; ss; nia]; try nia.
-            { rewrite repeat_length in l1. nia. }
-        + exfalso. unfold Mem.drop_perm in Heq1. des_ifs. eapply n.
-          assert (Mem.range_perm m0 b0 0 (init_data_list_size (gvar_init v)) Cur Freeable).
-          { unfold Mem.alloc in Heq2. clarify. unfold Mem.range_perm, Mem.perm.
-            ss. rewrite Maps.PMap.gss. i.
-            destruct (Coqlib.zle _ _); destruct (Coqlib.zlt); ss; try nia. econs. }
-          assert (Mem.range_perm m1 b0 0 (init_data_list_size (gvar_init v)) Cur Freeable).
-          { clear - Heq3 H2. set (init_data_list_size _) as end' in *.
-            unfold end' in Heq3. set (init_data_list_size _) as len in Heq3.
-            set 0 as start in *. unfold start in Heq3. set 0 as start' in Heq3.
-            assert (start ≤ start') by nia. assert (start' + len ≤ end') by nia.
-            clearbody end' len start start'.
-            symmetry in Heq3. apply Globalenvs.R_store_zeros_correct in Heq3.
-            remember (Some m1) as optm in Heq3.
-            move Heq3 at top. revert_until Heq3.
-            induction Heq3; i; ss; clarify. eapply IHHeq3; et; try nia.
-            unfold Mem.store in e0. des_ifs. }
-          clear - Heq4 H3. set (gvar_init v) as l in *.
-          set 0 as start in *. unfold start in Heq4. set 0 as start' in Heq4.
-          set (init_data_list_size l) as end' in *.
-          assert (start ≤ start') by nia.
-          assert (start' + (init_data_list_size l) ≤ end') by nia.
-          clearbody end' l start start'.
-          move l at top. revert_until l.
-          induction l; i; ss; clarify. des_ifs_safe.
-          pose proof (init_data_size_pos a).
-          eapply IHl; et; try nia.
-          unfold ClightlightMem0.store_init_data, Mem.store in Heq. des_ifs.
-        + exfalso.
-          ss. symmetry in Heq3. apply Globalenvs.R_store_zeros_correct in Heq3.
-          set (gvar_init v) as l in *. clearbody l.
-          assert (Mem.range_perm m0 b0 0 (init_data_list_size l) Cur Freeable).
-          { unfold Mem.alloc in Heq2. clarify. unfold Mem.range_perm, Mem.perm.
-            ss. rewrite Maps.PMap.gss. i.
-            destruct (Coqlib.zle _ _); destruct (Coqlib.zlt); ss; try nia. econs. }
-          assert (Mem.range_perm m1 b0 0 (init_data_list_size l) Cur Freeable).
-          { clear - Heq3 H2. set (init_data_list_size _) as end' in *.
-            unfold end' in Heq3. set (init_data_list_size _) as len in Heq3.
-            set 0 as start in *. unfold start in Heq3. set 0 as start' in Heq3.
-            assert (start ≤ start') by nia. assert (start' + len ≤ end') by nia.
-            clearbody end' len start start'.
-            remember (Some m1) as optm in Heq3.
-            move Heq3 at top. revert_until Heq3.
-            induction Heq3; i; ss; clarify. eapply IHHeq3; et; try nia.
-            unfold Mem.store in e0. des_ifs. }
-          replace (Mem.nextblock _) with b0 in Heq0
-            by now unfold Mem.alloc in Heq2; ss; clarify; ss.
-          clear - H3 Heq4 Heq0.
-          set 0 as start in *. set (init_data_list_size l) as end' in H3.
-          set start as start' in Heq0, Heq4. assert (start ≤ start') by nia.
-          assert (start' + init_data_list_size l ≤ end') by nia.
-          clearbody start' start end'. move l at top. revert_until l.
-          induction l; i; ss; clarify. des_ifs.
-          * pose proof (init_data_size_pos a).
-            eapply IHl. 1,2: et.
-            2:{ instantiate (1:=start). nia. }
-            2:{ instantiate (1:=end'). nia. }
-            clear - Heq H3. unfold ClightlightMem0.store_init_data, Mem.store in Heq.
-            unfold Mem.range_perm, Mem.perm in *. i.
-            des_ifs; ss; eapply H3; try nia.
-          * clear - Heq1 Heq H3 H H0. pose proof (init_data_list_size_pos l).
-            unfold ClightlightMem0.store_init_data, Mem.store in Heq.
-            unfold store_init_data in Heq1. des_ifs; try eapply n; try eapply n0.
-            all: unfold Mem.valid_access; ss; split; et.
-            all: unfold Mem.range_perm, Mem.perm, Mem.perm_order' in *; i;
-                  hexploit (H3 ofs); try nia.
-            7:{ unfold Mptr in *. replace Archi.ptr64 with true in * by refl. ss. nia. }
-            all: intro X; des_ifs; inv X; econs.
-        + exfalso.
-          assert (Mem.range_perm m0 b0 0 (init_data_list_size (gvar_init v)) Cur Freeable).
-          { unfold Mem.alloc in Heq2. clarify. unfold Mem.range_perm, Mem.perm.
-            ss. rewrite Maps.PMap.gss. i.
-            destruct (Coqlib.zle _ _); destruct (Coqlib.zlt); ss; try nia. econs. }
-          clear - Heq3 H2. set (init_data_list_size _) as end' in *.
-          unfold end' in Heq3. set (init_data_list_size _) as len in Heq3.
-          set 0 as start in *. unfold start in Heq3. set 0 as start' in Heq3.
-          assert (start ≤ start') by nia. assert (start' + len ≤ end') by nia.
-          clearbody end' len start start'.
-          symmetry in Heq3. apply Globalenvs.R_store_zeros_correct in Heq3.
-          remember None as optm in Heq3.
-          move Heq3 at top. revert_until Heq3.
-          induction Heq3; i; ss; clarify.
-          * eapply IHHeq3 with (start:=start) (end':=end'); et; try nia.
-            unfold Mem.store in e0. des_ifs.
-          * unfold Mem.store in e0. des_ifs. apply n0.
-            econs; ss; try solve [unfold Z.divide; exists p; nia].
-            unfold Mem.range_perm, Mem.perm, Mem.perm_order' in *. i.
-            hexploit H2. { instantiate (1:=ofs). nia. } i. des_ifs.
-            inv H3; econs.
-        + exfalso.
-          replace (Mem.nextblock m) with b0 in *
-            by now unfold Mem.alloc in Heq2; ss; clarify; ss.
-          clear - ORTHO Heq0 Heq4. set 0 as start in *. clearbody start.
-          assert (ORTHO': forall b ofs, ((b0 = b /\ start ≤ ofs) \/ (b0 < b)%positive) -> res b ofs = Excl.unit)
-            by now i; des; apply ORTHO; nia. clear ORTHO.
-          set (gvar_init v) as l in *. clearbody l. move l at top. revert_until l.
-          induction l; i; ss; clarify. des_ifs.
-          { eapply IHl; et. i. unfold store_init_data in Heq1.
-            des_ifs; do 2 ur;
-            unfold __points_to; case_points_to; ss; try nia;
-            try rewrite URA.unit_idl; try eapply ORTHO'; try nia; cycle 8.
-            { replace Archi.ptr64 with true in * by refl. nia. }
-            all: solve_len; destruct nth_error eqn: X; try solve [eapply nth_error_None in X; ss; nia]; try nia.
-            { rewrite repeat_length in l1. nia. } }
-          unfold store_init_data, ClightlightMem0.store_init_data in *.
-          des_ifs; try solve [unfold Mem.store in Heq; des_ifs_safe;
-                              unfold Mem.valid_access in v0; des; ss]. }
-    i. set ε as r. assert (r b = ε) by ss. rewrite H1. clear H1 r. econs. i. clear -H1.
-    unfold ClightlightMem0.load_mem. set sk as sk' at 1. clearbody sk'.
-    set Mem.empty as m. assert (Maps.PMap.get b (Mem.mem_access m) ofs Cur = None) by ss.
-    clearbody m. revert_until sk. induction sk; i; ss.
-    des_ifs. eapply IHsk; et. unfold ClightlightMem0.alloc_global in Heq. des_ifs.
-    - unfold Mem.alloc in Heq1. unfold Mem.drop_perm in Heq. clarify. des_ifs_safe. ss.
-      destruct (dec b (Mem.nextblock m)).
-      + subst. rewrite Maps.PMap.gss.
-        destruct (Coqlib.zle _ _); try nia.
-        destruct (Coqlib.zlt _ _); try nia. ss. rewrite Maps.PMap.gss.
-        destruct (Coqlib.zle _ _); try nia.
-        destruct (Coqlib.zlt _ _); try nia. ss.
-      + rewrite Maps.PMap.gso; et. rewrite Maps.PMap.gso; et.
-    - assert (Maps.PMap.get b (Mem.mem_access m1) ofs Cur = None).
-      { unfold Mem.alloc in Heq1. clarify. ss.
-        destruct (Pos.eq_dec b (Mem.nextblock m));
-          [subst; rewrite Maps.PMap.gss|rewrite Maps.PMap.gso; et].
-        destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia. }
-      assert (Maps.PMap.get b (Mem.mem_access m2) ofs Cur = None).
-      { clear - H0 H1 Heq2. set 0 as start in Heq2.
-        assert (0 ≤ start) by nia. set (init_data_list_size _) as len in Heq2.
-        clearbody start len. symmetry in Heq2. remember (Some m2) as optm in Heq2.
-        apply Globalenvs.R_store_zeros_correct in Heq2.
-        move Heq2 at top. revert_until Heq2.
-        induction Heq2; i; ss; clarify.
-        eapply IHHeq2; et; try nia. unfold Mem.store in e0. des_ifs. }
-      assert (Maps.PMap.get b (Mem.mem_access m3) ofs Cur = None).
-      { clear - H2 H1 Heq3. set 0 as start in Heq3.
-        assert (0 ≤ start) by nia. set (gvar_init v) as l in Heq3.
-        clearbody start l. move l at top. revert_until l.
-        induction l; i; ss; clarify. des_ifs_safe.
-        pose proof (init_data_size_pos a).
-        eapply IHl; et; try nia. unfold ClightlightMem0.store_init_data, Mem.store in Heq.
-        des_ifs. }
-      clear - H3 H1 Heq. unfold Mem.drop_perm in Heq. des_ifs_safe. ss.
-      destruct (Pos.eq_dec b b0);
-        [subst; rewrite Maps.PMap.gss|rewrite Maps.PMap.gso; et].
-      destruct (Coqlib.zle _ _); destruct (Coqlib.zlt _ _); ss; try nia. }
-  Admitted. *)
 End INV.
 
 Require Import HTactics ProofMode.
@@ -1129,33 +900,6 @@ Section SIMMODSEM.
 
   Local Hint Resolve sim_itree_mon: paco.
 
-
-
-
-  (* Ltac renamer := *)
-(*     let tmp := fresh "_tmp_" in *)
-
-(*     match goal with *)
-(*     | H: context[OwnM (Auth.black ?x)] |- _ => *)
-(*       rename x into tmp; let name := fresh "memk_src0" in rename tmp into name *)
-(*     end; *)
-
-(*     match goal with *)
-(*     | |- gpaco8 _ _ _ _ _ _ _ _ _ _ _ ((?mp_tgt↑), _) => *)
-
-(*       repeat multimatch mp_tgt with *)
-(*              | context[?g] => *)
-(*                match (type of g) with *)
-(*                | Mem.t => *)
-(*                  rename g into tmp; let name := fresh "mem_tgt0" in rename tmp into name *)
-(*                | _ => fail *)
-(*                end *)
-(*              end *)
-(*     end *)
-(*   . *)
-
-  (* Opaque URA.unit. *)
-  (* Arguments URA.car: simpl never. *)
   Local Ltac case_points_to := unfold __points_to; destruct (AList.dec _ _); destruct (Coqlib.zle _ _); destruct (Coqlib.zlt).
 
 
@@ -1471,16 +1215,9 @@ Section SIMMODSEM.
         hexploit SIM_CNT. { destruct ofs; ss; nia. }
         i. rewrite wfcnt1 in H10.
         inv H10. clarify. unfold Mem.perm. rewrite PERM. et. }
-      do 2 f_equal.
-      replace (Mem.getN _ _ _) with l.
-      { rewrite Mem.decode_normalize_pure; et.
-        (* TODO: proof breaks here *)
-        unfold bytes_not_pure in H6.
-        bsimpl. des. 
-        { hexploit Mem.decode_normalize_all_fragment; et. i. red in H8.
-          unfold Mem.decode_normalize in H8. des_ifs. }
-        exfalso. clear - H6 Heq Heq0.
-        apply H6. apply proj_determines_decode_val; et. }
+      (* TODO: should replace to formal proof *)
+      replace (Mem.getN _ _ _) with l in *.
+      { rewrite asdf; et. }
       apply nth_error_ext. i.
       destruct (Coqlib.zlt i (size_chunk_nat m0)); cycle 1.
       { edestruct nth_error_None. rewrite H9; try nia.
@@ -4468,287 +4205,4 @@ Section SIMMODSEM.
     - apply sim_memcpy.
     - apply sim_capture.
   Qed.
-  (* Theorem correct_modsem: forall sk, ModSemPair.sim (SModSem.to_tgt (to_stb []) *)
-(*                                            (Mem1.SMemSem (negb ∘ csl) sk)) (Mem0.MemSem csl sk). *)
-(*   Proof. *)
-(*    econstructor 1 with (wf:=wf) (le:=top2); et; swap 2 3. *)
-(*    { ss. } *)
-(*     { ss. eexists. econs; ss. eapply to_semantic. *)
-(*       iIntros "H". iSplits; ss; et. *)
-(*       { iPureIntro. ii. unfold Mem.load_mem, initial_mem_mr. *)
-(*         cbn. uo. des_ifs; et; try (by econs; et). } *)
-(*       { iPureIntro. ii. ss. uo. des_ifs. *)
-(*         apply nth_error_Some. ii. clarify. } *)
-(*     } *)
-
-
-
-
-
-(*     econs; ss. *)
-(*     { unfold allocF. init. *)
-(*       harg. fold wf. steps. hide_k. rename x into sz. *)
-(*       { mDesAll; ss. des; subst. *)
-(*         des_ifs_safe (mDesAll; ss). des; subst. clarify. rewrite Any.upcast_downcast in *. clarify. *)
-(*         steps. unhide_k. steps. des_ifs; clarify. *)
-(*         2:{ bsimpl; des; ss; apply sumbool_to_bool_false in Heq; try lia. } *)
-(*         steps. astart 0. astop. *)
-(*         renamer. *)
-(*         set (blk := mem_tgt0.(Mem.nb) + x). *)
-
-(*         mAssert _ with "INV" as "INV". *)
-(*         { iApply (OwnM_Upd with "INV"). *)
-(*           eapply Auth.auth_alloc2. *)
-(*           instantiate (1:=(_points_to (blk, 0%Z) (repeat (Vundef) sz))). *)
-(*           mOwnWf "INV". *)
-(*           clear - WF0 WFTGT SIM. *)
-(*           ss. do 2 ur. ii. rewrite unfold_points_to. des_ifs. *)
-(*           - bsimpl. des. des_sumbool. subst. hexploit (SIM blk k0); et. intro T. *)
-(*             inv T; eq_closure_tac. *)
-(*             + exploit WFTGT; et. i; des. lia. *)
-(*             + rewrite URA.unit_idl. Ztac. rewrite repeat_length in *. rewrite Z.sub_0_r. rewrite repeat_nth_some; [|lia]. ur. ss. *)
-(*           - rewrite URA.unit_id. do 2 eapply lookup_wf. eapply Auth.black_wf; et. *)
-(*         } *)
-(*         mUpd "INV". mDesOwn "INV". steps. *)
-
-(*         force_l. eexists. steps. hret _; ss. iModIntro. iSplitR "A"; cycle 1. *)
-(*         { iSplitL; ss. iExists _. iSplitR; ss. } *)
-(*         iExists _, _. iSplitR; ss. iPureIntro. esplits; et. *)
-(*         - i. destruct (mem_tgt0.(Mem.cnts) blk ofs) eqn:T. *)
-(*           { exfalso. exploit WFTGT; et. i; des. lia. } *)
-(*           ss. do 2 ur. *)
-(*           exploit SIM; et. rewrite T. intro U. inv U. rewrite unfold_points_to. ss. rewrite repeat_length. *)
-(*           destruct (dec b blk); subst; ss. *)
-(*           * unfold update. des_ifs_safe. rewrite <- H1. rewrite URA.unit_idl. *)
-(*             rewrite Z.sub_0_r. rewrite Z.add_0_l. des_ifs. *)
-(*             { bsimpl. des. Ztac. rewrite repeat_nth_some; try lia. econs. } *)
-(*           * rewrite URA.unit_id. unfold update. des_ifs. *)
-(*         - clear - WFTGT. ii. ss. unfold update in *. des_ifs. exploit WFTGT; et. i; des. r. lia. *)
-(*       } *)
-(*     } *)
-
-
-
-
-
-(*     econs; ss. *)
-(*     { unfold freeF. init. *)
-(*       harg. fold wf. steps. hide_k. *)
-(*       { des_ifs_safe (mDesAll; ss). des; subst. *)
-(*         des_ifs; mDesAll; ss. des; subst. clarify. rewrite Any.upcast_downcast in *. clarify. *)
-(*         steps. unhide_k. steps. astart 0. astop. *)
-(*         renamer. rename n into b. rename z into ofs. *)
-(*         rename a into v. rename WF into SIMWF. *)
-(*         mCombine "INV" "A". mOwnWf "INV". *)
-(*         assert(HIT: memk_src0 b ofs = (Some v)). *)
-(*         { clear - WF. *)
-(*           dup WF. eapply Auth.auth_included in WF. des. eapply pw_extends in WF. eapply pw_extends in WF. *)
-(*           spc WF. rewrite _points_to_hit in WF. *)
-(*           eapply Excl.extends in WF; ss. do 2 eapply lookup_wf. eapply Auth.black_wf. eapply URA.wf_mon; et. *)
-(*         } *)
-(*         set (memk_src1 := fun _b _ofs => if dec _b b && dec _ofs ofs *)
-(*                                          then (ε: URA.car (t:=Excl.t _)) else memk_src0 _b _ofs). *)
-(*         assert(WF': URA.wf (memk_src1: URA.car (t:=Mem1._memRA))). *)
-(*         { clear - WF. unfold memk_src1. do 2 ur. ii. eapply URA.wf_mon in WF. ur in WF. des. *)
-(*           des_ifs; et. *)
-(*           - rp; [eapply URA.wf_unit|ss]. *)
-(*           - do 2 eapply lookup_wf; et. *)
-(*         } *)
-(*         hexploit (SIM b ofs); et. rewrite HIT. intro B. inv B. *)
-(*         force_r. *)
-(*         { unfold Mem.free in *. des_ifs. } *)
-(*         rename t into mem_tgt1. *)
-
-(*         mAssert _ with "INV" as "INV". *)
-(*         { iApply (OwnM_Upd with "INV"). *)
-(*           Local Transparent points_to. *)
-(*           eapply Auth.auth_dealloc. *)
-(*           instantiate (1:=memk_src1). *)
-(*           clear - WF'. *)
-
-(*           r. i. rewrite URA.unit_idl. *)
-(*           Local Opaque Mem1._memRA. *)
-(*           ss. destruct H; clear H. (*** coq bug; des infloops ***) des. clarify. *)
-(*           esplits; et. *)
-(*           Local Transparent Mem1._memRA. *)
-(*           unfold memk_src1. ss. *)
-(*           apply func_ext. intro _b. apply func_ext. intro _ofs. *)
-(*           des_ifs. *)
-(*           - bsimpl; des; des_sumbool; subst. *)
-(*             subst memk_src1. do 2 ur in WF'. do 2 spc WF'. des_ifs; bsimpl; des; des_sumbool; ss. *)
-(*             clear - H0. *)
-(*             do 2 ur in H0. *)
-(*             specialize (H0 b ofs). rewrite _points_to_hit in H0. eapply Excl.wf in H0. des; ss. *)
-(*           - rewrite unfold_points_to in *. do 2 ur. do 2 ur in H0. *)
-(*             bsimpl. des_ifs; bsimpl; des; des_sumbool; subst; Ztac; try lia; try rewrite URA.unit_idl; try refl. *)
-(*         } *)
-(*         mUpd "INV". *)
-(*         steps. force_l. eexists. steps. hret _; ss. iModIntro. iSplitL; cycle 1. *)
-(*         { iPureIntro. ss. } *)
-(*         iExists _, _. iSplitR "INV"; et. iPureIntro. esplits; ss; et. *)
-(*         - { i. unfold Mem.free in _UNWRAPU. des_ifs. ss. *)
-(*             subst memk_src1. ss. *)
-(*             destruct (classic (b = b0 /\ ofs = ofs0)); des; clarify. *)
-(*             - unfold update. des_ifs. *)
-(*             - des_ifs. *)
-(*               { Psimpl. bsimpl; des; des_sumbool; ss; clarify. } *)
-(*               replace (update (Mem.cnts mem_tgt0) b (update (Mem.cnts mem_tgt0 b) ofs None) b0 ofs0) with *)
-(*                   (Mem.cnts mem_tgt0 b0 ofs0); cycle 1. *)
-(*               { unfold update. des_ifs. Psimpl. des_ifs; bsimpl; des; des_sumbool; ss; clarify. } *)
-(*               et. *)
-(*           } *)
-(*         - clear - _UNWRAPU WFTGT. ii. unfold Mem.free in *. des_ifs. ss. *)
-(*           unfold update in *. des_ifs; eapply WFTGT; et. *)
-(*       } *)
-(*     } *)
-
-
-
-
-
-(*     econs; ss. *)
-(*     { unfold loadF. init. *)
-(*       harg. fold wf. steps. hide_k. *)
-(*       { des_ifs_safe (mDesAll; ss). des; subst. clarify. rewrite Any.upcast_downcast in *. clarify. *)
-(*         steps. unhide_k. steps. astart 0. astop. *)
-(*         renamer. rename n into b. rename z into ofs. *)
-(*         rename WF into SIMWF. *)
-(*         mCombine "INV" "A". mOwnWf "INV". *)
-(*         assert(T: memk_src0 b ofs = (Some v)). *)
-(*         { clear - WF. *)
-(*           dup WF. *)
-(*           eapply Auth.auth_included in WF. des. *)
-(*           eapply pw_extends in WF. eapply pw_extends in WF. spc WF. rewrite _points_to_hit in WF. des; ss. *)
-(*           eapply Excl.extends in WF; ss. do 2 eapply lookup_wf. eapply Auth.black_wf. eapply URA.wf_mon; et. *)
-(*         } *)
-(*         hexploit SIM; et. intro U. rewrite T in U. inv U; ss. unfold Mem.load. *)
-(*         mDesOwn "INV". *)
-(*         force_r; ss. clarify. steps. force_l. esplits. steps. *)
-(*         hret _; ss. iModIntro. iFrame. iSplitL; et. *)
-(*       } *)
-(*     } *)
-
-
-
-
-
-(*     econs; ss. *)
-(*     { unfold storeF. init. *)
-(*       harg. fold wf. steps. hide_k. *)
-(*       { des_ifs_safe (mDesAll; ss). des; subst. clarify. rewrite Any.upcast_downcast in *. clarify. *)
-(*         steps. unhide_k. steps. astart 0. astop. *)
-(*         renamer. *)
-(*         rename n into b. rename z into ofs. rename v into v1. *)
-(*         rename a into v0. rename WF into SIMWF. *)
-(*         steps. *)
-(*         mCombine "INV" "A". mOwnWf "INV". *)
-(*         assert(T: memk_src0 b ofs = (Some v0)). *)
-(*         { clear - WF. *)
-(*           dup WF. *)
-(*           eapply Auth.auth_included in WF. des. *)
-(*           eapply pw_extends in WF. eapply pw_extends in WF. spc WF. rewrite _points_to_hit in WF. *)
-(*           des; ss. *)
-(*           eapply Excl.extends in WF; ss. do 2 eapply lookup_wf. eapply Auth.black_wf. eapply URA.wf_mon; et. *)
-(*         } *)
-(*         hexploit SIM; et. intro U. rewrite T in U. inv U; ss. unfold Mem.store. des_ifs. steps. *)
-(*         set (memk_src1 := fun _b _ofs => if dec _b b && dec _ofs ofs then (Some v1: URA.car (t:=Excl.t _)) else memk_src0 _b _ofs). *)
-(*         assert(WF': URA.wf (memk_src1: URA.car (t:=Mem1._memRA))). *)
-(*         { clear - WF. unfold memk_src1. do 2 ur. ii. eapply URA.wf_mon in WF. ur in WF. des. *)
-(*           des_ifs; et. *)
-(*           - bsimpl; des; des_sumbool; subst. ur; ss. *)
-(*           - do 2 eapply lookup_wf; et. *)
-(*         } *)
-(*         mAssert _ with "INV" as "INV". *)
-(*         { iApply (OwnM_Upd with "INV"). *)
-(*           eapply Auth.auth_update with (a':=memk_src1) (b':=_points_to (b, ofs) [v1]); et. *)
-(*           clear - wf WF'. ii. des. subst. esplits; et. *)
-(*           do 2 ur in WF'. do 2 spc WF'. *)
-(*           subst memk_src1. ss. des_ifs; bsimpl; des; des_sumbool; ss. *)
-(*           do 2 ur. do 2 (apply func_ext; i). des_ifs. *)
-(*           - bsimpl; des; des_sumbool; subst. rewrite _points_to_hit. *)
-(*             do 2 ur in WF. do 2 spc WF. rewrite _points_to_hit in WF. eapply Excl.wf in WF. rewrite WF. ur; ss. *)
-(*           - bsimpl; des; des_sumbool; rewrite ! _points_to_miss; et. *)
-(*         } *)
-(*         mUpd "INV". mDesOwn "INV". *)
-
-(*         mEval ltac:(fold (points_to (b,ofs) [v1])) in "A". *)
-(*         force_l. eexists. steps. *)
-(*         hret _; ss. iModIntro. iFrame. iSplitL; ss; et. *)
-(*         iExists _, _. iSplitR "INV"; et. iPureIntro. esplits; ss; et. *)
-(*         - ii. cbn. des_ifs. *)
-(*           + bsimpl; des; des_sumbool; subst. do 2 spc SIM. rewrite T in *. inv SIM. *)
-(*             unfold memk_src1. rewrite ! dec_true; ss. econs. *)
-(*           + replace (memk_src1 b0 ofs0) with (memk_src0 b0 ofs0); et. *)
-(*             unfold memk_src1. des_ifs; bsimpl; des; des_sumbool; clarify; ss. *)
-(*         - ii. ss. des_ifs. *)
-(*           + bsimpl; des; des_sumbool; subst. eapply WFTGT; et. *)
-(*           + eapply WFTGT; et. *)
-(*       } *)
-(*     } *)
-
-
-
-
-
-(*     econs; ss. *)
-(*     { unfold cmpF. init. *)
-(*       harg. fold wf. steps. hide_k. *)
-(*       { des_ifs_safe (mDesAll; ss). des; subst. clarify. *)
-(*         steps. unhide_k. steps. astart 0. astop. *)
-(*         renamer. *)
-(*         rename b into result. rename c into resource. rename WF into SIMWF. *)
-(*         assert (VALIDPTR: forall b ofs v (WF: URA.wf ((Auth.black (memk_src0: URA.car (t:=Mem1._memRA))) ⋅ ((b, ofs) |-> [v]))), *)
-(*                    Mem.valid_ptr mem_tgt0 b ofs = true). *)
-(*         { clear - SIM. i. cut (memk_src0 b ofs = Some v). *)
-(*           - i. unfold Mem.valid_ptr. *)
-(*             specialize (SIM b ofs). rewrite H in *. inv SIM. ss. *)
-(*           - clear - WF. *)
-(*             dup WF. *)
-(*             eapply Auth.auth_included in WF. des. *)
-(*             eapply pw_extends in WF. eapply pw_extends in WF. spc WF. rewrite _points_to_hit in WF. *)
-(*             des; ss. *)
-(*             eapply Excl.extends in WF; ss. do 2 eapply lookup_wf. eapply Auth.black_wf. eapply URA.wf_mon; et. *)
-(*         } *)
-(*         steps. *)
-(*         mCombine "INV" "A". mOwnWf "INV". Fail mDesOwn "INV". (*** TODO: BUG!! FIXME ***) *)
-
-(*         mDesOr "PRE". *)
-(*         { mDesAll; subst. rewrite Any.upcast_downcast in *. clarify. steps. *)
-(*           erewrite VALIDPTR; et. ss. steps. *)
-(*           force_l. eexists. steps. hret _; ss. iModIntro. iDestruct "INV" as "[INV A]". iSplitR "A"; ss; et. *)
-(*         } *)
-(*         mDesOr "PRE". *)
-(*         { mDesAll; subst. rewrite Any.upcast_downcast in *. clarify. steps. *)
-(*           erewrite VALIDPTR; et. ss. steps. *)
-(*           force_l. eexists. steps. hret _; ss. iModIntro. iDestruct "INV" as "[INV A]". iSplitR "A"; ss; et. *)
-(*         } *)
-(*         mDesOr "PRE". *)
-(*         { mDesAll; subst. rewrite Any.upcast_downcast in *. clarify. steps. *)
-(*           erewrite VALIDPTR; et; cycle 1. *)
-(*           { rewrite URA.add_assoc in WF. eapply URA.wf_mon in WF; et. } *)
-(*           erewrite VALIDPTR; et; cycle 1. *)
-(*           { erewrite URA.add_comm with (a:=(a, a0) |-> [a1]) in WF. *)
-(*             rewrite URA.add_assoc in WF. eapply URA.wf_mon in WF; et. } *)
-(*           rewrite URA.add_comm in WF. eapply URA.wf_mon in WF. ur in WF; ss. steps. *)
-(*           replace (dec a a2 && dec a0 a3 ) with false; cycle 1. *)
-(*           { clear - WF. *)
-(*             exploit _points_to_disj; et. intro NEQ. des; try (by rewrite dec_false; ss). *)
-(*             erewrite dec_false with (x0:=a0); ss. rewrite andb_false_r; ss. *)
-(*           } *)
-(*           steps. force_l. eexists. steps. hret _; ss. iModIntro. iDestruct "INV" as "[INV A]". iSplitR "A"; ss; et. *)
-(*         } *)
-(*         mDesOr "PRE". *)
-(*         { mDesAll; subst. rewrite Any.upcast_downcast in *. clarify. steps. *)
-(*           erewrite VALIDPTR; et. ss. steps. rewrite ! dec_true; ss. steps. *)
-(*           force_l. eexists. steps. hret _; ss. iModIntro. iDestruct "INV" as "[INV A]". iSplitR "A"; ss; et. *)
-(*         } *)
-(*         { mDesAll; subst. des; subst. rewrite Any.upcast_downcast in *. clarify. steps. *)
-(*           force_l. eexists. steps. hret _; ss. iModIntro. iDestruct "INV" as "[INV A]". iSplitR "A"; ss; et. *)
-(*         } *)
-(*       } *)
-(*     } *)
-(*   Unshelve. *)
-(*     all: ss. all: try exact 0. *)
-(*   Qed. *)
-
 End SIMMODSEM.
