@@ -1065,7 +1065,7 @@ Section SPEC.
                     (ord_pure 0%nat),
                     (fun varg => ⌜varg = (chunk, vaddr)↑
                                  /\ List.length mvs = size_chunk_nat chunk
-                                 /\ decode_val chunk mvs <> Vundef
+                                 /\ bytes_not_pure mvs = false
                                  /\ ((size_chunk chunk) | Ptrofs.unsigned ofs)⌝
                                  ** vaddr (⊨_m,tg,q0) ofs
                                  ** vaddr (↦_m,q1) mvs),

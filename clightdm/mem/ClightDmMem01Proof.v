@@ -1473,7 +1473,10 @@ Section SIMMODSEM.
         inv H10. clarify. unfold Mem.perm. rewrite PERM. et. }
       do 2 f_equal.
       replace (Mem.getN _ _ _) with l.
-      { unfold Mem.decode_normalize. des_ifs.
+      { rewrite Mem.decode_normalize_pure; et.
+        (* TODO: proof breaks here *)
+        unfold bytes_not_pure in H6.
+        bsimpl. des. 
         { hexploit Mem.decode_normalize_all_fragment; et. i. red in H8.
           unfold Mem.decode_normalize in H8. des_ifs. }
         exfalso. clear - H6 Heq Heq0.
