@@ -2,12 +2,12 @@
 
 Require Import CoqlibCCR.
 Require Import ITreelib.
-Require Import ClightDmSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
 Require Import AList.
+Require Import ClightPlusSkel.
 
 From compcert Require Import
      AST Maps Globalenvs Memory Values Linking Integers.

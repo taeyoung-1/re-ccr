@@ -9,8 +9,8 @@ Require Import HoareDef.
 Require Import STB.
 Require Import HTactics ProofMode.
 Require Import HSim IProofMode.
-Require Import ClightDmSkel ClightDmExprgen ClightDmgen.
-Require Import ClightDmMem0 ClightDmMem1 ClightDmMemAux.
+Require Import ClightPlusSkel ClightPlusExprgen ClightPlusgen.
+Require Import ClightPlusMem0 ClightPlusMem1 ClightPlusMemAux.
 Require Import CIProofMode.
 Require Import xorlist.
 Require Import xorlist0.
@@ -82,7 +82,7 @@ Section PROOF.
   Section SIMFUNS.
   Variable sk: Sk.t.
   Hypothesis SKINCL1 : Sk.le (xorlist0.xor.(Mod.sk)) sk.
-  Hypothesis SKINCL2 : Sk.le (ClightDmMem0.Mem.(Mod.sk)) sk.
+  Hypothesis SKINCL2 : Sk.le (ClightPlusMem0.Mem.(Mod.sk)) sk.
   Hypothesis SKWF : Sk.wf sk.
 
   Lemma sim_add_tl :
@@ -1294,9 +1294,9 @@ Section PROOF.
   End SIMFUNS.
 
 
-Require Import ClightDmMem01Proof.
+Require Import ClightPlusMem01Proof.
 
-  Theorem correct : refines2 [xorlist0.xor; ClightDmMem0.Mem] [xorlist1.xor GlobalStb; ClightDmMem1.Mem].
+  Theorem correct : refines2 [xorlist0.xor; ClightPlusMem0.Mem] [xorlist1.xor GlobalStb; ClightPlusMem1.Mem].
   Proof.
     eapply adequacy_local_strong_l. econs; cycle 1.
     { econs; ss. econs; ss. }

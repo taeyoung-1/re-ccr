@@ -1,6 +1,5 @@
 Require Import CoqlibCCR.
 Require Import ITreelib.
-Require Import ClightDmSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
@@ -12,7 +11,8 @@ From compcert Require Import
 From compcert Require Import
      Ctypes Clight Clightdefs.
 
-Require Import ClightDmExprgen.
+Require Import ClightPlusSkel.
+Require Import ClightPlusExprgen.
 
 Section HIDE.
 

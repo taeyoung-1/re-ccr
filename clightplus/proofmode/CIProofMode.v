@@ -4,7 +4,7 @@ Require Import ModSem.
 Require Import PCM IPM.
 Require Import HoareDef STB.
 Require Export HSim IProofMode.
-Require Import ClightDmMem1.
+Require Import ClightPlusMem1.
 From compcert Require Import AST Values Integers Memdata.
 
 Section MEM.
@@ -871,7 +871,7 @@ Section MEM.
 
 End MEM.
 
-Require Import ClightDmgen.
+Require Import ClightPlusgen.
 From compcert Require Import Ctypes Clightdefs.
 
 Global Opaque equiv_prov.
@@ -883,12 +883,12 @@ Global Opaque build_composite_env'.
 Global Opaque build_composite_env.
 
 Global Arguments alist_add /.
-Global Arguments ClightDmgen._sassign_c /.
-Global Arguments ClightDmgen._scall_c /.
-Global Arguments ClightDmgen._site_c /.
-Global Arguments ClightDmExprgen.sem_xor_c /.
-Global Arguments ClightDmExprgen.sem_binarith_c /.
-Global Arguments ClightDmExprgen.sem_cast_c /.
+Global Arguments ClightPlusgen._sassign_c /.
+Global Arguments ClightPlusgen._scall_c /.
+Global Arguments ClightPlusgen._site_c /.
+Global Arguments ClightPlusExprgen.sem_xor_c /.
+Global Arguments ClightPlusExprgen.sem_binarith_c /.
+Global Arguments ClightPlusExprgen.sem_cast_c /.
 
 Ltac init_hide :=
     repeat (match goal with

@@ -3,7 +3,7 @@ Require Import Skeleton.
 Require Import ModSem Behavior SimModSem.
 Require Import PCM IPM.
 Require Import HoareDef STB.
-Require Import ClightDmSkel ClightDmMem0 ClightDmMem1 ClightDmMemAux.
+Require Import ClightPlusSkel ClightPlusMem0 ClightPlusMem1 ClightPlusMemAux.
 From compcert Require Import Ctypes Floats Integers Values Memory AST Clight Clightdefs IntPtrRel.
 
 
@@ -180,7 +180,7 @@ Section INV.
     (FILLED_ZERO: forall ofs, start ≤ ofs < start + init_data_list_size l ->
                     Maps.ZMap.get ofs (Maps.PMap.get b' m.(Mem.mem_contents)) = Byte Byte.zero)
     (STORE_RSC: store_init_data_list sk res b' start perm l = Some c)
-    (STORE_MEM: ClightDmMem0.store_init_data_list sk m b' start l = Some m')
+    (STORE_MEM: ClightPlusMem0.store_init_data_list sk m b' start l = Some m')
   :
     <<PRE': forall b ofs, 0 ≤ ofs -> not (b = b' /\ start ≤ ofs < start + init_data_list_size l) ->
                 sim_cnt (c b ofs) (Maps.PMap.get b (m'.(Mem.mem_access)) ofs)
@@ -209,14 +209,14 @@ Section INV.
     - splits; et; i; try nia.
     - des_ifs_safe.
       replace (Mem.nextblock m) with (Mem.nextblock m0) in * by now
-        unfold ClightDmMem0.store_init_data, Mem.store in Heq; des_ifs.
+        unfold ClightPlusMem0.store_init_data, Mem.store in Heq; des_ifs.
       hexploit IHl.
       1, 2, 3, 4, 7, 8: et.
       (* 1,2,5,6: et. *)
       3:{ instantiate (1:= start0). pose proof (init_data_size_pos a). nia. }
       3:{ instantiate (1:= end0). nia. }
       { i. unfold store_init_data in Heq0.
-        unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+        unfold ClightPlusMem0.store_init_data, Mem.store in Heq.
         pose proof (init_data_list_size_pos l).
         des_ifs; ss; do 2 ur.
           unfold __points_to; try case_points_to; ss;
@@ -228,7 +228,7 @@ Section INV.
         replace (strings.length _) with (Z.to_nat z) in *
         (*     by now symmetry; apply repeat_length. nia. *) admit "should check". }
       { pose proof (init_data_list_size_pos l).
-        i. unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+        i. unfold ClightPlusMem0.store_init_data, Mem.store in Heq.
         des_ifs; ss; try rewrite Maps.PMap.gss; try rewrite Mem.setN_outside;
           solve_len; ss; try nia; try (eapply FILLED_ZERO; nia). }
       { admit "should check". }
@@ -350,17 +350,17 @@ Section INV.
 
   Local Transparent Mem.alloc Mem.store.
 
-  Lemma store_init_data_access sk mem b i a m : ClightDmMem0.store_init_data sk mem b i a = Some m -> Mem.mem_access mem = Mem.mem_access m.
-  Proof. unfold ClightDmMem0.store_init_data, Mem.store. i. des_ifs. Qed.
+  Lemma store_init_data_access sk mem b i a m : ClightPlusMem0.store_init_data sk mem b i a = Some m -> Mem.mem_access mem = Mem.mem_access m.
+  Proof. unfold ClightPlusMem0.store_init_data, Mem.store. i. des_ifs. Qed.
   
 
-  Lemma store_iff l : forall sk mem b i res oq, Mem.range_perm mem b i (i + init_data_list_size l) Cur Freeable -> (ClightDmMem0.store_init_data_list sk mem b i l = None <-> store_init_data_list sk res b i oq l = None).
+  Lemma store_iff l : forall sk mem b i res oq, Mem.range_perm mem b i (i + init_data_list_size l) Cur Freeable -> (ClightPlusMem0.store_init_data_list sk mem b i l = None <-> store_init_data_list sk res b i oq l = None).
   Proof.
     induction l; split; ss; et.
     - i. des_ifs.
       + eapply IHl; et. ii. red in H3. unfold Mem.perm in *. hexploit store_init_data_access; et. i.
         rewrite <- H6. apply H3. unfold init_data_size in *. des_ifs; nia.
-      + exfalso. unfold store_init_data, ClightDmMem0.store_init_data in *.
+      + exfalso. unfold store_init_data, ClightPlusMem0.store_init_data in *.
         unfold Mem.store in *.
         des_ifs.
         all: try solve [apply n; unfold Mem.valid_access; split; et; eapply Mem.range_perm_implies with (p1:=Freeable); try econs; ii; apply H3; ss; pose proof (init_data_list_size_pos l); try nia].
@@ -369,7 +369,7 @@ Section INV.
     - i. des_ifs.
       + eapply IHl; et. ii. red in H3. unfold Mem.perm in *. hexploit store_init_data_access; et. i.
         rewrite <- H6. apply H3. unfold init_data_size in *. des_ifs; nia.
-      + exfalso. unfold store_init_data, ClightDmMem0.store_init_data in *.
+      + exfalso. unfold store_init_data, ClightPlusMem0.store_init_data in *.
         des_ifs; unfold Mem.store in *; des_ifs; unfold Mem.valid_access in *; des; clarify.
   Qed.
 
@@ -389,21 +389,21 @@ Section INV.
     hexploit IHR_store_zeros; et; try nia.
   Qed.
 
-  Lemma store_dl_inv sk m m' b lo l : Mem.range_perm m b lo (lo + (init_data_list_size l)) Cur Freeable -> ClightDmMem0.store_init_data_list sk m b lo l = Some m' -> Mem.range_perm m' b lo (lo + (init_data_list_size l)) Cur Freeable.
+  Lemma store_dl_inv sk m m' b lo l : Mem.range_perm m b lo (lo + (init_data_list_size l)) Cur Freeable -> ClightPlusMem0.store_init_data_list sk m b lo l = Some m' -> Mem.range_perm m' b lo (lo + (init_data_list_size l)) Cur Freeable.
   Proof.
     set (lo + _) as f in *. assert (lo + (init_data_list_size l) ≤ f) by nia. clearbody f.
     set lo as i. intros. unfold i in H5. assert (i ≤ lo) by nia. clearbody i.
     revert m H4 m' lo H3 H5 H6. induction l; ss; i; clarify.
     des_ifs. eapply IHl. 3: apply H5.
-    { unfold ClightDmMem0.store_init_data, Mem.store in *. des_ifs. }
+    { unfold ClightPlusMem0.store_init_data, Mem.store in *. des_ifs. }
     { nia. }
     { pose proof (init_data_size_pos a). nia. }
   Qed.
 
 
-  Lemma alloc_gl_iff sk : forall mem g res, ClightDmMem0.alloc_global sk mem g = None <-> alloc_global sk res (Mem.nextblock mem) g = None.
+  Lemma alloc_gl_iff sk : forall mem g res, ClightPlusMem0.alloc_global sk mem g = None <-> alloc_global sk res (Mem.nextblock mem) g = None.
   Proof.
-    unfold alloc_global, ClightDmMem0.alloc_global in *.
+    unfold alloc_global, ClightPlusMem0.alloc_global in *.
     i. destruct g.
     - des_ifs. split; i; clarify.
       unfold Mem.alloc, Mem.drop_perm in *.
@@ -417,7 +417,7 @@ Section INV.
       rewrite <- (Z.add_0_l (init_data_list_size _)) in H3.
       hexploit store_zeros_inv; et. i. des. rewrite H4.
       hexploit store_iff; et. i.
-      destruct (ClightDmMem0.store_init_data_list sk m' _ 0 (gvar_init v)) eqn:?; cycle 1.
+      destruct (ClightPlusMem0.store_init_data_list sk m' _ 0 (gvar_init v)) eqn:?; cycle 1.
       { rewrite H6 in Heqo. rewrite Heqo. et. }
       destruct (store_init_data_list) eqn:?; cycle 1.
       { destruct H6. hexploit H7; et. i. clarify. }
@@ -426,35 +426,35 @@ Section INV.
       unfold Mem.drop_perm in H7. des_ifs.
   Qed.
 
-  Lemma alloc_gl_nextblock sk mem g m' : ClightDmMem0.alloc_global sk mem g = Some m' -> Mem.nextblock m' = Pos.succ (Mem.nextblock mem).
+  Lemma alloc_gl_nextblock sk mem g m' : ClightPlusMem0.alloc_global sk mem g = Some m' -> Mem.nextblock m' = Pos.succ (Mem.nextblock mem).
   Proof.
-    i. unfold ClightDmMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
+    i. unfold ClightPlusMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
     des_ifs. ss. apply Globalenvs.Genv.store_zeros_nextblock in Heq.
     ss. rewrite <- Heq. clear -Heq0.
     set 0 as i in Heq0. set (gvar_init v) as l in Heq0.
     clearbody i l. revert m i Heq0. induction l; i; ss; clarify.
     des_ifs. hexploit IHl; et. i. rewrite H.
-    unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs.
+    unfold ClightPlusMem0.store_init_data, Mem.store in Heq. des_ifs.
   Qed.
 
-  Lemma alloc_gl_concrete sk mem g m' : ClightDmMem0.alloc_global sk mem g = Some m' -> Mem.mem_concrete m' = Mem.mem_concrete mem.
+  Lemma alloc_gl_concrete sk mem g m' : ClightPlusMem0.alloc_global sk mem g = Some m' -> Mem.mem_concrete m' = Mem.mem_concrete mem.
   Proof.
-    i. unfold ClightDmMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
+    i. unfold ClightPlusMem0.alloc_global, Mem.alloc, Mem.drop_perm in *.
     des_ifs. ss. hexploit concrete_store_zeros; et. ss. i. rewrite H3.
     ss. clear -Heq0.
     set 0 as i in Heq0. set (gvar_init v) as l in Heq0.
     clearbody i l. revert m i Heq0. induction l; i; ss; clarify.
     des_ifs. hexploit IHl; et. i. rewrite H.
-    unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs.
+    unfold ClightPlusMem0.store_init_data, Mem.store in Heq. des_ifs.
   Qed.
 
   Lemma alloc_gl_unmodified sk mem v m0 b :
-    ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
+    ClightPlusMem0.alloc_global sk mem (Gvar v) = Some m0 ->
     b <> (Mem.nextblock mem) ->
     Maps.PMap.get b (Mem.mem_access m0) = Maps.PMap.get b (Mem.mem_access mem) /\
     Maps.PMap.get b (Mem.mem_contents m0) = Maps.PMap.get b (Mem.mem_contents mem).
   Proof.
-    i. unfold ClightDmMem0.alloc_global in H3.
+    i. unfold ClightPlusMem0.alloc_global in H3.
     des_ifs.
     assert (Maps.PMap.get b (Mem.mem_access m) = Maps.PMap.get b (Mem.mem_access mem) /\
               Maps.PMap.get b (Mem.mem_contents m) = Maps.PMap.get b (Mem.mem_contents mem)).
@@ -474,7 +474,7 @@ Section INV.
     { clear - H4 Heq1. set 0 as i in Heq1. clearbody i.
       revert m1 m2 i Heq1. induction (gvar_init v); i; ss; clarify.
       des_ifs. hexploit IHl; et. i. destruct H. rewrite <- H0. rewrite <- H1.
-      unfold ClightDmMem0.store_init_data in Heq. unfold Mem.store in Heq.
+      unfold ClightPlusMem0.store_init_data in Heq. unfold Mem.store in Heq.
       des_ifs; ss; rewrite ! Maps.PMap.gso; et. }
     assert (Maps.PMap.get b (Mem.mem_access m2) = Maps.PMap.get b (Mem.mem_access m0) /\
               Maps.PMap.get b (Mem.mem_contents m2) = Maps.PMap.get b (Mem.mem_contents m0)).
@@ -492,11 +492,11 @@ Section INV.
 
 
   Lemma alloc_gl_modified_access sk mem v m0 :
-    ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
+    ClightPlusMem0.alloc_global sk mem (Gvar v) = Some m0 ->
     (forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m0) ofs Cur = Some (Globalenvs.Genv.perm_globvar v))
     /\ (forall ofs, not (0 ≤ ofs < init_data_list_size (gvar_init v)) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m0) ofs Cur = None).
   Proof.
-    i. unfold ClightDmMem0.alloc_global in H3. des_ifs.
+    i. unfold ClightPlusMem0.alloc_global in H3. des_ifs.
     assert (b = Mem.nextblock mem). { unfold Mem.alloc in Heq. clarify. }
     subst.
     assert ((forall ofs, 0 ≤ ofs < init_data_list_size (gvar_init v) -> Maps.PMap.get (Mem.nextblock mem) (Mem.mem_access m) ofs Cur = Some Freeable)
@@ -521,8 +521,8 @@ Section INV.
       set (_ v) as l in Heq1. assert (i + (init_data_list_size l) ≤ init_data_list_size (gvar_init v)). { unfold i, l. nia. }
       clearbody i l. ginduction l; i; ss; clarify. des_ifs.
       hexploit IHl; et; try nia. 3:{ pose proof (init_data_size_pos a). nia. }
-      { i. unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs; et. }
-      { i. unfold ClightDmMem0.store_init_data, Mem.store in Heq. des_ifs; et. } }
+      { i. unfold ClightPlusMem0.store_init_data, Mem.store in Heq. des_ifs; et. }
+      { i. unfold ClightPlusMem0.store_init_data, Mem.store in Heq. des_ifs; et. } }
     des.
     unfold Mem.drop_perm in H3. des_ifs. ss. rewrite Maps.PMap.gss.
     split; i; ss; destruct Coqlib.zlt; destruct Coqlib.zle; ss; try nia; et.
@@ -602,12 +602,12 @@ Section INV.
   Qed.
 
   Lemma alloc_gl_modified_content sk mem v m0 ofs mv mvl :
-    ClightDmMem0.alloc_global sk mem (Gvar v) = Some m0 ->
+    ClightPlusMem0.alloc_global sk mem (Gvar v) = Some m0 ->
     init_data_list_to_memval_list sk (gvar_init v) = Some mvl ->
     nth_error mvl ofs = Some mv ->
     Maps.ZMap.get ofs (Maps.PMap.get (Mem.nextblock mem) (Mem.mem_contents m0)) = mv.
   Proof.
-    i. unfold ClightDmMem0.alloc_global in H3. des_ifs.
+    i. unfold ClightPlusMem0.alloc_global in H3. des_ifs.
     apply Globalenvs.Genv.store_zeros_loadbytes in Heq0.
     unfold Mem.drop_perm in H3. des_ifs. ss. unfold Mem.alloc in Heq. clarify.
     clear - H4 H5 Heq0 Heq1.
@@ -623,13 +623,13 @@ Section INV.
     - des_ifs. unfold init_data_list_to_memval_list in H4.
       ss. des_ifs. ss. clarify. pose proof (init_data_size_pos a).
       hexploit IHl; et; try nia.
-      { unfold ClightDmMem0.store_init_data in Heq. des_ifs.
+      { unfold ClightPlusMem0.store_init_data in Heq. des_ifs.
         7:{ ii. apply Heq0; et; try nia. }
         all: ii; erewrite Mem.loadbytes_store_other; et. 
         all: apply Heq0; et; try nia.  }
       { unfold init_data_list_to_memval_list. rewrite Heq3. ss. }
       i. destruct H1. split.
-      + i. rewrite <- (H2 ofs0); try nia. unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+      + i. rewrite <- (H2 ofs0); try nia. unfold ClightPlusMem0.store_init_data, Mem.store in Heq.
         des_ifs; ss. all: rewrite Maps.PMap.gss; rewrite Mem.setN_outside; et; try nia.
       + i. 
         assert (List.length l0 = Z.to_nat (init_data_size a)).
@@ -638,7 +638,7 @@ Section INV.
         { rewrite nth_error_app2 in H4; try nia.
           hexploit H3; et. i. rewrite <- H6. f_equal. nia. }
         rewrite nth_error_app1 in H4; try nia.
-        rewrite <- H2; try nia. unfold ClightDmMem0.store_init_data, Mem.store in Heq.
+        rewrite <- H2; try nia. unfold ClightPlusMem0.store_init_data, Mem.store in Heq.
         des_ifs; ss; clarify.
         Local Transparent Mem.loadbytes.
         7:{ rewrite repeat_nth_some in H4; try nia. clarify.
@@ -696,12 +696,12 @@ Section INV.
   Lemma _start_wf :
           << _ : ∀ (b : block) (ofs : Z),
                     0 ≤ ofs
-                    → sim_cnt ((ε : ClightDmMem1._pointstoRA) b ofs)
+                    → sim_cnt ((ε : ClightPlusMem1._pointstoRA) b ofs)
                         (Maps.PMap.get b (Mem.mem_access Mem.empty) ofs)
                         (Maps.ZMap.get ofs (Maps.PMap.get b (Mem.mem_contents Mem.empty))) >>
                   ∧ << _
                     : ∀ b : block,
-                            sim_allocated ((ε : ClightDmMem1._allocatedRA) b) (((ε : blocksizeRA) (Some b)) ⋅ if Coqlib.plt b xH then OneShot.unit else OneShot.black)
+                            sim_allocated ((ε : ClightPlusMem1._allocatedRA) b) (((ε : blocksizeRA) (Some b)) ⋅ if Coqlib.plt b xH then OneShot.unit else OneShot.black)
                               (Maps.PMap.get b (Mem.mem_access Mem.empty))
                               (Maps.PMap.get b (Mem.mem_contents Mem.empty)) >>.
   Proof.
@@ -725,8 +725,8 @@ Section INV.
                               else OneShot.black
                           | None => OneShot.white 0
                           end))
-      ⊢ ∃ (mem_tgt0 : mem) (memcnt_src0 : ClightDmMem1._pointstoRA) 
-          (memalloc_src0 : ClightDmMem1._allocatedRA) (memsz_src0 : blocksizeRA) (memconc_src0 : blockaddressRA),
+      ⊢ ∃ (mem_tgt0 : mem) (memcnt_src0 : ClightPlusMem1._pointstoRA) 
+          (memalloc_src0 : ClightPlusMem1._allocatedRA) (memsz_src0 : blocksizeRA) (memconc_src0 : blockaddressRA),
           (((⌜(<< _ : Any.upcast m = Any.upcast mem_tgt0 >>)
               ∧ (<< _
                 : ∀ (b : block) (ofs : Z),
@@ -803,7 +803,7 @@ Section INV.
       clear RESWF MEMWF IHl. destruct g.
       + clarify. hexploit alloc_gl_nextblock; et. i. rewrite H3. des.
         split.
-        * red. i. unfold ClightDmMem0.alloc_global in Heq.
+        * red. i. unfold ClightPlusMem0.alloc_global in Heq.
           unfold Mem.alloc, Mem.drop_perm in Heq.
           des_ifs. ss.
           destruct (dec b (Mem.nextblock mem)); cycle 1.
@@ -813,7 +813,7 @@ Section INV.
           inv H8; cycle 1. econs 2.
           rewrite (mem.(Mem.nextblock_noaccess) mem.(Mem.nextblock)) in PERM; clarify.
           unfold Coqlib.Plt. nia.
-        * red. i. unfold ClightDmMem0.alloc_global in Heq.
+        * red. i. unfold ClightPlusMem0.alloc_global in Heq.
           unfold Mem.alloc, Mem.drop_perm in Heq.
           destruct Mem.range_perm_dec; ss; clarify.
           ss. set (_ b) as a. eassert (a = _). { unfold a. ur. refl. }
@@ -927,8 +927,8 @@ Section SIMMODSEM.
   Let wf: world -> Any.t * Any.t -> Prop :=
     mk_wf
       (fun _ _ _mem_tgt0 =>
-          ∃ (mem_tgt0: Mem.mem) (memcnt_src0: ClightDmMem1._pointstoRA)
-            (memalloc_src0: ClightDmMem1._allocatedRA)
+          ∃ (mem_tgt0: Mem.mem) (memcnt_src0: ClightPlusMem1._pointstoRA)
+            (memalloc_src0: ClightPlusMem1._allocatedRA)
             (memsz_src0: blocksizeRA)
             (memconc_src0: blockaddressRA),
 
@@ -4234,7 +4234,7 @@ Section SIMMODSEM.
     Unshelve. all: et. all: try apply Eqsth; try apply Qp_le_po.
   Qed.
 
-  Theorem correct_mod: ModPair.sim ClightDmMem1.Mem ClightDmMem0.Mem.
+  Theorem correct_mod: ModPair.sim ClightPlusMem1.Mem ClightPlusMem0.Mem.
   Proof.
   Local Opaque Pos.add.
     econs; ss. i.

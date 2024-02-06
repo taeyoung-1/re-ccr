@@ -1,7 +1,7 @@
 Require Import CoqlibCCR.
 Require Import Skeleton.
 Require Import ModSem.
-Require Import ClightDmSkel ClightDmExprgen.
+Require Import ClightPlusSkel ClightPlusExprgen.
 
 Set Implicit Arguments.
 
@@ -75,7 +75,7 @@ Section MATCH.
   (* TODO: when we construct initial envs, we should check disjointness of source ids *)
   (* this is justified with pre-existing triggerUB ofs id-repet *)
 
-  Variant match_le : ClightDmExprgen.temp_env -> temp_env -> Prop :=
+  Variant match_le : ClightPlusExprgen.temp_env -> temp_env -> Prop :=
   | match_le_intro
       sle tle 
       (ML: forall id sv, alist_find (string_of_ident id) sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
@@ -86,7 +86,7 @@ Section MATCH.
     let '(s, (b, ty)) := entry in
     (ident_of_string s, (map_blk b, ty)).
 
-  Variant match_e : ClightDmExprgen.env -> env -> Prop :=
+  Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
       (ME: forall id b ty, alist_find (string_of_ident id) se = Some (b, ty) -> Maps.PTree.get id te = Some (map_blk b, ty))

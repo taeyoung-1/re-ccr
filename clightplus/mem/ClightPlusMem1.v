@@ -4,11 +4,11 @@ Require Import Any.
 Require Import STS.
 Require Import Behavior.
 Require Import ModSem.
-Require Import ClightDmSkel.
 Require Import PCM IPM.
 Require Import HoareDef STB.
-Require Import ClightDmExprgen.
-Require Import ClightDmgen.
+Require Import ClightPlusSkel.
+Require Import ClightPlusExprgen.
+Require Import ClightPlusgen.
 From compcert Require Import Floats Integers Values Memory AST Ctypes Clight Clightdefs.
 
 Set Implicit Arguments.

@@ -6,11 +6,11 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ClightDmMem0.
+Require Import ClightPlusMem0.
 
-Require Import ClightDmExprgen.
-Require Import ClightDm2ClightMatch.
-Require Import ClightDm2ClightArith.
+Require Import ClightPlusExprgen.
+Require Import ClightPlus2ClightMatch.
+Require Import ClightPlus2ClightArith.
 
 From compcert Require Import Clight Clightdefs.
 

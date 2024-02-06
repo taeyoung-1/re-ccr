@@ -9,8 +9,8 @@ Require Import Any.
 Require Import ModSem.
 Require Import AList.
 
-Require Import ClightDmgen.
-Require Import ClightDm2ClightMatch.
+Require Import ClightPlusgen.
+Require Import ClightPlus2ClightMatch.
 
 From compcert Require Import Ctypes Clight Clightdefs.
 

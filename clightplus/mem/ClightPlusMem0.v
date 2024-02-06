@@ -1,12 +1,12 @@
 Require Import CoqlibCCR.
 Require Import ITreelib.
-Require Import ClightDmSkel.
 Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
 Require Import AList.
-Require Import ClightDmExprgen.
+Require Import ClightPlusSkel.
+Require Import ClightPlusExprgen.
 
 From compcert Require Import
      AST Maps Globalenvs Memory Values IntPtrRel Linking Integers.
@@ -150,7 +150,7 @@ Section MODSEM.
         | Vptr b ofs =>
           if (Mem.weak_valid_pointer m b (Ptrofs.unsigned ofs)) then Ret true
           else triggerUB
-        (* unreachable case in clightdm *)
+        (* unreachable case in clightplus *)
         | Vlong i => if Archi.ptr64 then Ret (Int64.cmpu Cne Int64.zero i) else triggerUB
         | Vint i => if negb Archi.ptr64 then Ret (Int.cmpu Cne Int.zero i) else triggerUB
         | _ => triggerUB

@@ -7,14 +7,14 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ClightDmgen.
-Require Import ClightDmExprgen.
-Require Import ClightDmMem0.
+Require Import ClightPlusgen.
+Require Import ClightPlusExprgen.
+Require Import ClightPlusMem0.
 
 Set Implicit Arguments.
 
 
-Require Import ClightDm2ClightMatch.
+Require Import ClightPlus2ClightMatch.
 
 Import Genv.
 

@@ -8,20 +8,20 @@ Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
 Require Import STS2SmallStep.
-Require Import ClightDmMem0.
+Require Import ClightPlusMem0.
 Require Import IRed.
-Require Import ClightDmExprgen.
-Require Import ClightDmgen.
+Require Import ClightPlusExprgen.
+Require Import ClightPlusgen.
 
-Require Import ClightDm2ClightMatch.
-Require Import ClightDm2ClightArith.
-Require Import ClightDm2ClightGenv.
-Require Import ClightDm2ClightLenv.
-Require Import ClightDm2ClightMem.
-Require Import ClightDm2ClightLink.
-Require Import ClightDm2ClightSim. 
-Require Import ClightDm2ClightMatchStmt.
-Require Import ClightDm2ClightSimAll. 
+Require Import ClightPlus2ClightMatch.
+Require Import ClightPlus2ClightArith.
+Require Import ClightPlus2ClightGenv.
+Require Import ClightPlus2ClightLenv.
+Require Import ClightPlus2ClightMem.
+Require Import ClightPlus2ClightLink.
+Require Import ClightPlus2ClightSim. 
+Require Import ClightPlus2ClightMatchStmt.
+Require Import ClightPlus2ClightSimAll. 
 
 (* 
 Section PROOFSINGLE.
