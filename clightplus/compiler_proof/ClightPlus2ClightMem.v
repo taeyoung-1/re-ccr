@@ -60,11 +60,12 @@ Section MEM.
   Qed.
 
   Local Open Scope Z.
+
   Lemma map_blk_inj :
     forall sk tge b1 b2 (MGE: match_ge sk tge),
-    <<INJ: map_blk sk tge b1 = map_blk sk tge b2 -> b1 = b2>>.
+    map_blk sk tge b1 = map_blk sk tge b2 -> b1 = b2.
   Proof.
-    i. red. i. dup H. rename H0 into T.
+    i. dup H. rename H0 into T.
     unfold map_blk in H.
     destruct (le_dec _ _) in H; 
      destruct (le_dec _ _) in H.
@@ -103,6 +104,15 @@ Section MEM.
         nia.
   Qed.
 
+  Lemma map_val_inj :
+    forall sk tge v1 v2 (MGE: match_ge sk tge),
+    <<INJ: map_val sk tge v1 = map_val sk tge v2 -> v1 = v2>>.
+  Proof. i. red. unfold map_val. i. des_ifs. f_equal. eapply map_blk_inj; et. Qed.
+
+  Lemma map_memval_inj :
+    forall sk tge mv1 mv2 (MGE: match_ge sk tge),
+    <<INJ: map_memval sk tge mv1 = map_memval sk tge mv2 -> mv1 = mv2>>.
+  Proof. i. red. unfold map_memval. i. des_ifs. f_equal. eapply map_val_inj; et. Qed.
 
   Local Transparent Mem.alloc.
   Local Transparent Mem.free.
@@ -160,7 +170,25 @@ Section MEM.
 
   Lemma match_proj_bytes sk tge l : proj_bytes (map (map_memval sk tge) l) = proj_bytes l. 
   Proof. induction l; ss. rewrite IHl. destruct a; ss. Qed.
-  
+
+  Lemma match_proj_frag_none sk tge l : proj_fragment (map (map_memval sk tge) l) = None <-> proj_fragment l = None.
+  Proof. induction l; ss. des_ifs. all: destruct IHl; hexploit H0; et; hexploit H; et; clarify. Qed.
+
+  Lemma match_proj_frag_Some sk tge l mvl (MATCH_GE: match_ge sk tge) : proj_fragment (map (map_memval sk tge) l) = Some (map (map_memval sk tge) mvl) <-> proj_fragment l = Some mvl. 
+  Proof.
+    revert mvl. induction l; ss.
+    - split; i; ss; clarify. destruct mvl; clarify.
+    - des_ifs.
+      + split; i; ss; clarify. 
+        * f_equal. destruct mvl; ss; clarify. eapply (CoqlibC.list_map_injective (map_memval sk tge)). 
+          { i. eapply map_memval_inj; et. }
+          ss. f_equal; et. f_equal. assert (Some l1 = Some mvl); clarify. rewrite <- IHl. et.
+        * f_equal. ss. f_equal. assert (Some l0 = Some (map (map_memval sk tge) l1)); clarify. rewrite IHl. et.
+      + split; i; ss; clarify. destruct mvl; ss; clarify. specialize (IHl mvl).
+        destruct IHl. hexploit H; et. clarify. 
+      + split; i; ss; clarify. specialize (IHl l0). destruct IHl. hexploit H0; clarify.
+  Qed.
+
   Lemma match_check_value n q v sk tge l 
         (MGE: match_ge sk tge)
     : check_value n (map_val sk tge v) q (map (map_memval sk tge) l) = check_value n v q l.
@@ -195,6 +223,89 @@ Section MEM.
 
   Require Import ClightPlusMemAux.
 
+  Lemma _match_normalize_to_fragment_aux sk tge mv: map_memval sk tge (Mem._normalize_to_fragment_aux mv) = Mem._normalize_to_fragment_aux (map_memval sk tge mv).
+  Proof.
+    unfold Mem._normalize_to_fragment_aux. des_ifs; ss; clarify.
+    des_ifs. unfold inj_bytes in Heq1. rewrite nth_error_map in Heq1. unfold option_map in Heq1. des_ifs. 
+  Qed.
+
+  Lemma match_normalize_to_fragment_aux sk tge : Mem._normalize_to_fragment_aux ∘ (map_memval sk tge) = (map_memval sk tge) ∘ Mem._normalize_to_fragment_aux.
+  Proof. extensionalities. rewrite _match_normalize_to_fragment_aux. et. Qed.
+
+  Lemma match_normalize_to_fragment sk tge chunk mvl: match_ge sk tge -> List.map (map_memval sk tge) (Mem.normalize_to_fragment chunk mvl) = Mem.normalize_to_fragment chunk (List.map (map_memval sk tge) mvl).
+  Proof.
+    i. unfold Mem.normalize_to_fragment; ss. destruct chunk; et.
+    - destruct Archi.ptr64; et. rewrite match_proj_bytes. destruct proj_bytes.
+      + destruct proj_fragment eqn:?; ss.
+        * rewrite <- match_proj_frag_Some in Heqo; et. des_ifs.
+        * rewrite <- match_proj_frag_none in Heqo. des_ifs. rewrite Heq in Heqo. clarify.
+      + destruct proj_fragment eqn:?; ss.
+        * rewrite <- match_proj_frag_Some in Heqo; et. des_ifs.
+        * rewrite <- match_proj_frag_none in Heqo. rewrite Heqo. 
+          rewrite List.map_map. rewrite match_normalize_to_fragment_aux. rewrite <- (List.map_map Mem._normalize_to_fragment_aux).
+          rewrite match_proj_bytes. des_ifs.
+    - destruct Archi.ptr64; et. rewrite match_proj_bytes. destruct proj_bytes.
+      + destruct proj_fragment eqn:?; ss.
+        * rewrite <- match_proj_frag_Some in Heqo; et. des_ifs.
+        * rewrite <- match_proj_frag_none in Heqo. des_ifs. rewrite Heq in Heqo. clarify.
+      + destruct proj_fragment eqn:?; ss.
+        * rewrite <- match_proj_frag_Some in Heqo; et. des_ifs.
+        * rewrite <- match_proj_frag_none in Heqo. rewrite Heqo. 
+          rewrite List.map_map. rewrite match_normalize_to_fragment_aux. rewrite <- (List.map_map Mem._normalize_to_fragment_aux).
+          rewrite match_proj_bytes. des_ifs.
+  Qed.
+
+  Lemma match_is_frag_mv sk ge mvl : existsb is_frag_mv (map (map_memval sk ge) mvl) = existsb is_frag_mv mvl.
+  Proof. induction mvl; ss. rewrite IHmvl. destruct a; ss. Qed.
+
+  Lemma match_is_byte_mv sk ge mvl : existsb is_byte_mv (map (map_memval sk ge) mvl) = existsb is_byte_mv mvl.
+  Proof. induction mvl; ss. rewrite IHmvl. destruct a; ss. Qed.
+
+  Lemma match_is_long_mv sk ge mvl : existsb is_long_mv (map (map_memval sk ge) mvl) = existsb is_long_mv mvl.
+  Proof. induction mvl; ss. rewrite IHmvl. destruct a; ss. destruct v; ss. Qed.
+
+  Lemma match_is_ptr_mv sk ge mvl : existsb is_ptr_mv (map (map_memval sk ge) mvl) = existsb is_ptr_mv mvl.
+  Proof. induction mvl; ss. rewrite IHmvl. destruct a; ss. destruct v; ss. Qed.
+
+  Lemma match_bytes_not_pure sk ge mvl : bytes_not_pure (List.map (map_memval sk ge) mvl) = bytes_not_pure mvl.
+  Proof.
+    unfold bytes_not_pure in *. unfold proj_fragment_byte_mixed, proj_fragment_mixed in *.
+    rewrite match_is_frag_mv. rewrite match_is_byte_mv. rewrite match_is_long_mv. rewrite match_is_ptr_mv. et.
+  Qed.
+
+  Lemma match_ptr2int m tm sk tge b z
+    (MM: match_mem sk tge m tm)
+  : 
+    Mem.ptr2int (map_blk sk tge b) z tm = Mem.ptr2int b z m.
+  Proof. unfold Mem.ptr2int. inv MM. rewrite <- MEM_CONC. et. Qed.
+
+  Lemma _match_decode_normalize_aux_frag m tm sk tge mv
+    (MM: match_mem sk tge m tm)
+  : 
+    map_memval sk tge (Mem._decode_normalize_aux_frag m mv) = Mem._decode_normalize_aux_frag tm (map_memval sk tge mv).
+  Proof.
+    unfold Mem._decode_normalize_aux_frag. des_ifs; ss; clarify.
+    - erewrite match_ptr2int in Heq1; et. des_ifs.
+    - erewrite match_ptr2int in Heq1; et. des_ifs.
+    - erewrite match_ptr2int in Heq1; et. des_ifs.
+  Qed.
+
+  Lemma match_decode_normalize_aux_frag m tm sk tge
+    (MM: match_mem sk tge m tm)
+  : 
+    (map_memval sk tge) ∘ (Mem._decode_normalize_aux_frag m) = (Mem._decode_normalize_aux_frag tm) ∘ (map_memval sk tge).
+  Proof. extensionalities. erewrite _match_decode_normalize_aux_frag; et. Qed.
+
+  Lemma match_decode_normalize m tm sk tge chunk mvl
+    (MM: match_mem sk tge m tm)
+  : 
+    List.map (map_memval sk tge) (Mem.decode_normalize chunk m mvl) = Mem.decode_normalize chunk tm (List.map (map_memval sk tge) mvl).
+  Proof.
+    unfold Mem.decode_normalize. rewrite match_bytes_not_pure. des_ifs.
+    - rewrite List.map_map. erewrite match_decode_normalize_aux_frag; et. rewrite <- List.map_map. et.
+    - rewrite List.map_map. erewrite match_decode_normalize_aux_frag; et. rewrite <- List.map_map. et.
+  Qed.
+
   Lemma match_mem_load m tm chunk b ofs v sk tge
         (SMEM: Mem.load chunk m b ofs = Some v)
         (MGE: match_ge sk tge)
@@ -205,9 +316,8 @@ Section MEM.
     inv MM. unfold Mem.load in *.
     des_ifs.
     - f_equal. erewrite match_mem_getN; et. rewrite <- decode_map_comm; et.
-      f_equal. unfold Mem.decode_normalize.
-      unfold Mem._decode_normalize_aux_frag.
-      unfold Mem.to_int, Mem.ptr2int_v, Mem.ptr2int.
+      f_equal. rewrite match_normalize_to_fragment; et. f_equal.
+      erewrite match_decode_normalize; et. econs; et.
     - exfalso. apply n. unfold Mem.valid_access in *. des. split; et. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
       rewrite <- MEM_PERM. et.
   Qed.
@@ -264,6 +374,7 @@ Section MEM.
         * rewrite <- e in *. rewrite NBLK in *. do 2 rewrite PMap.gss. et. 
         * do 2 try rewrite PMap.gso; et. rewrite NBLK. red. red in n. revert n. i.
           apply n. eapply map_blk_inj; et. 
+      + ss. 
   Qed.
 
   Lemma match_mem_store m tm m' chunk b ofs v sk tge

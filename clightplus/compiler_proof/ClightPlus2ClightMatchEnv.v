@@ -101,6 +101,7 @@ Section MATCH.
       (NBLK: tm.(Mem.nextblock) = map_blk (m.(Mem.nextblock)))
       (MEM_CNT: forall b ofs mv, PMap.get ofs (PMap.get b m.(Mem.mem_contents)) = mv -> PMap.get ofs (PMap.get (map_blk b) tm.(Mem.mem_contents)) = map_memval mv)
       (MEM_PERM: forall b, PMap.get b m.(Mem.mem_access) = Maps.PMap.get (map_blk b) tm.(Mem.mem_access) )
+      (MEM_CONC: forall b, PTree.get b m.(Mem.mem_concrete) = Maps.PTree.get (map_blk b) tm.(Mem.mem_concrete) )
     :
       match_mem m tm.
 
