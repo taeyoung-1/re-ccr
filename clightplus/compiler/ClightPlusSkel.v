@@ -10,7 +10,7 @@ Require Import Orders.
 Require Export AList.
 Require Export Skeleton.
 
-
+(* TODO: skeleton should be pair of def and type def *)
 Set Implicit Arguments.
 
 Local Open Scope nat_scope.
