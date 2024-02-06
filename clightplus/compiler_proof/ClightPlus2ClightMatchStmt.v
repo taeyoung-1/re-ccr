@@ -7,27 +7,20 @@ Require Import PCM.
 Require Import STS Behavior.
 Require Import Any.
 Require Import ModSem.
-Require Import ClightPlusgen.
-Require Import ClightPlusExprgen.
-Require Import ClightPlusMem0.
+Require Import ClightPlusExprgen ClightPlusgen.
+Require Import ClightPlus2ClightMatchEnv.
+(* Require Import ClightPlusMem0. *)
 
 Set Implicit Arguments.
 
-
-Require Import ClightPlus2ClightMatchEnv.
-
-Import Genv.
-
 Section MATCH.
 
-  Context `{Σ: GRA.t}.
-  
   Import List.
 
   Local Open Scope Z.
 
   (* global env is fixed when src program is fixed *)
-  Variable sk : Sk.sem.
+  Variable sk : Sk.t.
   Variable tge : Genv.t Clight.fundef type.
 
   (* composite env should be fixed when src program is fixed*)
@@ -38,21 +31,21 @@ Section MATCH.
 
   Definition itr_t := itree Es runtime_env.
 
-  (* clightlight state should be expressed by two constructs, stmt and cont *)
-  Definition clightlight_state := itree eventE Any.t.
+  (* clightplus state should be expressed by two constructs, stmt and cont *)
+  Definition clightplus_state := itree eventE Any.t.
 
-  Definition Es_to_eventE {A} (ms: ModSemL.t) (mn: string) (es_itree: itree Es A) (rp: p_state) :=
-     EventsL.interp_Es (ModSemL.prog ms) (transl_all mn es_itree) rp.
+  Definition Es_to_eventE {A} (ms: ModSemL.t) (mn: string) (local_itr: itree Es A) (local_states: p_state) :=
+     EventsL.interp_Es (ModSemL.prog ms) (transl_all mn local_itr) local_states.
 
-  Definition itree_of_code (mn: string) (retty: type) (code: statement) (e: env) (le: temp_env) 
+  Definition itree_of_stmt (mn: string) (retty: type) (stmt: statement) (e: env) (le: temp_env) 
     : stateT p_state (itree eventE) runtime_env 
-      := Es_to_eventE ms mn (decomp_stmt sk ce xH retty code e le).
+      := Es_to_eventE ms mn (decomp_stmt sk ce xH retty stmt e le).
 
-  Definition ktree_of_cont_itree (mn: string) (cont_itr: runtime_env -> itr_t)
-    : p_state * runtime_env -> itree eventE (p_state * runtime_env) 
-      := fun '(pstate, ncr) => Es_to_eventE ms mn (cont_itr ncr) pstate.
+  Definition ktree_of_cont_itree (mn: string) (local_ktr: runtime_env -> itr_t)
+    : p_state * runtime_env -> itree eventE (p_state * runtime_env)
+      := fun '(pstate, renv) => Es_to_eventE ms mn (local_ktr renv) pstate.
 
-  Definition itree_of_cont_pop (itr_sreturn: itr_t) (itr_sbreak: itr_t) (itr_scontinue: itr_t) (itr_skip: itr_t) 
+  Definition itree_of_cont_pop (itr_sreturn: itr_t) (itr_sbreak: itr_t) (itr_scontinue: itr_t) (itr_skip: itr_t)
   : option bool -> option val -> itr_t :=
     fun optb optv =>
       match optv with
@@ -65,17 +58,16 @@ Section MATCH.
         end
       end.
 
-  Definition kstop_itree (ncr: runtime_env) : itree Es val := 
-    let '(e, le, optb, optv) := ncr in
+  Definition kstop_itree (renv: runtime_env) : itree Es val := 
+    let '(e, le, optb, optv) := renv in
       '(_, _, _, optv') <- (itree_of_cont_pop 
                               (free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, optv)) 
                               triggerUB 
                               triggerUB 
-                              (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef)))
-                              optb optv;; 
+                              (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;; 
       v <- optv'?;; (match v with | Vint _ => Ret v | _ => triggerUB end).
 
-  Definition itree_stop (mn: string) := fun '(pstate, ncr) => Es_to_eventE ms mn (kstop_itree ncr) pstate.
+  Definition itree_stop (mn: string) := fun '(pstate, renv) => Es_to_eventE ms mn (kstop_itree renv) pstate.
 
     (* below is functional version of continuation translation *)
     (*
@@ -154,7 +146,7 @@ Section MATCH.
                         (fun '(e, le, optb, optv) => 
                           (itree_of_cont_pop
                             (Ret (e, le, None, optv)) 
-                            (tau;;Ret (e, le, None, None)) 
+                            (tau;;Ret (e, le, None, None))
                             (* this is for break *)
                             ('(e2, le2, ov2) <- tau;;sloop_iter_body_two (decomp_stmt sk ce xH retty code2 e le);;
                               match ov2 with
@@ -169,7 +161,7 @@ Section MATCH.
                               | None => tau;;_sloop_itree xH e2 le2 (fun p => decomp_stmt sk ce p retty code1) (fun p => decomp_stmt sk ce p retty code2)
                                         (* this is for loop unfold tau *)
                               end)) optb optv))
-      (NEXT: match_cont retty mn next cont) 
+      (NEXT: match_cont retty mn next cont)
     :
       match_cont retty mn (fun x => y <- cont_itree x;; next y) (Kloop1 code1 code2 cont)
   | match_cont_Kloop2 cont_itree next code1 code2 cont retty mn
@@ -208,26 +200,26 @@ Section MATCH.
                                       (* this is for modsem *)
       (CONT_ENV_MATCH: match_e sk tge e' te')
       (CONT_LENV_MATCH: match_le sk tge le' tle')
-      (NEXT: match_cont f.(fn_return) mn_caller next cont) 
+      (NEXT: match_cont f.(fn_return) mn_caller next cont)
     :
       match_cont retty mn_callee (fun x => y <- cont_itree x;; next y) (Kcall optid f te' tle' cont).
 
   Definition fnsem_has_internal := 
-    forall s t, In (ident_of_string s, inr (Gfun (CInternal t) (V:=type))) sk ->
-    exists mn f,
+    forall s f, In (s, Gfun (Internal f)) sk ->
+    exists mn,
     alist_find s ms.(ModSemL.fnsems)
        = Some (fun '(optmn, a) => transl_all mn (cfunU (decomp_func (eff := Es) sk ce f) (optmn, a))).
 
   Variant match_states : itree eventE Any.t -> Clight.state -> Prop :=
   | match_states_intro
       tf pstate e te le tle tcode m tm tcont mn itr_code itr_cont itr
-      (MGE: match_ge sk tge ce ms)
+      (MGE: match_ge sk tge)
       (ME: match_e sk tge e te)
       (ML: match_le sk tge le tle)
       (PSTATE: pstate "Mem"%string = m↑)
       (MM: match_mem sk tge m tm)
       (WFMS: fnsem_has_internal)
-      (MCODE: itr_code = itree_of_code mn tf.(fn_return) tcode e le pstate)
+      (MCODE: itr_code = itree_of_stmt mn tf.(fn_return) tcode e le pstate)
       (MCONT: match_cont tf.(fn_return) mn itr_cont tcont)
       (MENTIRE: itr = x <- itr_code;; '(_, v) <- itr_cont x;; Ret v↑)
     :

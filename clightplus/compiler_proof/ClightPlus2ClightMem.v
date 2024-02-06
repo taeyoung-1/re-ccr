@@ -8,8 +8,8 @@ Require Import Any.
 Require Import ModSem.
 Require Import ClightPlusMem0.
 
-Require Import ClightPlusExprgen.
-Require Import ClightPlus2ClightMatch.
+Require Import ClightPlusSkel ClightPlusExprgen.
+Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightArith.
 
 From compcert Require Import Clight Clightdefs.
@@ -19,13 +19,21 @@ Set Implicit Arguments.
 
 Section MEM.
 
-  Context `{Σ: GRA.t}.
+  Lemma nth_error_map A B (f: A -> B) k l
+    :
+    nth_error (List.map f l) k = option_map f (nth_error l k).
+  Proof.
+    revert k. induction l; ss; i.
+    { destruct k; ss. }
+    { destruct k; ss. }
+  Qed.
 
   Import List.
 
-  (* Local Transparent Sk.load_skenv.
+  Local Transparent load_skenv.
 
   Local Open Scope positive.
+
   Lemma map_blk_local_region :
     forall sk tge blk
       (ALLOCED : Pos.of_succ_nat (length sk) <= blk),
@@ -46,9 +54,9 @@ Section MEM.
   Proof.
     i. inv MGE. red. unfold map_blk. des_ifs; try nia.
     - eapply Genv.genv_symb_range. et.
-    - apply Sk.load_skenv_wf in WFSK. unfold SkEnv.wf in WFSK. apply WFSK in Heq. rewrite <- (string_of_ident_of_string s) in Heq. apply MGE0 in Heq. clarify.
+    - apply load_skenv_wf in WFSK. unfold SkEnv.wf in WFSK. apply WFSK in Heq. rewrite <- (string_of_ident_of_string s) in Heq. apply MGE0 in Heq. clarify.
     - assert (H0: (Init.Nat.pred (Pos.to_nat blk) < length sk)%nat) by nia.
-      apply nth_error_Some in H0. unfold Sk.load_skenv in Heq. ss. uo. des_ifs.
+      apply nth_error_Some in H0. unfold load_skenv in Heq. ss. uo. des_ifs.
   Qed.
 
   Local Open Scope Z.
@@ -75,11 +83,11 @@ Section MEM.
       destruct (nth_error _) eqn: T2 in H1; clarify. 
       clear H0 H1.
       destruct (SkEnv.blk2id _ _) eqn: H0 in H.
-      2:{ unfold Sk.load_skenv in *. ss. uo. des_ifs. }
+      2:{ unfold load_skenv in *. ss. uo. des_ifs. }
       destruct (SkEnv.blk2id _ _) eqn: H1 in H.
-      2:{ unfold Sk.load_skenv in *. ss. uo. des_ifs. }
+      2:{ unfold load_skenv in *. ss. uo. des_ifs. }
       clear T1 T2. 
-      apply Sk.load_skenv_wf in WFSK. red in WFSK. unfold SkEnv.wf in WFSK. 
+      apply load_skenv_wf in WFSK. red in WFSK. unfold SkEnv.wf in WFSK. 
       apply WFSK in H0. apply WFSK in H1.
       rewrite <- (string_of_ident_of_string s) in H0.
       rewrite <- (string_of_ident_of_string s0) in H1.
@@ -140,6 +148,15 @@ Section MEM.
       hexploit IHl; et.
   Qed.
 
+    Lemma match_mem_getN f (c d: ZMap.t memval) n p
+      (MM: forall i mv, c !! i = mv -> d !! i = f mv)
+    :
+      Mem.getN n p d = map f (Mem.getN n p c).
+    Proof.
+      revert p. induction n; i; ss.
+      rewrite IHn. f_equal. erewrite <- MM; try reflexivity.  
+    Qed.
+
 
   Lemma match_proj_bytes sk tge l : proj_bytes (map (map_memval sk tge) l) = proj_bytes l. 
   Proof. induction l; ss. rewrite IHl. destruct a; ss. Qed.
@@ -176,6 +193,8 @@ Section MEM.
           des_ifs; ss; clarify. 
   Qed.
 
+  Require Import ClightPlusMemAux.
+
   Lemma match_mem_load m tm chunk b ofs v sk tge
         (SMEM: Mem.load chunk m b ofs = Some v)
         (MGE: match_ge sk tge)
@@ -185,7 +204,10 @@ Section MEM.
   Proof.
     inv MM. unfold Mem.load in *.
     des_ifs.
-    - f_equal. erewrite match_mem_getN; et. apply decode_map_comm; et.
+    - f_equal. erewrite match_mem_getN; et. rewrite <- decode_map_comm; et.
+      f_equal. unfold Mem.decode_normalize.
+      unfold Mem._decode_normalize_aux_frag.
+      unfold Mem.to_int, Mem.ptr2int_v, Mem.ptr2int.
     - exfalso. apply n. unfold Mem.valid_access in *. des. split; et. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
       rewrite <- MEM_PERM. et.
   Qed.
@@ -316,7 +338,7 @@ Section MEM.
         rewrite PMap.gso; et. rewrite PMap.gso in H; et.
     - exfalso. apply n. unfold Mem.range_perm in *. i. unfold Mem.perm in *.
       rewrite <- MEM_PERM. eapply r. rewrite map_length in H. nia.
-  Qed. *)
+  Qed.
 
 
 

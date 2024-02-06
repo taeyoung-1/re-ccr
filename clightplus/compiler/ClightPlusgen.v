@@ -499,6 +499,7 @@ End Clight.
 
 Section DECOMP_PROG.
 
+  (* TODO: compiling of program should include sorting in positive -> compile after sorting  *)
   Definition get_ce (prog: Clight.program) : comp_env :=
     List.map (fun '(id, p) => (string_of_ident id, p)) (PTree.elements prog.(prog_comp_env)).
 
