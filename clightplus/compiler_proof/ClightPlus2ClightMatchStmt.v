@@ -14,7 +14,7 @@ Require Import ClightPlusMem0.
 Set Implicit Arguments.
 
 
-Require Import ClightPlus2ClightMatch.
+Require Import ClightPlus2ClightMatchEnv.
 
 Import Genv.
 
