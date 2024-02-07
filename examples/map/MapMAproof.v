@@ -19,6 +19,8 @@ From ExtLib Require Import
 Require Import HTactics2 ProofMode STB Invariant.
 Require Import Mem1.
 
+Require Import SimModSemFacts.
+
 Set Implicit Arguments.
 
 Local Open Scope nat_scope.
@@ -171,7 +173,23 @@ Section SIMMODSEM.
     Local Opaque initial_map black_map map_points_to unallocated.
     econs.
     {
-      init.
+      let varg_src := fresh "varg_src" in
+      let varg := fresh "varg" in
+      let EQ := fresh "EQ" in
+      let w := fresh "w" in
+      let mrp_src := fresh "mrp_src" in
+      let mp_tgt := fresh "mp_tgt" in
+      let WF := fresh "WF" in
+      split; rr; ss; intros varg_src varg EQ w mrp_src mp_tgt WF;
+      (try subst varg_src); cbn;
+      ginit;
+      try (unfold fun_to_tgt, cfunN, cfunU; rewrite ! HoareFun_parse); simpl.
+    
+
+
+
+
+      (* init. *)
       rename mp_tgt into mpr_tgt.
       assert(exists mp_src mp_tgt (mr_src mr_tgt: Σ),
                 mrp_src = Any.pair mp_src mr_src↑ ∧ mpr_tgt = Any.pair mp_tgt mr_tgt↑).
@@ -188,11 +206,12 @@ Section SIMMODSEM.
       mDesAll.
       harg_tgt.
       { iModIntro. iFrame. iSplits; et. xtra. }
-      steps.
+      steps_safe_l. rewrite Any.pair_split in *. s. rewrite Any.pair_split.
+      inv _UNWRAPN. rewrite Any.upcast_downcast in H3. inv H3.
       (*** calling APC ***)
       hAPC _.
       { iIntros "A"; iDes. iSplitR "A".
-        { iLeft. iExists _, _. iFrame. iSplits; eauto. }
+        { iLeft. iExists _, _. iFrame. iSplits; eauto.  }
         { iApply "A". }
       }
       { auto. }

@@ -833,7 +833,7 @@ Ltac init :=
   let mrp_src := fresh "mrp_src" in
   let mp_tgt := fresh "mp_tgt" in
   let WF := fresh "WF" in
-  split; rr; ss; intros varg_src [varg] EQ w mrp_src mp_tgt WF;
+  split; rr; ss; intros varg_src varg EQ w mrp_src mp_tgt WF;
   (try subst varg_src); cbn;
   ginit;
   try (unfold fun_to_tgt, cfunN, cfunU; rewrite ! HoareFun_parse); simpl.

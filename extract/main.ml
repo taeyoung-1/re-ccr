@@ -12,11 +12,13 @@ open ImpPrelude
 open ModSem
 open ModSemE
 
-open MutFG
+(* open MutFG
 open Example0
-open EchoAll
+open EchoAll *)
 (* open MWAll *)
-open Imp
+(* open Imp *)
+
+open Lm_main
 
 let cl2s = fun cl -> String.concat "" (List.map (String.make 1) cl)
 
@@ -108,9 +110,10 @@ let main =
   match int_of_string (read_line()) with
   (* | 1 -> run (mw_impl_itr) *)
   (* | 2 -> run (mw_abs_itr) *)
-  | 3 -> run (mutsum_imp)
+  (* | 3 -> run (mutsum_imp)
   | 4 -> run (mutsum)
   | 5 -> run (echo_imp_itr)
   | 6 -> run (echo_impl_itr)
-  | 7 -> run (echo_spec_itr)
+  | 7 -> run (echo_spec_itr) *)
+  | 8 -> run (Lm_main.test_itr)
   | _ -> print_endline "Invalid Number!"
