@@ -82,18 +82,61 @@ Section MATCH.
     :
       match_le sle tle.
 
-  Definition map_env_entry (entry: string * (Values.block * type)) :=
-    let '(s, (b, ty)) := entry in
-    (ident_of_string s, (map_blk b, ty)).
+  Definition map_env_entry (entry: Values.block * type) :=
+    let '(b, ty) := entry in
+    (map_blk b, ty).
 
   Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
-      (ME: forall id b ty, alist_find (string_of_ident id) se = Some (b, ty) -> Maps.PTree.get id te = Some (map_blk b, ty))
-      (* (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry se)) *)
+      (MCE: forall i a, In (i, a) (PTree.elements te) <-> alist_find (string_of_ident i) (map (map_snd map_env_entry) se) = Some a)
     :
       match_e se te.
-  
+
+  Lemma env_match_some e te b ty i
+      (MCE: match_e e te)
+    :
+      alist_find (string_of_ident i) e = Some (b, ty) -> te ! i = Some (map_blk b, ty).
+  Proof.
+    i. apply PTree.elements_complete. inv MCE. rewrite MCE0.
+    rewrite alist_find_map_snd. uo. des_ifs.
+  Qed.
+
+  Lemma env_match_none e te i
+      (MCE: match_e e te)
+    :
+      alist_find (string_of_ident i) e = None -> te ! i = None.
+  Proof.
+    i. destruct (te ! i) eqn:?; et. apply PTree.elements_correct in Heqo. 
+    inv MCE. rewrite MCE0 in Heqo. rewrite alist_find_map_snd in Heqo. uo.
+    des_ifs.
+  Qed.
+
+  Variant match_ce : comp_env -> composite_env -> Prop :=
+  | match_ce_intro
+      sce tce
+      (* (CEWF: NoDup (map fst sce)) *)
+      (MCE: forall i co, In (i, co) (PTree.elements tce) <-> alist_find (string_of_ident i) sce = Some co)
+    :
+      match_ce sce tce.
+
+  Lemma cenv_match_some ce tce co i
+      (MCE: match_ce ce tce)
+    :
+      alist_find (string_of_ident i) ce = Some co -> tce ! i = Some co.
+  Proof.
+    i. apply PTree.elements_complete. inv MCE. rewrite MCE0. et.
+  Qed.
+
+  Lemma cenv_match_none ce tce i
+      (MCE: match_ce ce tce)
+    :
+      alist_find (string_of_ident i) ce = None -> tce ! i = None.
+  Proof.
+    i. destruct (tce ! i) eqn:?; et. apply PTree.elements_correct in Heqo. 
+    inv MCE. rewrite MCE0 in Heqo. clarify.
+  Qed.
+
   Variant match_mem : Memory.Mem.mem -> Memory.Mem.mem -> Prop :=
   | match_mem_intro
       m tm

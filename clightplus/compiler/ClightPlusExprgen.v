@@ -194,7 +194,7 @@ Section EVAL_EXPR_COMP.
   | By_copy =>
     let sz : Z := sizeof ce ty in
     let al : Z := alignof_blockcopy ce ty in
-    ccallU "memcpy" (al, sz, [vp; v])
+    `_ : val <- ccallU "memcpy" (al, sz, [vp; v]);; Ret ()
   | _ => triggerUB
   end.
 

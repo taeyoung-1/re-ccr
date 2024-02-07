@@ -10,7 +10,7 @@ Require Import ModSem.
 Require Import AList.
 
 Require Import ClightPlusgen.
-Require Import ClightPlus2ClightMatch.
+Require Import ClightPlus2ClightMatchEnv.
 
 From compcert Require Import Ctypes Clight Clightdefs.
 
@@ -23,14 +23,14 @@ Section GENV.
   Context `{Σ: GRA.t}.
 
   Variable prog : program.
-  Variable sk : Sk.sem.
+  Variable sk : Sk.t.
   Let types : list composite_definition := prog.(prog_types).
   Let defs : list (ident * globdef fundef type) := prog.(prog_defs).
   Let public : list ident := prog.(prog_public).
   Let _main : ident := prog.(prog_main).
   Let ce := List.map (map_fst string_of_ident) (PTree.elements prog.(prog_comp_env)).
 
-  Lemma found_itree_clight_function
+  (* Lemma found_itree_clight_function
         (fn: string) 
         (i: list Values.val -> itree Es Values.val) 
         (mn: string) (p: ident)
@@ -38,7 +38,7 @@ Section GENV.
                     ((fun '(k2, _) => fn ?[ eq ] k2) <*>
                      map_snd
                       (fun sem => transl_all mn (T:=Any.t) ∘ sem) <*>
-                     (fun '(fn, f) => (string_of_ident fn, cfunU f)))
+                     (fun '(fn, f) => (fn, cfunU f)))
                     (decomp_fundefs prog sk defs) = 
                  Some (p, i))
     :
@@ -47,9 +47,9 @@ Section GENV.
     apply find_some in FOUND. des. split; et.
     unfold "<*>" in FOUND0. ss. rewrite eq_rel_dec_correct in FOUND0.
     des_ifs.
-  Qed.
+  Qed. *)
 
-  Lemma decomp_fundefs_decomp_func i p
+  (* Lemma decomp_fundefs_decomp_func i p
         (INLEFT: In (p, i) (decomp_fundefs prog sk defs)) 
     :
         exists f, 
@@ -66,7 +66,7 @@ Section GENV.
     simpl in INLEFT. des.
     2: apply IHl in INLEFT; des; simpl; eauto.
     inv INLEFT. simpl. eexists; split; eauto.
-  Qed.  
+  Qed.   *)
   
   Lemma in_def_gdefs a clight_prog
         (INDEFS_FUN: In a defs)
