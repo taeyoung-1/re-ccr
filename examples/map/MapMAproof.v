@@ -173,23 +173,7 @@ Section SIMMODSEM.
     Local Opaque initial_map black_map map_points_to unallocated.
     econs.
     {
-      let varg_src := fresh "varg_src" in
-      let varg := fresh "varg" in
-      let EQ := fresh "EQ" in
-      let w := fresh "w" in
-      let mrp_src := fresh "mrp_src" in
-      let mp_tgt := fresh "mp_tgt" in
-      let WF := fresh "WF" in
-      split; rr; ss; intros varg_src varg EQ w mrp_src mp_tgt WF;
-      (try subst varg_src); cbn;
-      ginit;
-      try (unfold fun_to_tgt, cfunN, cfunU; rewrite ! HoareFun_parse); simpl.
-    
-
-
-
-
-      (* init. *)
+      init.
       rename mp_tgt into mpr_tgt.
       assert(exists mp_src mp_tgt (mr_src mr_tgt: Σ),
                 mrp_src = Any.pair mp_src mr_src↑ ∧ mpr_tgt = Any.pair mp_tgt mr_tgt↑).
@@ -248,10 +232,13 @@ Section SIMMODSEM.
       { iApply (unallocated_range with "A2 A1"); eauto. }
       mAssertPure _.
       { iApply (black_map_get with "A3 A1"). }
-      subst. steps.
+      subst. steps. rewrite ! Any.pair_split. s. steps.
       harg_tgt.
       { iModIntro. iFrame. iSplits; et. xtra. }
-      steps. force_r; auto. steps.
+      steps.
+      inv _UNWRAPN. rewrite Any.pair_split in H3. ss. rewrite Any.upcast_downcast in H3. inv H3.
+      rewrite ! Any.pair_split. s.
+      force_r; auto. steps.
       (*** calling APC ***)
       hAPC _.
       { iIntros "A"; iDes. iSplitR "A2".
@@ -291,12 +278,19 @@ Section SIMMODSEM.
       mAssertPure (0 ≤ z < a0)%Z.
       { iApply (unallocated_range with "A2 A1"); eauto. }
       steps.
+      rewrite ! Any.pair_split. s.
+
       mAssert _ with "A3 A1".
       { iApply (black_map_set with "A3 A1"). }
       mUpd "A4". mDesAll.
       harg_tgt.
       { iModIntro. iFrame. iSplits; et. xtra. }
-      steps. force_r; auto. steps.
+      steps.
+      inv _UNWRAPN. rewrite Any.pair_split in H3. ss. rewrite Any.upcast_downcast in H3. inv H3.
+      rewrite ! Any.pair_split. s. 
+      
+      force_r; auto. steps.
+      rewrite ! Any.pair_split. s. 
       (*** calling APC ***)
       hAPC _.
       { iIntros "A"; iDes. iSplitR "A".
