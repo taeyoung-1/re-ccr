@@ -45,7 +45,7 @@ Fixpoint alloc_variables_c (ce: comp_env) (e: env)
   | [] => Ret e
   | (id, ty) :: vars' =>
     b <- ccallU "salloc" (sizeof ce ty);;
-    alloc_variables_c ce (alist_add (string_of_ident id) (b, ty) e) vars'
+    alloc_variables_c ce (alist_add id (b, ty) e) vars'
   end.
 
 Definition function_entry_c
@@ -195,7 +195,7 @@ Section DECOMP.
       free_list_aux l'
     end.
 
-  Definition block_of_binding (ce: comp_env) (id_b_ty: string * (block * type)) :=
+  Definition block_of_binding (ce: comp_env) (id_b_ty: ident * (block * type)) :=
     let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
 
   Definition blocks_of_env (ce: comp_env) (le: env) :=
@@ -229,21 +229,21 @@ Section DECOMP.
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;;
-      let le' := alist_add (string_of_ident id) v le in
+      let le' := alist_add id v le in
       Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
-        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
+        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
     | Sbuiltin optid ef tyargs al =>
       tau;;
       vargs <- eval_exprlist_c sk ce e le al tyargs;;
       match ef with
       | EF_malloc => v <- ccallU "malloc" vargs;;
-        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
+        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
       | EF_free => v <- ccallU "free" vargs;;
-        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
+        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
       | EF_capture => v <- ccallU "capture" vargs;;
-        Ret (e, (match optid with Some id => alist_add (string_of_ident id) v le | None => le end), None, None)
+        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
       (* this is for builtin memcpy, uncallable in standard C *)
       (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
       | _ => triggerUB
@@ -500,8 +500,7 @@ End Clight.
 Section DECOMP_PROG.
 
   (* TODO: compiling of program should include sorting in positive -> compile after sorting  *)
-  Definition get_ce (prog: Clight.program) : comp_env :=
-    List.map (fun '(id, p) => (string_of_ident id, p)) (PTree.elements prog.(prog_comp_env)).
+  Definition get_ce (prog: Clight.program) : comp_env := PTree.elements prog.(prog_comp_env).
 
   Variable prog: Clight.program.
   Let ce: comp_env := get_ce prog.

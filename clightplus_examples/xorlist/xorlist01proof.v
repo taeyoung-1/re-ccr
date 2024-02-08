@@ -75,9 +75,9 @@ Section PROOF.
       _
       unit
       (fun _ st_src st_tgt => ⌜True⌝)%I.
-  
 
-  Let ce := map (fun '(id, p) => (string_of_ident id, p)) (Maps.PTree.elements (prog_comp_env prog)).
+
+  Let ce := Maps.PTree.elements (prog_comp_env prog).
 
   Section SIMFUNS.
   Variable sk: Sk.t.
@@ -126,7 +126,7 @@ Section PROOF.
     i. des. ss. rewrite FIND. rename FIND into malloc_loc.
     hred_r. des_ifs_safe.
     rewrite cast_ptrofs.
-    rename Heq1 into ptr64. rename Heq0 into get_co.
+    rename Heq0 into ptr64. rename Heq0 into get_co.
     clear Heq e. hred_r.
 
     replace (pred _) with blk by nia.

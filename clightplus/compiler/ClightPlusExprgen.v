@@ -34,9 +34,9 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
 Section ABENVS.
 
-  Definition env : Type := alist string (block * type).
-  Definition temp_env : Type := alist string val.
-  Definition comp_env : Type := alist string composite.
+  Definition env : Type := alist ident (block * type).
+  Definition temp_env : Type := alist ident val.
+  Definition comp_env : Type := alist ident composite.
 
   Fixpoint sizeof (ce: comp_env) (t: type) : Z :=
     match t with
@@ -49,7 +49,7 @@ Section ABENVS.
     | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
     | Tarray t' n _ => (sizeof ce t' * Z.max 0 n)%Z
     | Tstruct id _ | Tunion id _ =>
-      match alist_find (string_of_ident id) ce with
+      match alist_find id ce with
       | Some co => co_sizeof co
       | None => 0%Z
       end
@@ -66,7 +66,7 @@ Section ABENVS.
     | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
     | Tarray t' _ _ => alignof ce t'
     | Tstruct id _ | Tunion id _ =>
-        match alist_find (string_of_ident id) ce with
+        match alist_find id ce with
         | Some co => co_alignof co
         | None => 1
         end
@@ -83,7 +83,7 @@ Section ABENVS.
     | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
     | Tarray t' n _ => alignof_blockcopy ce t'
     | Tstruct id _ | Tunion id _ =>
-      match alist_find (string_of_ident id) ce with
+      match alist_find id ce with
       | Some co => Z.min 8 (co_alignof co)
       | None => 1%Z
       end
@@ -108,14 +108,14 @@ Section ABENVS.
   Fixpoint create_undef_temps (temps: list (ident * type)) : temp_env :=
     match temps with
     | [] => []
-    | p :: temps' => (string_of_ident (fst p), Vundef) :: (create_undef_temps temps')
+    | p :: temps' => (fst p, Vundef) :: (create_undef_temps temps')
     end.
 
   Fixpoint bind_parameter_temps (formals: list (ident * type))
     (vargs: list val) (le: temp_env) : option temp_env :=
     match formals, vargs with
     | [], [] => Some le
-    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (string_of_ident (fst p)) v le)
+    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (fst p) v le)
     | _, _ => None
     end.
 
@@ -217,7 +217,7 @@ Section EVAL_EXPR_COMP.
       : itree eff val :=
       match a with
       | Evar id ty =>
-        match alist_find (string_of_ident id) e with
+        match alist_find id e with
         | Some (l, ty') =>
           if type_eq ty ty' then Ret (Vptr l Ptrofs.zero)
           else triggerUB
@@ -236,7 +236,7 @@ Section EVAL_EXPR_COMP.
         if negb (is_ptr_val v ) then triggerUB
         else match Clight.typeof a with
              | Tstruct id att =>
-                co <- (alist_find (string_of_ident id) ce)?;;
+                co <- (alist_find id ce)?;;
                 match field_offset ce i (co_members co) with
                 | Errors.OK delta =>
                   if Archi.ptr64
@@ -245,7 +245,7 @@ Section EVAL_EXPR_COMP.
                 | _ => triggerUB
                 end
              | Tunion id att =>
-                (alist_find (string_of_ident id) ce)?;;; Ret v
+                (alist_find id ce)?;;; Ret v
              | _ => triggerUB
             end
       | _ => triggerUB
@@ -783,7 +783,7 @@ Section EVAL_EXPR_COMP.
     | Econst_float f ty => Ret (Vfloat f)
     | Econst_single f ty => Ret (Vsingle f)
     | Econst_long i ty => Ret (Vlong i)
-    | Etempvar id ty => (alist_find (string_of_ident id) le)?
+    | Etempvar id ty => (alist_find id le)?
     | Eaddrof a ty =>
       _eval_lvalue_c eval_expr_c a
     | Eunop op a ty =>

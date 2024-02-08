@@ -964,7 +964,7 @@ Ltac get_composite ce e :=
   end;
   let comp_env' := fresh in
   inversion comp_env as [comp_env']; clarify;
-  ss; clear e; clear comp_env;
+  ss; clear e; clear comp_env; unfold Maps.PTree.elements in ce; ss;
   match goal with
   | ce := ?cel |- _ => alist_composites ce cel
   end; clearbody ce.
