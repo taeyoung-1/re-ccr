@@ -235,22 +235,10 @@ Section DECOMP.
       Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
-        if match optid with 
-           | Some id => if valid_check id then true
-                        else false 
-           | None => true
-           end
-        then Ret (e, set_opttemp_alist optid v le, None, None)
-        else triggerUB
+        Ret (e, set_opttemp_alist optid v le, None, None)
     | Sbuiltin optid ef tyargs al =>
       tau;;
       vargs <- eval_exprlist_c sk ce e le al tyargs;;
-      if match optid with 
-         | Some id => if valid_check id then true
-                        else false 
-         | None => true
-         end
-      then
         match ef with
         | EF_malloc => v <- ccallU "malloc" vargs;;
           Ret (e, set_opttemp_alist optid v le, None, None)
@@ -262,7 +250,6 @@ Section DECOMP.
         (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
         | _ => triggerUB
         end
-      else triggerUB
     | Ssequence s1 s2 =>
       '(e', le', bc, v) <- tau;;decomp_stmt (xO p) retty s1 e le;;
                         (* this is for steps *)

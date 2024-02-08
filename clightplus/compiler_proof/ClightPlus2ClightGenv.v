@@ -68,13 +68,6 @@ Section GENV.
     inv INLEFT. simpl. eexists; split; eauto.
   Qed.   *)
   
-  Lemma in_def_gdefs a clight_prog
-        (INDEFS_FUN: In a defs)
-    :
-        In a clight_prog.(prog_defs).
-  Proof.
-  Admitted.
-
 
   Lemma tgt_genv_match_symb_def
         ident b gd1 gd2
@@ -85,16 +78,15 @@ Section GENV.
     :
       gd1 = gd2.
   Proof.
-    (* assert (AST.prog_defs clight_prog = defs) by now
+    assert (AST.prog_defs prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
-    assert (prog_defs clight_prog = defs) by now
+    assert (prog_defs prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
     hexploit prog_defmap_norepet.
     { unfold prog_defs_names. rewrite H. auto. }
     { eauto. }
     i. apply Genv.find_def_symbol in H1. des. clarify.
-  Qed. *)
-  Admitted.
+  Qed.
 
   Lemma tgt_genv_find_def_by_blk
         ident b gd 
@@ -104,15 +96,14 @@ Section GENV.
     :
       Genv.find_def (Genv.globalenv prog) b = Some gd.
   Proof.
-    (* assert (AST.prog_defs clight_prog = defs) by now
+    assert (AST.prog_defs prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
-    assert (prog_defs clight_prog = defs) by now
+    assert (prog_defs prog = defs) by now
       unfold mkprogram, build_composite_env' in *; des_ifs.
     hexploit prog_defmap_norepet.
     { unfold prog_defs_names. rewrite H. auto. }
     { eauto. }
     i. apply Genv.find_def_symbol in H1. des. clarify.
-  Qed. *)
-  Admitted.
+  Qed.
 
 End GENV.

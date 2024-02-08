@@ -296,6 +296,17 @@ Section PROOF.
       erewrite match_sizeof; et.
   Qed.
 
+  Lemma bind_parameter_temps_exists_if_same_length'
+        params args tle0
+        (LEN: List.length params = List.length args)
+    :
+      exists tle, (<<BIND: Clight.bind_parameter_temps params args tle0 = Some tle>>).
+  Proof.
+    depgen args. depgen tle0. clear. induction params; i; ss; clarify.
+    { exists tle0. des_ifs. }
+    destruct args; ss; clarify. destruct a. eauto.
+  Qed.
+
   Lemma match_bind_parameter_temps
         sk tge params sle rvs sbase tbase
         (BIND_SRC: ClightPlusExprgen.bind_parameter_temps params rvs sbase = Some sle)
@@ -305,7 +316,7 @@ Section PROOF.
                       = Some tle>>)
                   /\ (<<MLE: match_le sk tge sle tle>>).
   Proof.
-    hexploit (bind_parameter_temps_exists_if_same_length params (List.map (map_val sk tge) rvs) tbase).
+    hexploit (bind_parameter_temps_exists_if_same_length' params (List.map (map_val sk tge) rvs) tbase).
     - rewrite ! map_length. clear -BIND_SRC. depgen sbase.
       revert sle. depgen rvs. depgen params.
       induction params; i; ss; des_ifs.
@@ -692,11 +703,13 @@ Section PROOF.
       inv STEP; des; clarify. ss. rewrite GCEQ in H11, H12.
       determ Clight_eval_expr_determ eval_expr.
       determ Clight_eval_exprlist_determ eval_exprlist.
+      dup MGE. inv MGE. dup E. apply ELEM in E0. 
+      replace (Pos.of_succ_nat (pred (Pos.to_nat b))) with b in E0 by nia.
       apply nth_error_In in E. dup E.
-      
-       unfold sk in E0. 
+
+      unfold sk in E1.
       pose proof Sk.le_canon_rev. simpl in H. unfold ClightPlusSkel.incl in *.
-      apply H in E0. ss. clear H.
+      apply H in E1. ss. clear H.
       des.
       Local Transparent ccallU.
       + clarify. ss. unfold ccallU. sim_red. ss. unfold mallocF. repeat (sim_tau; sim_red).
@@ -706,60 +719,110 @@ Section PROOF.
         eapply match_mem_alloc in Heq0; et. clear E. destruct Heq0 as [? [? ?]].
         eapply match_mem_store in Heq1; et. destruct Heq1 as [? [? ?]].
         econs 4.
-        { i. inv H3; et. ss. }
-      { eexists. econs; et. unfold Genv.find_funct. ss. des_ifs. unfold Genv.find_funct_ptr.
-        change (Genv.globalenv _) with tge.
-        inv MGE. replace b with (Pos.of_succ_nat (pred (Pos.to_nat b))) by nia.
-        erewrite ELEM; et. et. } i.
-
-        replace (Vlong _) with (Vptrofs i) in *.
-        2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold i. ss.
-            change intval with (Int64.unsigned (Int64.mkint intval intrange)).
-            rewrite Int64.repr_unsigned. ss. }
-        tgt_step. { eapply step_external_function. ss. econs; et. }
-        tgt_step. { econs. }
-        wrap_up. eapply CIH. clear PSTATE. econs; et.
+        { i. inv H3; et. ss. unfold Genv.find_funct_ptr in H13. des_ifs.
+          unfold tge in E0 at 1. rewrite Heq0 in E0. clarify. ss. inv H11. et. }
+        { unfold Genv.find_funct_ptr in H13. des_ifs.
+          change (Genv.globalenv _) with tge in Heq0. rewrite Heq0 in E0. clarify.
+          eexists. econs; et. ss.
+          replace (Vlong i) with (Vptrofs (Ptrofs.of_int64 i)). 2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+          econs. { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; et. apply Int64.unsigned_range_2. }
+          unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        i.
+        unfold Genv.find_funct_ptr in H13. des_ifs.
+        change (Genv.globalenv _) with tge in Heq0. rewrite Heq0 in E0. clarify.
+        inv STEP. ss. inv H13. unfold Vptrofs in *. des_ifs. unfold Ptrofs.to_int64 in *.
+        rewrite Int64.unsigned_repr in H. 2:{ apply Ptrofs.unsigned_range_2. }
+        rewrite H in H4. clarify. rewrite H1 in H5. clarify.
+        econs 4.
+        { i. inv H3; et. }
+        { eexists. econs. }
+        i. inv STEP. econs 8; et. right. eapply CIH. clear PSTATE. econs; et.
         { change (Vptr _ _) with (map_val sk tge (Vptr b0 Ptrofs.zero)). eapply match_update_le; et. }
         { instantiate (1:=update pstate "Mem" m1↑). et. }
-        ss. sim_redE. et.
-      + clarify. ss. 
-        apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
-        do 2 rewrite Any.upcast_downcast in H2. clarify. clear E.
-        unfold freeF. sim_red. repeat (sim_tau; sim_red).
-        rewrite PSTATE. sim_red. remove_UBcase.
-        * repeat (sim_tau; sim_red). tgt_step. 
-          { econs. ss. replace (Vlong _) with Vnullptr; try econs; et. unfold Vnullptr. des_ifs_safe. f_equal.
-            rewrite <- Int64.repr_unsigned with (i := Int64.mkint _ _). et. }
-          tgt_step. { econs. }
-          wrap_up. eapply CIH. econs; et.
-          { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
-          ss. sim_redE. et.
-        * unfold unwrapU. remove_UBcase. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
-          eapply match_mem_load in Heq1; et. 
-          eapply match_mem_free in Heq3; et. destruct Heq3 as [? [? ?]].
-          destruct i0. ss.
-          assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
-          set {| Ptrofs.intval := intval; Ptrofs.intrange := H3|} as ofs.
-          replace (Vlong _) with (Vptrofs ofs) in Heq1.
-          2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold ofs. ss.
-              change intval with (Int64.unsigned (Int64.mkint intval intrange)).
-              rewrite Int64.repr_unsigned. ss. }
-          sim_red. tgt_step. { econs. ss. econs; et. ss. nia. }
-          tgt_step. { econs. }
-          wrap_up. eapply CIH. clear PSTATE. econs; et.
+        ss. unfold hide. sim_redE. et.
+      + clarify. ss.
+        unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold mfreeF. sim_red.
+        rewrite PSTATE. sim_tau. sim_red. sim_tau. sim_red. sim_tau. sim_red.
+        destruct Archi.ptr64 eqn:?; clarify. destruct vl. { remove_UBcase. }
+        destruct v; try solve [remove_UBcase].
+        * destruct vl. 2:{ remove_UBcase. } pose proof (Int64.eq_spec i Int64.zero). destruct Int64.eq.
+          ** repeat ((repeat sim_red); sim_tau). sim_red. destruct Ptrofs.eq_dec; clarify.
+             unfold Genv.find_funct_ptr in H13. des_ifs. 
+             change (Genv.globalenv _) with tge in Heq. rewrite Heq in E0. clarify.
+             econs 4. { i. inv H. inv H9; et. } { eexists. econs. econs 2. }
+             i. inv STEP. inv H8. { unfold Mem.to_ptr in TOPTR. des_ifs. } 
+             econs 4. { i. inv H. et. } { eexists. econs. }
+             i. inv STEP. econs 8; et. right. apply CIH; et.
+             econs; et. 
+             { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+             ss. unfold hide. sim_redE. et.
+          ** sim_red. remove_UBcase. unfold unwrapU. remove_UBcase. remove_UBcase.
+             repeat ((repeat sim_red); sim_tau). sim_red. rewrite Any.upcast_downcast.
+             sim_red.
+             unfold Genv.find_funct_ptr in H13. des_ifs.
+             change (Genv.globalenv _) with tge in Heq3. rewrite Heq3 in E0. clarify.
+             hexploit match_mem_denormalize; et. i.
+             hexploit match_mem_load; et. i.
+             hexploit match_mem_free; et. i. des.
+             econs 4. { i. inv H2. inv H13; et. }
+             { eexists. econs. econs; et.
+              { unfold Mem.to_ptr. rewrite Heq0. rewrite H0. des_ifs. }
+              { instantiate (1:= Ptrofs.of_int64 i0). ss. unfold Vptrofs. des_ifs.
+                rewrite Ptrofs.to_int64_of_int64; et. }
+              { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; try nia.
+                apply Int64.unsigned_range_2. }
+              unfold Ptrofs.of_int64. rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)); et.
+              apply Int64.unsigned_range_2. }
+             i. inv STEP. inv H12. 2:{ unfold Mem.denormalize in H0. apply Maps.PTree.gselectf in H0. des. unfold Mem.denormalize_aux in H2. des_ifs. }
+             unfold Mem.to_ptr in TOPTR. des_ifs. unfold Vptrofs in Heq5. des_ifs.
+             unfold Ptrofs.to_int64 in TMEM. rewrite Int64.unsigned_repr in TMEM.
+             2:{ apply Ptrofs.unsigned_range_2. } rewrite TMEM in H5. clarify.
+             econs 4. { i. inv H0. et. } { eexists. econs. }
+             i. inv STEP. econs 8; et. right. apply CIH; et.
+             econs. 6: et. all: et.
+             { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+             { instantiate (1:=update pstate "Mem" m0↑). et. }
+             ss. unfold hide. sim_redE. et.
+        * destruct vl. 2:{ remove_UBcase. }
+          sim_red. remove_UBcase. unfold unwrapU. remove_UBcase. remove_UBcase.
+          repeat ((repeat sim_red); sim_tau). sim_red. rewrite Any.upcast_downcast.
+          sim_red.
+          unfold Genv.find_funct_ptr in H13. des_ifs.
+          change (Genv.globalenv _) with tge in Heq1. rewrite Heq1 in E0. clarify.
+          hexploit match_mem_load; et. i.
+          hexploit match_mem_free; et. i. des.
+          econs 4. { i. inv H0. inv H11; et. }
+          { eexists. econs. econs; et.
+          { instantiate (1:= Ptrofs.of_int64 i0). ss. unfold Vptrofs. des_ifs.
+            rewrite Ptrofs.to_int64_of_int64; et. }
+          { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; try nia.
+            apply Int64.unsigned_range_2. }
+          unfold Ptrofs.of_int64. rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)); et.
+          apply Int64.unsigned_range_2. }
+          i. inv STEP. inv H9. ss. clarify.
+          unfold Vptrofs in Heq. des_ifs. unfold Vptrofs in Heq2. des_ifs.
+          unfold Ptrofs.to_int64 in TMEM. rewrite Int64.unsigned_repr in TMEM.
+          2:{ apply Ptrofs.unsigned_range_2. } rewrite TMEM in H3. clarify.
+          econs 4. { i. inv H. et. } { eexists. econs. }
+          i. inv STEP. econs 8; et. right. apply CIH; et.
+          econs. 6: et. all: et.
           { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
           { instantiate (1:=update pstate "Mem" m0↑). et. }
-          ss. sim_redE. et.
-      + apply INTERNAL in E0. des. subst. unfold fnsem_has_internal in WFMS.
-        apply WFMS in E. des. ss. rewrite E. sim_red.
+          ss. unfold hide. sim_redE. et.
+      + apply INTERNAL in E1. des. subst. unfold fnsem_has_internal in WFMS.
+        apply WFMS in E. des. unfold ccallU. sim_red. ss. rewrite E. sim_tau. sim_red.
         unfold decomp_func. sim_red. eapplyfarg step_function_entry ge.
-        i. sim_red. 
-        tgt_step.
-        { econs; et. }
-        wrap_up. eapply CIH. clear PSTATE. econs; et.
+        i. sim_red.
+        unfold Genv.find_funct_ptr in H13. clear E. des_ifs.
+        change (Genv.globalenv _) with tge in Heq. rewrite Heq in E0. clarify.
+        pfold. econs 4. { i. inv H3; et. } { eexists. econs. et. }
+        i. inv STEP. unfold hide in H.
+        inv H. inv H8. ss. rewrite <- GCEQ in H6.
+        determ alloc_variables_determ alloc_variables.
+        econs 8; et. right. eapply CIH. clear PSTATE. econs; et.
         { instantiate (1 := update pstate "Mem" m'↑). et. }
         { econs; et. }
-        sim_redE.
+        unfold hide. sim_redE.
         set (prog _) as t1.
         instantiate (1:= mn0).
         apply bind_extk. i. des_ifs_safe. unfold itree_of_cont_pop. sim_redE.
@@ -772,8 +835,107 @@ Section PROOF.
         sim_redE. f_equal. f_equal. apply bind_extk. i. des_ifs_safe. sim_redE.
         apply bind_extk. i. sim_redE. f_equal. f_equal.
         sim_redE. et. 
-    - (* builtin is undefined *)
-      sim_triggerUB.
+    - ss. unfold hide. sim_red. sim_tau. sim_red.
+      eapplyf step_eval_exprlist; et. 
+      { instantiate (1:=ge). et. } all: et. i. remove_UBcase.
+      + clarify. ss. unfold ccallU. sim_red. ss. unfold mallocF. repeat (sim_tau; sim_red).
+        rewrite PSTATE. sim_red. remove_UBcase. des_ifs_safe. sim_red. unfold unwrapU. remove_UBcase.
+        repeat (sim_tau; sim_red). rewrite Any.upcast_downcast. sim_red.
+
+        eapply match_mem_alloc in Heq0; et. destruct Heq0 as [? [? ?]].
+        eapply match_mem_store in Heq1; et. destruct Heq1 as [? [? ?]].
+        econs 4.
+        { i. inv H4; et. inv H17. et. }
+        { eexists. econs; et.
+          replace (Vlong i) with (Vptrofs (Ptrofs.of_int64 i)). 2:{ unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+          econs. { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; et. apply Int64.unsigned_range_2. }
+          unfold Vptrofs. des_ifs. rewrite Ptrofs.to_int64_of_int64; et. }
+        i. ss. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+        ss. inv H16. unfold Vptrofs in *. des_ifs.
+        determ Clight_eval_exprlist_determ eval_exprlist.
+        unfold Ptrofs.to_int64 in *.
+        rewrite Int64.unsigned_repr in H0. 2:{ apply Ptrofs.unsigned_range_2. }
+        rewrite H0 in H4. clarify.
+        econs 8; et. right. apply CIH. clear PSTATE. econs; et.
+        { change (Vptr _ _) with (map_val sk tge (Vptr b Ptrofs.zero)). eapply match_update_le; et. }
+        { instantiate (1:=update pstate "Mem" m1↑). et. }
+        ss. unfold hide. sim_redE. et.
+      + clarify. ss.
+        unfold ccallU. sim_red. ss. repeat (sim_tau; sim_red). unfold mfreeF. sim_red.
+        rewrite PSTATE. sim_tau. sim_red. sim_tau. sim_red. sim_tau. sim_red.
+        destruct Archi.ptr64 eqn:?; clarify. destruct vl. { remove_UBcase. }
+        destruct v; try solve [remove_UBcase].
+        * destruct vl. 2:{ remove_UBcase. } pose proof (Int64.eq_spec i Int64.zero). destruct Int64.eq.
+          ** repeat ((repeat sim_red); sim_tau). sim_red.
+             econs 4. { i. inv H0; et. inv H13; et. } { eexists. econs; et. econs 2. }
+             i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. } 
+             inv H12. { determ Clight_eval_exprlist_determ eval_exprlist. }
+             econs 8; et. right. apply CIH; et.
+             econs; et. 
+             { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+             ss. unfold hide. sim_redE. et.
+          ** sim_red. remove_UBcase. unfold unwrapU. remove_UBcase. remove_UBcase.
+             repeat ((repeat sim_red); sim_tau). sim_red. rewrite Any.upcast_downcast.
+             sim_red.
+             hexploit match_mem_denormalize; et. i.
+             hexploit match_mem_load; et. i.
+             hexploit match_mem_free; et. i. des.
+             econs 4. { i. inv H3; et. inv H16; et. }
+             { eexists. econs; et. econs; et.
+              { unfold Mem.to_ptr. rewrite Heq0. rewrite H1. des_ifs. }
+              { instantiate (1:= Ptrofs.of_int64 i0). ss. unfold Vptrofs. des_ifs.
+                rewrite Ptrofs.to_int64_of_int64; et. }
+              { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; try nia.
+                apply Int64.unsigned_range_2. }
+              unfold Ptrofs.of_int64. rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)); et.
+              apply Int64.unsigned_range_2. }
+             i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+             inv H15. 2:{ determ Clight_eval_exprlist_determ eval_exprlist. }
+             unfold Mem.to_ptr in TOPTR. des_ifs.
+             2:{ determ Clight_eval_exprlist_determ eval_exprlist. }
+             determ Clight_eval_exprlist_determ eval_exprlist.
+             unfold Vptrofs in Heq. des_ifs.
+             unfold Vptrofs in Heq5. des_ifs.
+             unfold Ptrofs.to_int64 in TMEM. rewrite Int64.unsigned_repr in TMEM.
+             2:{ apply Ptrofs.unsigned_range_2. } rewrite TMEM in H5. clarify.
+             econs 8; et. right. apply CIH; et. clear PSTATE.
+             econs; et.
+             { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+             { instantiate (1:=update pstate "Mem" m0↑). et. }
+             ss. unfold hide. sim_redE. et.
+        * destruct vl. 2:{ remove_UBcase. }
+          sim_red. remove_UBcase. unfold unwrapU. remove_UBcase. remove_UBcase.
+          repeat ((repeat sim_red); sim_tau). sim_red. rewrite Any.upcast_downcast.
+          sim_red.
+
+          hexploit match_mem_load; et. i.
+          hexploit match_mem_free; et. i. des.
+          econs 4. { i. inv H1; et. inv H14; et. }
+          { eexists. econs; et. econs; et.
+          { instantiate (1:= Ptrofs.of_int64 i0). ss. unfold Vptrofs. des_ifs.
+            rewrite Ptrofs.to_int64_of_int64; et. }
+          { unfold Ptrofs.of_int64. rewrite Ptrofs.unsigned_repr; try nia.
+            apply Int64.unsigned_range_2. }
+          unfold Ptrofs.of_int64. rewrite (Ptrofs.unsigned_repr (Int64.unsigned _)); et.
+          apply Int64.unsigned_range_2. }
+          i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+          inv H13.
+          2:{ determ Clight_eval_exprlist_determ eval_exprlist. }
+          determ Clight_eval_exprlist_determ eval_exprlist.
+          ss. clarify.
+          unfold Vptrofs in Heq. des_ifs. unfold Vptrofs in Heq1. des_ifs.
+          unfold Ptrofs.to_int64 in TMEM. rewrite Int64.unsigned_repr in TMEM.
+          2:{ apply Ptrofs.unsigned_range_2. } rewrite TMEM in H3. clarify.
+          econs 8; et. right. apply CIH; et. clear PSTATE.
+          econs; et.
+          { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
+          { instantiate (1:=update pstate "Mem" m0↑). et. }
+          ss. unfold hide. sim_redE. et.
+      + ss. unfold ccallU. sim_red. ss. unfold captureF. sim_tau. sim_red.
+        sim_tau. repeat ((repeat sim_red); sim_tau). sim_red. rewrite PSTATE.
+        rewrite Any.upcast_downcast. sim_red. remove_UBcase.
+
+
     - ss. sim_red. sim_tau. tgt_step. { econs. }
       wrap_up. eapply CIH. econs; et.
       { econs; et. }

@@ -1307,10 +1307,12 @@ Section PROOF.
     - split; i; ss.
       + remove_UBcase; eapply H; et. 
         * econs. eapply env_match_some in ME; et.
-        * econs 2; try solve [eapply env_match_none; et]. inv MGE. eapply MGE0; et.
+        * econs 2; try solve [eapply env_match_none; et]. inv MGE. unfold valid_check in Heq.
+          destruct Pos.eq_dec; ss. rewrite e0. eapply MGE0; et.
       + remove_UBcase; eapply step_deref_loc; et; i; sim_red; eapply H; et; econs; et.
         * econs. hexploit env_match_some; et.
-        * econs 2; try solve [eapply env_match_none; et]. inv MGE. eapply MGE0; et.
+        * econs 2; try solve [eapply env_match_none; et]. inv MGE. unfold valid_check in Heq.
+          destruct Pos.eq_dec; ss. rewrite e0. eapply MGE0; et.
     - unfold unwrapU. remove_UBcase. eapply H; et. econs. inv MLE. eapply ML. et.
     - eapply IHa. i. eapply H; et. econs; et.
     - eapply IHa0. i. eapply step_unary_op; et. i. eapply H; et. econs; et.
