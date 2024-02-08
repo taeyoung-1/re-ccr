@@ -35,7 +35,7 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 Section ABENVS.
 
   Definition env : Type := alist ident (block * type).
-  Definition temp_env : Type := alist string val.
+  Definition temp_env : Type := alist ident val.
   Definition comp_env : Type := alist ident composite.
 
   Definition valid_check id := Coqlib.proj_sumbool (Pos.eq_dec id (ident_of_string (string_of_ident id))).
@@ -110,14 +110,14 @@ Section ABENVS.
   Fixpoint create_undef_temps (temps: list (ident * type)) : temp_env :=
     match temps with
     | [] => []
-    | p :: temps' => (string_of_ident (fst p), Vundef) :: (create_undef_temps temps')
+    | p :: temps' => (fst p, Vundef) :: (create_undef_temps temps')
     end.
 
   Fixpoint bind_parameter_temps (formals: list (ident * type))
     (vargs: list val) (le: temp_env) : option temp_env :=
     match formals, vargs with
     | [], [] => Some le
-    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (string_of_ident (fst p)) v le)
+    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (fst p) v le)
     | _, _ => None
     end.
 
@@ -787,9 +787,7 @@ Section EVAL_EXPR_COMP.
     | Econst_float f ty => Ret (Vfloat f)
     | Econst_single f ty => Ret (Vsingle f)
     | Econst_long i ty => Ret (Vlong i)
-    | Etempvar id ty => 
-        if negb (valid_check id) then triggerUB
-        else (alist_find (string_of_ident id) le)?
+    | Etempvar id ty => (alist_find id le)?
     | Eaddrof a ty =>
       _eval_lvalue_c eval_expr_c a
     | Eunop op a ty =>

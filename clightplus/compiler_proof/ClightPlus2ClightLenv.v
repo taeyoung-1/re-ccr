@@ -14,17 +14,14 @@ Section LENV.
 
 
   Lemma match_update_le sk ge le tle o v
-        (VALID: match o with None => True | Some id => valid_check id = true end)
         (MLE: match_le sk ge le tle)
     :
       match_le sk ge (set_opttemp_alist o v le) (set_opttemp o (map_val sk ge v) tle).
   Proof.
-    destruct o; ss. econs. i. inv MLE. destruct (string_dec (string_of_ident p) str).
-    - subst. unfold valid_check in *. rewrite alist_add_find_eq in H. clarify.
-      destruct Pos.eq_dec; ss. rewrite <- e. rewrite PTree.gss. et.
-    - unfold valid_check in *. rewrite alist_add_find_neq in H; et.
-      destruct Pos.eq_dec; ss. rewrite PTree.gso; et. rewrite e. ii.
-      apply ident_of_string_injective in H0. clarify.
+    destruct o; ss. econs. i. inv MLE. destruct (Pos.eq_dec i id).
+    - subst. rewrite alist_add_find_eq in H. clarify.
+      rewrite PTree.gss. et.
+    - rewrite alist_add_find_neq in H; et. rewrite PTree.gso; et. 
   Qed.
 
 

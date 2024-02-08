@@ -78,7 +78,7 @@ Section MATCH.
   Variant match_le : ClightPlusExprgen.temp_env -> temp_env -> Prop :=
   | match_le_intro
       sle tle 
-      (ML: forall str sv, alist_find str sle = Some sv -> Maps.PTree.get (ident_of_string str) tle = Some (map_val sv))
+      (ML: forall id sv, alist_find id sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
     :
       match_le sle tle.
 

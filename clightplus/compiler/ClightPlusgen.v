@@ -30,7 +30,7 @@ Variable sk: Sk.t.
 Let skenv: SkEnv.t := load_skenv sk.
 Variable ce: comp_env.
 
-Definition set_opttemp_alist optid v (le: temp_env) := match optid with Some id => alist_add (string_of_ident id) v le | None => le end.
+Definition set_opttemp_alist optid v (le: temp_env) := match optid with Some id => alist_add id v le | None => le end.
 
 Definition id_list_norepet_c: list ident -> bool :=
   fun ids => if Coqlib.list_norepet_dec (ident_eq) ids then true else false.
@@ -231,9 +231,7 @@ Section DECOMP.
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;;
-      if negb (valid_check id) then triggerUB
-      else
-      let le' := alist_add (string_of_ident id) v le in
+      let le' := alist_add id v le in
       Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
