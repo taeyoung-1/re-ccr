@@ -124,9 +124,9 @@ Section PROOF.
     hexploit SKINCLENV2.
     { instantiate (2:="malloc"). et. }
     i. des. ss. rewrite FIND. rename FIND into malloc_loc.
-    hred_r. des_ifs_safe.
+    hred_r. unfold __Node, ident. des_ifs_safe.
     rewrite cast_ptrofs.
-    rename Heq0 into ptr64. rename Heq0 into get_co.
+    rename Heq1 into ptr64. rename Heq0 into get_co.
     clear Heq e. hred_r.
 
     replace (pred _) with blk by nia.
@@ -193,7 +193,7 @@ Section PROOF.
     iPoseProof (points_to_is_ptr with "new_point") as "%".
     rewrite H3. rename H3 into new_is_point. hred_r. rewrite new_is_point. hred_r.
 
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     replace (Coqlib.align 0 _) with 0%Z by et.
     replace (Ptrofs.repr 0) with Ptrofs.zero by et.
     iPoseProof (add_null_r with "new_ofs") as "%".
@@ -231,7 +231,7 @@ Section PROOF.
       (* entry->link = 0 start *)
       rewrite new_is_point. hred_r. rewrite new_is_point. hred_r.
 
-      rewrite co_co_members. ss. hred_r.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
       replace (Coqlib.align _ _) with 8%Z by et.
       replace (Vlong (Int64.repr _)) with Vnullptr by et.
       iApply isim_ccallU_store; ss; oauto.
@@ -297,7 +297,7 @@ Section PROOF.
 
     rewrite new_is_point. hred_r.
     rewrite new_is_point. hred_r.
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     rewrite cast_ptrofs. hred_r.
     replace (Coqlib.align _ _) with 8%Z by et.
 
@@ -323,7 +323,7 @@ Section PROOF.
     iPoseProof (points_to_is_ptr with "tl_point") as "%".
     rewrite H3. rename H3 into hd_ptr.
     hred_r. rewrite hd_ptr. hred_r.
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     replace (Coqlib.align _ _) with 8%Z by et.
 
     rewrite hd_ptr. hred_r. rewrite hd_ptr. hred_r.
@@ -443,7 +443,7 @@ Section PROOF.
     hexploit SKINCLENV2.
     { instantiate (2:="malloc"). et. }
     i. des. ss. rewrite FIND. rename FIND into malloc_loc.
-    hred_r. des_ifs_safe.
+    hred_r. unfold __Node, ident. des_ifs_safe.
     rewrite cast_ptrofs.
     rename Heq1 into ptr64. rename Heq0 into get_co.
     clear Heq e. hred_r.
@@ -508,7 +508,7 @@ Section PROOF.
     iPoseProof (points_to_is_ptr with "new_point") as "%".
     rewrite H3. rename H3 into new_is_point. hred_r. rewrite new_is_point. hred_r.
 
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     replace (Coqlib.align 0 _) with 0%Z by et.
     replace (Ptrofs.repr 0) with Ptrofs.zero by et.
     iPoseProof (add_null_r with "new_ofs") as "%".
@@ -546,7 +546,7 @@ Section PROOF.
       (* entry->link = 0 start *)
       rewrite new_is_point. hred_r. rewrite new_is_point. hred_r.
 
-      rewrite co_co_members. ss. hred_r.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
       replace (Coqlib.align _ _) with 8%Z by et.
       replace (Vlong (Int64.repr _)) with Vnullptr by et.
       iApply isim_ccallU_store; ss; oauto.
@@ -612,7 +612,7 @@ Section PROOF.
 
     rewrite new_is_point. hred_r.
     rewrite new_is_point. hred_r.
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     rewrite cast_ptrofs. hred_r.
     replace (Coqlib.align _ _) with 8%Z by et.
 
@@ -638,7 +638,7 @@ Section PROOF.
     iPoseProof (points_to_is_ptr with "hd_point") as "%".
     rewrite H3. rename H3 into hd_ptr.
     hred_r. rewrite hd_ptr. hred_r.
-    rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     replace (Coqlib.align _ _) with 8%Z by et.
 
     rewrite hd_ptr. hred_r. rewrite hd_ptr. hred_r.
@@ -814,7 +814,7 @@ Section PROOF.
 
     (* item = hd_old->item start *)
     iPoseProof (points_to_is_ptr with "tl_point") as "%". rewrite H3. rename H3 into tl_is_ptr. hred_r. rewrite tl_is_ptr. hred_r.
-    rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     iPoseProof (points_to_split with "tl_point") as "[tl_point_item tl_point_key]".
     change Archi.ptr64 with true. hred_r.
     change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs Ptrofs.zero). iPoseProof (add_null_r with "tl_ofs") as "%". rewrite H3. rename H3 into tl_add_null.
@@ -828,7 +828,7 @@ Section PROOF.
 
     (* hd_new = (node* )hd_old->link start *)
     rewrite tl_is_ptr. hred_r. rewrite tl_is_ptr. hred_r.
-    rewrite get_co. hred_r. rewrite co_co_members. ss.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss.
     change Archi.ptr64 with true. hred_r.
     change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs (Ptrofs.repr 8)).
     iApply isim_ccallU_load; ss; oauto.
@@ -928,7 +928,7 @@ Section PROOF.
       iPoseProof (points_to_split with "tl_prev_point") as "[tl_prev_point_item tl_prev_point_key]".
       change (strings.length _) with 8. ss.
 
-      rewrite get_co. hred_r. rewrite co_co_members. ss.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss.
       change Archi.ptr64 with true. hred_r.
       change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs (Ptrofs.repr 8)).
       iApply isim_ccallU_load; ss; oauto.
@@ -953,7 +953,7 @@ Section PROOF.
 
       hred_r. unhide. remove_tau.
       rewrite tl_prev_is_ptr. hred_r. rewrite tl_prev_is_ptr. hred_r.
-      rewrite get_co. hred_r. rewrite co_co_members.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members.
       ss. change Archi.ptr64 with true. hred_r. 
       do 2 rewrite ptrofs_cast_ptr. hred_r. des_ifs_safe.
       hred_r. rewrite cast_long; et. hred_r.
@@ -1103,7 +1103,7 @@ Section PROOF.
 
     (* item = hd_old->item start *)
     iPoseProof (points_to_is_ptr with "hd_point") as "%". rewrite H3. rename H3 into hd_is_ptr. hred_r. rewrite hd_is_ptr. hred_r.
-    rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss. hred_r.
     iPoseProof (points_to_split with "hd_point") as "[hd_point_item hd_point_key]".
     change Archi.ptr64 with true. hred_r.
     change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs Ptrofs.zero). iPoseProof (add_null_r with "hd_ofs") as "%". rewrite H3. rename H3 into hd_add_null.
@@ -1117,7 +1117,7 @@ Section PROOF.
 
     (* hd_new = (node* )hd_old->link start *)
     rewrite hd_is_ptr. hred_r. rewrite hd_is_ptr. hred_r.
-    rewrite get_co. hred_r. rewrite co_co_members. ss.
+    unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss.
     change Archi.ptr64 with true. hred_r.
     change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs (Ptrofs.repr 8)).
     iApply isim_ccallU_load; ss; oauto.
@@ -1216,7 +1216,7 @@ Section PROOF.
       iPoseProof (points_to_split with "hd_next_point") as "[hd_next_point_item hd_next_point_key]".
       change (strings.length _) with 8. ss.
 
-      rewrite get_co. hred_r. rewrite co_co_members. ss.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members. ss.
       change Archi.ptr64 with true. hred_r.
       change (Vptrofs (Ptrofs.repr (Coqlib.align _ _))) with (Vptrofs (Ptrofs.repr 8)).
       iApply isim_ccallU_load; ss; oauto.
@@ -1241,7 +1241,7 @@ Section PROOF.
 
       hred_r. unhide. remove_tau.
       rewrite hd_next_is_ptr. hred_r. rewrite hd_next_is_ptr. hred_r.
-      rewrite get_co. hred_r. rewrite co_co_members.
+      unfold __Node, ident. rewrite get_co. hred_r. rewrite co_co_members.
       ss. change Archi.ptr64 with true. hred_r. 
       do 2 rewrite ptrofs_cast_ptr. hred_r. des_ifs_safe.
       hred_r. rewrite cast_long; et. hred_r.

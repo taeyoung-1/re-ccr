@@ -196,7 +196,7 @@ Section MATCH.
                               triggerUB
                               triggerUB
                               (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
-                          v <- optv'?;; tau;; Ret (e', (match optid with Some id => alist_add (string_of_ident id) v le' | None => le' end), None, None))) 
+                          v <- optv'?;; tau;; Ret (e', (match optid with Some id => alist_add id v le' | None => le' end), None, None))) 
                                       (* this is for modsem *)
       (CONT_ENV_MATCH: match_e sk tge e' te')
       (CONT_LENV_MATCH: match_le sk tge le' tle')

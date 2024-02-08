@@ -78,52 +78,52 @@ Section MATCH.
   Variant match_le : ClightPlusExprgen.temp_env -> temp_env -> Prop :=
   | match_le_intro
       sle tle 
-      (ML: forall id sv, alist_find (string_of_ident id) sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
+      (ML: forall id sv, alist_find id sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
     :
       match_le sle tle.
 
-  Definition map_env_entry (entry: ident * Values.block * type) :=
-    let '(id, b, ty) := entry in
-    (string_of_ident id, map_blk b, ty).
+  Definition map_env_entry (entry: ident * (Values.block * type)) :=
+    let '(id, (b, ty)) := entry in
+    (id, (map_blk b, ty)).
 
   Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
-      (MCE: forall i a, Permutation (PTree.elements te) (map se))
+      (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry se))
     :
       match_e se te.
 
   Lemma env_match_some e te b ty i
-      (MCE: match_e e te)
+      (ME: match_e e te)
     :
-      alist_find (string_of_ident i) e = Some (b, ty) -> te ! i = Some (map_blk b, ty).
+      alist_find i e = Some (b, ty) -> te ! i = Some (map_blk b, ty).
   Proof.
-    i. apply PTree.elements_complete. inv MCE. rewrite MCE0.
-    rewrite alist_find_map_snd. uo. des_ifs.
+    i. apply PTree.elements_complete. inv ME. rewrite ME0.
+    apply alist_find_some in H. eapply in_map with (f:=map_env_entry) in H. et.
   Qed.
 
   Lemma env_match_none e te i
-      (MCE: match_e e te)
+      (ME: match_e e te)
     :
-      alist_find (string_of_ident i) e = None -> te ! i = None.
+      alist_find i e = None -> te ! i = None.
   Proof.
     i. destruct (te ! i) eqn:?; et. apply PTree.elements_correct in Heqo. 
-    inv MCE. rewrite MCE0 in Heqo. rewrite alist_find_map_snd in Heqo. uo.
-    des_ifs.
+    inv ME. rewrite ME0 in Heqo. rewrite in_map_iff in Heqo.  des. 
+    destruct x. ss. des_ifs_safe. exfalso. eapply alist_find_none in H. apply H. et.
   Qed.
 
   Variant match_ce : comp_env -> composite_env -> Prop :=
   | match_ce_intro
       sce tce
       (* (CEWF: NoDup (map fst sce)) *)
-      (MCE: forall i co, In (i, co) (PTree.elements tce) <-> alist_find (string_of_ident i) sce = Some co)
+      (MCE: forall i co, In (i, co) (PTree.elements tce) <-> alist_find i sce = Some co)
     :
       match_ce sce tce.
 
   Lemma cenv_match_some ce tce co i
       (MCE: match_ce ce tce)
     :
-      alist_find (string_of_ident i) ce = Some co -> tce ! i = Some co.
+      alist_find i ce = Some co -> tce ! i = Some co.
   Proof.
     i. apply PTree.elements_complete. inv MCE. rewrite MCE0. et.
   Qed.
@@ -131,7 +131,7 @@ Section MATCH.
   Lemma cenv_match_none ce tce i
       (MCE: match_ce ce tce)
     :
-      alist_find (string_of_ident i) ce = None -> tce ! i = None.
+      alist_find i ce = None -> tce ! i = None.
   Proof.
     i. destruct (tce ! i) eqn:?; et. apply PTree.elements_correct in Heqo. 
     inv MCE. rewrite MCE0 in Heqo. clarify.

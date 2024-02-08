@@ -34,9 +34,9 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
 Section ABENVS.
 
-  Definition env : Type := alist ident (block * type).
-  Definition temp_env : Type := alist ident val.
-  Definition comp_env : Type := alist ident composite.
+  Definition env : Type := alist positive (block * type).
+  Definition temp_env : Type := alist positive val.
+  Definition comp_env : Type := alist positive composite.
 
   Fixpoint sizeof (ce: comp_env) (t: type) : Z :=
     match t with

@@ -967,4 +967,7 @@ Ltac get_composite ce e :=
   ss; clear e; clear comp_env; unfold Maps.PTree.elements in ce; ss;
   match goal with
   | ce := ?cel |- _ => alist_composites ce cel
-  end; clearbody ce.
+  end; clearbody ce;
+  repeat match goal with
+         | H : alist_find _ ce = Some _ |- _ => unfold Maps.PTree.prev in H
+         end; ss.

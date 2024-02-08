@@ -256,7 +256,7 @@ Section MEM.
   Qed.
 
 
-  Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
+  (* Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
         (SMEM: Mem.free_list m (List.map (map_fst (fun b => (b, 0%Z))) (ClightPlusgen.blocks_of_env ce e)) = Some m')
         (EQ1: tce = ge.(genv_cenv))
         (EQ2: tge = ge.(genv_genv))
@@ -285,7 +285,7 @@ Section MEM.
     inv ME. 
       
 
-  Qed.
+  Qed. *)
 
   Lemma match_mem_getN f (c d: ZMap.t memval) n p
     (MM: forall i mv, c !! i = mv -> d !! i = f mv)
