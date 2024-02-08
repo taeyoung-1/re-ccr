@@ -8,7 +8,7 @@ Require Import Any.
 Require Import ModSem.
 Require Import ClightPlusMem0.
 
-Require Import ClightPlusSkel ClightPlusExprgen.
+Require Import ClightPlusSkel ClightPlusExprgen ClightPlusgen.
 Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightArith.
 
@@ -143,7 +143,7 @@ Section MEM.
         rewrite PMap.gso; et.
   Qed.
 
-  Lemma match_mem_free_list m tm l m' sk tge
+  Lemma _match_mem_free_list m tm l m' sk tge
         (SMEM: Mem.free_list m l = Some m')
         (MGE: match_ge sk tge)
         (MM_PRE: match_mem sk tge m tm)
@@ -158,14 +158,143 @@ Section MEM.
       hexploit IHl; et.
   Qed.
 
-    Lemma match_mem_getN f (c d: ZMap.t memval) n p
-      (MM: forall i mv, c !! i = mv -> d !! i = f mv)
+  Import Permutation.
+
+  Lemma mem_eq m m' : m.(Mem.nextblock) = m'.(Mem.nextblock) -> m.(Mem.mem_contents) = m'.(Mem.mem_contents) -> m.(Mem.mem_concrete) = m'.(Mem.mem_concrete) -> m.(Mem.mem_access) = m'.(Mem.mem_access) -> m = m'.
+  Proof.
+    i. destruct m, m'. ss. subst.
+    assert (access_max = access_max0) by apply proof_irr.
+    assert (nextblock_noaccess = nextblock_noaccess0) by apply proof_irr.
+    assert (contents_default = contents_default0) by apply proof_irr.
+    assert (nextblocks_logical = nextblocks_logical0) by apply proof_irr.
+    assert (valid_address_bounded = valid_address_bounded0) by apply proof_irr.
+    assert (no_concrete_overlap = no_concrete_overlap0) by apply proof_irr.
+    assert (concrete_align = concrete_align0) by apply proof_irr.
+    assert (weak_valid_address_range = weak_valid_address_range0) by apply proof_irr.
+    subst. et.
+  Qed.
+
+  Lemma free_list_same m m' m'' l :
+    Mem.free_list m l = Some m' ->
+    m.(Mem.nextblock) = m''.(Mem.nextblock) -> 
+    m.(Mem.mem_contents) = m''.(Mem.mem_contents) ->
+    m.(Mem.mem_concrete) = m''.(Mem.mem_concrete) ->
+    (forall b, PMap.get b m.(Mem.mem_access) = PMap.get b m''.(Mem.mem_access)) ->
+    exists m''', Mem.free_list m'' l = Some m''' /\
+    m'.(Mem.nextblock) = m'''.(Mem.nextblock) /\
+    m'.(Mem.mem_contents) = m'''.(Mem.mem_contents) /\
+    m'.(Mem.mem_concrete) = m'''.(Mem.mem_concrete) /\
+    forall b, PMap.get b m'.(Mem.mem_access) = PMap.get b m'''.(Mem.mem_access).
+  Proof.
+    ginduction l; i; ss; clarify. { esplits; et. }
+    des_ifs; cycle 1.
+    - unfold Mem.free in *. des_ifs. exfalso. apply n.
+      unfold Mem.range_perm, Mem.perm. i. rewrite <- H3.
+      eapply r; et.
+    - unfold Mem.free in *. des_ifs. eapply IHl; et.
+      unfold Mem.unchecked_free. ss.
+      i. destruct (dec b b0). { subst. rewrite !PMap.gss. rewrite H3. et. }
+      rewrite !PMap.gso; et.
+  Qed.
+
+  Lemma free_list_permutation m m' l l' :
+    Mem.free_list m l = Some m' ->
+    Permutation l l' ->
+    exists m'', Mem.free_list m l' = Some m'' 
+    /\ m'.(Mem.nextblock) = m''.(Mem.nextblock) 
+    /\ m'.(Mem.mem_contents) = m''.(Mem.mem_contents) 
+    /\ m'.(Mem.mem_concrete) = m''.(Mem.mem_concrete) 
+    /\ (forall b, PMap.get b m'.(Mem.mem_access) = PMap.get b m''.(Mem.mem_access)).
+  Proof.
+    i. revert m m' H. induction H0; ss; i; clarify.
+    - esplits; et.
+    - des_ifs. apply IHPermutation. et.
+    - des_ifs_safe. destruct (Mem.free m b) eqn:?; cycle 1.
+      + unfold Mem.free in Heqo. des_ifs. exfalso. apply n.
+        unfold Mem.range_perm, Mem.perm. i. unfold Mem.free in *.
+        des_ifs. unfold Mem.range_perm, Mem.perm in r.
+        hexploit r; et. i. unfold Mem.unchecked_free in H1. ss.
+        destruct (dec b b0); cycle 1. { rewrite Maps.PMap.gso in H1; et. }
+        subst. rewrite Maps.PMap.gss in H1.
+        destruct Coqlib.zle; destruct Coqlib.zlt; ss; inv H1.
+      + destruct (Mem.free m2 b0) eqn:?; cycle 1.
+        * unfold Mem.free in Heqo0. des_ifs. exfalso. apply n.
+          unfold Mem.range_perm, Mem.perm. i. unfold Mem.free in *.
+          des_ifs. unfold Mem.unchecked_free. ss.
+          destruct (dec b b0); cycle 1.
+          { rewrite Maps.PMap.gso; et. apply r1. et. }
+          subst. unfold Mem.range_perm, Mem.perm, Mem.unchecked_free in r0. ss.
+          rewrite !Maps.PMap.gss in *.
+          unfold Mem.range_perm, Mem.perm, Mem.unchecked_free in r1.
+          hexploit r1; et. i. 
+          destruct Coqlib.zle; destruct Coqlib.zlt; ss.
+          hexploit r0; et. i.
+          destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
+        * hexploit free_list_same. 1: et.
+          { instantiate (1:=m3). unfold Mem.free in *. des_ifs. }
+          { unfold Mem.free in *. des_ifs. }
+          { unfold Mem.free in *. des_ifs. }
+          { unfold Mem.free in *. des_ifs. i. ss.
+            destruct (dec b b1).
+            { subst. rewrite !PMap.gss. destruct (dec b0 b1).
+              { subst. rewrite !PMap.gss. extensionalities. 
+                do 2 destruct Coqlib.zle; do 2 destruct Coqlib.zlt; ss; et. }
+              rewrite (@PMap.gso _ _ b0); et.
+              rewrite (@PMap.gso _ _ b0); et.
+              rewrite PMap.gss. et. }
+            rewrite PMap.gso; et. destruct (dec b0 b1).
+            { subst. rewrite !PMap.gss. rewrite PMap.gso; et. }
+            rewrite !PMap.gso; et. }
+          i. des. esplits; et.
+    - hexploit IHPermutation1; et. i. des.
+      hexploit IHPermutation2; et. i. des.
+      esplits; et.
+      { rewrite <- H6. et. }
+      { rewrite <- H7. et. }
+      { rewrite <- H8. et. }
+      i. rewrite <- H9. et.
+  Qed.
+
+
+  Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
+        (SMEM: Mem.free_list m (List.map (map_fst (fun b => (b, 0%Z))) (ClightPlusgen.blocks_of_env ce e)) = Some m')
+        (EQ1: tce = ge.(genv_cenv))
+        (EQ2: tge = ge.(genv_genv))
+        (MGE: match_ge sk tge)
+        (ME: match_e sk ge e te)
+        (MCE: match_ce ce tce)
+        (MM_PRE: match_mem sk tge m tm)
     :
-      Mem.getN n p d = map f (Mem.getN n p c).
-    Proof.
-      revert p. induction n; i; ss.
-      rewrite IHn. f_equal. erewrite <- MM; try reflexivity.  
-    Qed.
+    exists tm',
+        (<<TMEM: Mem.free_list tm (blocks_of_env ge te) = Some tm'>>) /\
+        (<<MM_POST: match_mem sk tge m' tm'>>).
+  Proof.
+    hexploit _match_mem_free_list; et. i. des.
+    rewrite map_map in TMEM.
+    set (map _ _) as l in TMEM.
+    set (blocks_of_env ge te) as l'.
+    assert (Permutation l l'); cycle 1.
+    { hexploit free_list_permutation; et. i. des. 
+      esplits; et. inv MM_POST. econs; et.
+      { rewrite <- H1. et. }
+      { rewrite <- H2. et. }
+      { i. rewrite <- H4. et. }
+      { rewrite <- H3. et. } }
+    unfold l, l'. unfold ClightPlusgen.blocks_of_env, blocks_of_env.
+    rewrite map_map. clear - MCE ME.
+    inv ME. 
+      
+
+  Qed.
+
+  Lemma match_mem_getN f (c d: ZMap.t memval) n p
+    (MM: forall i mv, c !! i = mv -> d !! i = f mv)
+  :
+    Mem.getN n p d = map f (Mem.getN n p c).
+  Proof.
+    revert p. induction n; i; ss.
+    rewrite IHn. f_equal. erewrite <- MM; try reflexivity.  
+  Qed.
 
 
   Lemma match_proj_bytes sk tge l : proj_bytes (map (map_memval sk tge) l) = proj_bytes l. 

@@ -82,14 +82,14 @@ Section MATCH.
     :
       match_le sle tle.
 
-  Definition map_env_entry (entry: Values.block * type) :=
-    let '(b, ty) := entry in
-    (map_blk b, ty).
+  Definition map_env_entry (entry: ident * Values.block * type) :=
+    let '(id, b, ty) := entry in
+    (string_of_ident id, map_blk b, ty).
 
   Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
-      (MCE: forall i a, In (i, a) (PTree.elements te) <-> alist_find (string_of_ident i) (map (map_snd map_env_entry) se) = Some a)
+      (MCE: forall i a, Permutation (PTree.elements te) (map se))
     :
       match_e se te.
 

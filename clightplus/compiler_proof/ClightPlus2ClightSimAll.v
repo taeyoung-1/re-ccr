@@ -13,7 +13,7 @@ Require Import ClightPlusMem0.
 Require Import IRed.
 From Ordinal Require Import Ordinal Arithmetic.
 
-Require Import ClightPlus2ClightMatch.
+Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightMatchStmt.
 Require Import ClightPlus2ClightArith.
 Require Import ClightPlus2ClightGenv.
@@ -25,9 +25,8 @@ From compcert Require Import Ctypes Clight Clightdefs Values.
 
 Section PROOF.
 
-  (* Import ModSemL.
+  Import ModSemL.
 
-  Context `{Σ: GRA.t}.
   Context `{builtins : builtinsTy}.
 
   Let _sim_mon := Eval simpl in (fun (src: ModL.t) (tgt: Clight.program) => @sim_mon (compile_val src) (Clight.semantics2 tgt)).
@@ -86,12 +85,17 @@ Section PROOF.
 
   Local Opaque Pos.of_succ_nat.
 
-  Lemma _step_freeing_stack cprog f_table modl r b ktr tstate ge ce e pstate mn m
-  (EQ1: ce = ge.(genv_cenv)) 
+  Import Permutation.
+
+  Lemma _step_freeing_stack cprog f_table modl r b ktr tstate sk ge tge ce tce e te pstate mn m
+  (EQ1: tce = ge.(genv_cenv)) 
+  (EQ2: tge = ge.(genv_genv)) 
   (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+  (MCE: match_ce ce tce)
+  (ME: match_e sk tge e te)
   (PSTATE: pstate "Mem"%string = m↑) 
   (NEXT: forall m', 
-    Mem.free_list m (blocks_of_env ge e) = Some m' ->
+    Mem.free_list m (List.map (map_fst (fun b => pair b 0%Z)) (ClightPlusgen.blocks_of_env ce e)) = Some m' ->
     paco4
       (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
       (ktr (update pstate "Mem" m'↑, ()))
@@ -101,14 +105,13 @@ Section PROOF.
     (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
     (`r0: (p_state * ()) <- 
       (EventsL.interp_Es (prog f_table)
-        (transl_all mn (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e))) 
+        (transl_all mn (free_list_aux (ClightPlusgen.blocks_of_env ce e))) 
         pstate)
       ;; ktr r0) 
     tstate.
   Proof.
     subst. 
-    replace (ConvC2ITreeStmt.blocks_of_env ge e) with (blocks_of_env ge e) by auto.
-    set (blocks_of_env ge e) as l in *. clearbody l.
+    set (ClightPlusgen.blocks_of_env ce e) as l in *. clearbody l.
     depgen m. depgen pstate. induction l; i; ss.
     - sim_red. replace pstate with (update pstate "Mem" m↑).
       2:{ rewrite <- PSTATE. unfold update. apply func_ext. i. des_ifs. }
@@ -116,18 +119,19 @@ Section PROOF.
     - des_ifs_safe. unfold ccallU. sim_red. ss. sim_tau. sim_red. unfold sfreeF.
       sim_red. rewrite PSTATE. repeat (sim_tau; sim_red). unfold unwrapU.
       remove_UBcase. repeat (sim_tau; sim_red). remove_UBcase.
-      eapplyf IHl. et. { unfold update. ss. } i.
+      eapplyf IHl. et. i.
       replace (update (update _ _ _) _ _) with (update pstate "Mem" m'↑); et.
       unfold update. apply func_ext. i. des_ifs.
   Qed.
 
-  Lemma step_freeing_stack cprog f_table modl r b ktr tstate ge sk tge ce e te pstate mn m tm
-  (EQ1: ce = ge.(genv_cenv)) 
+  Lemma step_freeing_stack cprog f_table modl r b ktr tstate ge sk tge tce ce e te pstate mn m tm
+  (EQ1: tce = ge.(genv_cenv)) 
   (EQ2: tge = ge.(genv_genv)) 
   (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
   (PSTATE: pstate "Mem"%string = m↑) 
   (MGE: match_ge sk tge)
   (ME: match_e sk tge e te)
+  (MCE: match_ce ce tce)
   (MM: match_mem sk tge m tm)
   (NEXT: forall m' tm', 
     Mem.free_list tm (blocks_of_env ge te) = Some tm' ->
@@ -141,12 +145,13 @@ Section PROOF.
     (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
     (`r0: (p_state * ()) <- 
       (EventsL.interp_Es (prog f_table)
-        (transl_all mn (free_list_aux (ConvC2ITreeStmt.blocks_of_env ce e))) 
+        (transl_all mn (free_list_aux (ClightPlusgen.blocks_of_env ce e))) 
         pstate)
       ;; ktr r0) 
     tstate.
   Proof.
-    eapply _step_freeing_stack; et. i. eapply match_mem_free_list in H; et.
+    eapply _step_freeing_stack; et. i. eapplyf NEXT; et.
+     eapply match_mem_free_list in H; et.
     des. eapplyf NEXT; et. unfold blocks_of_env, block_of_binding in *.
     apply match_env_same in ME. rewrite ME. set (fun _ => _) as f. rewrite List.map_map.
     set (fun _ => _) as g in TMEM. 
@@ -824,7 +829,7 @@ Section PROOF.
         inv H0. hexploit H1; et. } }
     { i. inv FINAL. inv STEP. }
     { i. inv FINAL0. inv FINAL1. ss. }
-  Qed. *)
+  Qed.
 
 End PROOF.
 
