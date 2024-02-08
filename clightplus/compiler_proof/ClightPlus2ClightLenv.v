@@ -5,21 +5,27 @@ Require Import PCM.
 Require Import AList.
 
 Require Import ClightPlus2ClightMatchEnv.
-Require Import ClightPlusgen.
+Require Import ClightPlusExprgen ClightPlusgen.
 
 Set Implicit Arguments.
 
 Section LENV.
 
-  (* Lemma match_update_le sk defs le tle o v
-        (MLE: match_le sk defs le tle)
+
+
+  Lemma match_update_le sk ge le tle o v
+        (VALID: match o with None => True | Some id => valid_check id = true end)
+        (MLE: match_le sk ge le tle)
     :
-      match_le sk defs (set_opttemp o v le) (set_opttemp o (map_val sk defs v) tle).
+      match_le sk ge (set_opttemp_alist o v le) (set_opttemp o (map_val sk ge v) tle).
   Proof.
-    destruct o; ss. econs. i. inv MLE. destruct (Pos.eq_dec i id).
-    - subst. rewrite PTree.gss in *. clarify.
-    - rewrite PTree.gso in *; et.
-  Qed. *)
+    destruct o; ss. econs. i. inv MLE. destruct (string_dec (string_of_ident p) str).
+    - subst. unfold valid_check in *. rewrite alist_add_find_eq in H. clarify.
+      destruct Pos.eq_dec; ss. rewrite <- e. rewrite PTree.gss. et.
+    - unfold valid_check in *. rewrite alist_add_find_neq in H; et.
+      destruct Pos.eq_dec; ss. rewrite PTree.gso; et. rewrite e. ii.
+      apply ident_of_string_injective in H0. clarify.
+  Qed.
 
 
   Lemma match_sizeof ty ce tce
@@ -88,14 +94,14 @@ Section LENV.
     extensionalities. des_ifs_safe. ss. f_equal. erewrite match_sizeof; et.
   Qed.
 
-  Lemma update_le
+  (* Lemma update_le
         sk defs x id v sv le tle
         (SRC_UPDATE: Maps.PTree.get x (Maps.PTree.set id v tle) = Some sv)
         (MLE: match_le sk defs le tle)
     :
       Maps.PTree.get x (Maps.PTree.set id (map_val sk defs v) tle) = Some (map_val sk defs sv).
   Proof.
-  Admitted.
+  Admitted. *)
 
   Lemma bind_parameter_temps_exists_if_same_length
         params args tle0

@@ -34,9 +34,11 @@ Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
 
 Section ABENVS.
 
-  Definition env : Type := alist positive (block * type).
-  Definition temp_env : Type := alist positive val.
-  Definition comp_env : Type := alist positive composite.
+  Definition env : Type := alist ident (block * type).
+  Definition temp_env : Type := alist string val.
+  Definition comp_env : Type := alist ident composite.
+
+  Definition valid_check id := Coqlib.proj_sumbool (Pos.eq_dec id (ident_of_string (string_of_ident id))).
 
   Fixpoint sizeof (ce: comp_env) (t: type) : Z :=
     match t with
@@ -66,10 +68,10 @@ Section ABENVS.
     | Tpointer _ _ => if Archi.ptr64 then 8%Z else 4%Z
     | Tarray t' _ _ => alignof ce t'
     | Tstruct id _ | Tunion id _ =>
-        match alist_find id ce with
-        | Some co => co_alignof co
-        | None => 1
-        end
+      match alist_find id ce with
+      | Some co => co_alignof co
+      | None => 1
+      end
     | _ => 1
     end.
 
@@ -108,14 +110,14 @@ Section ABENVS.
   Fixpoint create_undef_temps (temps: list (ident * type)) : temp_env :=
     match temps with
     | [] => []
-    | p :: temps' => (fst p, Vundef) :: (create_undef_temps temps')
+    | p :: temps' => (string_of_ident (fst p), Vundef) :: (create_undef_temps temps')
     end.
 
   Fixpoint bind_parameter_temps (formals: list (ident * type))
     (vargs: list val) (le: temp_env) : option temp_env :=
     match formals, vargs with
     | [], [] => Some le
-    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (fst p) v le)
+    | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (string_of_ident (fst p)) v le)
     | _, _ => None
     end.
 
@@ -217,6 +219,8 @@ Section EVAL_EXPR_COMP.
       : itree eff val :=
       match a with
       | Evar id ty =>
+        if negb (valid_check id) then triggerUB
+        else
         match alist_find id e with
         | Some (l, ty') =>
           if type_eq ty ty' then Ret (Vptr l Ptrofs.zero)
@@ -233,7 +237,7 @@ Section EVAL_EXPR_COMP.
         else triggerUB
       | Efield a i ty =>
         v <- _eval_expr_c a;;
-        if negb (is_ptr_val v ) then triggerUB
+        if negb (is_ptr_val v) then triggerUB
         else match Clight.typeof a with
              | Tstruct id att =>
                 co <- (alist_find id ce)?;;
@@ -783,7 +787,9 @@ Section EVAL_EXPR_COMP.
     | Econst_float f ty => Ret (Vfloat f)
     | Econst_single f ty => Ret (Vsingle f)
     | Econst_long i ty => Ret (Vlong i)
-    | Etempvar id ty => (alist_find id le)?
+    | Etempvar id ty => 
+        if negb (valid_check id) then triggerUB
+        else (alist_find (string_of_ident id) le)?
     | Eaddrof a ty =>
       _eval_lvalue_c eval_expr_c a
     | Eunop op a ty =>

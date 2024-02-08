@@ -26,6 +26,8 @@ Section MATCH.
   (* composite env should be fixed when src program is fixed*)
   Variable ce : comp_env.
 
+  Variable tce : composite_env.
+
   (* ModSem should be fixed with src too *)
   Variable ms : ModSemL.t.
 
@@ -33,6 +35,7 @@ Section MATCH.
 
   (* clightplus state should be expressed by two constructs, stmt and cont *)
   Definition clightplus_state := itree eventE Any.t.
+
 
   Definition Es_to_eventE {A} (ms: ModSemL.t) (mn: string) (local_itr: itree Es A) (local_states: p_state) :=
      EventsL.interp_Es (ModSemL.prog ms) (transl_all mn local_itr) local_states.
@@ -196,7 +199,7 @@ Section MATCH.
                               triggerUB
                               triggerUB
                               (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;;
-                          v <- optv'?;; tau;; Ret (e', (match optid with Some id => alist_add id v le' | None => le' end), None, None))) 
+                          v <- optv'?;; tau;; Ret (e', (match optid with Some id => alist_add (string_of_ident id) v le' | None => le' end), None, None))) 
                                       (* this is for modsem *)
       (CONT_ENV_MATCH: match_e sk tge e' te')
       (CONT_LENV_MATCH: match_le sk tge le' tle')
@@ -214,6 +217,7 @@ Section MATCH.
   | match_states_intro
       tf pstate e te le tle tcode m tm tcont mn itr_code itr_cont itr
       (MGE: match_ge sk tge)
+      (MCE: match_ce ce tce)
       (ME: match_e sk tge e te)
       (ML: match_le sk tge le tle)
       (PSTATE: pstate "Mem"%string = m↑)

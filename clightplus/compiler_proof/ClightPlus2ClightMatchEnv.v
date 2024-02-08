@@ -65,7 +65,7 @@ Section MATCH.
   Variant match_ge : Prop :=
   | match_ge_intro
       (WFSK: Sk.wf sk)
-      (MGE: forall id idx, SkEnv.id2blk (load_skenv sk) (string_of_ident id) = Some idx -> Genv.find_symbol tge id = Some (map_blk (Pos.of_succ_nat idx)))
+      (MGE: forall str idx, SkEnv.id2blk (load_skenv sk) str = Some idx -> Genv.find_symbol tge (ident_of_string str) = Some (map_blk (Pos.of_succ_nat idx)))
       (ELEM: forall s n gd, nth_error sk n = Some (s, gd) -> Genv.find_def tge (map_blk (Pos.of_succ_nat n)) = Some gd)
     :
       match_ge.
@@ -78,7 +78,7 @@ Section MATCH.
   Variant match_le : ClightPlusExprgen.temp_env -> temp_env -> Prop :=
   | match_le_intro
       sle tle 
-      (ML: forall id sv, alist_find id sle = Some sv -> Maps.PTree.get id tle = Some (map_val sv))
+      (ML: forall str sv, alist_find str sle = Some sv -> Maps.PTree.get (ident_of_string str) tle = Some (map_val sv))
     :
       match_le sle tle.
 
@@ -89,7 +89,7 @@ Section MATCH.
   Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
-      (ENVWF: NoDup se)
+      (ENVWF: NoDup (map fst se))
       (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry se))
     :
       match_e se te.
@@ -135,7 +135,7 @@ Section MATCH.
       alist_find i ce = None -> tce ! i = None.
   Proof.
     i. destruct (tce ! i) eqn:?; et. apply PTree.elements_correct in Heqo. 
-    inv MCE. rewrite MCE0 in Heqo. clarify.
+    inv MCE. rewrite MCE0 in Heqo. unfold ident in *. clarify.
   Qed.
 
   Variant match_mem : Memory.Mem.mem -> Memory.Mem.mem -> Prop :=

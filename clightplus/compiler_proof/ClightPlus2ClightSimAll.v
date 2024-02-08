@@ -150,23 +150,19 @@ Section PROOF.
       ;; ktr r0) 
     tstate.
   Proof.
-    eapply _step_freeing_stack; et. i. eapplyf NEXT; et.
-     eapply match_mem_free_list in H; et.
-    des. eapplyf NEXT; et. unfold blocks_of_env, block_of_binding in *.
-    apply match_env_same in ME. rewrite ME. set (fun _ => _) as f. rewrite List.map_map.
-    set (fun _ => _) as g in TMEM. 
-    replace (f ∘ _) with (g ∘ f); try rewrite <- List.map_map; et.
-    unfold g, f, map_env_entry. eapply func_ext. i. des_ifs.
+    eapply _step_freeing_stack; et. i. eapply match_mem_free_list in H; et.
+    des. eapplyf NEXT; et.
   Qed.
 
-  Lemma step_eval_exprlist pstate ge ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_eval_exprlist pstate ge tce ce f_table modl cprog sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
     (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
+    (MCE: match_ce ce tce)
     (MM: match_mem sk tge m tm)
     al tyl
  r b tcode tf tcont mn ktr
@@ -188,8 +184,8 @@ Section PROOF.
   Proof.
     depgen tyl. revert ktr. induction al; i.
     - ss. remove_UBcase. eapplyf NEXT. econs.
-    - ss. remove_UBcase. eapply step_eval_expr with (ge:=ge); et. i. sim_red. eapply IHal. i.
-      sim_red. eapply step_sem_cast; et. i. destruct optv; remove_UBcase. eapplyf NEXT. econs; et.
+    - ss. remove_UBcase. eapply step_eval_expr with (ge:=ge); et. i. clarify. sim_red. eapply IHal. i.
+      sim_red. eapply step_sem_cast; et. i. sim_red. eapplyf NEXT. econs; et.
   Qed.
 
   Lemma step_alloc pstate f_table modl cprog sk tge m tm
@@ -197,68 +193,77 @@ Section PROOF.
     (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (MM: match_mem sk tge m tm)
-    lo hi
+    sz
     tstate ktr b r mn
     (NEXT: forall tm' m' blk,
-            Mem.alloc tm lo hi = (tm', map_blk sk tge blk) ->
+            Mem.alloc tm 0 sz = (tm', map_blk sk tge blk) ->
             match_mem sk tge m' tm' ->
             paco4
               (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-              (ktr (update pstate "Mem" m'↑, Vptr blk Ptrofs.zero))
+              (ktr (update pstate "Mem" m'↑, blk))
               tstate)
 :
     paco4
       (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-      (`r0: p_state * val <- 
+      (`r0: p_state * block <- 
         (EventsL.interp_Es
           (prog f_table)
-          (transl_all mn (ccallU "salloc" (lo, hi))) 
+          (transl_all mn (ccallU "salloc" sz)) 
           pstate);; ktr r0)
       tstate.
   Proof.
     unfold ccallU. sim_red. sim_tau. ss. sim_red. unfold sallocF. sim_red. repeat (sim_tau; sim_red).
-    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). rewrite Any.upcast_downcast.
+    rewrite PSTATE. sim_red. unfold unwrapU. remove_UBcase. repeat (sim_tau; sim_red). 
+    rewrite Any.upcast_downcast.
     sim_red. hexploit match_mem_alloc; et. i. des. eapplyf NEXT; et. 
   Qed.
 
   Lemma match_update_e sk tge e te i blk t
         (MLE: match_e sk tge e te)
     :
-      match_e sk tge (Maps.PTree.set i (blk, t) e) (Maps.PTree.set i (map_blk sk tge blk, t) te).
+      match_e sk tge (alist_add i (blk, t) e) (Maps.PTree.set i (map_blk sk tge blk, t) te).
   Proof.
-    econs. inv MLE. split; i.
+    inv MLE. econs; et.
+    { apply alist_add_nodup. et. }
+    split; i.
     - destruct a. apply Maps.PTree.elements_complete in H.
       rewrite in_map_iff. destruct (Pos.eq_dec p i).
       + subst. rewrite Maps.PTree.gss in H. clarify. 
-        exists (i, (blk, t)). split; et. apply Maps.PTree.elements_correct.
-        rewrite Maps.PTree.gss. et.
+        exists (i, (blk, t)). split; et. ss. et.
       + rewrite Maps.PTree.gso in H; et. apply Maps.PTree.elements_correct in H.
         apply ME in H. apply in_map_iff in H. des. eexists; split; et.
-        destruct x. destruct p1. ss. clarify.
-        apply Maps.PTree.elements_complete in H0.
-        apply Maps.PTree.elements_correct. rewrite Maps.PTree.gso; et.
+        destruct x. destruct p1. simpl in H. clarify.
+        eapply alist_find_some.
+        rewrite alist_add_find_neq; et.
+        apply alist_find_some_iff; et.
     - destruct a. rewrite in_map_iff in H. des. destruct x. destruct p1.
-      ss. clarify. apply Maps.PTree.elements_complete in H0.
-      apply Maps.PTree.elements_correct.
+      simpl in H. clarify. apply Maps.PTree.elements_correct.
       destruct (Pos.eq_dec p i).
-      + subst. rewrite Maps.PTree.gss in *. clarify.
-      + rewrite Maps.PTree.gso in H0; et. rewrite Maps.PTree.gso; et.
+      + subst. rewrite Maps.PTree.gss in *. eapply alist_find_some_iff in H0.
+        * rewrite alist_add_find_eq in H0. clarify.
+        * apply alist_add_nodup. et.
+      + rewrite Maps.PTree.gso; et.
         apply Maps.PTree.elements_complete.
-        apply Maps.PTree.elements_correct in H0. rewrite ME.
+        rewrite ME.
         change ((_, (_,_))) with (map_env_entry sk tge (p, (b, t0))). 
-        apply in_map. et.
+        apply in_map.
+        eapply alist_find_some_iff in H0; cycle 1.
+        { apply alist_add_nodup. et. }
+        rewrite alist_add_find_neq in H0; et.
+        apply alist_find_some in H0. et.
   Qed.
 
   Lemma update_shadow V pstate (x: string) (v v': V) : update (update pstate x v) x v' = update pstate x v'.
   Proof. unfold update. apply func_ext. i. des_ifs. Qed.
 
-  Lemma step_alloc_variables pstate ge ce f_table modl cprog sk tge e te m tm
+  Lemma step_alloc_variables pstate ge tce ce f_table modl cprog sk tge e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
     (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
+    (MCE: match_ce ce tce)
     (MM: match_mem sk tge m tm)
     l
  r b tstate mn ktr 
@@ -273,7 +278,7 @@ Section PROOF.
   :
     paco4
       (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-      (`r0: (p_state * env) <- 
+      (`r0: (p_state * ClightPlusExprgen.env) <- 
         (EventsL.interp_Es
           (prog f_table)
           (transl_all mn (alloc_variables_c ce e l))
@@ -288,12 +293,12 @@ Section PROOF.
     - ss. remove_UBcase. eapply step_alloc; et. i. eapply IHl; et. 
       2:{ eapply match_update_e; et. }
       i. rewrite update_shadow. eapply NEXT; et. econs; et.
+      erewrite match_sizeof; et.
   Qed.
 
-  
   Lemma match_bind_parameter_temps
         sk tge params sle rvs sbase tbase
-        (BIND_SRC: bind_parameter_temps params rvs sbase = Some sle)
+        (BIND_SRC: ClightPlusExprgen.bind_parameter_temps params rvs sbase = Some sle)
         (MLE: match_le sk tge sbase tbase)
     :
       exists tle, (<<BIND_TGT: bind_parameter_temps params (List.map (map_val sk tge) rvs) tbase
@@ -306,8 +311,11 @@ Section PROOF.
       induction params; i; ss; des_ifs.
       ss. f_equal. eapply IHparams; eauto.
     - i. des. eexists; split; et. red. depgen sbase. depgen sle. depgen rvs. revert tbase tle. depgen params.
-      induction params; i; ss; des_ifs.
-      eapply (match_update_le (Some i) v) in MLE. ss. inv Heq. eapply IHparams; et.
+      induction params; i; ss; des_ifs. simpl in Heq. clarify.
+      eapply IHparams. 2:et. 1:et.
+      inv MLE. econs.
+      i. destruct (dec id i). { subst. rewrite alist_add_find_eq in H. clarify. rewrite Maps.PTree.gss. et. }
+      rewrite Maps.PTree.gso; et. rewrite alist_add_find_neq in H; et.
   Qed.
 
   Lemma norepet l : id_list_norepet_c l = true -> Coqlib.list_norepet l.
@@ -320,12 +328,13 @@ Section PROOF.
     unfold Coqlib.list_disjoint in *. eapply l0; et. 
   Qed.
 
-  Lemma step_function_entry pstate ge ce f_table modl cprog sk tge m tm
+  Lemma step_function_entry pstate ge tce ce f_table modl cprog sk tge m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ1: ce = ge.(genv_cenv)) 
+    (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
     (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
     (MGE: match_ge sk tge)
+    (MCE: match_ce ce tce)
     (MM: match_mem sk tge m tm)
     f vl
  r b tstate mn ktr
@@ -341,7 +350,7 @@ Section PROOF.
   :
     paco4
       (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-      (`r0: (p_state * (env * temp_env)) <- 
+      (`r0: (p_state * (ClightPlusExprgen.env * ClightPlusExprgen.temp_env)) <- 
         (EventsL.interp_Es
           (prog f_table)
           (transl_all mn (function_entry_c ce f vl))
@@ -350,12 +359,13 @@ Section PROOF.
   Proof.
     unfold function_entry_c. remove_UBcase.
     eapply step_alloc_variables with (te := empty_env); et.
-    { econs. i. ss. }
+    { econs; ss. econs. }
     i. sim_red. unfold unwrapU. remove_UBcase. hexploit (match_bind_parameter_temps sk ge); et.
     { instantiate (1:=create_undef_temps (fn_temps f)). econs. i. clear -H2. set (fn_temps f) as l in *. clearbody l.
-      induction l; ss. destruct a. destruct (Pos.eq_dec id i); try solve [subst; rewrite Maps.PTree.gss in *; clarify].
-      rewrite Maps.PTree.gso; et.
-      rewrite Maps.PTree.gso in H2; et. }
+      induction l; ss. destruct a. destruct (Pos.eq_dec id i). 
+      { subst. rewrite Maps.PTree.gss. ss. rewrite eq_rel_dec_correct in H2. des_ifs. }
+      rewrite Maps.PTree.gso; et. ss. rewrite eq_rel_dec_correct in H2. des_ifs.
+      apply IHl; et. }
     i. des. eapply NEXT; et. bsimpl. des.  
     econs; et. { apply norepet; et. } { apply norepet; et. }
     apply disjoint; et.
@@ -369,17 +379,17 @@ Section PROOF.
     (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
     v ty
- r b tcode tf tcont mn ktr
-    (NEXT: forall optb, 
-            Cop.bool_val (map_val sk tge v) ty tm = optb ->
+ r bflag tcode tf tcont mn ktr
+    (NEXT: forall b, 
+            Cop.bool_val (map_val sk tge v) ty tm = Some b ->
             paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-              (ktr (pstate, optb))
+              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true bflag
+              (ktr (pstate, b))
               (State tf tcode tcont te tle tm))
   :
     paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
-      (`r0: (p_state * option bool) <- 
+      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true bflag
+      (`r0: (p_state * bool) <- 
         (EventsL.interp_Es
           (prog f_table)
           (transl_all mn (bool_val_c v ty))
@@ -388,13 +398,12 @@ Section PROOF.
   Proof.
     unfold bool_val_c. 
     remove_UBcase; try solve [eapply NEXT; unfold Cop.bool_val; rewrite Heq; et].
-    eapply step_weak_valid_pointer; et. i.
-    destruct b1; sim_red;
-      eapply NEXT; unfold Cop.bool_val; rewrite Heq; ss; des_ifs.
+    eapply step_non_null_ptr; et. i.
+    eapply NEXT; unfold Cop.bool_val; rewrite Heq; ss; des_ifs.
   Qed.
 
   Arguments Es_to_eventE /.
-  Arguments itree_of_code /. 
+  Arguments itree_of_stmt /. 
   Arguments sloop_iter_body_two /. 
   Arguments ktree_of_cont_itree /. 
 
@@ -447,15 +456,147 @@ Section PROOF.
   Lemma call_cont_is_call_cont tcont : is_call_cont (call_cont tcont).
   Proof. induction tcont; et; ss. Qed.
 
+  Require Import CIProofMode.
+
+  Lemma number_same_stmt eff CAL EV sk ce p p' retty stmt : @decomp_stmt eff CAL EV sk ce p retty stmt = @decomp_stmt eff CAL EV sk ce p' retty stmt.
+  Proof.
+    revert p p' retty. induction stmt; ss.
+    - i. unfold hide. extensionalities. sim_redE. do 2 f_equal. erewrite IHstmt1.
+      eapply bind_extk. i. des_ifs_safe. erewrite IHstmt2. et. 
+    - i. unfold hide. extensionalities. sim_redE. do 2 f_equal. sim_redE.
+      erewrite IHstmt1. erewrite IHstmt2. et.
+    - i. unfold hide. unfold _sloop_itree. unfold hide.
+      erewrite IHstmt1. erewrite IHstmt2. et.
+  Qed.
+
+  Lemma number_same_sloop eff EV'' CAL' CAL EV' EV p p' sk ce e le retty s1 s2 : @_sloop_itree eff EV'' p e le (fun p => @decomp_stmt eff CAL EV sk ce p retty s1) (fun p => @decomp_stmt eff CAL' EV' sk ce p retty s2) = @_sloop_itree eff EV'' p' e le (fun p => @decomp_stmt eff CAL EV sk ce p retty s1) (fun p => @decomp_stmt eff CAL' EV' sk ce p retty s2).
+  Proof.
+    unfold _sloop_itree. unfold hide. ss. f_equal. f_equal. f_equal.
+    - erewrite number_same_stmt; et.
+    - erewrite number_same_stmt; et. 
+  Qed.
+
+  Ltac rewriter :=
+    try match goal with
+        | H: _ = _ |- _ => rewrite H in *
+        end; clarify.
+
+  Ltac inv_pred P :=
+    repeat match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => inv H
+              end
+            end; repeat rewriter.
+
+  Ltac inv_pred_safe P :=
+    solve [match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => inv H
+              end
+            end; repeat rewriter].
+
+  Ltac determ LEMMA P :=
+    repeat match goal with
+            | H: context G [P] |- _ =>
+              lazymatch context G [P] with
+              | forall _, _  => fail
+              | _ => revert H
+              end
+            end;
+    let X1 := fresh "X" in
+    let X2 := fresh "X" in
+    intros X1 X2;
+    hexploit LEMMA; [eapply X1|eapply X2|]; i; des; repeat rewriter.
+
+  Lemma Clight_eval_determ a ge e le m
+    :
+      (forall v0 v1
+             (EXPR0: eval_expr ge e le m a v0)
+             (EXPR1: eval_expr ge e le m a v1),
+        v0 = v1) /\
+      (forall vp0 vp1
+             (EXPR0: eval_lvalue ge e le m a vp0)
+             (EXPR1: eval_lvalue ge e le m a vp1),
+        vp0 = vp1).
+  Proof.
+    revert_until a.
+    induction a; split; i;
+      inv EXPR0; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
+        inv EXPR1; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
+         try split; rewriter; et; repeat spc IHa; des; try determ IHa eval_expr.
+    { inv_pred eval_lvalue; inv_pred deref_loc. }
+    { inv_pred eval_lvalue; determ IHa eval_expr; inv_pred deref_loc. }
+    { determ IHa0 eval_lvalue. }
+    { repeat spc IHa1. repeat spc IHa2. des. exploit (IHa1 v2 v4); et. i. subst.
+      exploit (IHa2 v3 v5); et. i. subst. rewriter. }
+    { inv_pred eval_lvalue; determ IHa eval_expr; inv_pred deref_loc. }
+  Qed.
+
+  Lemma Clight_eval_expr_determ a ge e le m
+    :
+      forall v0 v1
+             (EXPR0: eval_expr ge e le m a v0)
+             (EXPR1: eval_expr ge e le m a v1),
+        v0 = v1.
+  Proof. edestruct Clight_eval_determ; et. Qed.
+
+  Lemma Clight_eval_lvalue_determ a ge e le m
+    :
+      forall vp0 vp1
+             (EXPR0: eval_lvalue ge e le m a vp0)
+             (EXPR1: eval_lvalue ge e le m a vp1),
+        vp0 = vp1.
+  Proof. edestruct Clight_eval_determ; et. Qed.
+
+  Lemma Clight_eval_exprlist_determ a
+    :
+      forall v0 v1 ge e le m ty
+             (EXPR0: eval_exprlist ge e le m a ty v0)
+             (EXPR1: eval_exprlist ge e le m a ty v1),
+        v0 = v1.
+  Proof.
+    induction a; ss.
+    { i. inv EXPR0. inv EXPR1. auto. }
+    { i. inv EXPR0. inv EXPR1.
+      determ Clight_eval_expr_determ eval_expr.
+      determ IHa eval_exprlist. }
+  Qed.
+
+  Lemma alloc_variables_determ vars
+    :
+      forall e0 e1 ge ee m m0 m1
+             (ALLOC0: alloc_variables ge ee m vars e0 m0)
+             (ALLOC1: alloc_variables ge ee m vars e1 m1),
+        e0 = e1 /\ m0 = m1.
+  Proof.
+    induction vars; et.
+    { i. inv ALLOC0; inv ALLOC1; auto. }
+    { i. inv ALLOC0; inv ALLOC1; auto. rewriter.
+      eapply IHvars; et. }
+  Qed.
+
+  Lemma Csharpminor_wf_semantics prog
+    :
+      wf_semantics (Clight.semantics2 prog).
+  Proof.
+    econs.
+    { i. inv FINAL. inv STEP. }
+    { i. inv FINAL0. inv FINAL1. ss. }
+  Qed.
+
   Theorem match_states_sim
-          sk
+          sk ce
           (modl internal_modl: ModL.t) ms
           (clight_prog : program) ist cst
           (MODL: modl = ModL.add (Mod.lift Mem) internal_modl)
-          (INTERNAL: forall s fd, In (s, (Gfun fd (V := type))↑) internal_modl.(ModL.sk) -> exists f : Clight.function, fd = Internal f)
+          (INTERNAL: forall s fd, In (s, Gfun fd) internal_modl.(ModL.sk) -> exists f : Clight.function, fd = Internal f)
           (MODSEML: ms = modl.(ModL.enclose))
-          (SK: sk = Sk.sort modl.(ModL.sk))
-          (MS: match_states sk (Genv.globalenv clight_prog) (Ctypes.prog_comp_env clight_prog) ms ist cst)
+          (SK: sk = Sk.canon modl.(ModL.sk))
+          (MS: match_states sk (Genv.globalenv clight_prog) ce (Ctypes.prog_comp_env clight_prog) ms ist cst)
   :
       <<SIM: sim (@ModL.compile _ EMSConfigC modl) (Clight.semantics2 clight_prog) false false ist cst>>.
   Proof.
@@ -463,73 +604,114 @@ Section PROOF.
     depgen ist. depgen cst. pcofix CIH. i.
     inv MS. des_ifs_safe.
     set (Genv.globalenv _) as tge in *.
-    set (Ctypes.prog_comp_env _) as ce in *.
-    set (Sk.sort (ModL.sk (ModL.add Mem internal_modl))) as sk in *.
+    set (Ctypes.prog_comp_env _) as tce in *.
+    set (Sk.canon (ModL.sk (ModL.add Mem internal_modl))) as sk in *.
     set (ModL.add _ _) as modl in *.
-    set {| genv_genv := tge; genv_cenv := ce |} as ge.
+    set {| genv_genv := tge; genv_cenv := tce |} as ge.
+    assert (GCEQ: globalenv clight_prog = ge) by ss.
     destruct tcode.
-    - ss. sim_red. 
+    - ss. unfold hide. sim_red.
       destruct tcont; inv MCONT; ss; clarify.
       + sim_red. sim_tau. sim_red. eapplyfarg step_freeing_stack ge.
         i. sim_red. sim_triggerUB. 
-      + sim_red. tgt_step; [econs|].
-        sim_tau. wrap_up. apply CIH. econs; et.
-      + sim_red. tgt_step; [econs; et|].
-        sim_tau. wrap_up. apply CIH. econs; et. 
+      + sim_red. pfold. econs 4.
+        { i. inv H; et. }
+        { eexists. econs. } i.
+        inv STEP; ss. sim_tau. 
+        econs 8; et. right. apply CIH. econs; et.
+      + sim_red. pfold. econs 4.
+        { i. inv H; et. }
+        { eexists. econs. et. } i.
+        inv STEP; ss. sim_tau. 
+        econs 8; et. right. apply CIH. econs; et. 
         { econs; et. }
         sim_redE. apply bind_extk. i. des_ifs_safe.
         repeat (des_ifs; sim_redE; try reflexivity).
-      + sim_red. tgt_step; [econs; et|]. 
-        sim_tau. sim_red. sim_tau. wrap_up. apply CIH.
-        econs; et.
+      + sim_red. pfold. econs 4.
+        { i. inv H; et. }
+        { eexists. econs. } i.
+        inv STEP; ss. sim_tau. 
+        sim_red. sim_tau.
+        econs 8; et. right. apply CIH.
+        econs; et. erewrite number_same_sloop; et.
       + sim_red. sim_tau. sim_red. eapplyfarg step_freeing_stack ge.
-        i. sim_red. tgt_step. { econs; unfold is_call_cont; et. }
-        sim_tau. tgt_step; [econs|].
-        econs 7;[|des_ifs|];et. right. eapply CIH.
+        i. sim_red. pfold. econs 4.
+        { i. inv H1; et. }
+        { eexists. econs; et. ss. } i.
+        inv STEP; ss. sim_tau. 
+        econs 4.
+        { i. inv H1; et. }
+        { eexists. econs; et. } i.
+        inv STEP; ss.
+        econs 8;[|des_ifs|];et. right. eapply CIH.
+        rewrite GCEQ in H8. clarify.
         clear PSTATE. econs; et.
         { hexploit match_update_le; et. instantiate (2 := Vundef). ss. et. }
         { instantiate (1 := update pstate "Mem" (Any.upcast m')). ss. }
-        ss. sim_redE. et.
-    - ss. unfold _sassign_c. sim_red. sim_tau. sim_red.
+        ss. unfold hide. sim_redE. et.
+    Local Opaque sem_cast_c.
+    - ss. unfold hide. sim_red. sim_tau. sim_red.
       eapplyfarg step_eval_lvalue ge. i. subst. sim_red.
       eapply step_eval_expr with (ge := ge); et. i. subst. sim_red.
       eapply step_sem_cast; et. i.
       unfold unwrapU. des_ifs; try sim_red; try sim_triggerUB.
       eapply step_assign_loc; et. i. sim_red.
-      tgt_step. { econs; et. }
-      wrap_up. eapply CIH. clear PSTATE.
+      pfold. econs 4.
+      { i. inv H4; et. }
+      { eexists. econs; et. } i.
+      inv STEP; des; clarify. ss.
+      econs 8; et. right. eapply CIH. clear PSTATE.
+      assert (m'0 = tm').
+      { determ Clight_eval_lvalue_determ eval_lvalue.
+        determ Clight_eval_expr_determ eval_expr.
+        unfold tce in *. inv_pred assign_loc; des; clarify. }
+      subst.
       econs; et.
       { instantiate (1 := update pstate "Mem" m'↑). unfold update. ss. } 
-      ss. sim_redE. et.
-    - ss. sim_red. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. subst. sim_red. 
-      tgt_step. { econs; et. }
-      wrap_up. eapply CIH. econs; et.
+      ss. unfold hide. sim_redE. et.
+    - ss. unfold hide. sim_red. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. subst. sim_red. 
+      pfold. econs 4.
+      { i. inv H0; et. }
+      { eexists. econs; et. } i.
+      inv STEP; des; clarify. ss. 
+      econs 8; et. right. eapply CIH. rewrite GCEQ in H8. 
+      determ Clight_eval_expr_determ eval_expr.
+      econs; et.
       { change (Maps.PTree.set i _ _) with (set_opttemp (Some i) (map_val sk ge v') tle). eapply match_update_le; et. }
-      ss. sim_redE. et. 
-    - ss. unfold _scall_c. remove_UBcase. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. sim_red.
+      ss. unfold hide. sim_redE. et. 
+    - ss. unfold hide. remove_UBcase. sim_tau. sim_red. eapplyfarg step_eval_expr ge. i. sim_red.
       eapply step_eval_exprlist with (ge := ge); et. i. remove_UBcase. destruct (nth_error _) eqn: E; remove_UBcase.
-      destruct p. destruct (Any.downcast _) eqn: E1; remove_UBcase. remove_UBcase. remove_UBcase.
-      unfold ccallU. sim_red. repeat (sim_tau; sim_red).
-      assert (E2: t0 = (@Gfun _ type f)↑).
-      { apply Any.downcast_upcast in E1. et. }
-      rewrite E2 in *. tgt_step.
-      { econs; ss; et. ss. des_ifs. unfold Genv.find_funct_ptr. 
+      destruct p. remove_UBcase. destruct type_eq.
+      2:{ remove_UBcase. }
+      pfold. econs 4.
+      { i. inv H0; et. }
+      { eexists. econs; et. unfold Genv.find_funct. ss. des_ifs. unfold Genv.find_funct_ptr.
         change (Genv.globalenv _) with tge.
         inv MGE. replace b with (Pos.of_succ_nat (pred (Pos.to_nat b))) by nia.
-        erewrite ELEM; et. et. }
-      apply nth_error_In in E. dup E. unfold sk in E0. 
-      apply Sk.sort_incl_rev in E0. simpl in E0.
+        erewrite ELEM; et. et. } i.
+      inv STEP; des; clarify. ss. rewrite GCEQ in H11, H12.
+      determ Clight_eval_expr_determ eval_expr.
+      determ Clight_eval_exprlist_determ eval_exprlist.
+      apply nth_error_In in E. dup E.
+      
+       unfold sk in E0. 
+      pose proof Sk.le_canon_rev. simpl in H. unfold ClightPlusSkel.incl in *.
+      apply H in E0. ss. clear H.
       des.
-      + clarify. ss. unfold mallocF. sim_red. repeat (sim_tau; sim_red).
+      Local Transparent ccallU.
+      + clarify. ss. unfold ccallU. sim_red. ss. unfold mallocF. repeat (sim_tau; sim_red).
         rewrite PSTATE. sim_red. remove_UBcase. des_ifs_safe. sim_red. unfold unwrapU. remove_UBcase.
         repeat (sim_tau; sim_red). rewrite Any.upcast_downcast. sim_red.
-        apply (f_equal (Any.downcast (T := globdef fundef type))) in H2.
-        do 2 rewrite Any.upcast_downcast in H2. clarify.
-        destruct i. ss.
-        eapply match_mem_alloc in Heq1; et. clear E. destruct Heq1 as [? [? ?]].
-        eapply match_mem_store in Heq2; et. destruct Heq2 as [? [? ?]].
-        assert (Zneg xH < intval < Ptrofs.modulus)%Z by now change Int64.modulus with Ptrofs.modulus; et.
-        set {| Ptrofs.intval := intval; Ptrofs.intrange := H5|} as i.
+
+        eapply match_mem_alloc in Heq0; et. clear E. destruct Heq0 as [? [? ?]].
+        eapply match_mem_store in Heq1; et. destruct Heq1 as [? [? ?]].
+        econs 4.
+        { i. inv H3; et. ss. }
+      { eexists. econs; et. unfold Genv.find_funct. ss. des_ifs. unfold Genv.find_funct_ptr.
+        change (Genv.globalenv _) with tge.
+        inv MGE. replace b with (Pos.of_succ_nat (pred (Pos.to_nat b))) by nia.
+        erewrite ELEM; et. et. } i.
+
         replace (Vlong _) with (Vptrofs i) in *.
         2:{ unfold Vptrofs. des_ifs_safe. unfold Ptrofs.to_int64. unfold i. ss.
             change intval with (Int64.unsigned (Int64.mkint intval intrange)).
@@ -670,22 +852,6 @@ Section PROOF.
   Qed.
 
 
-  Ltac rewriter :=
-    try match goal with
-        | H: _ = _ |- _ => rewrite H in *
-        end; clarify.
-  Ltac determ LEMMA P :=
-    repeat match goal with
-            | H: context G [P] |- _ =>
-              lazymatch context G [P] with
-              | forall _, _  => fail
-              | _ => revert H
-              end
-            end;
-    let X1 := fresh "X" in
-    let X2 := fresh "X" in
-    intros X1 X2;
-    hexploit LEMMA; [eapply X1|eapply X2|]; i; des; repeat rewriter.
 
   (* Ltac determ LEMMA P :=
     repeat match goal with
@@ -716,120 +882,7 @@ Section PROOF.
     let n := numgoals in
     guard n0<n. *)
 
-  Ltac inv_pred P :=
-    repeat match goal with
-            | H: context G [P] |- _ =>
-              lazymatch context G [P] with
-              | forall _, _  => fail
-              | _ => inv H
-              end
-            end; repeat rewriter.
 
-  Ltac inv_pred_safe P :=
-    solve [match goal with
-            | H: context G [P] |- _ =>
-              lazymatch context G [P] with
-              | forall _, _  => fail
-              | _ => inv H
-              end
-            end; repeat rewriter].
-
-  Lemma Clight_eval_determ a ge e le m
-    :
-      (forall v0 v1
-             (EXPR0: eval_expr ge e le m a v0)
-             (EXPR1: eval_expr ge e le m a v1),
-        v0 = v1) /\
-      (forall loc0 loc1 ofs0 ofs1 bf0 bf1
-             (EXPR0: eval_lvalue ge e le m a loc0 ofs0 bf0)
-             (EXPR1: eval_lvalue ge e le m a loc1 ofs1 bf1),
-        loc0 = loc1 /\ ofs0 = ofs1 /\ bf0 = bf1).
-  Proof.
-    revert_until a.
-    induction a; split; i;
-      inv EXPR0; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
-        inv EXPR1; try inv_pred_safe eval_expr; try inv_pred_safe eval_lvalue;
-         try split; rewriter; et; repeat spc IHa; des; try determ IHa eval_expr.
-    { inv_pred eval_lvalue; inv_pred deref_loc. }
-    { inv_pred eval_lvalue; determ IHa eval_expr; inv_pred deref_loc. }
-    { determ IHa0 eval_lvalue. }
-    { repeat spc IHa1. repeat spc IHa2. des. exploit (IHa1 v2 v4); et. i. subst.
-      exploit (IHa2 v3 v5); et. i. subst. rewriter. }
-    { inv_pred eval_lvalue; determ IHa eval_expr;
-      inv_pred deref_loc; inv_pred Cop.load_bitfield. }
-  Qed.
-
-  Lemma Clight_eval_expr_determ a ge e le m
-    :
-      forall v0 v1
-             (EXPR0: eval_expr ge e le m a v0)
-             (EXPR1: eval_expr ge e le m a v1),
-        v0 = v1.
-  Proof. edestruct Clight_eval_determ; et. Qed.
-
-  Lemma Clight_eval_lvalue_determ a ge e le m
-    :
-      forall loc0 loc1 ofs0 ofs1 bf0 bf1
-             (EXPR0: eval_lvalue ge e le m a loc0 ofs0 bf0)
-             (EXPR1: eval_lvalue ge e le m a loc1 ofs1 bf1),
-        loc0 = loc1 /\ ofs0 = ofs1 /\ bf0 = bf1.
-  Proof. edestruct Clight_eval_determ; et. Qed.
-
-  Lemma Clight_eval_exprlist_determ a
-    :
-      forall v0 v1 ge e le m ty
-             (EXPR0: eval_exprlist ge e le m a ty v0)
-             (EXPR1: eval_exprlist ge e le m a ty v1),
-        v0 = v1.
-  Proof.
-
-    induction a; ss.
-    { i. inv EXPR0. inv EXPR1. auto. }
-    { i. inv EXPR0. inv EXPR1.
-      determ Clight_eval_expr_determ eval_expr.
-      determ IHa eval_exprlist. }
-  Qed.
-
-  Lemma alloc_variables_determ vars
-    :
-      forall e0 e1 ge ee m m0 m1
-             (ALLOC0: alloc_variables ge ee m vars e0 m0)
-             (ALLOC1: alloc_variables ge ee m vars e1 m1),
-        e0 = e1 /\ m0 = m1.
-  Proof.
-    induction vars; et.
-    { i. inv ALLOC0; inv ALLOC1; auto. }
-    { i. inv ALLOC0; inv ALLOC1; auto. rewriter.
-      eapply IHvars; et. }
-  Qed.
-
-  Lemma Csharpminor_wf_semantics prog
-    :
-      wf_semantics (Clight.semantics2 prog).
-  Proof.
-    econs.
-    { i. inv STEP0; inv STEP1; ss; rewriter;
-      try split; et;
-        inv_pred assign_loc; 
-        try determ Clight_eval_expr_determ eval_expr; 
-        try determ Clight_eval_lvalue_determ eval_lvalue;
-        des; clarify.
-      { inv_pred Cop.store_bitfield. }
-      { determ Clight_eval_exprlist_determ eval_exprlist. }
-      { determ Clight_eval_exprlist_determ eval_exprlist. 
-        hexploit external_call_determ; [eapply H0|eapply H13|]. i. des.
-        inv H. hexploit H1; et. i. des. clarify. }
-      { determ Clight_eval_exprlist_determ eval_exprlist. 
-        hexploit external_call_determ; [eapply H0|eapply H13|]. i. des.
-        inv H. hexploit H1; et. }
-      { inv_pred function_entry2. determ alloc_variables_determ alloc_variables. }
-      { hexploit external_call_determ; [eapply H|eapply H9|]. i. des.
-        inv H0. hexploit H1; et. i. des. clarify. }
-      { hexploit external_call_determ; [eapply H|eapply H9|]. i. des.
-        inv H0. hexploit H1; et. } }
-    { i. inv FINAL. inv STEP. }
-    { i. inv FINAL0. inv FINAL1. ss. }
-  Qed.
 
 End PROOF.
 

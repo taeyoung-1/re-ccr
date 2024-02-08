@@ -55,7 +55,7 @@ Section MEM.
   Proof.
     i. inv MGE. red. unfold map_blk. des_ifs; try nia.
     - eapply Genv.genv_symb_range. et.
-    - apply load_skenv_wf in WFSK. unfold SkEnv.wf in WFSK. apply WFSK in Heq. rewrite <- (string_of_ident_of_string s) in Heq. apply MGE0 in Heq. clarify.
+    - apply load_skenv_wf in WFSK. unfold SkEnv.wf in WFSK. apply WFSK in Heq. apply MGE0 in Heq. clarify.
     - assert (H0: (Init.Nat.pred (Pos.to_nat blk) < length sk)%nat) by nia.
       apply nth_error_Some in H0. unfold load_skenv in Heq. ss. uo. des_ifs.
   Qed.
@@ -91,8 +91,6 @@ Section MEM.
       clear T1 T2. 
       apply load_skenv_wf in WFSK. red in WFSK. unfold SkEnv.wf in WFSK. 
       apply WFSK in H0. apply WFSK in H1.
-      rewrite <- (string_of_ident_of_string s) in H0.
-      rewrite <- (string_of_ident_of_string s0) in H1.
       dup H0. dup H1.
       apply MGE0 in H2. apply MGE0 in H3. des_ifs; clarify.
       destruct (Pos.eq_dec (ident_of_string s) (ident_of_string s0)); cycle 1.
@@ -291,7 +289,7 @@ Section MEM.
     rewrite H. rewrite <- map_map.
     apply Permutation_map. inv ME. apply NoDup_Permutation; cycle 2.
     { i. rewrite ME0. refl. }
-    { apply FinFun.Injective_map_NoDup; et. red. i. unfold map_env_entry in H0. des_ifs_safe. hexploit map_blk_inj; et. i. clarify. }
+    { apply FinFun.Injective_map_NoDup; et. red. i. unfold map_env_entry in H0. des_ifs_safe. hexploit map_blk_inj; et. i. clarify. eapply NoDup_map_inv; et. }
     { hexploit (PTree.elements_keys_norepet te). i. rewrite <- CoqlibC.NoDup_norepet in H0. apply NoDup_map_inv in H0. et. }
   Qed.
 

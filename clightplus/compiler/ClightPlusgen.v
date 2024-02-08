@@ -30,6 +30,8 @@ Variable sk: Sk.t.
 Let skenv: SkEnv.t := load_skenv sk.
 Variable ce: comp_env.
 
+Definition set_opttemp_alist optid v (le: temp_env) := match optid with Some id => alist_add (string_of_ident id) v le | None => le end.
+
 Definition id_list_norepet_c: list ident -> bool :=
   fun ids => if Coqlib.list_norepet_dec (ident_eq) ids then true else false.
 
@@ -229,25 +231,40 @@ Section DECOMP.
     | Sset id a =>
       tau;;
       v <- eval_expr_c sk ce e le a ;;
-      let le' := alist_add id v le in
+      if negb (valid_check id) then triggerUB
+      else
+      let le' := alist_add (string_of_ident id) v le in
       Ret (e, le', None, None)
     | Scall optid a al =>
         v <- _scall_c e le a al;;
-        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
+        if match optid with 
+           | Some id => if valid_check id then true
+                        else false 
+           | None => true
+           end
+        then Ret (e, set_opttemp_alist optid v le, None, None)
+        else triggerUB
     | Sbuiltin optid ef tyargs al =>
       tau;;
       vargs <- eval_exprlist_c sk ce e le al tyargs;;
-      match ef with
-      | EF_malloc => v <- ccallU "malloc" vargs;;
-        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
-      | EF_free => v <- ccallU "free" vargs;;
-        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
-      | EF_capture => v <- ccallU "capture" vargs;;
-        Ret (e, (match optid with Some id => alist_add id v le | None => le end), None, None)
-      (* this is for builtin memcpy, uncallable in standard C *)
-      (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
-      | _ => triggerUB
-      end
+      if match optid with 
+         | Some id => if valid_check id then true
+                        else false 
+         | None => true
+         end
+      then
+        match ef with
+        | EF_malloc => v <- ccallU "malloc" vargs;;
+          Ret (e, set_opttemp_alist optid v le, None, None)
+        | EF_free => v <- ccallU "free" vargs;;
+          Ret (e, set_opttemp_alist optid v le, None, None)
+        | EF_capture => v <- ccallU "capture" vargs;;
+          Ret (e, set_opttemp_alist optid v le, None, None)
+        (* this is for builtin memcpy, uncallable in standard C *)
+        (* | EF_memcpy al sz => ccallU "memcpy" (al, sz, vargs) *)
+        | _ => triggerUB
+        end
+      else triggerUB
     | Ssequence s1 s2 =>
       '(e', le', bc, v) <- tau;;decomp_stmt (xO p) retty s1 e le;;
                         (* this is for steps *)
