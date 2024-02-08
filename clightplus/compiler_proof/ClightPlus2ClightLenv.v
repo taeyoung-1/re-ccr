@@ -5,6 +5,7 @@ Require Import PCM.
 Require Import AList.
 
 Require Import ClightPlus2ClightMatchEnv.
+Require Import ClightPlusgen.
 
 Set Implicit Arguments.
 
@@ -75,6 +76,16 @@ Section LENV.
       + eapply cenv_match_none in Heqo0; et. clarify.
       + eapply cenv_match_some in Heqo0; et. clarify.
       + et.
+  Qed.
+
+  Lemma match_block_of_binding tce ce ge
+        (EQ1: tce = ge.(genv_cenv))
+        (MCE: match_ce ce tce)
+    : 
+        Clight.block_of_binding ge = (map_fst (fun b => (b, 0%Z))) ∘ (ClightPlusgen.block_of_binding ce).
+  Proof.
+    unfold Clight.block_of_binding, ClightPlusgen.block_of_binding.
+    extensionalities. des_ifs_safe. ss. f_equal. erewrite match_sizeof; et.
   Qed.
 
   Lemma update_le

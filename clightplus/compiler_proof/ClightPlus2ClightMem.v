@@ -11,6 +11,7 @@ Require Import ClightPlusMem0.
 Require Import ClightPlusSkel ClightPlusExprgen ClightPlusgen.
 Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightArith.
+Require Import ClightPlus2ClightLenv.
 
 From compcert Require Import Clight Clightdefs.
 
@@ -255,13 +256,12 @@ Section MEM.
       i. rewrite <- H9. et.
   Qed.
 
-
-  (* Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
+  Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
         (SMEM: Mem.free_list m (List.map (map_fst (fun b => (b, 0%Z))) (ClightPlusgen.blocks_of_env ce e)) = Some m')
         (EQ1: tce = ge.(genv_cenv))
         (EQ2: tge = ge.(genv_genv))
         (MGE: match_ge sk tge)
-        (ME: match_e sk ge e te)
+        (ME: match_e sk tge e te)
         (MCE: match_ce ce tce)
         (MM_PRE: match_mem sk tge m tm)
     :
@@ -270,7 +270,9 @@ Section MEM.
         (<<MM_POST: match_mem sk tge m' tm'>>).
   Proof.
     hexploit _match_mem_free_list; et. i. des.
-    rewrite map_map in TMEM.
+    unfold ClightPlusgen.blocks_of_env in TMEM.
+    rewrite (map_map (ClightPlusgen.block_of_binding ce)) in TMEM.
+    erewrite <- match_block_of_binding in TMEM; et.
     set (map _ _) as l in TMEM.
     set (blocks_of_env ge te) as l'.
     assert (Permutation l l'); cycle 1.
@@ -280,12 +282,18 @@ Section MEM.
       { rewrite <- H2. et. }
       { i. rewrite <- H4. et. }
       { rewrite <- H3. et. } }
-    unfold l, l'. unfold ClightPlusgen.blocks_of_env, blocks_of_env.
-    rewrite map_map. clear - MCE ME.
-    inv ME. 
-      
-
-  Qed. *)
+    unfold l, l'. clearbody l l'.
+    unfold blocks_of_env.
+    rewrite map_map. clear - MCE ME MGE.
+    set (fun _ => _) as f.
+    assert (f = (block_of_binding ge) ∘ (map_env_entry sk tge)).
+    { unfold f, block_of_binding, map_env_entry. extensionalities. des_ifs_safe. destruct p. ss. clarify. }
+    rewrite H. rewrite <- map_map.
+    apply Permutation_map. inv ME. apply NoDup_Permutation; cycle 2.
+    { i. rewrite ME0. refl. }
+    { apply FinFun.Injective_map_NoDup; et. red. i. unfold map_env_entry in H0. des_ifs_safe. hexploit map_blk_inj; et. i. clarify. }
+    { hexploit (PTree.elements_keys_norepet te). i. rewrite <- CoqlibC.NoDup_norepet in H0. apply NoDup_map_inv in H0. et. }
+  Qed.
 
   Lemma match_mem_getN f (c d: ZMap.t memval) n p
     (MM: forall i mv, c !! i = mv -> d !! i = f mv)

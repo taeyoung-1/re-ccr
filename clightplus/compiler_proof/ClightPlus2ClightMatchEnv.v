@@ -89,6 +89,7 @@ Section MATCH.
   Variant match_e : ClightPlusExprgen.env -> env -> Prop :=
   | match_e_intro
       se te 
+      (ENVWF: NoDup se)
       (ME: forall a, In a (Maps.PTree.elements te) <-> In a (List.map map_env_entry se))
     :
       match_e se te.
