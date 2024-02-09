@@ -215,7 +215,6 @@ Section PROOF.
     destruct lfull.
     (* case: nil list *)
     { 
-      (* admit "solved". *)
       ss.
       iDestruct "LIST" as "[NULL_hd NULL_tl]".
       iPoseProof (equiv_sym with "NULL_tl") as "NULL_tl". iPoseProof (null_equiv with "NULL_tl") as "%". subst.
@@ -530,7 +529,6 @@ Section PROOF.
     destruct lfull.
     (* case: nil list *)
     { 
-      (* admit "solved". *)
       ss.
       iDestruct "LIST" as "[NULL_tl NULL_hd]".
       iPoseProof (equiv_sym with "NULL_hd") as "NULL_hd". iPoseProof (null_equiv with "NULL_hd") as "%". subst.
@@ -777,7 +775,6 @@ Section PROOF.
     destruct linput as [|v lnext].
     (* case: nil list *)
     {
-      (* admit "solved". *)
       ss.
       iDestruct "LIST" as "[NULL_hd NULL_tl]".
       iPoseProof (null_equiv with "NULL_hd") as "%". subst.
@@ -858,7 +855,6 @@ Section PROOF.
     destruct lnext.
     (* case: delete from singleton list *)
     - 
-      (* admit "solved". *)
       ss. iDestruct "LIST" as "[tl_equiv NULL_next]".
       iPoseProof (equiv_sym with "NULL_next") as "H". iPoseProof (null_equiv with "H") as "%". rewrite H3. clear H3 i_tl_prev.
       iApply isim_ccallU_cmp_ptr0; ss; oauto.
@@ -1066,7 +1062,6 @@ Section PROOF.
     destruct linput as [|v lnext].
     (* case: nil list *)
     {
-      (* admit "solved". *)
       ss.
       iDestruct "LIST" as "[NULL_tl NULL_hd]".
       iPoseProof (null_equiv with "NULL_tl") as "%". subst.
@@ -1147,7 +1142,6 @@ Section PROOF.
     destruct lnext.
     (* case: delete from singleton list *)
     - 
-      (* admit "solved". *)
       ss. iDestruct "LIST" as "[tl_equiv NULL_next]".
       iPoseProof (equiv_sym with "NULL_next") as "H". iPoseProof (null_equiv with "H") as "%". rewrite H3. clear H3 i_hd_next.
       iApply isim_ccallU_cmp_ptr0; ss; oauto.

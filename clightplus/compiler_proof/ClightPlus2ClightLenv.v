@@ -91,15 +91,6 @@ Section LENV.
     extensionalities. des_ifs_safe. ss. f_equal. erewrite match_sizeof; et.
   Qed.
 
-  (* Lemma update_le
-        sk defs x id v sv le tle
-        (SRC_UPDATE: Maps.PTree.get x (Maps.PTree.set id v tle) = Some sv)
-        (MLE: match_le sk defs le tle)
-    :
-      Maps.PTree.get x (Maps.PTree.set id (map_val sk defs v) tle) = Some (map_val sk defs sv).
-  Proof.
-  Admitted. *)
-
   Lemma bind_parameter_temps_exists_if_same_length
         params args tle0
         (LEN: List.length params = List.length args)

@@ -917,24 +917,6 @@ Section RULES.
     des_ifs; try solve [iDestruct "A" as "[_ A]"; iDestruct "A" as (ofs) "[? []]"].
   Qed.
 
-  (* Lemma offset_notnull 
-      vaddr m tg q ofs
-    : 
-      vaddr (⊨_m,tg,q) ofs ** ⌜valid m ofs⌝ ⊢ ⌜vaddr <> Vnullptr⌝.
-  Proof.
-    iIntros "[A %]". unfold has_offset. des_ifs.
-    iDestruct "A" as "[_ A]".
-    unfold _has_offset. des_ifs.
-    iDestruct "A" as "[_ A]".
-    iDestruct "A" as (a) "[A %]".
-    iPureIntro. unfold valid in *. des. clarify. 
-    assert (X: i <> Int64.zero); try solve [red; intro X'; apply X; inv X'; ss].
-    red. i. subst.
-    replace (Ptrofs.unsigned _) with (Ptrofs.max_unsigned - Ptrofs.unsigned a) in H3.
-    2:{ admit "with H5". }
-    nia.
-  Qed. *)
-
   Lemma offset_notundef
       p m tg q ofs
     : 

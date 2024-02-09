@@ -29,9 +29,6 @@ Global Instance EMSConfigC: EMSConfig := {|
 |}
 .
 
-Definition admit (excuse: String.string) {T: Type} : T.  Admitted.
-Tactic Notation "admit" constr(excuse) := idtac excuse; exact (admit excuse).
-
 Section ABENVS.
 
   Definition env : Type := alist ident (block * type).
