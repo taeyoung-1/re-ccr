@@ -16,7 +16,6 @@ From Ordinal Require Import Ordinal Arithmetic.
 Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightMatchStmt.
 Require Import ClightPlus2ClightArith.
-Require Import ClightPlus2ClightGenv.
 Require Import ClightPlus2ClightLenv.
 Require Import ClightPlus2ClightMem.
 Require Import ClightPlus2ClightSim.
