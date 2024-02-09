@@ -38,7 +38,6 @@ Makefile.coq: Makefile $(COQTHEORIES)
          echo "-R ems $(COQMODULE)"; \
          echo "-R spc $(COQMODULE)"; \
          echo "-R proofmode $(COQMODULE)"; \
-         echo "-R extract $(COQMODULE)"; \
          echo "-R clightplus $(COQMODULE)"; \
          echo "-R clightplus_examples $(COQMODULE)"; \
    echo $(COQTHEORIES)) > _CoqProject
