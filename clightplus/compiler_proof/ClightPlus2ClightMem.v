@@ -731,4 +731,94 @@ Section MEM.
     - hexploit match_to_int; et. i. rewrite H in Heqo. clarify.
   Qed.
 
+  Lemma match_capture m tm sk tge b addr tm'
+    (MM: match_mem sk tge m tm)
+    (MGE: match_ge sk tge)
+    (TCAP: Mem.capture tm (map_blk sk tge b) addr tm')
+  : 
+    exists m', match_mem sk tge m' tm' /\ Mem.capture m b addr m'.
+  Proof.
+    dup TCAP. inv TCAP. inv MM.
+    assert (Mem.valid_block m b).
+    { unfold Mem.valid_block in *. rewrite NBLK in VALID. clear - INITIALIZED MGE VALID.
+      unfold map_blk in VALID at 2.
+      destruct le_dec; try nia. des_ifs; try nia.
+      destruct (Coqlib.plt b (Pos.of_succ_nat (List.length sk))).
+      { unfold Coqlib.Plt in p0. hexploit (@map_blk_global_region sk tge b); et.
+        nia. unfold Coqlib.Plt in *. nia. }
+      unfold Coqlib.Plt in *.
+      unfold map_blk in VALID. destruct le_dec; try nia.
+      des_ifs; try nia. }
+    rewrite <- MEM_CONC in *.
+    destruct ((Mem.mem_concrete m) ! b) eqn:E.
+    - hexploit PREVADDR; et. i. des. clarify. exists m. split.
+      + assert (tm = tm'). { apply mem_eq; et. } rewrite <- H0. econs; et.
+      + econs; et. 
+        { i. clarify. }
+        { i. rewrite E in H0. clarify. }
+    - hexploit CAPTURED; et. i.
+      assert (exists mem, mem.(Mem.mem_contents) = m.(Mem.mem_contents) /\ mem.(Mem.mem_access) = m.(Mem.mem_access) /\ mem.(Mem.nextblock) = m.(Mem.nextblock) /\ mem.(Mem.mem_concrete) = PTree.set b addr m.(Mem.mem_concrete)).
+      { econs. instantiate (1:= Mem.mkmem _ _ _ _ _ _ _ _ _ _ _ _). ss. }
+      des.
+      exists mem. split.
+      + econs. { rewrite H3. et. } { rewrite H3. rewrite <- NEXTBLOCK. et. } { rewrite H1. rewrite <- CONTENTS. et. }
+        { rewrite H2. rewrite <- ACCESS. et. } { rewrite H4. rewrite H0. i. destruct (Pos.eq_dec b b0). { subst. rewrite ! Maps.PTree.gss. et. } rewrite !Maps.PTree.gso; et. ii. hexploit map_blk_inj; et. }
+      + econs; et. i. rewrite E in H5. clarify.
+    Unshelve.
+        { apply m.(Mem.access_max). }
+        { apply m.(Mem.nextblock_noaccess). }
+        { apply m.(Mem.contents_default). }
+        { i. unfold Coqlib.Plt in *. destruct (Pos.eq_dec b0 b). { subst. clarify. }
+          rewrite Maps.PTree.gso; et. apply m.(Mem.nextblocks_logical). et. }
+        { i. inv IN_BLOCK. destruct (Pos.eq_dec bo b); cycle 1.
+          { rewrite Maps.PTree.gso in CONCRETE; et.
+            eapply m.(Mem.valid_address_bounded). econs; et. }
+          subst. rewrite Maps.PTree.gss in CONCRETE. clarify.
+          des. rewrite MEM_PERM in PERM. eapply tm'.(Mem.valid_address_bounded).
+          econs; et. 2:{ rewrite <- ACCESS. exists perm. et. }
+          rewrite H0. rewrite Maps.PTree.gss. et. }
+        { i. red. i. inv H1. inv H2. des. destruct (Pos.eq_dec x b); cycle 1.
+          { rewrite Maps.PTree.gso in CONCRETE; et.
+            destruct (Pos.eq_dec y b); cycle 1.
+            { rewrite Maps.PTree.gso in CONCRETE0; et.
+              pose proof (m.(Mem.no_concrete_overlap)). red in H1. eapply H1.
+              all: econs; et. }
+            subst. rewrite Maps.PTree.gss in CONCRETE0. clarify.
+            rewrite MEM_PERM in PERM.
+            rewrite MEM_PERM in PERM0. 
+            rewrite ACCESS in PERM.
+            rewrite ACCESS in PERM0.
+            pose proof (tm'.(Mem.no_concrete_overlap)). red in H1. hexploit H1.
+            { econs; et. rewrite H0. rewrite Maps.PTree.gss. et. }
+            { rewrite MEM_CONC in CONCRETE. econs.
+              { rewrite H0. rewrite Maps.PTree.gso; et. ii. hexploit map_blk_inj; et. }
+              { et. } nia. } 
+            i. eapply map_blk_inj; et. }
+          subst. rewrite Maps.PTree.gss in CONCRETE. clarify.
+          destruct (Pos.eq_dec y b).
+          { subst. rewrite Maps.PTree.gss in CONCRETE0. clarify. }
+          rewrite Maps.PTree.gso in CONCRETE0; et.
+          rewrite MEM_PERM in PERM.
+          rewrite MEM_PERM in PERM0. 
+          rewrite ACCESS in PERM.
+          rewrite ACCESS in PERM0.
+          pose proof (tm'.(Mem.no_concrete_overlap)). red in H1. hexploit H1.
+          { rewrite MEM_CONC in CONCRETE0. econs.
+            { rewrite H0. rewrite Maps.PTree.gso; et. ii. hexploit map_blk_inj; et. }
+            { et. } nia. }
+          { econs. 2:{ exists perm0. et. } { rewrite H0. rewrite Maps.PTree.gss. et. } nia. }
+          i. eapply map_blk_inj; et. }
+        { i. destruct (Pos.eq_dec b b0); cycle 1.
+          { rewrite Maps.PTree.gso in CADDR; et. eapply m.(Mem.concrete_align); et. }
+          subst. rewrite Maps.PTree.gss in CADDR. clarify.
+          eapply tm'.(Mem.concrete_align); et. rewrite H0. rewrite Maps.PTree.gss; et.
+          rewrite <- ACCESS. rewrite <- MEM_PERM. et. }
+        { i. destruct (Pos.eq_dec b b0); cycle 1.
+          { rewrite Maps.PTree.gso in CADDR; et. eapply m.(Mem.weak_valid_address_range); et. }
+          subst. rewrite Maps.PTree.gss in CADDR. clarify.
+          eapply tm'.(Mem.weak_valid_address_range); et. rewrite H0. rewrite Maps.PTree.gss; et.
+          rewrite <- ACCESS. red. unfold Mem._valid_pointer. rewrite <- MEM_PERM. et. }
+  Qed.
+
+
 End MEM.

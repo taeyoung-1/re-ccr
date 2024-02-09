@@ -934,83 +934,220 @@ Section PROOF.
       + ss. unfold ccallU. sim_red. ss. unfold captureF. sim_tau. sim_red.
         sim_tau. repeat ((repeat sim_red); sim_tau). sim_red. rewrite PSTATE.
         rewrite Any.upcast_downcast. sim_red. remove_UBcase.
-
-
-    - ss. sim_red. sim_tau. tgt_step. { econs. }
-      wrap_up. eapply CIH. econs; et.
+        * sim_tau. sim_red.
+          econs 4.
+          { i. inv H0; et. inv H13; et. determ Clight_eval_exprlist_determ eval_exprlist. }
+          { eexists. econs; et. econs. et. }
+          i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+          inv H12.
+          { determ Clight_eval_exprlist_determ eval_exprlist. }
+          { determ Clight_eval_exprlist_determ eval_exprlist. }
+          determ Clight_eval_exprlist_determ eval_exprlist.
+          econs 8; et. right. apply CIH; et.
+          econs; et.
+          { change (Vlong n) with (map_val sk tge (Vlong n)). eapply match_update_le; et. }
+          ss. unfold hide. sim_redE. et.
+        * destruct Coqlib.plt; clarify. unfold Coqlib.Plt in *. ss.
+          destruct (classic (exists taddr tm', Mem.capture tm (map_blk sk tge b) taddr tm')).
+          ** rewrite bind_trigger.
+             econs 6. { ss. }
+            { i. inv H1; et. inv H14; et. unfold Mem.capture_oom in OOM. des. exfalso.
+              determ Clight_eval_exprlist_determ eval_exprlist.
+              red in OOM0. eapply OOM0; et. }
+            { des. eexists. econs; et. econs; et. }
+            i. inv STEP. ss.
+            determ Clight_eval_exprlist_determ eval_exprlist.
+            inv H13. 2:{ des; clarify. } 2:{ des; clarify. }
+            hexploit match_capture; et. i. des.
+            eexists. eexists. { econs. }
+            instantiate (1:= (exist _ (addr, m'0) H1)).
+            left. sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. sim_tau.
+            sim_red. econs 8; et. right. apply CIH. des_ifs. clear PSTATE. econs; et.
+            { change (Vlong _) with (map_val sk tge (Vlong (Int64.repr (addr + Ptrofs.unsigned i)))). eapply match_update_le; et. }
+            { instantiate (1:=update pstate "Mem" m'0↑). et. }
+            ss. unfold hide. sim_redE. clear. unfold Vptrofs. des_ifs.
+            unfold Ptrofs.to_int64.
+            set (Int64.repr _) as t.
+            set (Int64.repr _) as t'.
+            assert (t = t').
+            { unfold t, t'. apply Int64.eqm_samerepr. apply Int64.eqm_sym.
+              apply Int64.eqm_unsigned_repr. }
+            rewrite H. et.
+          ** econs 7.
+            { eexists. eexists. econs; et. econs. red.
+              split. 2:{ ii. apply H0. et. }
+              unfold Mem.valid_block. unfold Coqlib.Plt.
+              inv MM. rewrite NBLK. unfold map_blk at 2.
+              destruct le_dec; try nia. des_ifs; try nia.
+              destruct (Coqlib.plt b (Pos.of_succ_nat (List.length sk))).
+              { unfold Coqlib.Plt in p1. hexploit (@map_blk_global_region sk tge b); et.
+                nia. i. rewrite <- Pos.ltb_lt. rewrite Pos2Z.inj_ltb. red in H1.
+                rewrite <- Pos.ltb_lt in H1. rewrite Pos2Z.inj_ltb in H1. nia. }
+              unfold Coqlib.Plt in n. 
+              hexploit (@map_blk_local_region sk tge b); et. nia.
+              i. unfold map_blk. destruct le_dec; try nia.
+              des_ifs; try nia. }
+            i. inv H1. 2:{ des; clarify. } 2:{ des; clarify. }
+            ss. determ Clight_eval_exprlist_determ eval_exprlist.
+            inv H14; et; exfalso. apply H0. et.
+    - ss. unfold hide. sim_red. sim_tau.
+      econs 4. { i. inv H; et. }
+      { eexists. econs. }
+      i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+      econs 8; et. right. eapply CIH. econs; et.
       { econs; et. }
-      ss. sim_redE. apply bind_extk. i. des_ifs_safe.
+      ss. unfold hide. erewrite (number_same_stmt _ _ _ _ _ 2).
+      erewrite (number_same_stmt _ _ _ _ _ 3).
+      erewrite (number_same_stmt _ _ _ _ _ 1).
+      sim_redE. apply bind_extk. i. des_ifs_safe.
       unfold itree_of_cont_pop.
       repeat (des_ifs; sim_redE; try reflexivity).
-    - ss. sim_red. unfold _site_c. sim_red. sim_tau.
-      sim_red. eapplyfarg step_eval_expr ge.
-      i. sim_red. eapply step_bool_val; et. i. unfold unwrapU. remove_UBcase.
-      tgt_step. { econs; et. }
-      wrap_up. eapply CIH. econs; et.
+    - ss. unfold hide. sim_red. sim_tau. sim_red.
+      eapplyfarg step_eval_expr ge.
+      i. eapply step_bool_val; et. i.
+      pfold. econs 4. { i. inv H2; et. }
+      { eexists. econs; et. rewrite H0. et. }
+      i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+      econs 8; et. right. eapply CIH. econs; et.
+      ss. unfold hide. determ Clight_eval_expr_determ eval_expr.
+      erewrite (number_same_stmt _ _ _ _ _ 3).
+      erewrite (number_same_stmt _ _ _ _ _ 2).
       repeat (des_ifs; sim_redE; try reflexivity).
-    - ss. unfold _sloop_itree. rewrite unfold_itree_iter.
+    - ss. unfold hide. unfold _sloop_itree. rewrite unfold_itree_iter. unfold hide.
       ss. unfold sloop_iter_body_one. sim_red. sim_tau.
-      tgt_step. { econs. } 
-      wrap_up. eapply CIH. econs; et.
+      econs 4. { i. inv H; et. }
+      { eexists. econs; et. }
+      i. inv STEP. 2:{ des; clarify. } 2:{ des; clarify. }
+      econs 8; et. right. eapply CIH. econs; et.
       { econs; et. }
+      ss. unfold hide.
+      erewrite (number_same_stmt _ _ _ _ _ 4).
+      erewrite (number_same_stmt _ _ _ _ _ 5).
+      erewrite (number_same_stmt _ _ _ _ _ 1).
       unfold _sloop_itree.
       sim_redE. apply bind_extk. i. 
       unfold itree_of_cont_pop.
       repeat (des_ifs; progress (sim_redE; grind)).
-    - ss. destruct tcont; inv MCONT; ss; clarify.
+      erewrite (number_same_stmt _ _ _ _ _ 5 _ _ tcode2).
+      apply bind_extk. i. des_ifs_safe.
+      repeat (des_ifs; progress (sim_redE; grind)).
+      + erewrite (number_same_stmt _ _ _ _ _ 1 _ _ tcode2).
+        unfold hide.
+        erewrite (number_same_stmt _ _ _ _ _ 2 _ _ tcode1).
+        erewrite (number_same_stmt _ _ _ _ _ 3 _ _ tcode2).
+        apply bind_extk. i. des_ifs_safe.
+      + erewrite (number_same_stmt _ _ _ _ _ 2 _ _ tcode1).
+        unfold hide.
+        erewrite (number_same_stmt _ _ _ _ _ 1 _ _ tcode2).
+        erewrite (number_same_stmt _ _ _ _ _ 3 _ _ tcode2).
+        apply bind_extk. i. des_ifs_safe.
+      + erewrite (number_same_stmt _ _ _ _ _ 2 _ _ tcode1).
+        unfold hide.
+        erewrite (number_same_stmt _ _ _ _ _ 1 _ _ tcode2).
+        erewrite (number_same_stmt _ _ _ _ _ 3 _ _ tcode2).
+        apply bind_extk. i. des_ifs_safe.
+      + erewrite (number_same_stmt _ _ _ _ _ 5 _ _ tcode2).
+        unfold hide.
+        erewrite (number_same_stmt _ _ _ _ _ 2 _ _ tcode1).
+        erewrite (number_same_stmt _ _ _ _ _ 1 _ _ tcode2).
+        apply bind_extk. i. des_ifs_safe. sim_redE.
+        apply bind_extk. i. des_ifs_safe. sim_redE.
+        destruct o1.
+        * sim_redE. et.
+        * sim_redE. do 2 f_equal. sim_redE.
+          apply bind_extk. i. des_ifs_safe.
+    - ss. unfold hide. destruct tcont; inv MCONT; ss; clarify.
       + sim_red. sim_triggerUB.
-      + sim_red. sim_tau. sim_red. tgt_step. { econs. }
-        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
-      + sim_tau. sim_red. tgt_step. { eapply step_break_loop1. }  
-        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
-      + tgt_step. { eapply step_break_loop2. }  
-        sim_red. sim_tau. sim_red. wrap_up. eapply CIH. econs; et.
-        ss. sim_redE. et. 
+      + sim_red. sim_tau. sim_red.
+        econs 4. { i. inv H. et. }
+        { eexists. econs. }
+        i. inv STEP.
+        econs 8; et. right. eapply CIH. econs; et. ss. unfold hide. sim_redE. et.
+      + sim_tau. sim_red.
+        econs 4. { i. inv H; et. }
+        { eexists. eapply step_break_loop1. }
+        i. inv STEP. { des; clarify. } 
+        econs 8; et. right. eapply CIH. econs; et. ss. unfold hide. sim_redE. et.
+      + pfold. econs 4. { i. inv H; et. }
+        { eexists. eapply step_break_loop2. }
+        i. inv STEP. sim_red. sim_tau. sim_red.
+        econs 8; et. right. eapply CIH. econs; et. ss. unfold hide. sim_redE. et.
       + sim_red. sim_triggerUB.
-    - ss. destruct tcont; inv MCONT; ss; clarify.
+    - ss. unfold hide. destruct tcont; inv MCONT; ss; clarify.
       + sim_red. sim_triggerUB.
-      + sim_red. sim_tau. sim_red. tgt_step. { econs. }
-        wrap_up. eapply CIH. econs; et. ss. sim_redE. et.
-      + sim_red. sim_tau. sim_red. tgt_step. { econs. et. }  
-        wrap_up. eapply CIH. econs; et. { econs; et. } 
-        ss. apply bind_extk. i. sim_redE. des_ifs_safe.
+      + sim_red. sim_tau. sim_red.
+        econs 4. { i. inv H. et. }
+        { eexists. econs. }
+        i. inv STEP.
+        econs 8; et. right. eapply CIH. econs; et. ss. unfold hide. sim_redE. et.
+      + sim_red. sim_tau. sim_red.
+        econs 4. { i. inv H. et. }
+        { eexists. econs; et. }
+        i. inv STEP.
+        econs 8; et. right. eapply CIH. econs; et. { econs; et. } ss. unfold hide. sim_redE. et.
+        apply bind_extk. i. sim_redE. des_ifs_safe.
         repeat (des_ifs; sim_redE; try reflexivity).
       + sim_red. sim_triggerUB. 
       + sim_red. sim_triggerUB.
-    - ss. unfold _sreturn_c. destruct o; cycle 1.
+    - ss. unfold hide. unfold _sreturn_c. destruct o; cycle 1.
       + sim_tau. sim_red. eapplyf return_cont; et. i.
         rewrite H0. clear H0. remember (call_cont tcont) as tcont'. 
         inv H; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H3; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
           sim_red. sim_triggerUB.
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          sim_red. sim_tau. sim_red. tgt_step. { econs; et. }
-          tgt_step. { rewrite <- H3. econs. }
-          wrap_up. eapply CIH. clear PSTATE. econs; et. 
+          sim_red. sim_tau. sim_red.
+          econs 4. { i. inv H1; et. }
+          { eexists. econs; et. }
+          i. inv STEP. { des; clarify. } 2:{ des; clarify. }
+          econs 4. { i. inv H1; et. }
+          { eexists. rewrite <- H3. econs; et. }
+          i. inv STEP.
+          econs 8; et. right. eapply CIH.
+          ss. rewrite GCEQ in H8. rewrite H in H8. clarify. rewrite <- H3 in H4. clarify.
+          clear PSTATE. econs; et. 
           { change Vundef with (map_val sk tge Vundef). eapply match_update_le; et. }
           { instantiate (1 := update pstate "Mem" m'↑). et. }
-          ss. sim_redE. et. 
+          ss. unfold hide. sim_redE. et. 
       + sim_tau. sim_red. eapplyfarg step_eval_expr ge.
-        i. sim_red. eapply step_sem_cast; et. i. unfold unwrapU.
-        remove_UBcase. eapply return_cont; et. i.
-        rewrite H3. clear H3 itr_cont''. remember (call_cont tcont) as tcont'. 
-        inv H0; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify].
+        i. eapply step_sem_cast; et. i. sim_red.
+        eapply return_cont; et. i.
+        rewrite H3. clear H3 itr_cont''. remember (call_cont tcont) as tcont'.
+        inv H2; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H6; clarify].
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          sim_red. remove_UBcase. tgt_step. { econs; et. }
+          sim_red. remove_UBcase.
+          pfold. econs 4. { i. inv H3; et. }
+          { eexists. econs; et. }
+          i. inv STEP. { des; clarify. } 2:{ des; clarify. }
+          ss. rewrite GCEQ in H11. determ Clight_eval_expr_determ eval_expr.
           econs 1.
           2:{ ss. rewrite <- H6. econs. }
           ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et.
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i.
-          sim_red. sim_tau. sim_red. tgt_step. { econs; et. }
-          tgt_step. { rewrite <- H6. econs. }
-          wrap_up. eapply CIH. clear PSTATE. econs; et.
+          sim_red. sim_tau. sim_red.
+          econs 4. { i. inv H3; et. }
+          { eexists. econs; et. }
+          i. inv STEP. { des; clarify. } 2:{ des; clarify. }
+          ss. rewrite GCEQ in H11. determ Clight_eval_expr_determ eval_expr.
+          econs 4. { i. inv H; et. }
+          { eexists. rewrite <- H6. econs; et. }
+          i. inv STEP.
+          econs 8; et. right. eapply CIH. clear PSTATE.
+          ss. rewrite <- H6 in H1. clarify. econs; et.
           { eapply match_update_le; et. }
           { instantiate (1 := update pstate "Mem" m'↑). et. }
-          ss. sim_redE. et.
+          ss. unfold hide. sim_redE. et.
     (* switch, label, goto is undefined *)
-    - ss. sim_triggerUB.
-    - ss. sim_triggerUB.
-    - ss. sim_triggerUB.
+    - ss. unfold hide. sim_triggerUB.
+    - ss. unfold hide. sim_triggerUB.
+    - ss. unfold hide. sim_triggerUB.
+    Unshelve. all: exact xH.
   Qed.
 
 
