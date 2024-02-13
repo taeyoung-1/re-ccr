@@ -65,7 +65,7 @@ Section PROOF.
 
   Definition KRepeat: KMod.t := {|
     KMod.get_modsem := KRepeatSem;
-    KMod.sk := [("repeat", Sk.Gfun)];
+    KMod.sk := [("repeat", Gfun↑)];
   |}
   .
 

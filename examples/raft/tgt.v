@@ -30,7 +30,7 @@ Section H.
   .
   Definition H: Mod.t := {|
     Mod.get_modsem := fun _ => HSem;
-    Mod.sk := [("popH", Sk.Gfun ); ("pushH", Sk.Gfun)];
+    Mod.sk := [("popH", Gfun↑ ); ("pushH", Gfun↑)];
   |}
   .
 
@@ -88,7 +88,7 @@ Section CC.
   .
   Definition CC: Mod.t := {|
     Mod.get_modsem := fun _ => CCSem;
-    Mod.sk := [("pop", Sk.Gfun); ("push", Sk.Gfun); ("print", Sk.Gfun)];
+    Mod.sk := [("pop", Gfun↑); ("push", Gfun↑); ("print", Gfun↑)];
   |}
   .
 
@@ -115,7 +115,7 @@ Section F.
 
   Definition F: Mod.t := {|
     Mod.get_modsem := fun _ => FSem;
-    Mod.sk := [("f", Sk.Gfun)];
+    Mod.sk := [("f", Gfun↑)];
   |}
   .
 
@@ -142,7 +142,7 @@ Section G.
 
   Definition G: Mod.t := {|
     Mod.get_modsem := fun _ => GSem;
-    Mod.sk := [("g", Sk.Gfun)];
+    Mod.sk := [("g", Gfun↑)];
   |}
   .
 

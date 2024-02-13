@@ -52,7 +52,7 @@ Section CANNON.
 
   Definition SCannon: SMod.t := {|
     SMod.get_modsem := fun _ => SCannonSem;
-    SMod.sk := [("fire", Sk.Gfun)];
+    SMod.sk := [("fire", Gfun↑)];
   |}
   .
 

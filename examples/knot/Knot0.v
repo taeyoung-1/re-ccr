@@ -42,7 +42,7 @@ Section PROOF.
 
   Definition Knot: Mod.t := {|
     Mod.get_modsem := fun skenv => KnotSem skenv;
-    Mod.sk := [("rec", Sk.Gfun); ("knot", Sk.Gfun); ("_f", Sk.Gvar 0)];
+    Mod.sk := [("rec", Gfun↑); ("knot", Gfun↑); ("_f", Sk.Gvar 0)];
   |}
   .
 End PROOF.

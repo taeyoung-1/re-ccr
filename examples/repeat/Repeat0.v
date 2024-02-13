@@ -31,7 +31,7 @@ Section PROOF.
 
   Definition Repeat: Mod.t := {|
     Mod.get_modsem := RepeatSem;
-    Mod.sk := [("repeat", Sk.Gfun)];
+    Mod.sk := [("repeat", Gfun↑)];
   |}
   .
 End PROOF.

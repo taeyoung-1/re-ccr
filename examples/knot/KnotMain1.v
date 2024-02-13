@@ -84,7 +84,7 @@ Section MAIN.
 
   Definition SMain: SMod.t := {|
     SMod.get_modsem := SMainSem;
-    SMod.sk := [("fib", Sk.Gfun)];
+    SMod.sk := [("fib", Gfun↑)];
   |}
   .
 

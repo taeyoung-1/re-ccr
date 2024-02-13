@@ -245,7 +245,7 @@ Section M.
 
   Definition cMem : Mod.t := {|
     Mod.get_modsem := fun _ => cMemSem;
-    Mod.sk := [("init", Sk.Gfun); ("fl_init", Sk.Gfun); ("mem_init", Sk.Gfun); ("c_malloc", Sk.Gfun); ("c_free", Sk.Gfun); ("mem_clear", Sk.Gfun); ("mainx", Sk.Gfun)];
+    Mod.sk := [("init", Gfun↑); ("fl_init", Gfun↑); ("mem_init", Gfun↑); ("c_malloc", Gfun↑); ("c_free", Gfun↑); ("mem_clear", Gfun↑); ("mainx", Gfun↑)];
   |}
   .
 

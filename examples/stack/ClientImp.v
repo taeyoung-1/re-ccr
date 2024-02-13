@@ -33,7 +33,6 @@ Section CLIENT.
 
   Definition Client_prog : program :=
     mk_program
-      "Client"
       []
       []
       []

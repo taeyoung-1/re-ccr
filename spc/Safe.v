@@ -262,7 +262,7 @@ Section SAFETY.
         Some (fun_to_src (fun _ => SafeModSem.safe_itree stb)).
   Proof.
     unfold Mod.enclose, md. unfold Sk.canon. ss.
-    change (alist string Sk.gdef) with Sk.t.
+    change (alist string gdef) with Sk.t.
     generalize (Sk.sort (Mod.sk ((SMod.to_src ∘ SafeMod.to_smod stb) smd))).
     i.
     (* rewrite ! Mod.add_list_fnsems. *)

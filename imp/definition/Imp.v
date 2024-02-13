@@ -102,9 +102,9 @@ Record program : Type := mk_program {
     let ivs := List.map fst prog_vars in
     let ifs := List.map fst prog_funs in
     sys ++ evs ++ efs ++ ivs ++ ifs;
-  defs : list (gname * Sk.gdef) :=
-    let fs := (List.map (fun '(fn, _) => (fn, Sk.Gfun)) prog_funs) in
-    let vs := (List.map (fun '(vn, vv) => (vn, Sk.Gvar vv)) prog_vars) in
+  defs : list (gname * gdef) :=
+    let fs := (List.map (fun '(fn, _) => (fn, Gfun)) prog_funs) in
+    let vs := (List.map (fun '(vn, vv) => (vn, Gvar vv)) prog_vars) in
     (List.filter (negb ∘ call_ban ∘ fst) (fs ++ vs));
 }.
 

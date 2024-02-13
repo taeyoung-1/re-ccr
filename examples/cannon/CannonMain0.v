@@ -40,7 +40,7 @@ Section CANNONMAIN.
 
   Definition Main: Mod.t := {|
     Mod.get_modsem := fun _ => MainSem;
-    Mod.sk := [("main", Sk.Gfun)];
+    Mod.sk := [("main", Gfun↑)];
   |}
   .
 End CANNONMAIN.

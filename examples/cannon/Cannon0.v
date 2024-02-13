@@ -36,7 +36,7 @@ Section CANNON.
 
   Definition Cannon: Mod.t := {|
     Mod.get_modsem := fun _ => CannonSem;
-    Mod.sk := [("fire", Sk.Gfun)];
+    Mod.sk := [("fire", Gfun↑)];
   |}
   .
 End CANNON.

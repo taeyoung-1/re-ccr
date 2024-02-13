@@ -412,7 +412,7 @@ Section PROOF.
 
   Definition SStack: SMod.t := {|
     SMod.get_modsem := fun _ => SStackSem;
-    SMod.sk := [("new", Sk.Gfun); ("pop", Sk.Gfun); ("push", Sk.Gfun)];
+    SMod.sk := [("new", Gfun↑); ("pop", Gfun↑); ("push", Gfun↑)];
   |}
   .
 

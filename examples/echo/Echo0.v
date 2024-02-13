@@ -82,7 +82,7 @@ Section PROOF.
 
   Definition Echo: Mod.t := {|
     Mod.get_modsem := fun _ => EchoSem;
-    Mod.sk := [("echo", Sk.Gfun); ("input", Sk.Gfun); ("output", Sk.Gfun)];
+    Mod.sk := [("echo", Gfun↑); ("input", Gfun↑); ("output", Gfun↑)];
   |}
   .
 End PROOF.

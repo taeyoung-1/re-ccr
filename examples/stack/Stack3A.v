@@ -128,7 +128,7 @@ Section PROOF.
 
   Definition KStack: KMod.t := {|
     KMod.get_modsem := fun _ => KStackSem;
-    KMod.sk := [("new", Sk.Gfun); ("pop", Sk.Gfun); ("push", Sk.Gfun)];
+    KMod.sk := [("new", Gfun↑); ("pop", Gfun↑); ("push", Gfun↑)];
   |}
   .
   Definition Stack (stb: Sk.t -> gname -> option fspec): Mod.t :=

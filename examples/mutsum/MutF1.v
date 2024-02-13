@@ -29,7 +29,7 @@ Section PROOF.
 
   Definition SF: SMod.t := {|
     SMod.get_modsem := fun _ => SFSem;
-    SMod.sk := [("f", Sk.Gfun)];
+    SMod.sk := [("f", Gfun↑)];
   |}
   .
 

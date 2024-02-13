@@ -31,14 +31,13 @@ Section PROOF.
 
   Definition ClientSem: ModSem.t := {|
     ModSem.fnsems := [("getint", cfunU getintF); ("putint", cfunU putintF)];
-    ModSem.mn := "Client";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 
   Definition Client: Mod.t := {|
     Mod.get_modsem := fun _ => ClientSem;
-    Mod.sk := [("getint", Sk.Gfun); ("putint", Sk.Gfun)];
+    Mod.sk := [("getint", Gfun↑); ("putint", Gfun↑)];
   |}
   .
 

@@ -33,7 +33,7 @@ Section PROOF.
 
   Definition Add: Mod.t := {|
     Mod.get_modsem := AddSem;
-    Mod.sk := [("succ", Sk.Gfun); ("add", Sk.Gfun)];
+    Mod.sk := [("succ", Gfun↑); ("add", Gfun↑)];
   |}
   .
 End PROOF.

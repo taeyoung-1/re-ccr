@@ -215,7 +215,7 @@ Section L.
     
     Definition List: Mod.t := {|
       Mod.get_modsem := fun _ => ListSem;
-      Mod.sk := [("scan", Sk.Gfun); ("new_list", Sk.Gfun); ("insert_node", Sk.Gfun); ("find_and_remove_node", Sk.Gfun)];
+      Mod.sk := [("scan", Gfun↑); ("new_list", Gfun↑); ("insert_node", Gfun↑); ("find_and_remove_node", Gfun↑)];
     |}
   .
                     

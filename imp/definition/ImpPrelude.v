@@ -16,6 +16,11 @@ Local Open Scope nat_scope.
 Notation mblock := nat (only parsing).
 Notation ptrofs := Z (only parsing).
 
+Inductive gdef :=
+| Gfun
+| Gvar (gv: Z)
+.
+
 Inductive val: Type :=
 | Vint (n: Z): val
 | Vptr (blk: mblock) (ofs: ptrofs): val
@@ -180,12 +185,13 @@ Module Mem.
     Mem.mk
       (fun blk ofs =>
          do '(g, gd) <- (List.nth_error sk blk);
-         match gd with
-         | Sk.Gfun =>
+         match gd↓ with
+         | Some Gfun =>
            None
-         | Sk.Gvar gv =>
+         | Some (Gvar gv) =>
            if csl g then None else
            if (dec ofs 0%Z) then Some (Vint gv) else None
+          | _ => None
          end)
       (*** TODO: This simplified model doesn't allow function pointer comparsion.
            To be more faithful, we need to migrate the notion of "permission" from CompCert.
