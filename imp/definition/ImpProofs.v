@@ -877,7 +877,7 @@ Ltac imp_red :=
   cbn; try (rewrite interp_imp_bind);
   match goal with
   (** denote_stmt *)
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (denote_stmt (?stmt)) _) _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (denote_stmt (?stmt)) _) _)) ] =>
     match stmt with
     | Skip => rewrite interp_imp_Skip
     | Assign _ _ => rewrite interp_imp_Assign
@@ -896,7 +896,7 @@ Ltac imp_red :=
     end
 
       (** denote_expr *)
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (denote_expr (?expr)) _) _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (denote_expr (?expr)) _) _)) ] =>
     match expr with
     | Var _ => rewrite interp_imp_expr_Var
     | Lit _ => rewrite interp_imp_expr_Lit
@@ -910,14 +910,16 @@ Ltac imp_red :=
     | _ => fail
     end
 
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (tau;; _) _) _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (tau;; _) _) _)) ] =>
     rewrite interp_imp_tau
 
-  | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (Ret _) _) _)) ] =>
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ _ (_, ITree.bind (interp_imp _ (Ret _) _) _)) ] =>
     rewrite interp_imp_Ret
 
   | _ => idtac
   end.
 
 Ltac imp_steps := repeat (repeat (imp_red; ss); steps).
+Ltac imp_steps_safe_l := repeat (repeat (imp_red; ss); steps_safe_l).
+Ltac imp_steps_safe_r := repeat (repeat (imp_red; ss); steps_safe_r).
 Ltac solve_NoDup := repeat econs; ii; ss; des; ss.

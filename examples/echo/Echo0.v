@@ -76,8 +76,7 @@ Section PROOF.
 
   Definition EchoSem: ModSem.t := {|
     ModSem.fnsems := [("echo", cfunU echo_body); ("input", cfunU input_body); ("output", cfunU output_body)];
-    ModSem.mn := "Echo";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

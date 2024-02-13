@@ -1,4 +1,4 @@
-Require Import MapHeader MapI MapM HoareDef SimModSem.
+Require Import MapHeader MapI MapM HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -223,21 +223,24 @@ Section SIMMODSEM.
     iIntros "[H0 H1]". iCombine "H0 H1" as "H". auto.
   Qed.
 
-  Require Import ModSemFacts.
-  Require Import SimModSemFacts.
+  (* Require Import ModSemFacts.  *)
+  
+  (* hy this line affects 'rewrite unfold_iter' ??? *)
 
-  (* Theorem correct: refines (MapI.Map) (MapM.Map GlobalStbM).
+  Theorem correct: refines2 [MapI.Map] [MapM.Map GlobalStbM].
   Proof.
-    unfold refines. ss.
-    eapply adequacy_local. econs; ss. i. rr. 
+    eapply adequacy_local2. econs; ss. i. rr.
     econstructor 1 with (wf:=wf) (le:=inv_le top2); ss; et; cycle 2.
-    { eexists (inl tt). rr. econs; ss. eapply to_semantic. iIntros "_". iRight. auto.   }
+    { eexists (inl tt). rr. econs; ss. eapply to_semantic. iIntros "_". iRight. auto. }
     { eapply inv_le_PreOrder. ss. }
     econs; ss.
     { unfold MapI.initF, MapM.initF, ccallU. init. iarg. mDesAll. subst.
       mDesOr "INV".
       { mDesAll. subst. mAssertPure False; ss. iApply (pending0_unique with "A1 A"). }
-      mDesAll. subst. steps_safe_l. rewrite Any.pair_split. steps_safe_l. rewrite Any.pair_split. s.  astart (1 + x). acatch.
+      mDesAll. subst.
+      steps_safe_l. rewrite ! Any.pair_split. s. steps_safe_l. rewrite ! Any.pair_split. s.
+      
+      astart (1 + x). acatch.
       { eapply STBINCLM. stb_tac. ss. }
       { eapply OrdArith.lt_from_nat. eapply Nat.lt_succ_diag_r. }
       icall_open _ with "".
@@ -255,116 +258,6 @@ Section SIMMODSEM.
       cut (x <= x).
       2:{ lia. }
       generalize x at 1 4 5 7 13. intros n. induction n; i.
-      {  rewrite unfold_iter. steps. des_ifs.
-        { exfalso. lia. }
-        astop. steps. iret _; ss.
-        iModIntro. iSplit.
-        { iLeft. iSplits. iSplitR "A"; eauto. iSplit; eauto.
-          { iPureIntro. esplits; eauto.
-            { instantiate (1:=List.repeat 0%Z (Z.to_nat x)). eapply repeat_length. }
-            { i. rewrite repeat_nth; auto. lia. }
-          }
-          { replace (Z.to_nat x) with (x - 0).
-            2:{ lia. }
-            rewrite app_nil_r. rewrite repeat_map. ss.
-          }
-        }
-        { ss. }
-      }
-    }
- econs; ss.
-    { unfold MapI.getF, MapM.getF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
-      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      mApply points_to_get_split "A1".
-      2:{ eapply map_nth_error. eauto. }adequacy_local2
-      icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iSplit; eauto. }
-      { ss. }
-      ss. mDesAll. subst. steps. astop. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
-      iSplit; eauto. iApply "A2". auto.
-    }
-    econs; ss.
-    { unfold MapI.setF, MapM.setF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
-      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      hexploit set_nth_success.
-      { rewrite PURE0. instantiate (1:=Z.to_nat z). lia. }
-      i. des.
-      mApply points_to_set_split "A1".
-      2:{ rewrite set_nth_map. rewrite H1. ss. }
-      mDesAll.
-      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
-      2:{ rewrite Z_div_mult; ss. lia. }
-      icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iExists _. iSplit; eauto. }
-      { ss. }adequacy_local2
-      ss. mDesAll. subst. steps. astop. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
-      iSplit; eauto.
-      2:{ iApply "A2". eauto. }
-      { iPureIntro. esplits; eauto.
-        { erewrite set_nth_length; eauto. }
-        { i. ss. erewrite set_nth_error; eauto. des_ifs; eauto. exfalso. lia. }
-      }
-    }
-    econs; ss.
-    { unfold MapI.set_by_userF, MapM.set_by_userF, ccallU.
-      init. iarg. mDesAll. subst. steps.
-      rewrite STB_setM. steps.
-      icall_weaken set_specM _ _ with "*".
-      { refl. }
-      { iModIntro. eauto. }
-      { ss. }
-      steps. mDesAll. subst. rewrite _UNWRAPU2. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-    }
-    Unshelve. all: ss.
-  Qed. *)
-
-
-
-
-  Theorem correct: refines2 [MapI.Map] [MapM.Map GlobalStbM].
-  Proof.
-    unfold refines2. ss.
-    eapply adequacy_local. econs; ss. i. rr.
-    econstructor 1 with (wf:=wf) (le:=inv_le top2); ss; et; cycle 2.
-    { eexists (inl tt). rr. econs; ss. eapply to_semantic. iIntros "_". iRight. auto. }
-    { eapply inv_le_PreOrder. ss. }
-    econs; ss.
-    { unfold MapI.initF, MapM.initF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      { mDesAll. subst. mAssertPure False; ss. iApply (pending0_unique with "A1 A"). }
-      mDesAll. subst. steps. astart (1 + x). acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      { eapply OrdArith.lt_from_nat. eapply Nat.lt_succ_diag_r. }
-      icall_open _ with "".
-      { iModIntro. instantiate (1:=Some _). ss. }
-      { ss. }
-      ss. mDesAll. subst. ired_both. force_r. steps.
-      pattern 0%Z at 11.
-      match goal with
-      | |- ?P 0%Z => cut (P (x - x)%Z)
-      end; ss.
-      { rewrite Z.sub_diag. ss. }
-      mAssert (OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - x) ++ repeat Vundef x))) with "A1".
-      { rewrite Nat.sub_diag. ss. }
-      revert ctx1 ACC mr_src1.
-      cut (x <= x).
-      2:{ lia. }
-      generalize x at 1 4 5 7 13. intros n. induction n; i.
       { rewrite unfold_iter. steps. des_ifs.
         { exfalso. lia. }
         astop. steps. iret _; ss.
@@ -385,7 +278,7 @@ Section SIMMODSEM.
         2:{ exfalso. lia. }
         steps. unfold scale_int at 1. des_ifs.
         2:{ exfalso. eapply n0. eapply Z.divide_factor_r. }
-        steps.
+        steps_safe_l.
         assert (EQ: (0 + ((x - S n)%nat * 8) `div` 8) = (x - S n)).
         { rewrite Nat.div_mul; ss. }
         mAssert (OwnM ((a, Z.of_nat (x - S n)) |-> [Vundef]) ** (OwnM ((a, Z.of_nat (x - S n)) |-> [Vint 0]) -* OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - n) ++ repeat Vundef n)))) with "A2".
@@ -415,8 +308,8 @@ Section SIMMODSEM.
         acatch.
         { eapply STBINCLM. stb_tac. ss. }
         { eapply OrdArith.lt_from_nat. instantiate (1:=n). lia. }
-        icall_open (Some (_, _, _)) with "A1".
-        { iModIntro. iExists _. iFrame. iPureIntro. rewrite Z.div_mul; ss.
+        icall_open (_, _, _) with "A1".
+        { iModIntro. iSplit; et. iExists _. iFrame. iPureIntro. rewrite Z.div_mul; ss.
           f_equal. f_equal. f_equal. lia.
         }
         { ss. }
@@ -431,15 +324,20 @@ Section SIMMODSEM.
     econs; ss.
     { unfold MapI.getF, MapM.getF, ccallU. init. iarg. mDesAll. subst.
       mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
+      2:{ mDesAll. subst. steps. rewrite ! Any.pair_split. s. steps.
+      exfalso. lia. }
+      mDesAll. des. steps. rewrite ! Any.pair_split. s. steps.  
+      unfold scale_int. des_ifs.
       2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
+      steps_safe_l. astart 1. acatch.
       { eapply STBINCLM. stb_tac. ss. }
       mApply points_to_get_split "A1".
-      2:{ eapply map_nth_error. eauto. }adequacy_local2
+      2:{ eapply map_nth_error. eauto. }
+      mDesAll.
+      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
+      2:{ rewrite Z_div_mult; ss. lia. }
       icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iSplit; eauto. }
+      { iModIntro. instantiate (1:= (_, _, _)). ss. iSplit; eauto. }
       { ss. }
       ss. mDesAll. subst. steps. astop. steps.
       iret _; ss. iModIntro. iSplit; ss.
@@ -449,10 +347,12 @@ Section SIMMODSEM.
     econs; ss.
     { unfold MapI.setF, MapM.setF, ccallU. init. iarg. mDesAll. subst.
       mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
+      2:{ mDesAll. subst. steps. rewrite ! Any.pair_split. s. steps. rewrite ! Any.pair_split. s.  
+       exfalso. lia. }
+      mDesAll. des. steps. rewrite ! Any.pair_split. s. steps. rewrite ! Any.pair_split. s. 
+      unfold scale_int. des_ifs.
       2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
+      steps_safe_l. astart 1. acatch.
       { eapply STBINCLM. stb_tac. ss. }
       hexploit set_nth_success.
       { rewrite PURE0. instantiate (1:=Z.to_nat z). lia. }
@@ -463,8 +363,8 @@ Section SIMMODSEM.
       replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
       2:{ rewrite Z_div_mult; ss. lia. }
       icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iExists _. iSplit; eauto. }
-      { ss. }adequacy_local2
+      { iModIntro. iSplit; et. instantiate (1:= (_, _, _)). ss. iExists _. iSplit; eauto. }
+      { ss. }
       ss. mDesAll. subst. steps. astop. steps.
       iret _; ss. iModIntro. iSplit; ss.
       iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
@@ -477,8 +377,8 @@ Section SIMMODSEM.
     }
     econs; ss.
     { unfold MapI.set_by_userF, MapM.set_by_userF, ccallU.
-      init. iarg. mDesAll. subst. steps.
-      rewrite STB_setM. steps.
+      init. iarg. mDesAll. subst. steps_safe_l.
+      rewrite STB_setM. steps_safe_l.
       icall_weaken set_specM _ _ with "*".
       { refl. }
       { iModIntro. eauto. }
@@ -489,159 +389,4 @@ Section SIMMODSEM.
     Unshelve. all: ss.
   Qed.
 
-
-  (* Theorem correct: refines2 [MapI.Map] [MapM.Map GlobalStbM].
-  Proof.
-    eapply adequacy_local2. econs; ss. i. rr.
-    econstructor 1 with (wf:=wf) (le:=inv_le top2); ss; et; cycle 2.
-    { eexists (inl tt). rr. econs; ss. eapply to_semantic. iIntros "_". iRight. auto. }
-    { eapply inv_le_PreOrder. ss. }
-    econs; ss.
-    { unfold MapI.initF, MapM.initF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      { mDesAll. subst. mAssertPure False; ss. iApply (pending0_unique with "A1 A"). }
-      mDesAll. subst. steps. astart (1 + x). acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      { eapply OrdArith.lt_from_nat. eapply Nat.lt_succ_diag_r. }
-      icall_open _ with "".
-      { iModIntro. instantiate (1:=Some _). ss. }
-      { ss. }
-      ss. mDesAll. subst. ired_both. force_r. steps.
-      pattern 0%Z at 11.
-      match goal with
-      | |- ?P 0%Z => cut (P (x - x)%Z)
-      end; ss.
-      { rewrite Z.sub_diag. ss. }
-      mAssert (OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - x) ++ repeat Vundef x))) with "A1".
-      { rewrite Nat.sub_diag. ss. }
-      revert ctx1 ACC mr_src1.
-      cut (x <= x).
-      2:{ lia. }
-      generalize x at 1 4 5 7 13. intros n. induction n; i.
-      { rewrite unfold_iter. steps. des_ifs.
-        { exfalso. lia. }
-        astop. steps. iret _; ss.
-        iModIntro. iSplit.
-        { iLeft. iSplits. iSplitR "A"; eauto. iSplit; eauto.
-          { iPureIntro. esplits; eauto.
-            { instantiate (1:=List.repeat 0%Z (Z.to_nat x)). eapply repeat_length. }
-            { i. rewrite repeat_nth; auto. lia. }
-          }
-          { replace (Z.to_nat x) with (x - 0).
-            2:{ lia. }
-            rewrite app_nil_r. rewrite repeat_map. ss.
-          }
-        }
-        { ss. }
-      }
-      { rewrite unfold_iter. steps. des_ifs.
-        2:{ exfalso. lia. }
-        steps. unfold scale_int at 1. des_ifs.
-        2:{ exfalso. eapply n0. eapply Z.divide_factor_r. }
-        steps.
-        assert (EQ: (0 + ((x - S n)%nat * 8) `div` 8) = (x - S n)).
-        { rewrite Nat.div_mul; ss. }
-        mAssert (OwnM ((a, Z.of_nat (x - S n)) |-> [Vundef]) ** (OwnM ((a, Z.of_nat (x - S n)) |-> [Vint 0]) -* OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - n) ++ repeat Vundef n)))) with "A2".
-        { rewrite points_to_app. rewrite points_to_split.
-          iDestruct "A2" as "[A0 [A1 A2]]".
-          iSplitL "A1".
-          { replace (x - S n: Z) with (0 + strings.length (repeat (Vint 0) (x - S n)))%Z; ss.
-            rewrite repeat_length. lia.
-          }
-          { iIntros "A1". rewrite points_to_app. iApply OwnM_combine.
-            iSplitL "A0 A1".
-            { assert (LEN: x - S n = length (repeat (Vint 0) (x - S n))%Z).
-              { symmetry. rewrite repeat_length. auto. }
-              iEval (rewrite LEN) in "A1".
-              iCombine "A0 A1" as "A". iEval (rewrite <- points_to_app) in "A".
-              replace (repeat (Vint 0) (x - S n) ++ [Vint 0]) with (repeat (Vint 0) ((x - S n) + 1)).
-              { replace (x - S n + 1) with (x - n); ss. lia. }
-              { rewrite repeat_app; ss. }
-            }
-            { replace (0 + strings.length (repeat (Vint 0) (x - n)))%Z with
-                (0 + strings.length (repeat (Vint 0) (x - S n)) + 1)%Z; ss.
-              repeat rewrite repeat_length. rewrite <- Z.add_assoc. lia.
-            }
-          }
-        }
-        mDesSep "A1" as "A1" "FR".
-        acatch.
-        { eapply STBINCLM. stb_tac. ss. }
-        { eapply OrdArith.lt_from_nat. instantiate (1:=n). lia. }
-        icall_open (Some (_, _, _)) with "A1".
-        { iModIntro. iExists _. iFrame. iPureIntro. rewrite Z.div_mul; ss.
-          f_equal. f_equal. f_equal. lia.
-        }
-        { ss. }
-        steps. mDesAll. subst. steps.
-        mAssert _ with "FR POST" as "A2".
-        { iApply ("FR" with "POST"). }
-        replace (x - Z.pos (Pos.of_succ_nat n) + 1)%Z with (x - n)%Z.
-        2:{ lia. }
-        red in WLE. clarify. rename n into nnn. rename x into xxx. eapply IHn; eauto. lia.
-      }
-    }
-    econs; ss.
-    { unfold MapI.getF, MapM.getF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
-      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      mApply points_to_get_split "A1".
-      2:{ eapply map_nth_error. eauto. }
-      mDesAll.
-      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
-      2:{ rewrite Z_div_mult; ss. lia. }
-      icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iSplit; eauto. }
-      { ss. }
-      ss. mDesAll. subst. steps. astop. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
-      iSplit; eauto. iApply "A2". auto.
-    }
-    econs; ss.
-    { unfold MapI.setF, MapM.setF, ccallU. init. iarg. mDesAll. subst.
-      mDesOr "INV".
-      2:{ mDesAll. subst. steps. exfalso. lia. }
-      mDesAll. des. steps. unfold scale_int. des_ifs.
-      2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps. astart 1. acatch.
-      { eapply STBINCLM. stb_tac. ss. }
-      hexploit set_nth_success.
-      { rewrite PURE0. instantiate (1:=Z.to_nat z). lia. }
-      i. des.
-      mApply points_to_set_split "A1".
-      2:{ rewrite set_nth_map. rewrite H1. ss. }
-      mDesAll.
-      replace ((a0 + (z * 8) `div` 8)%Z) with ((a0 + Z.to_nat z)%Z); auto.
-      2:{ rewrite Z_div_mult; ss. lia. }
-      icall_open _ with "A1".
-      { iModIntro. instantiate (1:=Some (_, _, _)). ss. iExists _. iSplit; eauto. }
-      { ss. }
-      ss. mDesAll. subst. steps. astop. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-      iLeft. iExists _. iExists _, _, _, _. iSplitR "A"; eauto.
-      iSplit; eauto.
-      2:{ iApply "A2". eauto. }
-      { iPureIntro. esplits; eauto.
-        { erewrite set_nth_length; eauto. }
-        { i. ss. erewrite set_nth_error; eauto. des_ifs; eauto. exfalso. lia. }
-      }
-    }
-    econs; ss.
-    { unfold MapI.set_by_userF, MapM.set_by_userF, ccallU.
-      init. iarg. mDesAll. subst. steps.
-      rewrite STB_setM. steps.
-      icall_weaken set_specM _ _ with "*".
-      { refl. }
-      { iModIntro. eauto. }
-      { ss. }
-      steps. mDesAll. subst. rewrite _UNWRAPU2. steps.
-      iret _; ss. iModIntro. iSplit; ss.
-    }
-    Unshelve. all: ss.
-  Qed. *)
 End SIMMODSEM.

@@ -27,7 +27,6 @@ Section PROOF.
 
   Definition SMultSem: SModSem.t := {|
     SModSem.fnsems := multSbtb;
-    SModSem.mn := "Mult";
     SModSem.initial_mr := ε;
     SModSem.initial_st := tt↑;
   |}

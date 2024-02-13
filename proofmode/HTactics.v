@@ -864,7 +864,7 @@ Ltac _step_safe_r :=
  
   (*** blacklisting ***)
   | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, trigger (Call _ _) >>= _) (_, _)) ] =>
-    try (eapply safe_sim_sim; econs; i)
+    try (eapply safe_sim_sim; econs 5); try (eapply safe_sim_sim; econs 6); try (eapply safe_sim_sim; econs 9) 
 
 
     

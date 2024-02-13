@@ -1,4 +1,4 @@
-Require Import HoareDef MultHeader Mult0 Mult1 SimModSem.
+Require Import HoareDef MultHeader Mult0 Mult1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
