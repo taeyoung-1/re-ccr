@@ -37,11 +37,11 @@ Section PROOF.
 
   Definition input_spec: fspec :=
     mk_fspec (fun _ => ord_top)
-             (fun _ h _argh _argl =>
+             (fun h _argh _argl =>
                 (∃ (stk0: list Z) (argl: list val),
                   ⌜_argh = stk0↑ ∧ _argl = argl↑ ∧ argl = [Vptr h 0]⌝
                    ** (is_int_stack h stk0))%I)
-             (fun _ h _reth _retl => (∃ (stk1: list Z), ⌜_reth = stk1↑ ∧ _retl = Vundef↑⌝ ** is_int_stack h stk1)%I)
+             (fun h _reth _retl => (∃ (stk1: list Z), ⌜_reth = stk1↑ ∧ _retl = Vundef↑⌝ ** is_int_stack h stk1)%I)
   .
 
   Definition input_body: list Z -> itree hEs (list Z) :=
@@ -61,11 +61,11 @@ Section PROOF.
 
   Definition output_spec: fspec :=
     mk_fspec (fun _ => ord_top)
-             (fun _ h _argh _argl =>
+             (fun h _argh _argl =>
                 (∃ (stk0: list Z) (argl: list val),
                   ⌜_argh = stk0↑ ∧ _argl = argl↑ ∧ argl = [Vptr h 0]⌝
                    ** is_int_stack h stk0)%I)
-             (fun _ h _reth _retl => (∃ (stk1: list Z), ⌜_reth = stk1↑ ∧ _retl = Vundef↑⌝ ** is_int_stack h stk1)%I)
+             (fun h _reth _retl => (∃ (stk1: list Z), ⌜_reth = stk1↑ ∧ _retl = Vundef↑⌝ ** is_int_stack h stk1)%I)
   .
 
   Definition output_body: list Z -> itree hEs (list Z) :=
@@ -84,39 +84,38 @@ Section PROOF.
 
 
 
-  Definition EchoSbtb: list (gname * kspecbody) :=
-    [("echo", ksb_trivial (cfunU echo_body));
-    ("input",  mk_kspecbody input_spec (fun _ => triggerUB) (cfunN input_body));
-    ("output", mk_kspecbody output_spec (fun _ => triggerUB) (cfunN output_body))
+  Definition EchoSbtb: list (gname * fspecbody) :=
+    [("echo", mk_specbody fspec_trivial (cfunU echo_body));
+    ("input",  mk_specbody input_spec (cfunN input_body));
+    ("output", mk_specbody output_spec (cfunN output_body))
     ]
   .
 
   Definition EchoStb: list (gname * fspec).
     eapply (Seal.sealing "stb").
-    let x := constr:(List.map (map_snd (fun ksb => ksb.(ksb_fspec): fspec)) EchoSbtb) in
+    let x := constr:(List.map (map_snd (fun fsb => fsb.(fsb_fspec): fspec)) EchoSbtb) in
     let y := eval cbn in x in
     eapply y.
   Defined.
 
-  Definition KEchoSem: KModSem.t := {|
-    KModSem.fnsems := EchoSbtb;
-    KModSem.mn := "Echo";
-    KModSem.initial_mr := ε;
-    KModSem.initial_st := (∅: gmap mblock (list Z))↑;
+  Definition SEchoSem: SModSem.t := {|
+    SModSem.fnsems := EchoSbtb;
+    SModSem.initial_mr := ε;
+    SModSem.initial_st := (∅: gmap mblock (list Z))↑;
   |}
   .
   Definition EchoSem (stb: gname -> option fspec): ModSem.t :=
-    KModSem.transl_tgt stb KEchoSem.
+    SModSem.to_tgt stb SEchoSem.
 
 
 
-  Definition KEcho: KMod.t := {|
-    KMod.get_modsem := fun _ => KEchoSem;
-    KMod.sk := [("echo", Gfun↑); ("input", Gfun↑); ("output", Gfun↑)];
+  Definition SEcho: SMod.t := {|
+    SMod.get_modsem := fun _ => SEchoSem;
+    SMod.sk := [("echo", Gfun↑); ("input", Gfun↑); ("output", Gfun↑)];
   |}
   .
   Definition Echo (stb: Sk.t -> gname -> option fspec): Mod.t :=
-    KMod.transl_tgt stb KEcho.
+    SMod.to_tgt stb SEcho.
 
 End PROOF.
 Global Hint Unfold EchoStb: stb.
