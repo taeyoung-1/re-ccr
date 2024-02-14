@@ -1,4 +1,4 @@
-Require Import Stack2 Stack3A HoareDef SimModSem.
+Require Import Stack2 Stack3A HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -241,14 +241,14 @@ Section SIMMODSEM.
           }
           rewrite add_disj_insert; ss. eapply sim_fresh_k; et.
         }
-      - harg. mDesAll. des; clarify. unfold new_body. cbn. steps. astop. steps.
+      (* - harg. mDesAll. des; clarify. unfold new_body. cbn. steps. astop. steps.
         rename x0 into h. force_l. exists h. steps.
         unfold pget. steps.
         assert(S:=SIM h). rewrite _GUARANTEE in *. inv S; ss. astop. steps.
         astop. steps. force_l; ss. steps. astop. steps.
 
         hret _; ss.
-        iModIntro. iSplits; ss; et. iPureIntro. eapply sim_fresh_u; et.
+        iModIntro. iSplits; ss; et. iPureIntro. eapply sim_fresh_u; et. *)
     }
 
     econs; ss.
@@ -298,7 +298,7 @@ Section SIMMODSEM.
           force_l. esplits. steps.
           rewrite <- H3. steps. hret _; ss.
           iModIntro. iFrame. iSplitL "A"; ss; et.
-      - harg. mDesAll. des; clarify. unfold pop_body. cbn.
+      (* - harg. mDesAll. des; clarify. unfold pop_body. cbn.
         steps. astop. steps. astop. steps. astop. steps.
         rename n into h. rename l into stk0. destruct v; ss. des_ifs_safe.
         assert(S:=SIM h). rewrite _UNWRAPU1 in *. inv S; ss. steps.
@@ -307,7 +307,7 @@ Section SIMMODSEM.
         + steps. unfold pput. astop. steps.
 
           hret _; ss.
-          { iModIntro. iSplits; ss; et. iPureIntro. eapply sim_update_u; et. }
+          { iModIntro. iSplits; ss; et. iPureIntro. eapply sim_update_u; et. } *)
     }
 
     econs; ss.
@@ -351,14 +351,14 @@ Section SIMMODSEM.
         force_l. esplits. steps.
         rewrite <- H3. steps. hret _; ss.
         iModIntro. iFrame. iSplitL "A"; ss; et.
-      - harg. mDesAll. des; clarify. unfold push_body. cbn.
+      (* - harg. mDesAll. des; clarify. unfold push_body. cbn.
         steps. astop. steps. astop. steps. astop. steps. astop. steps.
         rename n into h. rename l into stk0. destruct v; ss. des_ifs_safe.
         assert(S:=SIM h). rewrite _UNWRAPU0 in *. inv S; ss. steps.
         unfold pput. steps.
 
         hret _; ss.
-        { iModIntro. iSplits; ss; et. iPureIntro. eapply sim_update_u; et. }
+        { iModIntro. iSplits; ss; et. iPureIntro. eapply sim_update_u; et. } *)
     }
   Unshelve.
     all: try exact 0. all: ss.

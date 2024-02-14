@@ -373,7 +373,7 @@ Section MODSEM.
 
   Definition get_mod (m : program) : Mod.t := {|
     Mod.get_modsem := fun ge => (modsem m (Sk.load_skenv ge));
-    Mod.sk := m.(defs);
+    Mod.sk := List.map (update_snd Any.upcast) m.(defs);
   |}.
 
   (* Definition modsemL (mL : programL) (ge: SkEnv.t) : ModSemL.t := {|

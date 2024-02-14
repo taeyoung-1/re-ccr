@@ -402,7 +402,6 @@ Section PROOF.
 
   Definition SStackSem: SModSem.t := {|
     SModSem.fnsems := StackSbtb;
-    SModSem.mn := "Stack";
     SModSem.initial_mr := (GRA.embed (Auth.black (M:=_stkRA) (fun _ => ε)));
     SModSem.initial_st := tt↑;
   |}

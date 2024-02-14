@@ -59,7 +59,6 @@ Section STACK.
 
   Definition Stack_prog : program :=
     mk_program
-      "Stack"
       []
       []
       []

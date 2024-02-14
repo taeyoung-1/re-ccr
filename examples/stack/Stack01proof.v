@@ -1,4 +1,4 @@
-Require Import Stack0 Stack1 HoareDef SimModSem.
+Require Import Stack0 Stack1 HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -22,6 +22,7 @@ Require Import Mem1 MemOpen STB.
 Set Implicit Arguments.
 
 Local Open Scope nat_scope.
+
 
 
 
@@ -67,22 +68,24 @@ Section SIMMODSEM.
 
   Ltac acatch :=
     match goal with
-    | [ |- (gpaco8 (_sim_itree _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call ?fn ?args) >>= _)) ] =>
-      astep fn (tt↑)
+    | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call ?fn ?args) >>= _)) ] =>
+      (* astep fn (tt↑) *)
+      astep fn args
     end.
 
   Theorem sim_modsem: ModSemPair.sim (Stack1.StackSem global_stb) Stack0.StackSem.
-  Proof.
+  Proof. 
     econstructor 1 with (wf:=wf) (le:=top2); ss; et; swap 2 3.
     { esplits. econs; ss. eapply to_semantic. iIntros "H". iClear "H". iSplits; ss. }
     econs; ss.
     { unfold newF. init. harg. fold wf. mDesAll; des; subst. ss.
-      unfold new_body. steps. unfold ccallN, ccallU, cfunN, cfunU. steps.
+      unfold new_body. steps. unfold ccallN, ccallU, cfunN, cfunU. steps_safe_l.
 
-      astart 2. acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some _) _ with "SIM"; ss; et.
+      astart 2. acatch. { eapply STBINCL. stb_tac; ss. } hcall _ _ with "SIM"; ss; et.
       { iModIntro. iSplits; ss; et.
         { instantiate (1:=1%nat). ss. }
         { iPureIntro. unfold_modrange_64. ss. }
+        (* { admit.  } *)
       }
       Ltac post_call :=
         fold wf; clear_fast; mDesAll; des_safe; subst; try rewrite Any.upcast_downcast in *; clarify; renamer.
@@ -90,13 +93,14 @@ Section SIMMODSEM.
       steps.
       force_r.
       { ss. }
-      steps.
+      steps_safe_l.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "SIM A"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM A"; ss; et.
       { iModIntro. iSplitL "SIM"; ss.
         { iSplits; ss; et. }
-        { iSplits; ss; et. }
+        { iSplits; ss; et. } 
       }
+      (* { iSplits; ss; et. } *)
       post_call. steps.
       astop. steps.
 
@@ -106,7 +110,11 @@ Section SIMMODSEM.
         (*** IEXPLOIT*) iDestruct (big_sepM_lookup_acc with "SIM") as "[B C]"; et. iDestruct "B" as (x) "[B D]".
         iApply (points_to_disj with "POST B"); et.
       }
-      astop. steps. astop. steps. force_l; ss. steps. astop. steps.
+      astop. steps.
+      rewrite Any.pair_split. steps.
+      astop. steps. force_l; ss. steps.
+      rewrite Any.pair_split. steps. 
+      astop. steps.
 
       hret _; ss.
       { iModIntro. iSplits; ss; et. iApply big_sepM_insert; ss. iFrame; ss; et. }
@@ -115,7 +123,11 @@ Section SIMMODSEM.
     econs; ss.
     { unfold popF. init. harg. fold wf. mDesAll; des; subst. ss.
       unfold pop_body, ccallU, cfunU.
-      steps. astop. steps. astop. steps. astop. steps. astart 7.
+      steps_safe_l. astop. steps_safe_l.
+      rewrite ! Any.pair_split. steps_safe_l.
+      astop. steps_safe_l. astop. steps_safe_l.
+      rewrite ! Any.pair_split. steps_safe_l.
+      astart 7.
 
       hide_k. destruct v; ss. des_ifs. clear_fast.
       renamer. rename n into handle. rename l into stk. rename _UNWRAPU into T.
@@ -124,7 +136,7 @@ Section SIMMODSEM.
         instantiate (1:=_ ** _). iSplitL "B". { iExact "B". } iExact "C". }
       mDesAll; ss. rename a into hd. renamer.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "SIM A"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM A"; ss; et.
       { iModIntro. iSplitL "SIM"; ss; et. }
       post_call. unhide_k. steps.
       hide_k.
@@ -138,13 +150,16 @@ Section SIMMODSEM.
 
       destruct stk as [|x stk1]; ss.
       - mDesAll. subst.
-        unhide_k. steps. hide_k.
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _)) _ with "SIM POST"; ss.
+        unhide_k. steps_safe_l. hide_k.
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST"; ss.
         { iModIntro. iSplitL "SIM"; ss; [et|]. iSplits; ss. repeat iRight. et. }
         post_call. unhide_k. steps. astop. steps.
+        rewrite Any.pair_split. steps.
         force_r.
         { ss. }
-        steps. astop. steps. astop. steps.
+        steps. astop. steps.
+        rewrite Any.pair_split. steps.
+        astop. steps.
 
         hret _; ss. iModIntro. iSplits; ss; et.
         destruct (stk_mgr1 !! handle) eqn:U.
@@ -153,12 +168,13 @@ Section SIMMODSEM.
         iApply big_sepM_insert; ss. iSplitR "SIM"; et.
       - mDesAll. subst. rename a into hd. rename a0 into tl. rewrite points_to_split in ACC. mDesOwn "A1".
         rewrite Z.add_0_l in *.
-        unhide_k. steps. hide_k.
+        unhide_k. steps_safe_l. hide_k.
 
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _)) _ with "SIM A1"; ss.
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM A1"; ss.
         { iModIntro. iSplitL "SIM"; ss. { et. } iSplits; ss; et. }
-        post_call. unhide_k. steps.
 
+        post_call. unhide_k.  steps.
+          
         force_r.
         { ss. }
         steps.
@@ -167,34 +183,34 @@ Section SIMMODSEM.
         { ss. }
         steps.
 
-        unfold scale_int. uo. steps.
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "SIM POST1"; ss.
+        unfold scale_int. uo. steps_safe_l.
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM POST1"; ss.
+        { iModIntro. iSplitL "SIM"; ss; et. }
+        post_call. steps_safe_l.
+
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM A2"; ss.
+        { iModIntro. iSplitL "SIM"; ss; et. }
+        post_call. steps_safe_l.
+
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST2"; ss.
+        { iModIntro. iSplitL "SIM"; ss; et. }
+        post_call. steps_safe_l.
+
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST1"; ss.
+        { iModIntro. iSplitL "SIM"; ss; et. }
+        post_call. steps_safe_l.
+
+        acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM POST"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
         post_call. steps.
 
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "SIM A2"; ss.
-        { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps.
-
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _)) _ with "SIM POST2"; ss.
-        { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps.
-
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _)) _ with "SIM POST1"; ss.
-        { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps.
-
-        acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "SIM POST"; ss.
-        { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps.
-
-        astop. steps. unfold pget. steps. renamer.
+        astop. steps. rewrite Any.pair_split. steps. renamer.
 
         destruct (stk_mgr1 !! handle) eqn:V.
         { mAssertPure False; ss. iDestruct (big_sepM_lookup_acc with "SIM") as "[B C]"; et.
           iDestruct "B" as (y) "[SIM B]".
           iApply (points_to_disj with "POST1 SIM"). }
-        steps. astop. steps. astop. steps.
+        steps. astop. steps. rewrite Any.pair_split. astop. steps.
 
         hret _; ss.
         { iModIntro. iSplits; ss; et. iApply big_sepM_insert; ss. iFrame. iExists _; ss. iFrame. }
@@ -202,7 +218,11 @@ Section SIMMODSEM.
     econs; ss.
     { unfold pushF. init. harg. fold wf. mDesAll; des; subst. ss.
       unfold push_body, ccallU, cfunU.
-      steps. astop. steps. astop. steps. astop. steps. astart 7.
+      steps_safe_l. astop. steps_safe_l.
+      rewrite Any.pair_split. steps_safe_l.
+      astop. steps_safe_l. astop. steps_safe_l.
+      rewrite Any.pair_split. steps_safe_l.
+      astart 7.
 
       hide_k. destruct v; ss. des_ifs. clear_tac.
       rename n into handle. renamer. rename l into stk. rename _UNWRAPU into T.
@@ -211,7 +231,7 @@ Section SIMMODSEM.
         instantiate (1:=_ ** _). iSplitL "B". { iExact "B". } iExact "C". }
       mDesAll; ss. renamer. rename a into hd.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some _) _ with "SIM"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall _ _ with "SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. iSplits; ss; et.
         { instantiate (1:=2). ss. }
         { iPureIntro. ss. }
@@ -222,25 +242,27 @@ Section SIMMODSEM.
 
       unfold scale_int. uo. steps.
 
-      force_r; ss. steps.
+      force_r; ss. steps_safe_l.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "A SIM"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps.
+      post_call. steps_safe_l.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "A1 SIM"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A1 SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps.
+      post_call. steps_safe_l.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "A3 SIM"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A3 SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps.
+      post_call. steps_safe_l.
 
-      acatch. { eapply STBINCL. stb_tac; ss. } hcall (Some (_, _, _)) _ with "POST SIM"; ss; et.
+      acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "POST SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps.
+      post_call. steps_safe_l.
 
       astop. steps.
+      rewrite Any.pair_split. steps.
+      rewrite Any.pair_split. steps.
 
       destruct (stk_mgr1 !! handle) eqn:V.
       { mAssertPure False; ss. iDestruct (big_sepM_lookup_acc with "SIM") as "[B C]"; et.

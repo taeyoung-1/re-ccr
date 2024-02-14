@@ -1,4 +1,4 @@
-Require Import Stack2 Stack3B HoareDef SimModSem.
+Require Import Stack2 Stack3B HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.

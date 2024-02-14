@@ -1,4 +1,4 @@
-Require Import HoareDef SimModSem.
+Require Import HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -51,6 +51,7 @@ Section SIMMODSEM.
     (* Set Ltac Profiling. *)
     eapply adequacy_local2. econs; ss. i.
     econstructor 1 with (wf:=wf) (le:=top2); et; ss.
+    unfold cfunU.
     econs; ss.
     { init.
       unfold newF, new.
@@ -58,8 +59,9 @@ Section SIMMODSEM.
       rewrite unfold_eval_imp. steps.
       des_ifs.
       2:{ exfalso; apply n. solve_NoDup. }
-      imp_steps.
-      unfold ccallU. imp_steps.
+      imp_steps_safe_l.
+      unfold ccallU. imp_steps_safe_l. _step. imp_steps_safe_r. _step.
+      imp_steps_safe_r.
       red. esplits; et.
     }
     econs; ss.
@@ -74,8 +76,8 @@ Section SIMMODSEM.
       2:{ exfalso; apply n0. solve_NoDup. }
       imp_steps.
       unfold unblk in *. des_ifs.
-      imp_steps.
-      unfold ccallU. imp_steps.
+      imp_steps_safe_l.
+      unfold ccallU. imp_steps_safe_l. _step. imp_steps_safe_r. _step. imp_steps_safe_r.
       unfold unblk in *. des. des_ifs_safe.
       unfold is_true. destruct (n1 =? 0)%Z eqn:N1; ss; clarify.
       - apply Z.eqb_eq in N1. clarify. ss.
@@ -85,12 +87,12 @@ Section SIMMODSEM.
         { steps. }
         destruct ofs; ss.
         2:{ steps. }
-        imp_steps.
+        imp_steps_safe_r. _step; ss. imp_steps_safe_r.
         uo. des_ifs_safe; ss; clarify. unfold scale_int in Heq2.
-        des_ifs_safe. steps. imp_steps.
+        des_ifs_safe. steps_safe_r. _step. steps_safe_r. imp_steps_safe_r. _step. imp_steps_safe_r.
         unfold scale_int. uo; ss. des_ifs. ss.
         rewrite Z_div_same; ss. rewrite Z.add_0_l.
-        imp_steps.
+        imp_steps_safe_r. _step. imp_steps_safe_r. _step. imp_steps_safe_r.
         red. esplits; et.
       - apply Z.eqb_neq in N1.
         destruct (val_dec (Vint 0) (Vint 0)); ss.
@@ -105,15 +107,15 @@ Section SIMMODSEM.
       rewrite unfold_eval_imp. imp_steps.
       des_ifs.
       2:{ exfalso. apply n0; solve_NoDup. }
-      imp_steps.
+      imp_steps_safe_l.
       unfold unblk in *. des_ifs.
-      imp_steps.
-      unfold ccallU. imp_steps.
+      imp_steps_safe_l.
+      unfold ccallU. imp_steps_safe_l. _step. imp_steps_safe_r.
       rewrite _UNWRAPU1.
-      imp_steps.
+      imp_steps_safe_r. _step. imp_steps_safe_r. _step. imp_steps_safe_r. 
       uo; des_ifs; ss; clarify.
       2:{ unfold scale_int in *. des_ifs. }
-      imp_steps.
+      imp_steps_safe_r. _step. imp_steps_safe_r. _step. imp_steps_safe_r.
       red. esplits; et.
     }
     (* Show Ltac Profile. *)
