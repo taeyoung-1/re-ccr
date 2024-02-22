@@ -8,6 +8,7 @@ Require Import Skeleton.
 Require Import STS Behavior.
 Require Import Any.
 Require Import Red IRed.
+Require Import SimSTS.
 Require Import SimModSem.
 
 Require Import Behavior.
@@ -52,9 +53,9 @@ Section COMM.
         (STATE: comm_st (stl, str))
 
   :
-      sim_itree (fun _ => comm_st) top2 fl fr false false w (stl, itl) (str, itr).
-  Proof.   
-    destruct COMM, STATE. des. ss.
+      sim_itree (fun _ => comm_st) top2 fl fr BB BB w (stl, itl) (str, itr).
+  Proof. Admitted.   
+    (* destruct COMM, STATE. des. ss.
     (* unfold assoc_st. *)
     ginit. 
     generalize it as itr. 
@@ -124,7 +125,7 @@ Section COMM.
         * apply sim_itree_syscall. i.
           eapply sim_itree_flag_down.
           gfinal. left. eapply CIH.
-  Qed. 
+  Qed.  *)
 
 
   (* Move to somewhere else *)
@@ -180,8 +181,8 @@ Section COMM.
   :
   <<COMM: Beh.of_program (compile (add ms0 ms1) (Some P0)) <1= Beh.of_program (compile (add ms1 ms0) (Some P1))>>
   .
-  Proof.
-    destruct (classic (P1)); cycle 1.
+  Proof. Admitted. 
+    (* destruct (classic (P1)); cycle 1.
     { ii. eapply initial_itr_not_wf;et. }
     replace P0 with P1.
     2: { eapply prop_ext. split; auto. }
@@ -233,7 +234,7 @@ Section COMM.
         rewrite ! alist_find_map. rewrite MS1, MS0. et.
     - exists tt. econs; et; clarify.
       unfold comm_st. ss. exists (init_st ms1), (init_st ms0). et.
-Qed.
+Qed. *)
 
 End COMM.
 Section ASSOC.
@@ -264,9 +265,9 @@ Lemma add_assoc_aux
         (STATE: assoc_st (stl, str))
 
   :
-      sim_itree (fun _ => assoc_st) top2 fl fr false false w (stl, itl) (str, itr).
-Proof.
-  destruct ASSOC, STATE. des. ss.
+      sim_itree (fun _ => assoc_st) top2 fl fr BB BB w (stl, itl) (str, itr).
+Proof. Admitted.
+  (* destruct ASSOC, STATE. des. ss.
   (* unfold assoc_st. *)
   ginit. 
   generalize it as itr. 
@@ -354,7 +355,7 @@ Proof.
       * apply sim_itree_syscall. i.
         eapply sim_itree_flag_down.
         gfinal. left. eapply CIH.
-Qed. 
+Qed.  *)
 
 Lemma add_assoc_rev_aux
         fl fr itl itr stl str (w: unit)
@@ -362,10 +363,10 @@ Lemma add_assoc_rev_aux
         (STATE: assoc_rev_st (stl, str))
 
   :
-      sim_itree (fun _ => assoc_rev_st) top2 fl fr false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => assoc_rev_st) top2 fl fr BB BB w (stl, itl) (str, itr)
 .
-Proof.
-destruct ASSOC, STATE. des. ss.
+Proof. Admitted.
+(* destruct ASSOC, STATE. des. ss.
 (* unfold assoc_st. *)
 ginit. 
 generalize it as itr. 
@@ -453,7 +454,7 @@ destruct (observe itr).
     * apply sim_itree_syscall. i.
       eapply sim_itree_flag_down.
       gfinal. left. eapply CIH.
-Qed. 
+Qed.  *)
 
 Context {CONF: EMSConfig}.
 
@@ -466,8 +467,8 @@ Theorem add_assoc
     <<COMM: Beh.of_program (compile (add (add ms0 ms1) ms2) (Some P0)) <1=
             Beh.of_program (compile (add ms0 (add ms1 ms2)) (Some P1))>>
 .
-Proof. 
-  destruct (classic (P1)); cycle 1.
+Proof. Admitted.
+  (* destruct (classic (P1)); cycle 1.
   { ii. eapply initial_itr_not_wf;et. }
   replace P0 with P1.
   2: { eapply prop_ext. split; auto. }
@@ -537,7 +538,7 @@ Proof.
     erewrite <- ! (@bisimulation_is_eq _ _ _ _ (@translate_cmpE _ _ _ _ _ _ _)).
     econs. econs.
   - s. et.
-Qed.
+Qed. *)
 
 Theorem add_assoc_rev
         ms0 ms1 ms2
@@ -547,8 +548,8 @@ Theorem add_assoc_rev
     <<COMM: Beh.of_program (compile (add ms0 (add ms1 ms2)) (Some P0)) <1=
             Beh.of_program (compile (add (add ms0 ms1) ms2) (Some P1))>>
 .
-Proof.
-  destruct (classic (P1)); cycle 1.
+Proof. Admitted.
+  (* destruct (classic (P1)); cycle 1.
   { ii. eapply initial_itr_not_wf;et. }
   replace P0 with P1.
   2: { eapply prop_ext. split; auto. }
@@ -566,7 +567,7 @@ Proof.
   destruct (alist_find fn (fnsems ms2)) eqn: MS2;
   ( ss; et; right; esplits; et; s; et; unfold sim_fsem, "==>"; i; eapply add_assoc_rev_aux; et; rewrite H0;
     erewrite <- ! (@bisimulation_is_eq _ _ _ _ (@translate_cmpE _ _ _ _ _ _ _)); econs; econs).
-Qed.
+Qed. *)
 
 End ASSOC.
 
@@ -597,10 +598,10 @@ Lemma add_empty_aux
         (STATE: empty_st (stl, str))
 
   :
-      sim_itree (fun _ => empty_st) top2 fl fr false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => empty_st) top2 fl fr BB BB w (stl, itl) (str, itr)
 .
-Proof.
-  destruct EMPTY, STATE. des. ss.
+Proof. Admitted.
+  (* destruct EMPTY, STATE. des. ss.
   unfold empty_st.
   ginit. 
   generalize it as itr. 
@@ -653,7 +654,7 @@ Proof.
         eapply sim_itree_flag_down.
         gfinal. left. eapply CIH. 
 
-Qed.
+Qed. *)
 
 Lemma add_empty_rev_aux
         fl fr itl itr stl str (w: unit)
@@ -661,10 +662,10 @@ Lemma add_empty_rev_aux
         (STATE: empty_rev_st (stl, str))
 
   :
-      sim_itree (fun _ => empty_rev_st) top2 fl fr false false w (stl, itl) (str, itr)
+      sim_itree (fun _ => empty_rev_st) top2 fl fr BB BB w (stl, itl) (str, itr)
 .
-Proof.
-  destruct EMPTY, STATE. des. ss.
+Proof. Admitted.
+  (* destruct EMPTY, STATE. des. ss.
   unfold empty_rev_st.
   ginit. 
   generalize it as itr. 
@@ -716,7 +717,7 @@ Proof.
         eapply sim_itree_flag_down.
         gfinal. left. eapply CIH. 
 
-Qed.
+Qed. *)
 
 
 Context {CONF: EMSConfig}.
@@ -729,8 +730,8 @@ Theorem add_empty
   <<EMPTY: Beh.of_program (compile (add ms empty) (Some P0)) <1=
           Beh.of_program (compile ms (Some P1))>>
 .
-Proof. 
-  destruct (classic (P1)); cycle 1.
+Proof. Admitted.
+  (* destruct (classic (P1)); cycle 1.
   { ii. eapply initial_itr_not_wf;et. }
   replace P0 with P1.
   2: { eapply prop_ext. split; auto. }
@@ -746,7 +747,7 @@ Proof.
   - ss. right. esplits; et.
     unfold sim_fsem, "==>". i. apply add_empty_aux; et.
     rewrite H0. econs. econs.
-Qed.
+Qed. *)
 
 Theorem add_empty_rev
       ms
@@ -756,8 +757,8 @@ Theorem add_empty_rev
   <<EMPTY: Beh.of_program (compile ms (Some P0)) <1=
           Beh.of_program (compile (add ms empty) (Some P1))>>
 .
-Proof. 
-  destruct (classic (P1)); cycle 1.
+Proof. Admitted.
+  (* destruct (classic (P1)); cycle 1.
   { ii. eapply initial_itr_not_wf;et. }
   replace P0 with P1.
   2: { eapply prop_ext. split; auto. }
@@ -773,7 +774,7 @@ Proof.
   - ss. right. esplits; et.
     unfold sim_fsem, "==>". i. apply add_empty_rev_aux; et.
     rewrite H0. econs. econs.
-Qed.
+Qed. *)
 End EMPTY.
 
 

@@ -4,9 +4,14 @@ Require Import Behavior.
 
 Set Implicit Arguments.
 
+Inductive flag := BB | TT | YY.
+
+
 Section BEHAVES.
 
 Variable L: semantics.
+
+
 
 Theorem of_state_ind2 :
 forall (P: _ -> _ -> Prop),
@@ -158,8 +163,8 @@ Section SIM.
 
   Variable L0 L1: semantics.
 
-  Inductive _sim (sim: bool -> bool -> L0.(state) -> L1.(state) -> Prop)
-            (i_src0: bool) (i_tgt0: bool) (st_src0: L0.(state)) (st_tgt0: L1.(state)): Prop :=
+  Inductive _sim (sim: flag -> flag -> L0.(state) -> L1.(state) -> Prop)
+            (i_src0: flag) (i_tgt0: flag) (st_src0: L0.(state)) (st_tgt0: L1.(state)): Prop :=
   | sim_fin
       retv
       (SRT: _.(state_sort) st_src0 = final retv)
@@ -174,7 +179,7 @@ Section SIM.
           (STEP: _.(step) st_tgt0 (Some ev) st_tgt1)
         ,
           exists st_src1 (STEP: _.(step) st_src0 (Some ev) st_src1),
-            <<SIM: sim true true st_src1 st_tgt1>>)
+            <<SIM: sim TT TT st_src1 st_tgt1>>)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
 
@@ -189,7 +194,7 @@ Section SIM.
       (SIM: exists st_src1
                    (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: _sim sim true i_tgt0 st_src1 st_tgt0>>)
+          <<SIM: _sim sim TT i_tgt0 st_src1 st_tgt0>>)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_demonic_tgt
@@ -197,7 +202,7 @@ Section SIM.
       (SIM: forall st_tgt1
                    (STEP: _.(step) st_tgt0 None st_tgt1)
         ,
-          <<SIM: _sim sim i_src0 true st_src0 st_tgt1>>)
+          <<SIM: _sim sim i_src0 TT st_src0 st_tgt1>>)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_angelic_src
@@ -205,7 +210,7 @@ Section SIM.
       (SIM: forall st_src1
           (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: _sim sim true i_tgt0 st_src1 st_tgt0>>)
+          <<SIM: _sim sim TT i_tgt0 st_src1 st_tgt0>>)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_angelic_tgt
@@ -213,19 +218,19 @@ Section SIM.
       (SIM: exists st_tgt1
           (STEP: _.(step) st_tgt0 None st_tgt1)
         ,
-          <<SIM: _sim sim i_src0 true st_src0 st_tgt1>>)
+          <<SIM: _sim sim i_src0 TT st_src0 st_tgt1>>)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
 
   | sim_progress
-      (SIM: sim false false st_src0 st_tgt0)
-      (SRC: i_src0 = true)
-      (TGT: i_tgt0 = true)
+      (SIM: sim BB BB st_src0 st_tgt0)
+      (SRC: i_src0 = TT)
+      (TGT: i_tgt0 = TT)
     :
       _sim sim i_src0 i_tgt0 st_src0 st_tgt0
   .
 
-  Lemma _sim_ind2 sim (P: bool -> bool -> L0.(state) -> L1.(state) -> Prop)
+  Lemma _sim_ind2 sim (P: flag -> flag -> L0.(state) -> L1.(state) -> Prop)
         (FIN: forall
             i_src0 i_tgt0 st_src0 st_tgt0
             retv
@@ -240,7 +245,7 @@ Section SIM.
                          (STEP: _.(step) st_tgt0 (Some ev) st_tgt1)
               ,
                 exists st_src1 (STEP: _.(step) st_src0 (Some ev) st_src1),
-                  <<SIM: sim true true st_src1 st_tgt1>>),
+                  <<SIM: sim TT TT st_src1 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (VISSTUCK: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -253,7 +258,7 @@ Section SIM.
             (SIM: exists st_src1
                          (STEP: _.(step) st_src0 None st_src1)
               ,
-                <<SIM: _sim sim true i_tgt0 st_src1 st_tgt0>> /\ <<IH: P true i_tgt0 st_src1 st_tgt0>>),
+                <<SIM: _sim sim TT i_tgt0 st_src1 st_tgt0>> /\ <<IH: P TT i_tgt0 st_src1 st_tgt0>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (DMTGT: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -261,7 +266,7 @@ Section SIM.
             (SIM: forall st_tgt1
                          (STEP: _.(step) st_tgt0 None st_tgt1)
               ,
-                <<SIM: _sim sim i_src0 true st_src0 st_tgt1>> /\ <<IH: P i_src0 true st_src0 st_tgt1>>),
+                <<SIM: _sim sim i_src0 TT st_src0 st_tgt1>> /\ <<IH: P i_src0 TT st_src0 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (ANSRC: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -269,7 +274,7 @@ Section SIM.
             (SIM: forall st_src1
                          (STEP: _.(step) st_src0 None st_src1)
               ,
-                <<SIM: _sim sim true i_tgt0 st_src1 st_tgt0>> /\ <<IH: P true i_tgt0 st_src1 st_tgt0>>),
+                <<SIM: _sim sim TT i_tgt0 st_src1 st_tgt0>> /\ <<IH: P TT i_tgt0 st_src1 st_tgt0>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (ANTGT: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -277,14 +282,14 @@ Section SIM.
             (SIM: exists st_tgt1
                          (STEP: _.(step) st_tgt0 None st_tgt1)
               ,
-                <<SIM: _sim sim i_src0 true st_src0 st_tgt1>> /\ <<IH: P i_src0 true st_src0 st_tgt1>>),
+                <<SIM: _sim sim i_src0 TT st_src0 st_tgt1>> /\ <<IH: P i_src0 TT st_src0 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (PROGRESS:
            forall
              i_src0 i_tgt0 st_src0 st_tgt0
-             (SIM: sim false false st_src0 st_tgt0)
-             (SRC: i_src0 = true)
-             (TGT: i_tgt0 = true),
+             (SIM: sim BB BB st_src0 st_tgt0)
+             (SRC: i_src0 = TT)
+             (TGT: i_tgt0 = TT),
              P i_src0 i_tgt0 st_src0 st_tgt0)
     :
       forall i_src0 i_tgt0 st_src0 st_tgt0
@@ -326,7 +331,7 @@ Section SIM.
   Hint Resolve sim_mon: paco.
   Hint Resolve cpn4_wcompat: paco.
 
-  Lemma sim_ind (P: bool -> bool -> L0.(state) -> L1.(state) -> Prop)
+  Lemma sim_ind (P: flag -> flag -> L0.(state) -> L1.(state) -> Prop)
         (FIN: forall
             i_src0 i_tgt0 st_src0 st_tgt0
             retv
@@ -341,7 +346,7 @@ Section SIM.
                          (STEP: _.(step) st_tgt0 (Some ev) st_tgt1)
               ,
                 exists st_src1 (STEP: _.(step) st_src0 (Some ev) st_src1),
-                  <<SIM: sim true true st_src1 st_tgt1>>),
+                  <<SIM: sim TT TT st_src1 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (VISSTUCK: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -354,7 +359,7 @@ Section SIM.
             (SIM: exists st_src1
                          (STEP: _.(step) st_src0 None st_src1)
               ,
-                <<SIM: sim true i_tgt0 st_src1 st_tgt0>> /\ <<IH: P true i_tgt0 st_src1 st_tgt0>>),
+                <<SIM: sim TT i_tgt0 st_src1 st_tgt0>> /\ <<IH: P TT i_tgt0 st_src1 st_tgt0>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (DMTGT: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -362,7 +367,7 @@ Section SIM.
             (SIM: forall st_tgt1
                          (STEP: _.(step) st_tgt0 None st_tgt1)
               ,
-                <<SIM: sim i_src0 true st_src0 st_tgt1>> /\ <<IH: P i_src0 true st_src0 st_tgt1>>),
+                <<SIM: sim i_src0 TT st_src0 st_tgt1>> /\ <<IH: P i_src0 TT st_src0 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (ANSRC: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -370,7 +375,7 @@ Section SIM.
             (SIM: forall st_src1
                          (STEP: _.(step) st_src0 None st_src1)
               ,
-                <<SIM: sim true i_tgt0 st_src1 st_tgt0>> /\ <<IH: P true i_tgt0 st_src1 st_tgt0>>),
+                <<SIM: sim TT i_tgt0 st_src1 st_tgt0>> /\ <<IH: P TT i_tgt0 st_src1 st_tgt0>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (ANTGT: forall
             i_src0 i_tgt0 st_src0 st_tgt0
@@ -378,14 +383,14 @@ Section SIM.
             (SIM: exists st_tgt1
                          (STEP: _.(step) st_tgt0 None st_tgt1)
               ,
-                <<SIM: sim i_src0 true st_src0 st_tgt1>> /\ <<IH: P i_src0 true st_src0 st_tgt1>>),
+                <<SIM: sim i_src0 TT st_src0 st_tgt1>> /\ <<IH: P i_src0 TT st_src0 st_tgt1>>),
             P i_src0 i_tgt0 st_src0 st_tgt0)
         (PROGRESS:
            forall
              i_src0 i_tgt0 st_src0 st_tgt0
-             (SIM: sim false false st_src0 st_tgt0)
-             (SRC: i_src0 = true)
-             (TGT: i_tgt0 = true),
+             (SIM: sim BB BB st_src0 st_tgt0)
+             (SRC: i_src0 = TT)
+             (TGT: i_tgt0 = TT),
              P i_src0 i_tgt0 st_src0 st_tgt0)
     :
       forall i_src0 i_tgt0 st_src0 st_tgt0
@@ -408,8 +413,8 @@ Section SIM.
     { punfold SIM. eapply sim_mon; eauto. i. pclearbot. auto. }
   Qed.
 
-  Variant sim_indC (sim: bool -> bool -> L0.(state) -> L1.(state) -> Prop)
-          (i_src0: bool) (i_tgt0: bool) (st_src0: L0.(state)) (st_tgt0: L1.(state)): Prop :=
+  Variant sim_indC (sim: flag -> flag -> L0.(state) -> L1.(state) -> Prop)
+          (i_src0: flag) (i_tgt0: flag) (st_src0: L0.(state)) (st_tgt0: L1.(state)): Prop :=
   | sim_indC_fin
       retv
       (SRT: _.(state_sort) st_src0 = final retv)
@@ -424,7 +429,7 @@ Section SIM.
           (STEP: _.(step) st_tgt0 (Some ev) st_tgt1)
         ,
           exists st_src1 (STEP: _.(step) st_src0 (Some ev) st_src1),
-            <<SIM: sim true true st_src1 st_tgt1>>)
+            <<SIM: sim TT TT st_src1 st_tgt1>>)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
 
@@ -438,7 +443,7 @@ Section SIM.
       (SIM: exists st_src1
                    (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: sim true i_tgt0 st_src1 st_tgt0>>)
+          <<SIM: sim TT i_tgt0 st_src1 st_tgt0>>)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_indC_demonic_tgt
@@ -446,7 +451,7 @@ Section SIM.
       (SIM: forall st_tgt1
                    (STEP: _.(step) st_tgt0 None st_tgt1)
         ,
-          <<SIM: sim i_src0 true st_src0 st_tgt1>>)
+          <<SIM: sim i_src0 TT st_src0 st_tgt1>>)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_indC_angelic_src
@@ -454,7 +459,7 @@ Section SIM.
       (SIM: forall st_src1
           (STEP: _.(step) st_src0 None st_src1)
         ,
-          <<SIM: sim true i_tgt0 st_src1 st_tgt0>>)
+          <<SIM: sim TT i_tgt0 st_src1 st_tgt0>>)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_indC_angelic_tgt
@@ -462,13 +467,13 @@ Section SIM.
       (SIM: exists st_tgt1
           (STEP: _.(step) st_tgt0 None st_tgt1)
         ,
-          <<SIM: sim i_src0 true st_src0 st_tgt1>>)
+          <<SIM: sim i_src0 TT st_src0 st_tgt1>>)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
   | sim_indC_progress
-      (SIM: sim false false st_src0 st_tgt0)
-      (SRC: i_src0 = true)
-      (TGT: i_tgt0 = true)
+      (SIM: sim BB BB st_src0 st_tgt0)
+      (SRC: i_src0 = TT)
+      (TGT: i_tgt0 = TT)
     :
       sim_indC sim i_src0 i_tgt0 st_src0 st_tgt0
   .
@@ -511,13 +516,13 @@ Section SIM.
     { econs 8; eauto. eapply rclo4_base. auto. }
   Qed.
 
-  Variant sim_flagC (sim: bool -> bool -> L0.(state) -> L1.(state) -> Prop)
-          (i_src1: bool) (i_tgt1: bool) (st_src: L0.(state)) (st_tgt: L1.(state)): Prop :=
+  Variant sim_flagC (sim: flag -> flag -> L0.(state) -> L1.(state) -> Prop)
+          (i_src1: flag) (i_tgt1: flag) (st_src: L0.(state)) (st_tgt: L1.(state)): Prop :=
   | sim_flagC_intro
       i_src0 i_tgt0
       (SIM: sim i_src0 i_tgt0 st_src st_tgt)
-      (SRC: i_src0 = true -> i_src1 = true)
-      (TGT: i_tgt0 = true -> i_tgt1 = true)
+      (SRC: i_src0 = TT -> i_src1 = TT)
+      (TGT: i_tgt0 = TT -> i_tgt1 = TT)
   .
 
   Lemma sim_flagC_mon: monotone4 sim_flagC.
@@ -547,8 +552,8 @@ Section SIM.
   Lemma sim_flag_mon:
     forall f_src0 f_tgt0 f_src1 f_tgt1 st_src st_tgt
            (SIM: sim f_src0 f_tgt0 st_src st_tgt)
-           (SRC: f_src0 = true -> f_src1 = true)
-           (TGT: f_tgt0 = true -> f_tgt1 = true),
+           (SRC: f_src0 = TT -> f_src1 = TT)
+           (TGT: f_tgt0 = TT -> f_tgt1 = TT),
       sim f_src1 f_tgt1 st_src st_tgt.
   Proof.
     ginit. i. guclo sim_flagC_spec. econs; eauto.
@@ -556,7 +561,7 @@ Section SIM.
   Qed.
 
   Record simulation: Prop := mk_simulation {
-    sim_init: <<SIM: sim false false L0.(initial_state) L1.(initial_state)>>;
+    sim_init: <<SIM: sim BB BB L0.(initial_state) L1.(initial_state)>>;
   }
   .
 
@@ -596,9 +601,9 @@ Section SIM.
       exploit STEP; eauto. i. pclearbot.
       eapply IH; eauto.
     - (** progress **)
-      remember false in SIM at 1.
-      remember false in SIM at 1.
-      revert Heqb. clear Heqb0. revert SPIN.
+      remember BB in SIM at 1.
+      remember BB in SIM at 1.
+      revert Heqf. clear Heqf0. revert SPIN.
       induction SIM using sim_ind; i; clarify.
       + exfalso. punfold SPIN. inv SPIN; rewrite SRT1 in *; clarify.
       + exfalso. punfold SPIN. inv SPIN; rewrite SRT1 in *; clarify.
@@ -643,8 +648,8 @@ Section SIM.
         exploit wf_angelic; et. i; clarify.
         exploit SIM; eauto. i. des. splits; auto.
       + rewrite SRT in *. clarify.
-      + remember false as i_src0 eqn:FLAGSRC in SIM at 1.
-        remember false as i_tgt0 eqn:FLAGTGT in SIM at 1.
+      + remember BB as i_src0 eqn:FLAGSRC in SIM at 1.
+        remember BB as i_tgt0 eqn:FLAGTGT in SIM at 1.
         clear FLAGSRC. revert FLAGTGT. revert retv SRT.
         induction SIM using sim_ind; i; try rewrite SRT0 in *; clarify.
         * gstep. econs; eauto.
@@ -672,8 +677,8 @@ Section SIM.
         exploit wf_angelic; et. i; clarify.
         exploit SIM; eauto. i. des. esplits; eauto.
       + (** progress **)
-        remember false as i_src0 eqn:FLAGSRC in SIM at 1.
-        remember false as i_tgt0 eqn:FLAGTGT in SIM at 1.
+        remember BB as i_src0 eqn:FLAGSRC in SIM at 1.
+        remember BB as i_tgt0 eqn:FLAGTGT in SIM at 1.
         clear FLAGSRC. revert FLAGTGT. revert ev SRT STEP.
         induction SIM using sim_ind; i; try rewrite SRT0 in *; clarify.
         * exploit SIM; eauto. i. des. gstep. econs 4; eauto. gbase. eauto.
@@ -691,8 +696,8 @@ Section SIM.
       + guclo of_state_indC_spec. econs 6; eauto. ii.
         exploit wf_angelic; et. i; clarify.
         exploit SIM; eauto. i. des. esplits; eauto.
-      + remember false as i_src0 eqn:FLAGSRC in SIM at 1.
-        remember false as i_tgt0 eqn:FLAGTGT in SIM at 1.
+      + remember BB as i_src0 eqn:FLAGSRC in SIM at 1.
+        remember BB as i_tgt0 eqn:FLAGTGT in SIM at 1.
         clear FLAGSRC. revert FLAGTGT. revert st1 SRT STEP0 TL IH.
         induction SIM using sim_ind; i; try rewrite SRT0 in *; clarify.
         * des. exploit IH0; eauto. i.
@@ -709,8 +714,8 @@ Section SIM.
         exploit wf_angelic; et. i; clarify.
         exploit SIM; eauto. i. des. esplits; eauto.
       + des. exploit STEP; eauto. i. des. esplits; eauto.
-      + remember false as i_src0 eqn:FLAGSRC in SIM at 1.
-        remember false as i_tgt0 eqn:FLAGTGT in SIM at 1.
+      + remember BB as i_src0 eqn:FLAGSRC in SIM at 1.
+        remember BB as i_tgt0 eqn:FLAGTGT in SIM at 1.
         clear FLAGSRC. revert FLAGTGT. revert SRT STEP.
         induction SIM using sim_ind; i; try rewrite SRT0 in *; clarify.
         * des. guclo of_state_indC_spec. econs 5; eauto. red. esplits; eauto.

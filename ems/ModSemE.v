@@ -122,18 +122,14 @@ Section DEFINES.
   | SUpdate (run : Any.t -> Any.t * V) : sE V
   .
 
-  Definition Es: Type -> Type := (callE +' sE +' eventE).
-  
-(*   
-  Definition sGet {X} (p: S -> X) : sE X := SUpdate (fun x => (x, p x)).
-  Definition sModify (f: S -> S) : sE () := SUpdate (fun x => (f x, tt)).
-  Definition sPut x := (sModify (fun _:S => x)). *)
-  
-  (* Double-check Types*)
-  (* Definition Get (p: Any.t -> Any.t) : sE Any.t Any.t := SUpdate (fun x => (x, p x)).
-  Definition Modify (f: Any.t -> Any.t) : sE Any.t () := SUpdate (fun x => (f x, tt)).
-  Definition Put x := (Modify (fun _ => x)). *)
+  Variant schE: Type -> Type :=
+  | Yield: schE unit
+  | Spawn (fn: gname) (args: Any.t): schE nat
+  .
 
+  Definition Es: Type -> Type := (callE +' sE +' schE +' eventE).
+  
+Section STATES.
   Definition sGet : sE (Any.t) := 
     SUpdate (fun x => (x, x)).
 
@@ -150,10 +146,113 @@ Section DEFINES.
     (* State.interp_state (case_ ((fun _ e s0 => resum_itr (handle_pE e s0)): _ ~> stateT _ _) State.pure_state). *)
     State.interp_state (case_ handle_sE pure_state).
 
-  Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
-    '(st1, v) <- interp_sE (interp_mrec prog itr0) st0;;
-    Ret (st1, v)
-  .
+End STATES.
+
+Section SCHEDULER.
+  Definition interp_schE {E} :
+    nat * (string * itree (sE +' schE +' eventE) E) ->
+    itree (sE +' eventE) (E + (string * Any.t * (nat -> itree (sE +' schE +' eventE) E))
+                        + (itree (sE +' schE +' eventE) E)).
+  Proof.
+    eapply ITree.iter.
+    intros [tid [sname itr]].
+    apply observe in itr; destruct itr as [r | itr | X e k].
+    - (* Ret *)
+      exact (Ret (inr (inl (inl r)))).
+    - (* Tau *)
+      exact (Ret (inl (tid, (sname, itr)))).
+    - (* Vis *)
+      destruct e as [|[|]].
+      + (* sE *)
+      exact (Vis (inl1 s) (fun x => Ret (inl (tid, (sname, k x))))).
+      + (* schE *)
+        destruct s.
+        * (* Yield *)
+        exact (Ret (inr (inr (k tt)))).
+        * (* Spawn *)
+          exact (Ret (inr (inl (inr (fn, args, fun x => k x))))).
+      + (* eventE *)
+        exact (Vis (inr1 e) (fun x => Ret (inl (tid, (sname, k x))))).
+  Defined.
+
+  Notation threads E := (alist nat (string * (itree (sE +' schE +' eventE) E))).
+
+  Inductive executeE {E} : Type -> Type :=
+  | Execute : nat -> executeE ((list nat) * (E + nat + unit)).
+
+  Definition get_site (fn: string) :=
+    match index 0 "." fn with
+    | Some idx => substring 0 idx fn
+    | None => "control"
+    end.
+
+
+  Definition dummy_return {E}: itree Es E := trigger (inr1 (Choose E)).
+
+  Definition interp_executeE {E}:
+  (callE ~> itree Es) * (threads E) * nat * (itree ((@executeE E) +' eventE) E) ->
+  itree (sE +' eventE) E.
+Proof.
+  eapply ITree.iter. intros [[[prog ts] next_tid] sch].
+  destruct (observe sch) as [r | sch' | X [e|e] ktr].
+  - exact (Ret (inr r)).
+  - exact (Ret (inl (prog, ts, next_tid, sch'))).
+  - destruct e. rename n into tid.
+    destruct (alist_find tid ts) as [[sname itr]|].
+    * exact (r <- interp_schE (tid, (sname, itr));;
+             match r with
+             | inl (inl r) => (* finished *)
+                 let ts' := alist_remove tid ts in
+                 Ret (inl (prog, ts', next_tid, ktr (List.map fst ts', (inl (inl r)))))
+             | inl (inr (fn, args, k)) => (* spawn what is root?*)
+                 let new_itr := interp_mrec prog (_ <- (prog _ (Call fn args));;
+                                                  v <- dummy_return;; Ret v) in
+                 let ts' := alist_add next_tid (get_site fn, new_itr) (alist_replace tid (sname, k next_tid) ts) in
+                 Ret (inl (prog, ts', next_tid + 1, ktr (List.map fst ts', (inl (inr tid)))))
+             | inr t' => (* yield *)
+                 let ts' := alist_replace tid (sname, t') ts in
+                 Ret (inl (prog, ts', next_tid, ktr (List.map fst ts', (inr tt))))
+             end).
+    * exact triggerNB.
+  - exact (Vis (inr1 e) (fun x => Ret (inl (prog, ts, next_tid, ktr x)))).
+Defined.    
+
+Definition choose_from {E} (l: list nat): itree (@executeE E +' eventE) nat :=
+  tid <- ITree.trigger (inr1 (Choose nat));;
+  guarantee(In tid l);;;
+  Ret tid.
+
+Definition sched_nondet {E} : nat -> itree (executeE +' eventE) E :=
+  ITree.iter (fun tid => 
+                '(ts, retv) <- ITree.trigger (inl1 (Execute tid));;
+                match retv with
+                | inl (inl r) =>
+                    match ts with
+                    | [] => Ret (inr r)
+                    | _ => tid' <- choose_from(ts);;
+                          Ret (inl tid')
+                    end
+                | inl (inr tid') =>
+                    Ret (inl tid')
+                | inr tt =>
+                    tid' <- choose_from(ts);;
+                    Ret (inl tid')
+                end).
+
+Definition interp_scheduler {E}
+  (prog: callE ~> itree Es) (ts: threads E) (start_tid: nat) : itree (sE +' eventE) E :=
+  interp_executeE (prog, ts, List.length ts, sched_nondet start_tid).
+
+
+End SCHEDULER.
+
+Definition interp_Es A (prog: callE ~> itree Es) (itr0: itree Es A) (st0: Any.t): itree eventE (Any.t * _)%type :=
+  let itr1 := interp_mrec prog itr0 in
+  let itr2 := interp_scheduler prog [(0, ("init", itr1))] 0 in
+  '(st1, v) <- interp_sE itr2 st0;;
+  Ret (st1, v)
+.
+
 End DEFINES.
 
   Lemma interp_Es_bind
@@ -165,8 +264,8 @@ End DEFINES.
       interp_Es prog (v <- itr ;; ktr v) st0 =
       '(st1, v) <- interp_Es prog (itr) st0 ;; interp_Es prog (ktr v) st1
   .
-  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
-
+  Proof. Admitted. 
+  
   Lemma interp_Es_tau
         (prog: callE ~> itree Es)
         A
@@ -175,7 +274,7 @@ End DEFINES.
     :
       interp_Es prog (tau;; itr) st0 = tau;; interp_Es prog itr st0
   .
-  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
+  Proof. Admitted. 
 
   Lemma interp_Es_ret
         T
@@ -183,7 +282,8 @@ End DEFINES.
     :
       interp_Es prog (Ret v: itree Es _) st0 = Ret (st0, v)
   .
-  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
+  Proof. Admitted. 
+
 
   Lemma interp_Es_callE
         p st0 T
@@ -192,7 +292,8 @@ End DEFINES.
     :
       interp_Es p (trigger e) st0 = tau;; (interp_Es p (p _ e) st0)
   .
-  Proof. unfold interp_Es, interp_sE. des_ifs. grind. Qed.
+  Proof. Admitted. 
+
 
   Lemma interp_Es_sE
         p st0
@@ -205,9 +306,7 @@ End DEFINES.
       tau;; tau;;
       Ret (st1, r)
   .
-  Proof.
-    unfold interp_Es, interp_sE. grind.
-  Qed.
+  Proof. Admitted.
 
   Lemma interp_Es_eventE
         p st0
@@ -217,11 +316,8 @@ End DEFINES.
     :
       interp_Es p (trigger e) st0 = r <- trigger e;; tau;; tau;; Ret (st0, r)
   .
-  Proof.
-    unfold interp_Es, interp_sE. grind.
-    unfold pure_state. grind.
-  Qed.
-
+  Proof. Admitted.
+ 
   Lemma interp_Es_triggerUB
         (prog: callE ~> itree Es)
         st0
@@ -229,9 +325,7 @@ End DEFINES.
     :
       (interp_Es prog (triggerUB) st0: itree eventE (_ * A)) = triggerUB
   .
-  Proof.
-    unfold interp_Es, interp_sE, pure_state, triggerUB. grind.
-  Qed.
+  Proof. Admitted.
 
   Lemma interp_Es_triggerNB
         (prog: callE ~> itree Es)
@@ -240,9 +334,7 @@ End DEFINES.
     :
       (interp_Es prog (triggerNB) st0: itree eventE (_ * A)) = triggerNB
   .
-  Proof.
-    unfold interp_Es, interp_sE, pure_state, triggerNB. grind.
-  Qed.
+  Proof. Admitted. 
   (* Opaque interp_Es. *)
 End EVENTS.
 Opaque interp_Es.

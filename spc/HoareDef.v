@@ -179,11 +179,11 @@ Variant hAPCE: Type -> Type :=
 | hAPC: hAPCE unit
 .
 
-Notation Es' := (hCallE +' sE +' eventE).
+Notation Es' := (hCallE +' sE +' schE +' eventE).
 
 Definition hEs := (hAPCE +' Es).
 
-Definition hcall {X Y} (fn: gname) (varg: X): itree (hCallE +' sE +' eventE) Y :=
+Definition hcall {X Y} (fn: gname) (varg: X): itree (hCallE +' sE +'  schE +' eventE) Y :=
   vret <- trigger (hCall false fn varg↑);; vret <- vret↓ǃ;; Ret vret.
 
 Program Fixpoint _APC (at_most: Ord.t) {wf Ord.lt at_most}: itree Es' unit :=
@@ -317,7 +317,7 @@ Section CANCEL.
                   trivial_Handler)
   .
 
-  Definition body_to_mid2 {X} (body: X -> itree (hCallE +' sE +' eventE) Any.t): X -> itree Es Any.t :=
+  Definition body_to_mid2 {X} (body: X -> itree (hCallE +' sE +'  schE +' eventE) Any.t): X -> itree Es Any.t :=
     (@interp_hCallE_mid2 _) ∘ body
   .
 
@@ -341,7 +341,7 @@ Section CANCEL.
                   ((fun T X => trigger X): _ ~> itree Es))
   .
 
-  Definition body_to_mid (ord_cur: ord) {X} (body: X -> itree (hCallE +' sE +' eventE) Any.t): X -> itree Es Any.t :=
+  Definition body_to_mid (ord_cur: ord) {X} (body: X -> itree (hCallE +' sE +'  schE +' eventE) Any.t): X -> itree Es Any.t :=
     fun varg_mid => interp_hCallE_mid ord_cur (body varg_mid)
   .
 
@@ -374,7 +374,7 @@ Section CANCEL.
   .
 
   Definition body_to_tgt (ord_cur: ord)
-             {X} (body: X -> itree (hCallE +' sE +' eventE) Any_src): X -> stateT Σ (itree Es) Any_src :=
+             {X} (body: X -> itree (hCallE +' sE +'  schE +' eventE) Any_src): X -> stateT Σ (itree Es) Any_src :=
     (@interp_hCallE_tgt ord_cur _) ∘ body.
 
 
@@ -819,7 +819,7 @@ Context `{Σ: GRA.t}.
 (* itree reduction *)
 Lemma interp_tgt_bind
       (R S: Type)
-      (s : itree (hCallE +' sE +' eventE) R) (k : R -> itree (hCallE +' sE +' eventE) S)
+      (s : itree (hCallE +' sE +'  schE +' eventE) R) (k : R -> itree (hCallE +' sE +'  schE +' eventE) S)
       stb o ctx
   :
     (interp_hCallE_tgt stb o (s >>= k)) ctx
@@ -908,7 +908,7 @@ Lemma interp_tgt_unwrapU stb o ctx
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_tgt stb o (@unwrapU (hCallE +' sE +' eventE) _ _ i) ctx)
+    (interp_hCallE_tgt stb o (@unwrapU (hCallE +' sE +'  schE +' eventE) _ _ i) ctx)
     =
     r <- (unwrapU i);; Ret (ctx, r).
 Proof.
@@ -927,7 +927,7 @@ Lemma interp_tgt_unwrapN stb o ctx
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_tgt stb o (@unwrapN (hCallE +' sE +' eventE) _ _ i) ctx)
+    (interp_hCallE_tgt stb o (@unwrapN (hCallE +' sE +'  schE +' eventE) _ _ i) ctx)
     =
     r <- (unwrapN i);; Ret (ctx, r).
 Proof.
@@ -1003,7 +1003,7 @@ Variable stb: gname -> option fspec.
 (* itree reduction *)
 Lemma interp_mid_bind
       (R S: Type)
-      (s : itree (hCallE +' sE +' eventE) R) (k : R -> itree (hCallE +' sE +' eventE) S)
+      (s : itree (hCallE +' sE +'  schE +' eventE) R) (k : R -> itree (hCallE +' sE +'  schE +' eventE) S)
       o
   :
     (interp_hCallE_mid stb o (s >>= k))
@@ -1095,7 +1095,7 @@ Lemma interp_mid_unwrapU o
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_mid stb o (@unwrapU (hCallE +' sE +' eventE) _ _ i))
+    (interp_hCallE_mid stb o (@unwrapU (hCallE +' sE +'  schE +' eventE) _ _ i))
     =
     (unwrapU i).
 Proof.
@@ -1114,7 +1114,7 @@ Lemma interp_mid_unwrapN o
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_mid stb o (@unwrapN (hCallE +' sE +' eventE) _ _ i))
+    (interp_hCallE_mid stb o (@unwrapN (hCallE +' sE +'  schE +' eventE) _ _ i))
     =
     (unwrapN i).
 Proof.
@@ -1189,7 +1189,7 @@ Variable stb: gname -> option fspec.
 (* itree reduction *)
 Lemma interp_mid2_bind
       (R S: Type)
-      (s : itree (hCallE +' sE +' eventE) R) (k : R -> itree (hCallE +' sE +' eventE) S)
+      (s : itree (hCallE +' sE +'  schE +' eventE) R) (k : R -> itree (hCallE +' sE +'  schE +' eventE) S)
   :
     (interp_hCallE_mid2 (s >>= k))
     =
@@ -1280,7 +1280,7 @@ Lemma interp_mid2_unwrapU
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_mid2 (@unwrapU (hCallE +' sE +' eventE) _ _ i))
+    (interp_hCallE_mid2 (@unwrapU (hCallE +' sE +'  schE +' eventE) _ _ i))
     =
     (unwrapU i).
 Proof.
@@ -1299,7 +1299,7 @@ Lemma interp_mid2_unwrapN
       (R: Type)
       (i: option R)
   :
-    (interp_hCallE_mid2 (@unwrapN (hCallE +' sE +' eventE) _ _ i))
+    (interp_hCallE_mid2 (@unwrapN (hCallE +' sE +'  schE +' eventE) _ _ i))
     =
     (unwrapN i).
 Proof.
@@ -1850,7 +1850,7 @@ Ltac ired_both := ired_l; ired_r.
     unfold fun_to_tgt, cfunN; ss.
 
 
-Notation Es' := (hCallE +' sE +' eventE).
+Notation Es' := (hCallE +' sE +'  schE +' eventE).
 
 Module IPCNotations.
   Notation ";;; t2" :=

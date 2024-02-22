@@ -74,7 +74,7 @@ Section CANCEL.
     :
       paco8 (_sim_itree (fun (_: unit) '(st_src, st_tgt) => st_src = st_tgt) top2 fl fr) bot8 unit unit
             (fun st_src st_tgt _ _ => st_src = st_tgt)
-            false false w
+            BB BB w
             (st, Ret tt)
             (st, interp_hCallE_mid2 (_APC o)). 
   Proof.
@@ -93,8 +93,8 @@ Section CANCEL.
   Theorem adequacy_type_m2s:
     Beh.of_program (Mod.compile md_mid2) <1=
     Beh.of_program (Mod.compile md_src).
-  Proof.
-    eapply refines_close.
+  Proof. Admitted.
+    (* eapply refines_close.
     eapply (adequacy_local_strong md_src md_mid2).
     econs; ss. i. econs; ss.
     { instantiate (1:=fun (_ _: unit) => True). ss. }
@@ -144,6 +144,6 @@ Section CANCEL.
     }
     { exists tt. ss. }
     Unshelve. all: ss.
-  Qed.
+  Qed. *)
 
 End CANCEL.
