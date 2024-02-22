@@ -920,6 +920,7 @@ Ltac imp_red :=
   end.
 
 Ltac imp_steps := repeat (repeat (imp_red; ss); steps).
+Ltac imp_steps_safe := repeat (repeat (imp_red; ss); steps_safe).
 Ltac imp_steps_safe_l := repeat (repeat (imp_red; ss); steps_safe_l).
 Ltac imp_steps_safe_r := repeat (repeat (imp_red; ss); steps_safe_r).
 Ltac solve_NoDup := repeat econs; ii; ss; des; ss.

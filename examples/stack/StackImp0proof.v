@@ -89,7 +89,7 @@ Section SIMMODSEM.
         2:{ steps. }
         imp_steps_safe_r. _step; ss. imp_steps_safe_r.
         uo. des_ifs_safe; ss; clarify. unfold scale_int in Heq2.
-        des_ifs_safe. steps_safe_r. _step. steps_safe_r. imp_steps_safe_r. _step. imp_steps_safe_r.
+        des_ifs_safe. steps_safe. imp_steps_safe_r. _step. imp_steps_safe_r.
         unfold scale_int. uo; ss. des_ifs. ss.
         rewrite Z_div_same; ss. rewrite Z.add_0_l.
         imp_steps_safe_r. _step. imp_steps_safe_r. _step. imp_steps_safe_r.

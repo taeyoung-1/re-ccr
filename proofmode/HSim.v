@@ -178,7 +178,7 @@ Section SIM.
           hsim _ _ Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret))
     :
       _hsim hsim Q ctx fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt)
-  (* | hsim_inline_src
+  | hsim_inline_src
     fsp fn f arg_src
     st_src st_tgt ktr_src itr_tgt
     fuel f_src f_tgt
@@ -195,7 +195,7 @@ Section SIM.
     (FUN: alist_find fn fl_tgt = Some f)
     (SIM: _hsim hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
   :
-    _hsim hsim Q ctx fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt) *)
+    _hsim hsim Q ctx fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt)
   | hsim_tau_src
       st_src st_tgt itr_src itr_tgt
       fuel f_src f_tgt
@@ -315,7 +315,7 @@ Section SIM.
             (POST: forall ret,
                 hsim _ _ Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret)),
             P fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt))
-        (* (INLINESRC: forall
+        (INLINESRC: forall
             fsp fn f arg_src
             st_src st_tgt ktr_src itr_tgt
             fuel f_src f_tgt
@@ -333,7 +333,7 @@ Section SIM.
             (FUN: alist_find fn fl_tgt = Some f)
             (SIM: _hsim hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
             (IH: P fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt)),
-            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))         *)
+            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))        
         (TAUSRC: forall
             st_src st_tgt itr_src itr_tgt
             fuel f_src f_tgt
@@ -403,8 +403,8 @@ Section SIM.
     { eapply APCSTART; eauto. }
     { des. eapply APCSTEP; eauto. }
     { eapply SYSCALL; eauto. }
-    (* { eapply INLINESRC; et. }
-    { eapply INLINETGT; et. } *)
+    { eapply INLINESRC; et. }
+    { eapply INLINETGT; et. }
     { eapply TAUSRC; eauto. }
     { eapply TAUTGT; eauto. }
     { des. eapply CHOOSESRC; eauto. }
@@ -429,8 +429,8 @@ Section SIM.
     { econs 5; eauto. }
     { econs 6; eauto. }
     { econs 7; eauto. }
-    (* { econs; eauto. }
-    { econs; eauto. } *)
+    { econs; eauto. }
+    { econs; eauto. }
     { econs; eauto. des. esplits; eauto. }
     { econs; eauto. i. hexploit SIM; eauto. i. des. eauto. }
     { econs; eauto. i. hexploit SIM; eauto. i. des. eauto. }
@@ -492,7 +492,7 @@ Section SIM.
             (POST: forall ret,
                 hsim Q ctx None true true (st_src, ktr_src ret) (st_tgt, ktr_tgt ret)),
             P fuel f_src f_tgt (st_src, trigger (Syscall fn arg rvs) >>= ktr_src) (st_tgt, trigger (Syscall fn arg rvs) >>= ktr_tgt))
-        (* (INLINESRC: forall
+        (INLINESRC: forall
             fsp fn f arg_src
             st_src st_tgt ktr_src itr_tgt
             fuel f_src f_tgt
@@ -510,7 +510,7 @@ Section SIM.
             (FUN: alist_find fn fl_tgt = Some f)
             (SIM: hsim Q ctx fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt))
             (IH: P fuel f_src true (st_src, itr_src) (st_tgt, (f arg_tgt) >>= ktr_tgt)),
-            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))             *)
+            P fuel f_src f_tgt (st_src, itr_src) (st_tgt, trigger (Call fn arg_tgt) >>= ktr_tgt))            
         (TAUSRC: forall
             st_src st_tgt itr_src itr_tgt
             fuel f_src f_tgt
@@ -580,8 +580,8 @@ Section SIM.
     { eapply APCSTART; eauto. pfold. eauto. }
     { des. eapply APCSTEP; eauto. esplits; eauto. i. hexploit SIM; eauto. i. pclearbot. eauto. }
     { eapply SYSCALL; eauto. i. hexploit POST; eauto. i. pclearbot. eauto. }
-    (* { eapply INLINESRC; eauto. pfold. eauto. }
-    { eapply INLINETGT; eauto. pfold. eauto. } *)
+    { eapply INLINESRC; eauto. pfold. eauto. }
+    { eapply INLINETGT; eauto. pfold. eauto. }
     { eapply TAUSRC; eauto. pfold. eauto. }
     { eapply TAUTGT; eauto. pfold. eauto. }
     { des. eapply CHOOSESRC; eauto. esplits; eauto. pfold. eauto. }
@@ -718,12 +718,12 @@ Section SIM.
       { astop. steps. gbase. hexploit CIH; eauto. }
       { gbase. hexploit CIH; eauto. }
     }
-    (* { des. destruct fuel; steps.
+    { destruct fuel; steps.
       { astop. steps. rewrite SPEC. steps.
       } 
     
     }
-    { steps. }  *)
+    { steps. } 
 
     { destruct fuel; steps.
       { astop. steps. exploit IHSIM; eauto. }

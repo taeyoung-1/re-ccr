@@ -190,7 +190,7 @@ Section SIMMODSEM.
       mDesAll.
       harg_tgt.
       { iModIntro. iFrame. iSplits; et. xtra. }
-      steps_safe_l. rewrite Any.pair_split in *. s. rewrite Any.pair_split.
+      steps_safe. rewrite Any.pair_split in *. s. rewrite Any.pair_split.
       inv _UNWRAPN. rewrite Any.upcast_downcast in H3. inv H3.
       (*** calling APC ***)
       hAPC _.

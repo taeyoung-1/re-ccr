@@ -238,7 +238,7 @@ Section SIMMODSEM.
       mDesOr "INV".
       { mDesAll. subst. mAssertPure False; ss. iApply (pending0_unique with "A1 A"). }
       mDesAll. subst.
-      steps_safe_l. rewrite ! Any.pair_split. s. steps_safe_l. rewrite ! Any.pair_split. s.
+      steps_safe. rewrite ! Any.pair_split. s. steps_safe. rewrite ! Any.pair_split. s.
       
       astart (1 + x). acatch.
       { eapply STBINCLM. stb_tac. ss. }
@@ -278,7 +278,7 @@ Section SIMMODSEM.
         2:{ exfalso. lia. }
         steps. unfold scale_int at 1. des_ifs.
         2:{ exfalso. eapply n0. eapply Z.divide_factor_r. }
-        steps_safe_l.
+        steps_safe.
         assert (EQ: (0 + ((x - S n)%nat * 8) `div` 8) = (x - S n)).
         { rewrite Nat.div_mul; ss. }
         mAssert (OwnM ((a, Z.of_nat (x - S n)) |-> [Vundef]) ** (OwnM ((a, Z.of_nat (x - S n)) |-> [Vint 0]) -* OwnM ((a, 0%Z) |-> (repeat (Vint 0) (x - n) ++ repeat Vundef n)))) with "A2".
@@ -329,7 +329,7 @@ Section SIMMODSEM.
       mDesAll. des. steps. rewrite ! Any.pair_split. s. steps.  
       unfold scale_int. des_ifs.
       2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps_safe_l. astart 1. acatch.
+      steps_safe. astart 1. acatch.
       { eapply STBINCLM. stb_tac. ss. }
       mApply points_to_get_split "A1".
       2:{ eapply map_nth_error. eauto. }
@@ -352,7 +352,7 @@ Section SIMMODSEM.
       mDesAll. des. steps. rewrite ! Any.pair_split. s. steps. rewrite ! Any.pair_split. s. 
       unfold scale_int. des_ifs.
       2:{ exfalso. eapply n. eapply Z.divide_factor_r. }
-      steps_safe_l. astart 1. acatch.
+      steps_safe. astart 1. acatch.
       { eapply STBINCLM. stb_tac. ss. }
       hexploit set_nth_success.
       { rewrite PURE0. instantiate (1:=Z.to_nat z). lia. }
@@ -377,8 +377,8 @@ Section SIMMODSEM.
     }
     econs; ss.
     { unfold MapI.set_by_userF, MapM.set_by_userF, ccallU.
-      init. iarg. mDesAll. subst. steps_safe_l.
-      rewrite STB_setM. steps_safe_l.
+      init. iarg. mDesAll. subst. steps_safe.
+      rewrite STB_setM. steps_safe.
       icall_weaken set_specM _ _ with "*".
       { refl. }
       { iModIntro. eauto. }

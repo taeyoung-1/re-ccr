@@ -79,7 +79,7 @@ Section SIMMODSEM.
     { esplits. econs; ss. eapply to_semantic. iIntros "H". iClear "H". iSplits; ss. }
     econs; ss.
     { unfold newF. init. harg. fold wf. mDesAll; des; subst. ss.
-      unfold new_body. steps. unfold ccallN, ccallU, cfunN, cfunU. steps_safe_l.
+      unfold new_body. steps. unfold ccallN, ccallU, cfunN, cfunU. steps_safe.
 
       astart 2. acatch. { eapply STBINCL. stb_tac; ss. } hcall _ _ with "SIM"; ss; et.
       { iModIntro. iSplits; ss; et.
@@ -93,7 +93,7 @@ Section SIMMODSEM.
       steps.
       force_r.
       { ss. }
-      steps_safe_l.
+      steps_safe.
 
       acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM A"; ss; et.
       { iModIntro. iSplitL "SIM"; ss.
@@ -123,10 +123,10 @@ Section SIMMODSEM.
     econs; ss.
     { unfold popF. init. harg. fold wf. mDesAll; des; subst. ss.
       unfold pop_body, ccallU, cfunU.
-      steps_safe_l. astop. steps_safe_l.
-      rewrite ! Any.pair_split. steps_safe_l.
-      astop. steps_safe_l. astop. steps_safe_l.
-      rewrite ! Any.pair_split. steps_safe_l.
+      steps_safe. astop. steps_safe.
+      rewrite ! Any.pair_split. steps_safe.
+      astop. steps_safe. astop. steps_safe.
+      rewrite ! Any.pair_split. steps_safe.
       astart 7.
 
       hide_k. destruct v; ss. des_ifs. clear_fast.
@@ -150,7 +150,7 @@ Section SIMMODSEM.
 
       destruct stk as [|x stk1]; ss.
       - mDesAll. subst.
-        unhide_k. steps_safe_l. hide_k.
+        unhide_k. steps_safe. hide_k.
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST"; ss.
         { iModIntro. iSplitL "SIM"; ss; [et|]. iSplits; ss. repeat iRight. et. }
         post_call. unhide_k. steps. astop. steps.
@@ -168,7 +168,7 @@ Section SIMMODSEM.
         iApply big_sepM_insert; ss. iSplitR "SIM"; et.
       - mDesAll. subst. rename a into hd. rename a0 into tl. rewrite points_to_split in ACC. mDesOwn "A1".
         rewrite Z.add_0_l in *.
-        unhide_k. steps_safe_l. hide_k.
+        unhide_k. steps_safe. hide_k.
 
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM A1"; ss.
         { iModIntro. iSplitL "SIM"; ss. { et. } iSplits; ss; et. }
@@ -183,22 +183,22 @@ Section SIMMODSEM.
         { ss. }
         steps.
 
-        unfold scale_int. uo. steps_safe_l.
+        unfold scale_int. uo. steps_safe.
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM POST1"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps_safe_l.
+        post_call. steps_safe.
 
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM A2"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps_safe_l.
+        post_call. steps_safe.
 
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST2"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps_safe_l.
+        post_call. steps_safe.
 
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _) _ with "SIM POST1"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
-        post_call. steps_safe_l.
+        post_call. steps_safe.
 
         acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "SIM POST"; ss.
         { iModIntro. iSplitL "SIM"; ss; et. }
@@ -218,10 +218,10 @@ Section SIMMODSEM.
     econs; ss.
     { unfold pushF. init. harg. fold wf. mDesAll; des; subst. ss.
       unfold push_body, ccallU, cfunU.
-      steps_safe_l. astop. steps_safe_l.
-      rewrite Any.pair_split. steps_safe_l.
-      astop. steps_safe_l. astop. steps_safe_l.
-      rewrite Any.pair_split. steps_safe_l.
+      steps_safe. astop. steps_safe.
+      rewrite Any.pair_split. steps_safe.
+      astop. steps_safe. astop. steps_safe.
+      rewrite Any.pair_split. steps_safe.
       astart 7.
 
       hide_k. destruct v; ss. des_ifs. clear_tac.
@@ -242,23 +242,23 @@ Section SIMMODSEM.
 
       unfold scale_int. uo. steps.
 
-      force_r; ss. steps_safe_l.
+      force_r; ss. steps_safe.
 
       acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps_safe_l.
+      post_call. steps_safe.
 
       acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A1 SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps_safe_l.
+      post_call. steps_safe.
 
       acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "A3 SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps_safe_l.
+      post_call. steps_safe.
 
       acatch. { eapply STBINCL. stb_tac; ss. } hcall (_, _, _) _ with "POST SIM"; ss; et.
       { iModIntro. iSplitL "SIM"; et. }
-      post_call. steps_safe_l.
+      post_call. steps_safe.
 
       astop. steps.
       rewrite Any.pair_split. steps.

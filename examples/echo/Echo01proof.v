@@ -72,13 +72,13 @@ Section SIMMODSEM.
     econs; ss.
     { unfold Echo0.echo_body, echo_body, cfunN, cfunU, ccallN, ccallU.
       init. harg. post_call.
-      des_ifs. steps_safe_l.
+      des_ifs. steps_safe.
       astart 1. acatch. { eapply STBINCL. stb_tac; ss. } hcall _ _ with ""; ss; et.
-      post_call. steps_safe_l. astop. steps_safe_l. erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe_l.
+      post_call. steps_safe. astop. steps_safe. erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe.
       hcall _ _ with "A"; ss; et.
       { iModIntro. iSplits; ss; et. }
-      post_call. steps_safe_l. astop. steps_safe_l.
-      erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe_l.
+      post_call. steps_safe. astop. steps_safe.
+      erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe.
       hcall _ _ with "A"; ss; et.
       { iModIntro. iSplits; ss; et. }
       post_call. steps. astop. steps.
@@ -87,8 +87,8 @@ Section SIMMODSEM.
     econs; ss.
     { unfold Echo0.input_body, input_body, cfunU, ccallU, ccallN. init.
       (* 2: { harg. mDesAll. des; clarify. steps. } *)
-      harg. post_call. steps_safe_l.
-      erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe_l.
+      harg. post_call. steps_safe.
+      erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe.
       hcall _ _ with ""; ss; et.
       post_call. steps. astop. steps.
       hide_k. force_r.
@@ -99,13 +99,13 @@ Section SIMMODSEM.
       des_ifs.
       - steps. astop. steps. hret _; ss.
         { iModIntro. iSplits; ss; et. }
-      - steps_safe_l.
+      - steps_safe.
         astart 1. acatch.
         { erewrite STBINCL; ss. stb_tac; ss. }
         hcall (_, _, _) _ with "-"; ss; et.
-        post_call. steps_safe_l. astop. steps_safe_l.
+        post_call. steps_safe. astop. steps_safe.
 
-        erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe_l.
+        erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe.
         hcall _ _ with "-"; ss; et.
         { iModIntro. iSplits; ss; et. }
         post_call. steps. astop. steps.
@@ -115,11 +115,11 @@ Section SIMMODSEM.
     econs; ss.
     { unfold Echo0.output_body, output_body, cfunU, ccallU, ccallN. init.
       (* 2:{ harg. mDesAll. des; clarify. steps. } *)
-      harg. post_call. steps_safe_l.
+      harg. post_call. steps_safe.
       astart 1. acatch.
       { erewrite STBINCL; ss. stb_tac; ss. }
       hcall (_, _) _ with "-"; ss; et.
-      post_call. steps_safe_l. astop. steps_safe_l.
+      post_call. steps_safe. astop. steps_safe.
       destruct a as [|hd tl]; ss.
       - steps. mDesAll; ss; des; subst. rewrite Any.upcast_downcast in *. clarify. steps.
         force_r; ss. grind.
@@ -133,10 +133,10 @@ Section SIMMODSEM.
         hide_k.
         force_r; ss. grind.
         unhide_k.
-        des_ifs. steps_safe_l.
+        des_ifs. steps_safe.
         hcall _ _ with ""; ss; et.
-        post_call. steps_safe_l. astop. steps_safe_l.
-        erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe_l.
+        post_call. steps_safe. astop. steps_safe.
+        erewrite STBINCL; cycle 1. { stb_tac; ss. } steps_safe.
         hcall _ _ with "-"; ss; et.
         { iModIntro. iSplits; ss; et. }
         post_call. steps. astop. steps.

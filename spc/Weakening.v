@@ -74,7 +74,7 @@ Section PROOF.
       hexploit stb_stronger; et. i. des. rewrite FINDSRC. steps.
       Local Transparent HoareCall. unfold HoareCall, ASSUME, ASSERT, mput, mget. Local Opaque HoareCall. 
 
-      steps_safe_l. specialize (WEAKER x ). des.
+      steps_safe. specialize (WEAKER x ). des.
       assert (exists rarg_src,
                  (<<PRE: precond fsp_src x_tgt varg_src x0 rarg_src>>) /\
                  (<<VALID: URA.wf (rarg_src ⋅ c1 ⋅ ctx ⋅ c)>>)
@@ -85,16 +85,16 @@ Section PROOF.
         i. des. esplits; et. r_wf H0.
       }
       des. force_l. exists x_tgt.
-      steps_safe_l. force_l; et. exists (rarg_src, c1, c).
-      steps_safe_l. force_l; et.
+      steps_safe. force_l; et. exists (rarg_src, c1, c).
+      steps_safe. force_l; et.
       
       (* s. rewrite Any.pair_split. s.  *)
-      (* steps_safe_l. force_l; et. *)
-      (* steps_safe_l. force_l; et. *)
+      (* steps_safe. force_l; et. *)
+      (* steps_safe. force_l; et. *)
 
-      steps_safe_l. force_l. exists x0.
-      steps_safe_l. force_l; et.
-      steps_safe_l. force_l; et.
+      steps_safe. force_l. exists x0.
+      steps_safe. force_l; et.
+      steps_safe. force_l; et.
       { esplits; et.
         - r in MEASURE. des_ifs; ss; des_ifs. ss. eapply Ord.le_lt_lt; et. eapply Ord.lt_le_lt; et.
         - i. spc _GUARANTEE2. r in MEASURE. des_ifs; ss; des_ifs.
