@@ -1125,7 +1125,7 @@ Section SEMPAIR.
     eapply (@sim_itree_ind world wf le fl_src fl_tgt Any.t Any.t (lift_rel wf le w0 (@eq Any.t)) P); subst P; ss; i; clarify.
     - rr in RET. des. step. splits; auto. econs; et.
     - hexploit (fnsems_find_iff fn). i. des.
-      { step. rewrite interp_Es_bind.  steps. rewrite NONE. unfold unwrapU, triggerUB. grind. step. ss. }
+      { steps. rewrite NONE. unfold unwrapU, triggerUB. grind. step. ss. }
 
       { hexploit (SIM (varg) (varg)); et. i. des. ired_both. 
         steps. grind. rewrite SRC. rewrite TGT. unfold unwrapU. ired_both.

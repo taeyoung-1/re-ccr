@@ -57,33 +57,7 @@ Section SIMMODSEM.
       2:{ exfalso; apply n. solve_NoDup. }
       (* It should be done by a following line *)
       (* unfold ccallU. imp_steps. red. esplits; et. *)
-      unfold ccallU. imp_steps_safe_r. imp_steps.
-      rewrite unfold_eval_imp_only.
-       
-      unfold input_body.
-      destruct ListDec.NoDup_dec. 2: { destruct n0. solve_NoDup. }
-
-      unfold ccallU. imp_steps_safe_r. _step. 
-      imp_steps_safe_r.
-
-      des. destruct v0; ss; clarify.
-      des_ifs.
-      - imp_steps.
-        unfold output_body, output.
-        steps.
-        unfold ccallU. imp_steps_safe_r.
-        rewrite unfold_eval_imp_only. imp_steps_safe_r.
-        _step; ss. imp_steps_safe_r.
-        des. destruct v0; ss; clarify.
-        des_ifs.
-        + imp_steps. red. esplits; ss.
-        + rewrite Z.eqb_eq in Heq3. clarify.
-        + imp_steps_safe_r. _step; ss.
-          imp_steps_safe_r. _step. imp_steps_safe_r. red. esplits; et.  
-      - destruct n2. f_equal. apply Z.eqb_eq. et.
-      - imp_steps_safe_r. _step; ss. imp_steps_safe_r.
-        repeat (_step; imp_steps_safe_r).
-        red. esplits; et. 
+      unfold ccallU. imp_steps_safe. red. esplits; et. 
     }
     econs; ss.
     { init.
@@ -95,15 +69,12 @@ Section SIMMODSEM.
       2:{ exfalso; apply n. solve_NoDup. }
       (* unfold ccallU. imp_steps. *)
       unfold ccallU. 
-      imp_steps_safe_r. _step. imp_steps_safe_r.
+      imp_steps_safe.
       des. destruct v0; ss; clarify.
       des_ifs.
       - imp_steps. red. esplits; et. ss.
       - rewrite Z.eqb_eq in Heq0. clarify.
-      - imp_steps_safe_r. _step.
-        { instantiate (1:= ()). ss. }
-        imp_steps_safe_r. _step. imp_steps_safe_r.
-        red. esplits; et.
+      - imp_steps_safe. red. esplits; et.
     }
     econs; ss.
     { init.
@@ -112,13 +83,12 @@ Section SIMMODSEM.
       rewrite unfold_eval_imp. steps.
       des_ifs.
       2:{ exfalso; apply n. solve_NoDup. }
-      unfold ccallU. imp_steps_safe_r.
-      _step. imp_steps_safe_r.
+      unfold ccallU. imp_steps_safe.
       des. destruct v0; ss; clarify.
       des_ifs.
       - imp_steps. red. esplits; et. ss.
       - rewrite Z.eqb_eq in Heq0. clarify.
-      - imp_steps_safe_r. _step; ss. imp_steps_safe_r. _step. imp_steps_safe_r.  red. esplits; et.
+      - imp_steps_safe. red. esplits; et.
     }
     Unshelve. all: try exact 0. all: ss.
   Qed.
