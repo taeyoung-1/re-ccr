@@ -1,4 +1,4 @@
-Require Import HoareDef KnotHeader KnotMain0 KnotMain1 Knot1 SimModSem.
+Require Import HoareDef KnotHeader KnotMain0 KnotMain1 Knot1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -75,7 +75,7 @@ Section SIMMODSEM.
       }
       force_r.
       { ss. }
-      steps. inv SPEC. astart 10. acatch.
+      steps_safe. inv SPEC. astart 10. acatch.
       { eapply RecStb_incl. eauto. }
 
       hcall_weaken _ _ _ with "A"; et.
@@ -86,7 +86,7 @@ Section SIMMODSEM.
       }
       { splits; ss. eauto with ord_step. }
       steps. ss. mDesAll. clarify.
-      erewrite Any.upcast_downcast in *. clarify. steps. acatch.
+      erewrite Any.upcast_downcast in *. clarify. steps_safe. acatch.
       { eapply RecStb_incl. eauto. }
       hcall_weaken _ _ _ with "A"; et.
       { ss. iModIntro. iFrame; ss.
@@ -110,7 +110,7 @@ Section SIMMODSEM.
     { init. unfold mainF, ccallN, ccallU. harg. mDesAll. des; subst.
       steps. astart 2.
       hexploit (SKINCL "fib"); ss; eauto. i. des.
-      rewrite FIND. ss. steps.
+      rewrite FIND. ss. steps_safe.
       specialize (GlobalStb_knot sk). inv GlobalStb_knot.
       acatch; eauto.
       hcall_weaken _ _ _ with "*"; et.
@@ -140,7 +140,7 @@ Section SIMMODSEM.
       }
       { splits; ss. }
       mDesAll. des; clarify. rewrite Any.upcast_downcast. steps.
-      inv PURE3. rewrite FBLOCK. inv SPEC. steps. acatch.
+      inv PURE3. rewrite FBLOCK. inv SPEC. steps_safe. acatch.
       { eapply RecStb_incl. eauto. }
       hcall_weaken _ _ _ with "*"; et.
       { ss. iModIntro. instantiate (1:=(_, 10)). ss. iFrame; ss. }

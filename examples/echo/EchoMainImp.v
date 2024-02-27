@@ -27,7 +27,6 @@ Section ECHO.
 
   Definition EchoMain_prog : program :=
     mk_program
-      "main"
       []
       [("echo", 0)]
       []

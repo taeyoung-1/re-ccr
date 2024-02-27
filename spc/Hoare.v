@@ -119,7 +119,7 @@ Section CANCELSTB.
   Context {CONF: EMSConfig}.
   Variable entry_r: Σ.
 
-  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk).
+  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_mr md sk).
 
   Hypothesis MAINM: forall (main_fsp: fspec) (MAIN: stb sk "main" = Some main_fsp),
       exists (x: main_fsp.(meta)),
@@ -164,7 +164,7 @@ Section CANCEL.
              exists (x: main_fsp.(meta)) entry_r,
                (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_mr md sk)>>) /\
                (<<RET: forall ret_src ret_tgt,
                    ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
@@ -180,7 +180,7 @@ Section CANCEL.
              exists (x: main_fsp.(meta)) entry_r,
                (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk)>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ SMod.get_init_mr md sk)>>) /\
                (<<RET: forall ret_src ret_tgt,
                    ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
@@ -199,7 +199,7 @@ Section CANCEL.
   Context {CONF: EMSConfig}.
   Variable entry_r: Σ.
 
-  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk).
+  Hypothesis WFR: URA.wf (entry_r ⋅ SMod.get_init_mr md sk).
 
   Section TYPE0.
   Hypothesis MAINM: forall (main_fsp: fspec) (MAIN: stb0 sk "main" = Some main_fsp),
@@ -374,7 +374,7 @@ Section CANCEL.
 
   Context {CONF: EMSConfig}.
   Lemma adequacy_type2 entry_r
-        (WFR: URA.wf (entry_r ⋅ SMod.get_init_st md sk))
+        (WFR: URA.wf (entry_r ⋅ SMod.get_init_mr md sk))
         (MAINM:
            forall (main_fsp: fspec) (MAIN: stb "main" = Some main_fsp),
            exists (x: main_fsp.(meta)),

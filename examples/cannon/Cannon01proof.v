@@ -1,4 +1,4 @@
-Require Import HoareDef STB CannonRA Cannon0 Cannon1 SimModSem.
+Require Import HoareDef STB CannonRA Cannon0 Cannon1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.

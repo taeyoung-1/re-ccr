@@ -23,7 +23,6 @@ Section PROOF.
 
   Definition FSem: SModSem.t := {|
     SModSem.fnsems := Fsbtb;
-    SModSem.mn := "F";
     SModSem.initial_mr := ε;
     SModSem.initial_st := tt↑;
   |}

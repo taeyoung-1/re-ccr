@@ -41,25 +41,24 @@ Section PROOF.
         Ret (Vint (n + m)%Z)
     .
 
-    Definition AddSbtb: list (gname * kspecbody) :=
-      [("succ", mk_kspecbody succ_spec (cfunU succF) (fun _ => triggerNB));
-      ("add", ksb_trivial (cfunU add_body))].
+    Definition AddSbtb: list (gname * fspecbody) :=
+      [("succ", mk_specbody succ_spec (cfunU succF));
+      ("add", mk_specbody fspec_trivial (cfunU add_body))].
 
-    Definition KAddSem: KModSem.t := {|
-      KModSem.fnsems := AddSbtb;
-      KModSem.mn := "Add";
-      KModSem.initial_mr := ε;
-      KModSem.initial_st := tt↑;
+    Definition SAddSem: SModSem.t := {|
+      SModSem.fnsems := AddSbtb;
+      SModSem.initial_mr := ε;
+      SModSem.initial_st := tt↑;
     |}
     .
   End SKENV.
 
-  Definition KAdd: KMod.t := {|
-    KMod.get_modsem := fun _ => KAddSem;
-    KMod.sk := [("succ", Gfun↑); ("add", Gfun↑)];
+  Definition SAdd: SMod.t := {|
+    SMod.get_modsem := fun _ => SAddSem;
+    SMod.sk := [("succ", Gfun↑); ("add", Gfun↑)];
   |}
   .
 
-  Definition Add: Mod.t := (KMod.transl_tgt GlobalStb) KAdd.
+  Definition Add: Mod.t := (SMod.to_tgt GlobalStb) SAdd.
 
 End PROOF.

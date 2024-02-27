@@ -1,4 +1,4 @@
-Require Import HoareDef MutHeader MutG0 MutG1 SimModSem.
+Require Import HoareDef MutHeader MutG0 MutG1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -46,7 +46,7 @@ Section SIMMODSEM.
     destruct (dec (Z.of_nat x) 0%Z).
     - destruct x; ss. astop. steps. force_l. eexists. steps.
       hret _; ss.
-    - destruct x; [ss|]. rewrite Nat2Z.inj_succ. steps.
+    - destruct x; [ss|]. rewrite Nat2Z.inj_succ. steps_safe.
       acatch. hcall _ _ with "*"; auto.
       { iPureIntro.
         replace (Z.succ (Z.of_nat x) - 1)%Z with (Z.of_nat x) by lia.

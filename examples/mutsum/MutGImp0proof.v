@@ -1,4 +1,4 @@
-Require Import HoareDef MutHeader MutGImp MutG0 SimModSem.
+Require Import HoareDef MutHeader MutGImp MutG0 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -57,9 +57,9 @@ Section SIMMODSEM.
     3:{ exfalso; apply n0; solve_NoDup. }
     - imp_steps. red. esplits; et.
     - unfold ccallU.
-      imp_steps. replace (z =? 0)%Z with false.
+      imp_steps_safe. replace (z =? 0)%Z with false.
       2:{ symmetry. eapply Z.eqb_neq. auto. }
-      imp_steps.
+      imp_steps_safe.
       rewrite _UNWRAPU1. steps. imp_steps. red. esplits; et.
     Unshelve. all: ss. all: try exact 0.
   Qed.

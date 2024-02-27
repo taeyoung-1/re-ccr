@@ -516,6 +516,60 @@ Section SMODSEM.
     |}
   .
 
+  Section ADD.
+
+  Variable M1 M2: t.
+
+
+  Definition emb_l : forall T, (hAPCE +' Es) T -> (hAPCE +' Es) T :=
+    fun T E =>
+    match E with
+    | inr1 (inr1 (inl1 (SUpdate run))) => inr1 (inr1 (inl1 (SUpdate (ModSem.run_l run))))
+    | _ => E
+    end
+  .
+
+  Definition emb_r : forall T, (hAPCE +' Es) T -> (hAPCE +' Es) T :=
+    fun T E =>
+    match E with
+    | inr1 (inr1 (inl1 (SUpdate run))) => inr1 (inr1 (inl1 (SUpdate (ModSem.run_r run))))
+    | _ => E
+    end
+  .
+
+  (* Definition trans_l f: (Any.t -> itree _ Any.t) :=
+    (fun args => translate emb_l (f args)).
+
+  Definition trans_r f: (Any.t -> itree _ Any.t) :=
+    (fun args => translate emb_r (f args)). *)
+
+
+
+  Definition trans_fspecbody emb fsb : fspecbody :=
+  {|
+    fsb_fspec := fsb.(fsb_fspec);
+    fsb_body := (fun args => translate emb (fsb.(fsb_body) args));
+  |}.
+
+  Definition trans_l '(fn, f): gname * fspecbody :=
+    (fn, (trans_fspecbody emb_l) f).
+
+  Definition trans_r '(fn, f) : gname * fspecbody :=
+    (fn, (trans_fspecbody emb_r) f).
+
+
+
+  Definition add_fnsems : alist gname fspecbody :=
+    (List.map trans_l M1.(fnsems)) ++ (List.map trans_r M2.(fnsems)).
+
+  Definition add: t :=
+  {|
+    fnsems := add_fnsems;
+    initial_mr := ε; (* How do you add resource*)
+    initial_st := Any.pair (initial_st M1) (initial_st M2);
+  |}.
+
+  End ADD.
 End SMODSEM.
 End SModSem.
 
@@ -544,6 +598,7 @@ Section SMOD.
   Definition to_tgt (stb: Sk.t -> gname -> option fspec) (md: t): Mod.t :=
     transl (fun sk => fun_to_tgt (stb sk)) (fun ms => Any.pair ms.(SModSem.initial_st) ms.(SModSem.initial_mr)↑) md.
 
+    
 
   Definition get_stb (md: t): Sk.t -> alist gname fspec :=
     fun sk => map (map_snd fsb_fspec) (SModSem.fnsems (get_modsem md sk)).
@@ -551,9 +606,11 @@ Section SMOD.
   Definition get_sk (md: t): Sk.t :=
     Sk.sort (Sk.add Sk.unit (sk md)).
 
-  Definition get_init_st (md: t): Sk.t -> Σ :=
+  Definition get_init_mr (md: t): Sk.t -> Σ :=
     fun sk => (SModSem.initial_mr (get_modsem md sk)).
 
+
+    
 
   (* Definition transl (tr: SModSem.t -> ModSem.t) (md: t): Mod.t := {| *)
   (*   Mod.get_modsem := (SModSem.transl tr) ∘ md.(get_modsem); *)
@@ -575,7 +632,28 @@ Section SMOD.
   Proof. refl. Qed.
 
 
+  Section ADD.
+    Definition add (md0 md1 : t) : t := {|
+      get_modsem := fun sk =>
+                        SModSem.add (md0.(get_modsem) sk) (md1.(get_modsem) sk);
+      sk := Sk.add md0.(sk) md1.(sk);
+    |}.
 
+    (* Definition empty: t := {|
+      get_modsem := fun _ => SModSem.mk ε tt↑ [];
+      sk := Sk.unit;
+    |}. *)
+
+
+    (* Fixpoint add_list (xs: list t): t :=
+      match xs with
+      | [] => empty
+      | x::[] => x
+      | x::l => add x (add_list l)
+      end. *)
+
+
+  End ADD.
 
 
 

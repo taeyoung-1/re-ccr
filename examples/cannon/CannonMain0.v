@@ -33,8 +33,7 @@ Section CANNONMAIN.
 
   Definition MainSem: ModSem.t := {|
     ModSem.fnsems := [("main", cfunU main_body)];
-    ModSem.mn := "Main";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

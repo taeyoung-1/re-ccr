@@ -1,4 +1,4 @@
-Require Import HoareDef SimModSem.
+Require Import HoareDef SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -50,12 +50,12 @@ Section SIMMODSEM.
     econstructor 1 with (wf:=wf) (le:=top2); et; ss.
     econs; ss.
     { init.
-      unfold main_body, main.
+      unfold main_body, main, cfunU.
       steps.
       rewrite unfold_eval_imp. steps.
       des_ifs.
       2:{ exfalso; apply n. solve_NoDup. }
-      unfold ccallU. imp_steps.
+      unfold ccallU. imp_steps_safe.
       red. esplits; et.
     }
     Unshelve. all: try exact 0. all: ss.

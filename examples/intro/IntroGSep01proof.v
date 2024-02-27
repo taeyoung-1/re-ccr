@@ -1,4 +1,4 @@
-Require Import HoareDef IntroHeader IntroGSep0 IntroGSep1 SimModSem.
+Require Import HoareDef IntroHeader IntroGSep0 IntroGSep1 SimModSem SimModSemFacts.
 Import Sep.
 Require Import Coqlib.
 Require Import ImpPrelude.
@@ -49,7 +49,7 @@ Section SIMMODSEM.
     econs; ss. init. harg. mDesAll.
     des; clarify. unfold gF, ccallU. steps. astart 10.
     des_ifs.
-    - steps. acatch. hcall _ _ with "*"; auto.
+    - steps_safe. acatch. hcall _ _ with "*"; auto.
       { iModIntro. iFrame. iSplits; try by (iPureIntro; refl).
         2: { iPureIntro. do 3 f_equal. instantiate (1:=x - 1). lia. }
         { ss. }
@@ -62,7 +62,7 @@ Section SIMMODSEM.
         instantiate (1:=@URA.add IRA.t (IRA.client false) (IRA.module false)). r. ur. i. des_ifs. }
       force_l. eexists. steps. hret _; ss.
       { iMod "A1". iModIntro. iDestruct "A1" as "[B C]". iFrame. iSplits; ss; et. iPureIntro. do 2 f_equal. lia. }
-    - steps.
+    - steps_safe.
       mAssertPure False.
       { iCombine "A" "INV" as "A". iOwnWf "A". ur in H0. des_ifs. }
       ss.

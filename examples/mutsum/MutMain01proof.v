@@ -1,4 +1,4 @@
-Require Import HoareDef MutHeader MutMain0 MutMain1 SimModSem.
+Require Import HoareDef MutHeader MutMain0 MutMain1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -42,7 +42,7 @@ Section SIMMODSEM.
     2: { exists tt. red. econs; ss. rr. uipropall. }
     econs; ss. init.
     unfold mainF, mainBody. harg.
-    mDesAll. des; clarify. steps.
+    mDesAll. des; clarify. steps_safe.
     astart 10. acatch. hcall _ tt with "*"; ss.
     { iPureIntro. esplits; eauto.
       { instantiate (1:=10). ss. }

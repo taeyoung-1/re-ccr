@@ -40,7 +40,6 @@ Section Knot.
   |}.
 
   Definition KnotMain_prog : program := {|
-    name := "Main";
     ext_vars := [];
     ext_funs := [("knot", 1)];
     prog_vars := [];

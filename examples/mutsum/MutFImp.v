@@ -32,7 +32,6 @@ Section F.
 
   Definition f_prog : program :=
     mk_program
-      "F"
       []
       [("g", 1)]
       []

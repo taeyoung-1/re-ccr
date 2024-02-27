@@ -23,7 +23,6 @@ Section PROOF.
 
   Definition GSem: SModSem.t := {|
     SModSem.fnsems := Gsbtb;
-    SModSem.mn := "G";
     SModSem.initial_mr := GRA.embed (IRA.module true: IRA.t);
     SModSem.initial_st := tt↑;
   |}

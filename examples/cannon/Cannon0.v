@@ -17,20 +17,19 @@ Section CANNON.
   Definition div (n m: Z): option Z :=
     if Z_zerop m then None else Some (Z.div n m).
 
-  Definition fire_body {E} `{callE -< E} `{pE -< E} `{eventE -< E}
+  Definition fire_body {E} `{callE -< E} `{sE -< E} `{eventE -< E}
     : list val -> itree E Z :=
     fun args =>
-      powder <- trigger PGet;; powder <- powder↓?;;
+      powder <- trigger sGet;; powder <- powder↓?;;
       r <- (div 1 powder)?;;
       _ <- trigger (Syscall "print" [r]↑ top1);;
-      _ <- trigger (PPut (powder - 1)%Z↑);;
+      _ <- trigger (sPut (powder - 1)%Z↑);;
       Ret r
   .
 
   Definition CannonSem: ModSem.t := {|
     ModSem.fnsems := [("fire", cfunU fire_body)];
-    ModSem.mn := "Cannon";
-    ModSem.initial_st := (1: Z)%Z↑;
+    ModSem.init_st := (1: Z)%Z↑;
   |}
   .
 

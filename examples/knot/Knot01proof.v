@@ -1,4 +1,4 @@
-Require Import HoareDef STB KnotHeader Knot0 Knot1 SimModSem.
+Require Import HoareDef STB KnotHeader Knot0 Knot1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -129,7 +129,7 @@ Section SIMMODSEM.
       mUnfold inv in "INV". mDesAll.
       mAssertPure _.
       { iApply (knot_ra_merge with "A2 A"). } subst.
-      rewrite FIND1. steps. acatch.
+      rewrite FIND1. steps_safe. acatch.
       { eapply MemStb_incl. stb_tac. ss. }
 
       (* call with the opened invariant *)
@@ -140,7 +140,7 @@ Section SIMMODSEM.
 
       mDesAll. subst. rewrite Any.upcast_downcast. steps.
       hexploit PURE; auto. i. des; clarify. inv FN. inv SPEC. ss. steps.
-      rewrite FBLOCK. steps. rewrite FIND0. steps. acatch.
+      rewrite FBLOCK. steps. rewrite FIND0. steps_safe. acatch.
       { eapply FunStb_incl. eapply FIND. }
 
       (* close invariant *)
@@ -175,7 +175,7 @@ Section SIMMODSEM.
       mUnfold inv in "INV". mDesAll.
       mAssertPure _.
       { iApply (knot_ra_merge with "A2 A"). } subst.
-      rewrite FIND1. steps. acatch.
+      rewrite FIND1. steps_safe. acatch.
       { eapply MemStb_incl. stb_tac. ss. }
 
       (* call with the opened invariant *)

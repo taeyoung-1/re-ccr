@@ -44,7 +44,6 @@ Section CANNON.
 
   Definition SCannonSem: SModSem.t := {|
     SModSem.fnsems := CannonSbtb;
-    SModSem.mn := "Cannon";
     SModSem.initial_mr := GRA.embed Ready;
     SModSem.initial_st := (1: Z)%Z↑;
   |}

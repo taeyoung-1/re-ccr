@@ -26,8 +26,7 @@ Section PROOF.
   Definition AddSem (sk: Sk.t): ModSem.t := {|
     ModSem.fnsems :=
       [("succ", cfunU succF); ("add", cfunU (addF (Sk.load_skenv sk)))];
-    ModSem.mn := "Add";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

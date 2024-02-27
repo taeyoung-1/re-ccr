@@ -28,8 +28,7 @@ Section PROOF.
 
   Definition GSem: ModSem.t := {|
     ModSem.fnsems := [("g", cfunU gF)];
-    ModSem.mn := "G";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

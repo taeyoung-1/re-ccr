@@ -24,8 +24,7 @@ Section PROOF.
 
   Definition RepeatSem (sk: Sk.t): ModSem.t := {|
     ModSem.fnsems := [("repeat", cfunU (repeatF (Sk.load_skenv sk: SkEnv.t)))];
-    ModSem.mn := "Repeat";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

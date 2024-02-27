@@ -110,7 +110,6 @@ Section KNOT.
 
     Definition SKnotSem: SModSem.t := {|
       SModSem.fnsems := KnotSbtb;
-      SModSem.mn := "Knot";
       SModSem.initial_mr := (GRA.embed (var_points_to (Sk.load_skenv sk) "_f" (Vint 0))) ⋅ (GRA.embed (knot_full None)) ;
       SModSem.initial_st := tt↑;
     |}
@@ -119,7 +118,7 @@ Section KNOT.
 
   Definition SKnot: SMod.t := {|
     SMod.get_modsem := SKnotSem;
-    SMod.sk := [("rec", Gfun↑); ("knot", Gfun↑); ("_f", Sk.Gvar 0)];
+    SMod.sk := [("rec", Gfun↑); ("knot", Gfun↑); ("_f", (Gvar 0)↑)];
   |}
   .
 

@@ -1,4 +1,4 @@
-Require Import HoareDef STB CannonRA CannonMain0 CannonMain1 Cannon1 SimModSem.
+Require Import HoareDef STB CannonRA CannonMain0 CannonMain1 Cannon1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -34,7 +34,7 @@ Section SIMMODSEM.
     { exists tt. red. econs. eapply to_semantic. iIntros "H". ss. }
     econs; ss. init. harg.
     mDesAll. des; clarify. steps.
-    unfold ccallU. steps. rewrite GlobalStb_fire. steps.
+    unfold ccallU. steps_safe. rewrite GlobalStb_fire. steps_safe.
     hcall _ _ with "A".
     { iModIntro. iSplits; ss. }
     { splits; ss. }

@@ -35,14 +35,13 @@ Section PROOF.
 
   Definition KnotSem (sk: Sk.t): ModSem.t := {|
     ModSem.fnsems := [("rec", cfunU (recF (Sk.load_skenv sk: SkEnv.t))); ("knot", cfunU (knotF (Sk.load_skenv sk)))];
-    ModSem.mn := "Knot";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 
   Definition Knot: Mod.t := {|
     Mod.get_modsem := fun skenv => KnotSem skenv;
-    Mod.sk := [("rec", Gfun↑); ("knot", Gfun↑); ("_f", Sk.Gvar 0)];
+    Mod.sk := [("rec", Gfun↑); ("knot", Gfun↑); ("_f", (Gvar 0)↑)];
   |}
   .
 End PROOF.

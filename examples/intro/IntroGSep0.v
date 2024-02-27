@@ -25,17 +25,16 @@ Section PROOF.
   Definition gF: list val -> itree Es val :=
     fun varg =>
       `n: Z <- (pargs [Tint] varg)?;;
-      p0 <- trigger (PGet);;
+      p0 <- trigger (sGet);;
       p0 <- p0↓?;;
       if (p0: bool)
-      then r <- ccallU "f" [Vint (n - 1)];; res <- (vadd (Vint 3) r)?;; trigger (PPut false↑);;; Ret res
+      then r <- ccallU "f" [Vint (n - 1)];; res <- (vadd (Vint 3) r)?;; trigger (sPut false↑);;; Ret res
       else `_: val <- ccallU "log" [Vint n];; Ret (Vint (- 1))
   .
 
   Definition GSem: ModSem.t := {|
     ModSem.fnsems := [("g", cfunU gF)];
-    ModSem.mn := "G";
-    ModSem.initial_st := true↑;
+    ModSem.init_st := true↑;
   |}
   .
 

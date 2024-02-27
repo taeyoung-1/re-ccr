@@ -57,8 +57,7 @@ Section PROOF.
 
   Definition FSem: ModSem.t := {|
     ModSem.fnsems := [("f", cfunU fF)];
-    ModSem.mn := "F";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

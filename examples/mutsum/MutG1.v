@@ -21,7 +21,6 @@ Section PROOF.
 
   Definition SGSem: SModSem.t := {|
     SModSem.fnsems := Gsbtb;
-    SModSem.mn := "G";
     SModSem.initial_mr := ε;
     SModSem.initial_st := tt↑;
   |}

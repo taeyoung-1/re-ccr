@@ -1,4 +1,4 @@
-Require Import HoareDef OpenDef STB Repeat1 Add0 Add1 SimModSem.
+Require Import HoareDef OpenDef STB Repeat1 Add0 Add1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -61,14 +61,14 @@ Section SIMMODSEM.
     hexploit (SKINCL "succ"); ss; eauto. intros [blk0 FIND0].
     econs; ss.
     { unfold succF. init.
-      2: { harg. mDesAll. des; clarify. steps. hret _; ss. }
+      (* 2: { harg. mDesAll. des; clarify. steps. hret _; ss. } *)
       harg. mDesAll. des; clarify.
       steps. astart 0. astop. steps. force_l. eexists.
       steps. hret _; ss.
     }
     econs; ss.
     { unfold addF, add_body. init. harg. mDesAll. des; clarify.
-      steps.  rewrite FIND0. steps. unfold ccallU. steps.
+      steps.  rewrite FIND0. steps. unfold ccallU. steps_safe.
       hexploit FunStb_succ. i. inv H.
       assert (exists m, z0 = Z.of_nat m).
       { exists (Z.to_nat z0). rewrite Z2Nat.id; auto. lia. } des. subst.

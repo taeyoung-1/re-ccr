@@ -75,7 +75,6 @@ Section MAIN.
 
     Definition SMainSem: SModSem.t := {|
       SModSem.fnsems := MainSbtb;
-      SModSem.mn := "Main";
       SModSem.initial_mr := ε;
       SModSem.initial_st := tt↑;
     |}

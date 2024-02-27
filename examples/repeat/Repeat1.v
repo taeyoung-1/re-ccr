@@ -51,24 +51,23 @@ Section PROOF.
                      )
                 )).
 
-    Definition RepeatSbtb: list (gname * kspecbody) :=
-      [("repeat", mk_kspecbody repeat_spec (fun _ => triggerUB) (fun _ => triggerNB))].
+    Definition RepeatSbtb: list (gname * fspecbody) :=
+      [("repeat", mk_specbody repeat_spec (fun _ => triggerUB))].
 
-    Definition KRepeatSem: KModSem.t := {|
-      KModSem.fnsems := RepeatSbtb;
-      KModSem.mn := "Repeat";
-      KModSem.initial_mr := ε;
-      KModSem.initial_st := tt↑;
+    Definition SRepeatSem: SModSem.t := {|
+      SModSem.fnsems := RepeatSbtb;
+      SModSem.initial_mr := ε;
+      SModSem.initial_st := tt↑;
     |}
     .
   End SKENV.
 
-  Definition KRepeat: KMod.t := {|
-    KMod.get_modsem := KRepeatSem;
-    KMod.sk := [("repeat", Gfun↑)];
+  Definition SRepeat: SMod.t := {|
+    SMod.get_modsem := SRepeatSem;
+    SMod.sk := [("repeat", Gfun↑)];
   |}
   .
 
-  Definition Repeat: Mod.t := (KMod.transl_tgt GlobalStb) KRepeat.
+  Definition Repeat: Mod.t := (SMod.to_tgt GlobalStb) SRepeat.
 
 End PROOF.

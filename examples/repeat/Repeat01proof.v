@@ -1,4 +1,4 @@
-Require Import HoareDef OpenDef STB Repeat0 Repeat1 SimModSem.
+Require Import HoareDef OpenDef STB Repeat0 Repeat1 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -69,7 +69,7 @@ Section SIMMODSEM.
       }
       { destruct n.
         { exfalso. lia. }
-        steps. inv PURE3. inv SPEC. rewrite FBLOCK. unfold ccallU. steps.
+        steps. inv PURE3. inv SPEC. rewrite FBLOCK. unfold ccallU. steps_safe.
         astart 2. acatch.
         { eapply FunStb_incl. et. }
         hcall_weaken _ _ _ with ""; et.
@@ -78,7 +78,7 @@ Section SIMMODSEM.
           { eapply OrdArith.lt_add_r. rewrite Ord.from_nat_S. eapply Ord.S_lt. }
         }
         ss. mDesAll. des; clarify.
-        hexploit GlobalStb_repeat. i. inv H. steps. acatch.
+        hexploit GlobalStb_repeat. i. inv H. steps_safe. acatch.
         { et. }
         hcall_weaken (Repeat1.repeat_spec FunStb sk) (_, n, _, _) _ with ""; ss.
         { iPureIntro. esplits; et.
@@ -92,7 +92,7 @@ Section SIMMODSEM.
         hret _; ss.
       }
     }
-    { harg. mDesAll. des; clarify. steps. }
+    (* { harg. mDesAll. des; clarify. steps. } *)
     Unshelve. all: ss. all: try exact 0.
   Qed.
 

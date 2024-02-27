@@ -18,15 +18,14 @@ Section PROOF.
   (***
     main() := return f(10)
   ***)
-  Definition mainF: option mname * Any.t -> itree Es Any.t :=
-    fun '(_, varg) =>
+  Definition mainF:  Any.t -> itree Es Any.t :=
+    fun varg =>
       r <- trigger (Call "f" [Vint 10]↑);;
       Ret r.
 
   Definition MainSem: ModSem.t := {|
     ModSem.fnsems := [("main", mainF)];
-    ModSem.mn := "Main";
-    ModSem.initial_st := tt↑;
+    ModSem.init_st := tt↑;
   |}
   .
 

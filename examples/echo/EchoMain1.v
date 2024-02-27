@@ -25,17 +25,16 @@ Section PROOF.
       Ret (Vint 0)
   .
 
-  Definition MainSem: KModSem.t := {|
-    KModSem.fnsems := [("main", ksb_trivial (cfunN main_body))];
-    KModSem.mn := "main";
-    KModSem.initial_mr := ε;
-    KModSem.initial_st := tt↑;
+  Definition MainSem: SModSem.t := {|
+    SModSem.fnsems := [("main", mk_specbody fspec_trivial (cfunN main_body))];
+    SModSem.initial_mr := ε;
+    SModSem.initial_st := tt↑;
   |}
   .
 
-  Definition Main: KMod.t := {|
-    KMod.get_modsem := fun _ => MainSem;
-    KMod.sk := Sk.unit;
+  Definition Main: SMod.t := {|
+    SMod.get_modsem := fun _ => MainSem;
+    SMod.sk := Sk.unit;
   |}
   .
 End PROOF.

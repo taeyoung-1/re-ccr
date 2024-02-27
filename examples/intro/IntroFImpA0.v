@@ -1,4 +1,4 @@
-Require Import HoareDef IntroHeader IntroFImpA IntroF0 SimModSem.
+Require Import HoareDef IntroHeader IntroFImpA IntroF0 SimModSem SimModSemFacts.
 Require Import Coqlib.
 Require Import ImpPrelude.
 Require Import Skeleton.
@@ -54,8 +54,8 @@ Section SIMMODSEM.
     (* eapply Any.downcast_upcast in _UNWRAPN. des. *)
     unfold unint, ccallU in *. destruct v; clarify; ss.
     des_ifs; try (by exfalso; apply n; solve_NoDup).
-    - repeat (steps; (des_ifs; try lia; []); imp_steps). r; esplits; et.
-    - repeat (steps; (des_ifs; try lia; []); imp_steps). r; esplits; et.
+    - repeat (steps_safe; (des_ifs; try lia; []); imp_steps_safe). r; esplits; et.
+    - repeat (steps_safe; (des_ifs; try lia; []); imp_steps_safe). r; esplits; et.
     - repeat (steps; (des_ifs; try lia; []); imp_steps).
       unfold Ncall.
       steps. des_ifs.
@@ -64,12 +64,12 @@ Section SIMMODSEM.
         force_l; ss. repeat (steps; (des_ifs; try lia; []); imp_steps).
         rewrite Z.eqb_eq in *. clarify.
         r; esplits; et.
-      + repeat (steps; (des_ifs; try lia; []); imp_steps).
+      + repeat (steps_safe; (des_ifs; try lia; []); imp_steps_safe).
         force_l. exists true.
         unfold ccallU.
-        repeat (steps; (des_ifs; try lia; []); imp_steps).
+        repeat (steps_safe; (des_ifs; try lia; []); imp_steps_safe).
         force_l; ss.
-        repeat (steps; (des_ifs; try lia; []); imp_steps).
+        repeat (steps_safe; (des_ifs; try lia; []); imp_steps).
         r; esplits; et. do 2 f_equal. lia.
   Unshelve. all: try exact 0. all: ss.
   Qed.
