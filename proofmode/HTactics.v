@@ -906,6 +906,59 @@ Ltac _step_safe_r :=
   end
 .
 
+Ltac _step_safe :=
+  match goal with
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, trigger (Choose _) >>= _) (_, ?i_tgt)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerUB >>= _) (_, _)) ] =>
+    unfold triggerUB; ired_l; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, unwrapU ?ox >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapU ox) as tvar eqn:thyp; unfold unwrapU in thyp; subst tvar;
+    let name := fresh "_UNWRAPU" in
+    destruct (ox) eqn:name; [|unfold triggerUB; ired_both; _force_l; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, assume ?P >>= _) (_, _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (assume P) as tvar eqn:thyp; unfold assume in thyp; subst tvar;
+    let name := fresh "_ASSUME" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_take_src; intro name
+
+  (*** blacklisting ***)
+  (* | [ |- (gpaco5 (_sim_itree wf) _ _ _ _ (_, _) (_, trigger (Take _) >>= _)) ] => idtac *)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, triggerNB >>= _) (_, _)) ] =>
+    unfold triggerNB; ired_r; _step; done
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, unwrapN ?ox >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (unwrapN ox) as tvar eqn:thyp; unfold unwrapN in thyp; subst tvar;
+    let name := fresh "_UNWRAPN" in
+    destruct (ox) eqn:name; [|unfold triggerNB; ired_both; _force_r; ss; fail]
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, guarantee ?P >>= _)) ] =>
+    let tvar := fresh "tmp" in
+    let thyp := fresh "TMP" in
+    remember (guarantee P) as tvar eqn:thyp; unfold guarantee in thyp; subst tvar;
+    let name := fresh "_GUARANTEE" in
+    ired_both; apply sim_itreeC_spec; eapply sim_itreeC_choose_tgt; intro name
+ 
+  (*** blacklisting ***)
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, trigger (Call _ _) >>= _) (_, _)) ] =>
+    try (eapply safe_sim_sim; econs 2); try (eapply safe_sim_sim; econs 5); try (eapply safe_sim_sim; econs 6); try (eapply safe_sim_sim; econs 9) 
+
+  | [ |- (gpaco8 (_sim_itree _ _ _ _) _ _ _ _ _ _ _ _ _ (_, _) (_, trigger (Call _ _) >>= _)) ] =>
+    try (eapply safe_sim_sim; econs 2); try (eapply safe_sim_sim; econs 4); try (eapply safe_sim_sim; econs 7); try (eapply safe_sim_sim; econs 8) 
+
+  | _ => (*** default ***)
+    eapply safe_sim_sim; econs; i
+  end;
+  match goal with
+  | [ |- exists (_: unit), _ ] => esplits; [eauto|..]; i
+  | [ |- exists _, _ ] => fail 1
+  | _ => idtac
+  end
+.
+
 Ltac _steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl).
 Ltac steps := repeat ((*** pre processing ***) prep; try _step; (*** post processing ***) simpl; des_ifs_safe).
 
@@ -914,6 +967,9 @@ Ltac steps_safe_l := repeat ((*** pre processing ***) prep; try _step_safe_l; (*
 
 Ltac _steps_safe_r := repeat ((*** pre processing ***) prep; try _step_safe_r; (*** post processing ***) simpl).
 Ltac steps_safe_r := repeat ((*** pre processing ***) prep; try _step_safe_r; (*** post processing ***) simpl; des_ifs_safe).
+
+  Ltac _steps_safe := repeat ((*** pre processing ***) prep; try _step_safe; (*** post processing ***) simpl).
+Ltac steps_safe := repeat ((*** pre processing ***) prep; try _step_safe; (*** post processing ***) simpl; des_ifs_safe).
 
 Ltac force_l := _force_l.
 Ltac force_r := _force_r.

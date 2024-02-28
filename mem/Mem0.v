@@ -80,6 +80,18 @@ Section PROOF.
         else Ret (Vint 0%Z)
     .
 
+    Definition faiF: list val -> itree Es val :=
+      fun varg =>
+        mp0 <- trigger (sGet);;
+        m0 <- mp0↓?;;
+        '(b, ofs) <- (pargs [Tptr] varg)?;;
+        v <- (Mem.load m0 b ofs)?;;
+        v' <- (vadd v (Vint 1))?;;
+        m1 <- (Mem.store m0 b ofs v')?;;
+        trigger (sPut m1↑);;;
+        Ret (Vint 0)
+    .
+
   End BODY.
 
 
@@ -87,7 +99,7 @@ Section PROOF.
   Variable csl: gname -> bool.
   Definition MemSem (sk: Sk.t): ModSem.t :=
     {|
-      ModSem.fnsems := [("alloc", cfunU allocF) ; ("free", cfunU freeF) ; ("load", cfunU loadF) ; ("store", cfunU storeF) ; ("cmp", cfunU cmpF)];
+      ModSem.fnsems := [("alloc", cfunU allocF) ; ("free", cfunU freeF) ; ("load", cfunU loadF) ; ("store", cfunU storeF) ; ("cmp", cfunU cmpF); ("fai", cfunU faiF)];
       ModSem.init_st := (Mem.load_mem csl sk)↑;
     |}
   .

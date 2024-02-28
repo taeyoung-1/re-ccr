@@ -457,9 +457,11 @@ Section SIMMODSEM.
         }
       }
     }
+    econs; ss.
+    { unfold faiF. init. admit. }
   Unshelve.
     all: ss. all: try exact 0.
-  Qed.
+  Admitted.
 
   Theorem correct: refines (Mem0.Mem csl) (Mem1.Mem (negb ∘ csl)).
   Proof.

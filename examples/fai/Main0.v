@@ -17,9 +17,9 @@ Section PROOF.
     fun _ =>
       trigger Yield;;;
       v <- ccallU "alloc" [Vint 1];;
-      `_ : val <- ccallU "store" [v; Vint 1];;
+      `_ : val <- ccallU "store" [v; Vint 0];;
       trigger Yield;;;
-      `_ : val <- ccallU "fai" [v];;
+      `_ : val <- ccallU "FAI" [v];;
       trigger Yield;;;
       vint <- ccallU "load" [v];;
       z <- (pargs [Tint] [vint])?;;

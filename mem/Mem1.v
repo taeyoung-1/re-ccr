@@ -236,9 +236,17 @@ Section PROOF.
             (fun vret => OwnM(resource) ** ⌜vret = (if result then Vint 1 else Vint 0)↑⌝)
     ))).
 
+  Definition fai_spec: fspec :=
+    (mk_simple
+       (fun '(b, ofs, v) => (
+            (ord_pure 0),
+            (fun varg => ((⌜varg = ([Vptr b ofs])↑⌝) ** OwnM((b, ofs) |-> [v]))%I),
+            (fun vret => ∃ v', OwnM((b, ofs) |-> [v']) ** ⌜vadd v (Vint 1) = Some v' /\ vret = (Vint 0)↑⌝
+    ))))%I.
+
   Definition MemStb: list (gname * fspec).
     eapply (Seal.sealing "stb").
-    apply [("alloc", alloc_spec) ; ("free", free_spec) ; ("load", load_spec) ; ("store", store_spec) ; ("cmp", cmp_spec)].
+    apply [("alloc", alloc_spec) ; ("free", free_spec) ; ("load", load_spec) ; ("store", store_spec) ; ("cmp", cmp_spec); ("fai", fai_spec)].
   Defined.
 
   Definition MemSbtb: list (gname * fspecbody) :=
@@ -246,7 +254,8 @@ Section PROOF.
     ("free",   mk_specbody free_spec (fun _ => trigger (Choose _)));
     ("load",   mk_specbody load_spec (fun _ => trigger (Choose _)));
     ("store",  mk_specbody store_spec (fun _ => trigger (Choose _)));
-    ("cmp",    mk_specbody cmp_spec (fun _ => trigger (Choose _)))
+    ("cmp",    mk_specbody cmp_spec (fun _ => trigger (Choose _)));
+    ("fai", mk_specbody fai_spec (fun _ => trigger (Choose _)))
     ]
   .
 

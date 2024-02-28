@@ -16,14 +16,14 @@ Section PROOF.
   Definition FAIF: Any.t -> itree Es Any.t :=
     fun varg =>
       varg <- varg↓?;;
-      trigger Yield;;;
+      ` _ : () <- ccallU "_yield" ();;
       (if negb (val_dec varg (Vint 0))
       then
         trigger Yield;;;
         trigger (Call "fai" [varg]↑);;;
         trigger Yield
       else Ret ());;;
-      r <- trigger Yield;;
+      ` r : () <- ccallU "_yield" ();;
       Ret r↑
     .
 
