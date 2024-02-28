@@ -1176,7 +1176,8 @@ Section SEMPAIR.
     { eapply cpn7_wcompat; eauto with paco. }
     unfold ModSem.initial_itr, assume. generalize "main" as fn. i.
     hexploit (fnsems_find_iff fn). i. des.
-    { steps. unshelve esplits; et. unfold ITree.map, unwrapU, triggerUB. steps.
+    { steps. unshelve esplits; et. unfold ITree.map, unwrapU, triggerUB.
+    (* rewrite interp_Es_bind. steps. *)
       rewrite NONE. steps. ss. }
     (* { admit. } *)
  

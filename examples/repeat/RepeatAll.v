@@ -6,6 +6,8 @@ Require Import Skeleton.
 Require Import PCM.
 Require Import ModSem Behavior.
 Require Import Relation_Definitions.
+Require Import ModSemFacts SimModSemFacts.
+
 
 (*** TODO: export these in Coqlib or Universe ***)
 Require Import Relation_Operators.
@@ -28,6 +30,7 @@ Set Implicit Arguments.
 Local Open Scope nat_scope.
 
 Section PROOF.
+
   Let Σ: GRA.t := GRA.of_list [].
   Local Existing Instance Σ.
 
@@ -35,7 +38,7 @@ Section PROOF.
     fun sk => to_stb [("succ", succ_spec)].
 
   Let GlobalStb: Sk.t -> gname -> option fspec :=
-    fun sk => to_closed_stb (KMod.get_stb [Add1.KAdd; Repeat1.KRepeat FunStb] sk).
+    fun sk => to_closed_stb (SMod.get_stb (SMod.add Add1.SAdd (Repeat1.SRepeat FunStb)) sk).
 
   Let FunStb_incl: forall sk,
       stb_incl (FunStb sk) (GlobalStb sk).
@@ -50,10 +53,21 @@ Section PROOF.
   Proof. ii. econs; ss. refl. Qed.
 
   Let prog_tgt := [Add0.Add; Repeat0.Repeat].
-  Let prog_src := KMod.transl_src_list [Add1.KAdd; Repeat1.KRepeat FunStb].
-
+  Let prog_src := List.map SMod.to_src [Add1.SAdd; (Repeat1.SRepeat FunStb)].
   Theorem correct: refines2 prog_tgt prog_src.
   Proof.
+    eapply refines2_pairwise.
+    econs.
+    { etrans.
+      { eapply Add01proof.correct; et. }
+      { unfold Add1.Add. admit.  } 
+    }
+    econs; et.
+    {
+      etrans.
+      { eapply Repeat01proof.correct; et. ii.  }
+
+    }
     etrans; cycle 1.
     { eapply adequacy_open. i. exists ε. splits; ss. g_wf_tac. }
     eapply refines2_cons.

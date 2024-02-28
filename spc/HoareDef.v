@@ -565,7 +565,9 @@ Section SMODSEM.
   Definition add: t :=
   {|
     fnsems := add_fnsems;
-    initial_mr := ε; (* How do you add resource*)
+    initial_mr := initial_mr M1; 
+    (* initial_mr := fun n => URA._add (initial_mr M1 n) (initial_mr M2 n);  *)
+    (* How do you add resource properly? *)
     initial_st := Any.pair (initial_st M1) (initial_st M2);
   |}.
 
@@ -599,6 +601,8 @@ Section SMOD.
     transl (fun sk => fun_to_tgt (stb sk)) (fun ms => Any.pair ms.(SModSem.initial_st) ms.(SModSem.initial_mr)↑) md.
 
     
+
+
 
   Definition get_stb (md: t): Sk.t -> alist gname fspec :=
     fun sk => map (map_snd fsb_fspec) (SModSem.fnsems (get_modsem md sk)).
