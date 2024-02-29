@@ -37,12 +37,15 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable md: SMod.t.
+  Variable mds: list SMod.t.
 
-   Let sk: Sk.t := Sk.add Sk.unit (SMod.sk md).
-   Let ms: SModSem.t := (SMod.get_modsem md) sk.
-   Let sbtb := SModSem.fnsems ms.
+
+  Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
+  (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
+  Let mss: list SModSem.t := (List.map ((flip SMod.get_modsem) sk) mds).
+  Let sbtb: list (gname * fspecbody) := (List.flat_map (SModSem.fnsems) mss).
   Let _stb: list (gname * fspec) := List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) sbtb.
+
 
   Variable stb: gname -> option fspec.
   Hypothesis STBCOMPLETE:
@@ -51,9 +54,11 @@ Section CANCEL.
     forall fn (FIND: alist_find fn _stb = None),
       (<<NONE: stb fn = None>>) \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
+  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
+  Let mds_mid2: list Mod.t := List.map (SMod.to_mid2 stb) mds.
 
-  Let md_src: Mod.t := (SMod.to_src) md.
-  Let md_mid2:  Mod.t := (SMod.to_mid2 stb) md.
+  Let md_src: Mod.t := Mod.add_list mds_src.
+  Let md_mid2:  Mod.t := Mod.add_list mds_mid2.
 
 
 
@@ -95,13 +100,19 @@ Section CANCEL.
     Beh.of_program (Mod.compile md_src).
   Proof.
     eapply refines_close.
-    eapply (adequacy_local_strong md_src md_mid2).
+    unfold md_mid2, md_src.
+    eapply adequacy_local_list_strong.
+    (* eapply (adequacy_local_strong md_src md_mid2). *)
+    eapply Forall2_apply_Forall2.
+    { refl. }
+    i. subst.
     econs; ss. i. econs; ss.
     { instantiate (1:=fun (_ _: unit) => True). ss. }
     { instantiate (1:=fun _ '(st_src, st_tgt) => st_src = st_tgt).
+      unfold ModSemPair.fl_src, ModSemPair.fl_tgt.
       eapply Forall2_apply_Forall2.
       { refl. }
-      i. subst. destruct b. econs; ss. ii. subst.
+      i. subst. destruct b0. econs; ss. ii. subst.
       unfold fun_to_src, fun_to_mid2, body_to_src, body_to_mid2. ss.
       generalize (fsb_body f y).
       revert mrs_tgt w. ginit. gcofix CIH. i. ides i.

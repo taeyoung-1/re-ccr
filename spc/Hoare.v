@@ -57,15 +57,16 @@ Section CANCELSTB.
 
   Context `{Σ: GRA.t}.
 
-  Variable md: SMod.t.
+  Variable mds: list SMod.t.
 
-  Let sk: Sk.t := SMod.get_sk md.
+  Let sk: Sk.t := SMod.get_sk mds.
 
-  Let _ms: Sk.t -> SModSem.t := fun sk => (SMod.get_modsem md sk).
-  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => ((SModSem.fnsems) (_ms sk)).
+
+  Let _mss: Sk.t -> list SModSem.t := fun sk => (List.map ((flip SMod.get_modsem) sk) mds).
+  Let _sbtb: Sk.t -> list (gname * fspecbody) := fun sk => (List.flat_map (SModSem.fnsems) (_mss sk)).
   Let _stb: Sk.t -> list (gname * fspec) := fun sk => List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) (_sbtb sk).
 
-  Let ms: SModSem.t := _ms sk.
+  Let mss: list SModSem.t := _mss sk.
   Let sbtb: list (gname * fspecbody) := _sbtb sk.
 
   Variable stb: Sk.t -> gname -> option fspec.
@@ -75,8 +76,10 @@ Section CANCELSTB.
     forall fn (FIND: alist_find fn (_stb sk) = None),
       (<<NONE: stb sk fn = None>>) \/ (exists fsp, <<FIND: stb sk fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
-  Let md_src: Mod.t := (SMod.to_src) md.
-  Let md_tgt: Mod.t := (SMod.to_tgt stb) md.
+  Let mds_src: list Mod.t := List.map (SMod.to_src) mds.
+  Let mds_tgt: list Mod.t := List.map (SMod.to_tgt stb) mds.
+
+
 
 
 
@@ -84,6 +87,9 @@ Section CANCELSTB.
   (* Let wf: Ord.t -> W -> W -> Prop := top3. *)
 
   Opaque interp_Es.
+
+  Let md_src : Mod.t := Mod.add_list mds_src.
+  Let md_tgt : Mod.t := Mod.add_list mds_tgt.
 
   Let ms_src: ModSem.t := Mod.enclose md_src.
   Let ms_tgt: ModSem.t := Mod.enclose md_tgt.
@@ -98,7 +104,7 @@ Section CANCELSTB.
              exists (x: main_fsp.(meta)) entry_r,
                (<<PRE: main_fsp.(precond) x (@initial_arg CONFS) (@initial_arg CONFT) entry_r>>) /\
                (<<MEASURE: main_fsp.(measure) x = ord_top>>) /\
-               (<<WFR: URA.wf (entry_r ⋅ (SModSem.initial_mr ms))>>) /\
+               (<<WFR: URA.wf (entry_r ⋅ fold_left (⋅) (List.map SModSem.initial_mr mss) ε)>>) /\
                (<<RET: forall ret_src ret_tgt,
                    ((main_fsp.(postcond) x ret_src ret_tgt: iProp) -∗ ⌜ret_src = ret_tgt⌝)>>))
     :
