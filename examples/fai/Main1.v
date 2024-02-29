@@ -20,9 +20,9 @@ Section PROOF.
 
   Definition mainF: Any.t -> itree (hEs) Any.t :=
     fun _ =>
-      trigger Yield;;;
+      ` _ : () <- ccallU "_yield" ();;
       trigger (Syscall "print_num" [1%Z]↑ top1);;;
-      r <- trigger Yield;;
+      ` r : () <- ccallU "_yield" ();;
       Ret r↑
     .
 

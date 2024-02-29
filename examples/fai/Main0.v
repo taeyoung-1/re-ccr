@@ -15,16 +15,16 @@ Section PROOF.
 
   Definition mainF: Any.t -> itree Es Any.t :=
     fun _ =>
-      trigger Yield;;;
+      ` _ : () <- ccallU "_yield" ();;
       v <- ccallU "alloc" [Vint 1];;
       `_ : val <- ccallU "store" [v; Vint 0];;
-      trigger Yield;;;
+      ` _ : () <- ccallU "_yield" ();;
       `_ : val <- ccallU "FAI" [v];;
-      trigger Yield;;;
+      ` _ : () <- ccallU "_yield" ();;
       vint <- ccallU "load" [v];;
       z <- (pargs [Tint] [vint])?;;
       trigger (Syscall "print_num" [z]↑ top1);;;
-      r <- trigger Yield;;
+      ` r : () <- ccallU "_yield" ();;
       Ret r↑
     .
 

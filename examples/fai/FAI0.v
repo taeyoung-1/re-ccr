@@ -19,9 +19,9 @@ Section PROOF.
       ` _ : () <- ccallU "_yield" ();;
       (if negb (val_dec varg (Vint 0))
       then
-        trigger Yield;;;
+        ` _ : () <- ccallU "_yield" ();;
         trigger (Call "fai" [varg]↑);;;
-        trigger Yield
+        ccallU "_yield" ()
       else Ret ());;;
       ` r : () <- ccallU "_yield" ();;
       Ret r↑
