@@ -26,8 +26,6 @@ Section PROOF.
 
   Import ModSemL.
 
-  Context `{builtins : builtinsTy}.
-
   Let _sim_mon := Eval simpl in (fun (src: ModL.t) (tgt: Clight.program) => @sim_mon (compile_val src) (Clight.semantics2 tgt)).
   Hint Resolve _sim_mon: paco.
 

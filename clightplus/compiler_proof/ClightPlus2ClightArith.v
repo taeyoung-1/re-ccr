@@ -22,9 +22,6 @@ Ltac unfold_Int_min_signed := unfold Int.min_signed, Int.half_modulus in *; unfo
 
 Section ARITH.
 
-  Context `{Σ: GRA.t}.
-  Context `{builtins : builtinsTy}.
-
   Lemma int64_ptrofs :
     Ptrofs.modulus = Int64.modulus.
   Proof. unfold_Int64_modulus. unfold_Ptrofs_modulus. des_ifs. Qed.

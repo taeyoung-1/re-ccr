@@ -52,9 +52,6 @@ Section PROOF.
 
   Import ModSemL.
 
-  Context `{Σ: GRA.t}.
-  Context `{builtins : builtinsTy}.
-
   Definition compile_val md := @ModL.compile _ EMSConfigC md. 
 
   Let _sim_mon := Eval simpl in (fun (src: ModL.t) (tgt: Clight.program) => @sim_mon (compile_val src) (Clight.semantics2 tgt)).
