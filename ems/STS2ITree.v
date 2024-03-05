@@ -28,7 +28,7 @@ Section CONV.
       | STS.final z =>
         Ret (z)
       | STS.vis =>
-        '(exist (event_sys fn args _) _) <-
+        '(exist _ (event_sys fn args _) _) <-
         trigger (Choose {ev': event | exists st1, @step st0 (Some ev') st1 });;
         rv <- trigger (Syscall fn args (fun rv => exists st1, (@step st0 (Some (event_sys fn args rv)) st1)));;
         Vis (Choose {st1: state | @step st0 (Some (event_sys fn args rv)) st1 })
@@ -54,7 +54,7 @@ Section CONV.
     | STS.final z =>
       Ret (z)
     | STS.vis =>
-      '(exist (event_sys fn args _) _) <-
+      '(exist _ (event_sys fn args _) _) <-
       trigger (Choose {ev': event | exists st1, @step st0 (Some ev') st1 });;
       rv <- trigger (Syscall fn args (fun rv => exists st1, (@step st0 (Some (event_sys fn args rv)) st1)));;
       Vis (Choose {st1: state | @step st0 (Some (event_sys fn args rv)) st1 })

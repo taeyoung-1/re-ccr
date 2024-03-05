@@ -104,9 +104,9 @@ Section MODSEML.
       | Some rv => final rv
       | _ => angelic
       end
-    | VisF _ (Choose X) k => demonic
-    | VisF _ (Take X) k => angelic
-    | VisF _ (Syscall fn args rvs) k => vis
+    | VisF (Choose X) k => demonic
+    | VisF (Take X) k => angelic
+    | VisF (Syscall fn args rvs) k => vis
     end
   .
 

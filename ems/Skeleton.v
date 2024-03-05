@@ -1,7 +1,6 @@
 Require Import CoqlibCCR.
 Require Export ZArith.
 Require Import AList.
-Require Import Coqlib.
 Require Import String.
 Require Import Orders.
 
