@@ -30,7 +30,6 @@ Variable sk: Sk.t.
 Let skenv: SkEnv.t := load_skenv sk.
 Variable ce: comp_env.
 
-Definition set_opttemp_alist optid v (le: temp_env) := match optid with Some id => alist_add id v le | None => le end.
 
 Definition id_list_norepet_c: list ident -> bool :=
   fun ids => if Coqlib.list_norepet_dec (ident_eq) ids then true else false.
@@ -196,12 +195,6 @@ Section DECOMP.
       `_ : () <- ccallU "sfree" (Some b, sz);;
       free_list_aux l'
     end.
-
-  Definition block_of_binding (ce: comp_env) (id_b_ty: ident * (block * type)) :=
-    let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
-
-  Definition blocks_of_env (ce: comp_env) (le: env) :=
-    List.map (block_of_binding ce) le.
 
   Definition _sreturn_c
              (retty: type)
@@ -501,7 +494,6 @@ End Clight.
 
 Section DECOMP_PROG.
 
-  (* TODO: compiling of program should include sorting in positive -> compile after sorting  *)
   Definition get_ce (prog: Clight.program) : comp_env := PTree.elements prog.(prog_comp_env).
 
   Variable prog: Clight.program.
@@ -523,16 +515,7 @@ Section DECOMP_PROG.
         match fd with
         | Internal f => 
           (string_of_ident id,
-            cfunU (E:=Es) (fun vl =>
-                            if Pos.eq_dec id prog.(prog_main)
-                            then if type_eq (type_of_function f) (Tfunction Tnil type_int32s cc_default)
-                                  then v <- decomp_func sk ce f vl;; 
-                                      match v with
-                                      | Vint _ => Ret v
-                                      | _ => triggerUB
-                                      end
-                                  else triggerUB
-                            else decomp_func sk ce f vl)) :: decomp_fundefs sk defs'
+            cfunU (E:=Es) (decomp_func sk ce f)) :: decomp_fundefs sk defs'
         | _ => decomp_fundefs sk defs'
         end
       end

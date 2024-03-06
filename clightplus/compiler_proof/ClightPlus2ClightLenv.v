@@ -5,7 +5,7 @@ Require Import PCM.
 Require Import AList.
 
 Require Import ClightPlus2ClightMatchEnv.
-Require Import ClightPlusExprgen ClightPlusgen.
+Require Import ClightPlusExprgen.
 
 Set Implicit Arguments.
 
@@ -85,9 +85,9 @@ Section LENV.
         (EQ1: tce = ge.(genv_cenv))
         (MCE: match_ce ce tce)
     : 
-        Clight.block_of_binding ge = (map_fst (fun b => (b, 0%Z))) ∘ (ClightPlusgen.block_of_binding ce).
+        Clight.block_of_binding ge = (map_fst (fun b => (b, 0%Z))) ∘ (block_of_binding ce).
   Proof.
-    unfold Clight.block_of_binding, ClightPlusgen.block_of_binding.
+    unfold Clight.block_of_binding, block_of_binding.
     extensionalities. des_ifs_safe. ss. f_equal. erewrite match_sizeof; et.
   Qed.
 

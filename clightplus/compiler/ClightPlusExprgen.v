@@ -104,6 +104,8 @@ Section ABENVS.
 
   Definition field_offset ce id fld := field_offset_rec ce id fld 0.
 
+  Definition set_opttemp_alist optid v (le: temp_env) := match optid with Some id => alist_add id v le | None => le end.
+
   Fixpoint create_undef_temps (temps: list (ident * type)) : temp_env :=
     match temps with
     | [] => []
@@ -117,6 +119,13 @@ Section ABENVS.
     | p :: xl, v :: vl => bind_parameter_temps xl vl (alist_add (fst p) v le)
     | _, _ => None
     end.
+
+  Definition block_of_binding (ce: comp_env) (id_b_ty: ident * (block * type)) : block * Z :=
+    let (_, p) := id_b_ty in let (b, ty) := p in (b, sizeof ce ty).
+
+  Definition blocks_of_env (ce: comp_env) (le: env) : list (block * Z) :=
+    List.map (block_of_binding ce) le.
+
 
 End ABENVS.
 

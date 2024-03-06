@@ -8,7 +8,7 @@ Require Import Any.
 Require Import ModSem.
 Require Import ClightPlusMem0.
 
-Require Import ClightPlusSkel ClightPlusExprgen ClightPlusgen.
+Require Import ClightPlusSkel ClightPlusExprgen.
 Require Import ClightPlus2ClightMatchEnv.
 Require Import ClightPlus2ClightArith.
 Require Import ClightPlus2ClightLenv.
@@ -255,7 +255,7 @@ Section MEM.
   Qed.
 
   Lemma match_mem_free_list m tm m' sk ge tge ce tce e te
-        (SMEM: Mem.free_list m (List.map (map_fst (fun b => (b, 0%Z))) (ClightPlusgen.blocks_of_env ce e)) = Some m')
+        (SMEM: Mem.free_list m (List.map (map_fst (fun b => (b, 0%Z))) (ClightPlusExprgen.blocks_of_env ce e)) = Some m')
         (EQ1: tce = ge.(genv_cenv))
         (EQ2: tge = ge.(genv_genv))
         (MGE: match_ge sk tge)
@@ -268,8 +268,8 @@ Section MEM.
         (<<MM_POST: match_mem sk tge m' tm'>>).
   Proof.
     hexploit _match_mem_free_list; et. i. des.
-    unfold ClightPlusgen.blocks_of_env in TMEM.
-    rewrite (map_map (ClightPlusgen.block_of_binding ce)) in TMEM.
+    unfold ClightPlusExprgen.blocks_of_env in TMEM.
+    rewrite (map_map (ClightPlusExprgen.block_of_binding ce)) in TMEM.
     erewrite <- match_block_of_binding in TMEM; et.
     set (map _ _) as l in TMEM.
     set (blocks_of_env ge te) as l'.
