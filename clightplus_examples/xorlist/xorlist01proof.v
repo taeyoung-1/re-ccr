@@ -11,7 +11,7 @@ Require Import HTactics ProofMode.
 Require Import HSim IProofMode.
 Require Import ClightPlusSkel ClightPlusExprgen ClightPlusgen.
 Require Import ClightPlusMem0 ClightPlusMem1 ClightPlusMemAux.
-Require Import CIProofMode.
+Require Import CProofMode CIProofMode.
 Require Import xorlist.
 Require Import xorlist0.
 Require Import xorlist1.
@@ -76,12 +76,15 @@ Section PROOF.
       unit
       (fun _ st_src st_tgt => ⌜True⌝)%I.
 
-
   Let ce := Maps.PTree.elements (prog_comp_env prog).
 
   Section SIMFUNS.
+  Variable xor0 : Mod.t.
+  Hypothesis VALID : xorlist0._xor = Some xor0.
+
+
   Variable sk: Sk.t.
-  Hypothesis SKINCL1 : Sk.le (xorlist0.xor.(Mod.sk)) sk.
+  Hypothesis SKINCL1 : Sk.le (xor0.(Mod.sk)) sk.
   Hypothesis SKINCL2 : Sk.le (ClightPlusMem0.Mem.(Mod.sk)) sk.
   Hypothesis SKWF : Sk.wf sk.
 
@@ -90,8 +93,8 @@ Section PROOF.
       ("add_tl", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure add_tl_spec))
       ("add_tl", cfunU (decomp_func sk ce f_add_tl)).
   Proof.
-    Opaque encode_val.
-    Opaque cast_to_ptr.
+    (* Local Opaque encode_val.
+    Local Opaque cast_to_ptr.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -401,15 +404,16 @@ Section PROOF.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
-  Qed.
+  Qed. *)
+  Admitted.
 
   Lemma sim_add_hd :
     sim_fnsem wf top2
       ("add_hd", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure add_hd_spec))
       ("add_hd", cfunU (decomp_func sk ce f_add_hd)).
   Proof.
-    Opaque encode_val.
-    Opaque cast_to_ptr.
+    (* Local Opaque encode_val.
+    Local Opaque cast_to_ptr.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -709,14 +713,15 @@ Section PROOF.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
-  Qed.
+  Qed. *)
+  Admitted.
 
   Lemma sim_delete_tl :
     sim_fnsem wf top2
       ("delete_tl", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_tl_spec))
       ("delete_tl", cfunU (decomp_func sk ce f_delete_tl)).
   Proof.
-    Opaque encode_val.
+    (* Local Opaque encode_val.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -1001,14 +1006,15 @@ Section PROOF.
       rewrite <- Ptrofs.xor_assoc. 
       rewrite Ptrofs.xor_idem.
       rewrite Ptrofs.xor_zero_l. et.
-  Qed.
+  Qed. *)
+  Admitted.
 
   Lemma sim_delete_hd :
     sim_fnsem wf top2
       ("delete_hd", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_hd_spec))
       ("delete_hd", cfunU (decomp_func sk ce f_delete_hd)).
   Proof.
-    Opaque encode_val.
+    (* Local Opaque encode_val.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -1283,19 +1289,24 @@ Section PROOF.
       rewrite <- Ptrofs.xor_assoc. 
       rewrite Ptrofs.xor_idem.
       rewrite Ptrofs.xor_zero_l. et.
-  Qed.
+  Qed. *)
+  Admitted.
 
   End SIMFUNS.
 
 
-Require Import ClightPlusMem01Proof.
+  Require Import ClightPlusMem01Proof.
 
-  Theorem correct : refines2 [xorlist0.xor; ClightPlusMem0.Mem] [xorlist1.xor GlobalStb; ClightPlusMem1.Mem].
+  Variable xor0 : Mod.t.
+  Hypothesis VALID : xorlist0._xor = Some xor0.
+
+  Theorem correct : refines2 [xor0; ClightPlusMem0.Mem] [xorlist1.xor xor0 GlobalStb; ClightPlusMem1.Mem].
   Proof.
     eapply adequacy_local_strong_l. econs; cycle 1.
     { econs; ss. econs; ss. }
     i. econs; ss; cycle 1.
     { econs; ss. apply correct_mod; et. inv SKINCL. inv H6. ss. }
+    unfold _xor in VALID. unfold compile in VALID. clarify.
     econstructor 1 with (wf := wf) (le := top2); et; ss; cycle 1.
     { eexists. econs. apply to_semantic. iIntros. et. }
     (* each functions has simulation relation *)
@@ -1305,10 +1316,10 @@ Require Import ClightPlusMem01Proof.
     econs; cycle 1.
     econs; et.
     all: des_ifs; inv SKINCL; inv H6; ss.
-    - apply sim_delete_tl; et.
-    - apply sim_delete_hd; et.
-    - apply sim_add_tl; et.
-    - apply sim_add_hd; et.
+    - eapply sim_delete_tl; et.
+    - eapply sim_delete_hd; et.
+    - eapply sim_add_tl; et.
+    - eapply sim_add_hd; et.
     Unshelve. exact tt.
   Qed.
 

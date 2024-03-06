@@ -464,7 +464,7 @@ Section PROOF.
   Lemma call_cont_is_call_cont tcont : is_call_cont (call_cont tcont).
   Proof. induction tcont; et; ss. Qed.
 
-  Require Import CIProofMode.
+  Require Import CProofMode CIProofMode.
 
   Lemma number_same_stmt eff CAL EV sk ce p p' retty stmt : @decomp_stmt eff CAL EV sk ce p retty stmt = @decomp_stmt eff CAL EV sk ce p' retty stmt.
   Proof.

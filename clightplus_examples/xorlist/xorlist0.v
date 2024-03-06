@@ -5,4 +5,7 @@ Require Import Any.
 Require Import ClightPlusgen.
 Require Import xorlist.
 
-Definition xor : Mod.t := get_mod prog "xorlist".
+Definition _xor : option Mod.t := compile prog "xorlist".
+
+Theorem valid_xor: exists xor, _xor = Some xor.
+Proof. eauto. Qed.

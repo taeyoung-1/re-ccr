@@ -535,7 +535,7 @@ Section DECOMP_PROG.
     ModSem.initial_st := tt↑;
   |}.
 
-  Definition get_mod : Mod.t := {|
+  Definition compile : option Mod.t := Some {|
     Mod.get_modsem := modsem;
     Mod.sk := get_sk defs;
   |}.

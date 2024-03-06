@@ -426,8 +426,6 @@ Section SPEC.
 
 End SPEC.
 
-Require Import xorlist0.
-
 Section SMOD.
 
   Context `{@GRA.inG pointstoRA Σ}.
@@ -437,13 +435,10 @@ Section SMOD.
 
   Definition xorSbtb: list (gname * fspecbody) :=
     [
-     (* ("encrypt",  mk_pure encrypt_spec);
-     ("decrypt",  mk_pure decrypt_spec); *)
      ("add_hd", mk_pure add_hd_spec);
      ("add_tl", mk_pure add_tl_spec);
      ("delete_hd", mk_pure delete_hd_spec);
      ("delete_tl", mk_pure delete_tl_spec)
-     (* ("search",  mk_pure search_spec) *)
      ].
   
   Definition SxorSem : SModSem.t := {|
@@ -452,12 +447,14 @@ Section SMOD.
     SModSem.initial_mr := ε;
     SModSem.initial_st := tt↑;
   |}.
-  
+
+  Variable xor0: Mod.t.
+
   Definition Sxor : SMod.t := {|
     SMod.get_modsem := fun _ => SxorSem;
-    SMod.sk := xorlist0.xor.(Mod.sk);
+    SMod.sk := xor0.(Mod.sk);
   |}.
-  
+
   Definition xor stb : Mod.t := (SMod.to_tgt stb) Sxor.
-  
+
 End SMOD.
