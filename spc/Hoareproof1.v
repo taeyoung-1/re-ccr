@@ -90,14 +90,14 @@ Section CANCEL.
 
   Context `{Σ: GRA.t}.
 
-  Variable md: SMod.t.
+  Variable mds: list SMod.t.
 
-  Let sk: Sk.t := Sk.sort (Sk.add Sk.unit (SMod.sk md)).
+  Let sk: Sk.t := Sk.sort (fold_right Sk.add Sk.unit (List.map SMod.sk mds)).
   (* Let skenv: SkEnv.t := Sk.load_skenv sk. *)
-  Let ms: SModSem.t := SMod.get_modsem md sk.
-  Let sbtb := SModSem.fnsems ms.
+  Let mss: list SModSem.t := (List.map ((flip SMod.get_modsem) sk) mds).
+  Let sbtb: list (gname * fspecbody) := (List.flat_map (SModSem.fnsems) mss).
   Let _stb: list (gname * fspec) := List.map (fun '(fn, fs) => (fn, fs.(fsb_fspec))) sbtb.
-
+  
   Variable stb: gname -> option fspec.
   Hypothesis STBCOMPLETE:
     forall fn fsp (FIND: alist_find fn _stb = Some fsp), stb fn = Some fsp.
@@ -105,9 +105,11 @@ Section CANCEL.
     forall fn (FIND: alist_find fn _stb = None),
       (<<NONE: stb fn = None>>) \/ (exists fsp, <<FIND: stb fn = Some fsp>> /\ <<TRIVIAL: forall x, fsp.(measure) x = ord_top>>).
 
+  Let mds_mid2: list Mod.t := List.map (SMod.to_mid2 stb) mds.
+  Let mds_mid: list Mod.t := List.map (SMod.to_mid stb) mds.
 
-  Let md_mid2: Mod.t := SMod.to_mid2 stb md.
-  Let md_mid: Mod.t := SMod.to_mid stb md.
+  Let md_mid2: Mod.t := Mod.add_list mds_mid2.
+  Let md_mid: Mod.t := Mod.add_list mds_mid.
 
 
 
@@ -182,7 +184,7 @@ Section CANCEL.
           (<<FINDMID: alist_find fn (fnsems ms_mid) =
                       Some (fun_to_mid stb (fsb_body f))>>)).
   Proof.
-    unfold ms_mid2, ms_mid, md_mid, md_mid2, SMod.to_mid2, SMod.to_mid.
+    unfold ms_mid2, ms_mid, md_mid, md_mid2, mds_mid, mds_mid2, SMod.to_mid2, SMod.to_mid.
     rewrite SMod.transl_fnsems. rewrite SMod.transl_fnsems. fold sk.
     unfold _stb at 1 2. unfold sbtb, ms.
     unfold SMod.load_fnsems. rewrite ! SMod.red_do_ret2.

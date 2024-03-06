@@ -958,12 +958,14 @@ Qed.
 Lemma add_list_single: forall (x: t), add_list [x] = x.
 Proof. ii; cbn. refl. Qed.
 
-(* Definition add_list_cons
+
+Lemma add_list_cons
           x xs
+          (A: xs <> [])
         :
           (add_list (x::xs) = (add x (add_list xs)))
 .
-Proof. ss. Qed. *)
+Proof. ss. destruct xs; ss. Qed.
 
 (* Definition add_list_snoc
           x xs

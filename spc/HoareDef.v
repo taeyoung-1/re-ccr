@@ -1,7 +1,7 @@
  Require Import Coqlib AList.
 Require Import STS.
 Require Import Behavior.
-Require Import ModSem.
+Require Import ModSemFacts ModSem.
 Require Import Skeleton.
 Require Import PCM.
 From Ordinal Require Export Ordinal Arithmetic Inaccessible.
@@ -627,47 +627,42 @@ Section SMOD.
 
 
 
-
-
-
-
-
-
-
-
-
   Local Opaque Mod.add_list.
 
   Lemma transl_sk
-        tr mr md
+        tr0 mr0 mds
     :
-      <<SK: Mod.sk (transl tr mr md) = Sk.add Sk.unit (sk md)>>
+      <<SK: Mod.sk (Mod.add_list (List.map (transl tr0 mr0) mds)) = fold_right Sk.add Sk.unit (List.map sk mds)>>
   .
-  Proof. ss. Qed.
+  Proof.
+    induction mds; ss.
+    destruct mds.
+    - Local Transparent Mod.add_list. s. r. rewrite Sk.add_unit_r. Local Opaque Mod.add_list. refl. 
+    - rewrite ModFacts.add_list_cons; ss. r. f_equal. ss.
+  Qed.
 
   Lemma transl_sk_stable
-        tr0 tr1 mr0 mr1 md
+        tr0 tr1 mr0 mr1 mds
     :
-      Mod.sk (transl tr0 mr0 md) =
-      Mod.sk (transl tr1 mr1 md)
+      Mod.sk (Mod.add_list (List.map (transl tr0 mr0) mds)) =
+      Mod.sk (Mod.add_list (List.map (transl tr1 mr1) mds))
   .
   Proof. rewrite ! transl_sk. ss. Qed.
 
-  Definition load_fnsems' (sk: Sk.t) (md: t) (tr0: fspecbody -> Any.t -> itree Es Any.t) :=
+  Definition get_fnsems (sk: Sk.t) (md: t) (tr0: fspecbody -> Any.t -> itree Es Any.t) :=
     let ms := (get_modsem md sk) in
-      (do '(fn, fsb) <- ms.(SModSem.fnsems);
-       let fsem := tr0 fsb in
-       ret (fn, fsem))
+    (do '(fn, fsb) <- ms.(SModSem.fnsems);
+      let fsem := tr0 fsb in
+      ret (fn, fsem))
   .
 
-  Definition load_fnsems (sk: Sk.t) (mds: list t) (tr0: fspecbody -> Any.t -> itree Es Any.t) :=
-    do md <- mds;
-    let ms := (get_modsem md sk) in
-      (do '(fn, fsb) <- ms.(SModSem.fnsems);
-       let fsem := tr0 fsb in
-       ret (fn, fsem))
-  .
-
+  Fixpoint load_fnsems (sk: Sk.t) (mds: list t) (tr0: fspecbody -> Any.t -> itree Es Any.t) : list (string * (Any.t -> itree Es Any.t)):=
+    match mds with
+    | [] => nil
+    | h::[] => get_fnsems sk h tr0
+    | h::t => (List.map ModSem.trans_l (get_fnsems sk h tr0)) ++ (List.map ModSem.trans_r (load_fnsems sk t tr0))
+    end.
+    
   Let transl_fnsems_aux
         tr0 mr0 mds
         (sk: Sk.t)
@@ -676,62 +671,46 @@ Section SMOD.
       (load_fnsems sk mds (tr0 sk))
   .
   Proof.
-    induction mds; ii; ss.
-    rewrite Mod.add_list_cons. cbn. f_equal; ss.
-    rewrite ! List.map_map.
-
-    rewrite flat_map_concat_map.
-    replace (fun _x: string * fspecbody => let (fn, fsb) := _x in [(fn, transl_all (T:=_) (SModSem.mn (get_modsem a sk)) ∘ (tr0 sk (get_modsem a sk).(SModSem.mn) fsb))]) with
-        (ret ∘ (fun _x: string * fspecbody => let (fn, fsb) := _x in (fn, transl_all (T:=_) (SModSem.mn (get_modsem a sk)) ∘ (tr0 sk (get_modsem a sk).(SModSem.mn) fsb))));
+    induction mds; ss.
+    destruct mds.
+    - Local Transparent Mod.add_list.
+      ss. unfold get_fnsems.
+      rewrite flat_map_concat_map.
+      replace (fun _x: string * fspecbody => let (fn, fsb) := _x in [(fn, (tr0 sk fsb))]) with
+      (ret ∘ (fun _x: string * fspecbody => let (fn, fsb) := _x in (fn, (tr0 sk fsb))));
       cycle 1.
-    { apply func_ext. i. des_ifs. }
-    erewrite <- List.map_map with (g:=ret).
-    rewrite unconcat.
-    apply map_ext. ii. des_ifs.
-  Qed.
+      { apply func_ext. i. des_ifs. }
+      erewrite <- List.map_map with (g:=ret).
+      rewrite unconcat.
+      apply map_ext. ii. des_ifs.
+      Local Opaque Mod.add_list.
+    - rewrite ModFacts.add_list_cons; ss.
+      cbn. rewrite List.map_map. 
+      unfold get_fnsems in *.
+      rewrite ! flat_map_concat_map in *.
+      replace (fun _x: string * fspecbody => let (fn, fsb) := _x in [(fn, (tr0 sk fsb))]) with
+      (ret ∘ (fun _x: string * fspecbody => let (fn, fsb) := _x in (fn, (tr0 sk fsb)))) in *;
+      cycle 1.
+      { apply func_ext. i. des_ifs. }
+      f_equal.
+      { erewrite <- List.map_map with (g:=ret); rewrite unconcat.
+        rewrite List.map_map. ss. }
+      f_equal. ss.
+Qed.
 
   Lemma transl_fnsems
         tr0 mr0 mds
     :
-      (ModSemL.fnsems (ModL.enclose (Mod.add_list (List.map (transl tr0 mr0) mds)))) =
+      (ModSem.fnsems (Mod.enclose (Mod.add_list (List.map (transl tr0 mr0) mds)))) =
       (load_fnsems (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds (tr0 (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds)))))
   .
   Proof.
-    unfold ModL.enclose.
-    rewrite transl_fnsems_aux. do 2 f_equal. rewrite transl_sk. ss.
+    unfold Mod.enclose.
+    rewrite transl_fnsems_aux. do 2 f_equal.
+    { rewrite transl_sk. ss. }
     rewrite transl_sk. auto.
   Qed.
 
-
-  Lemma transl_fnsems_aux
-        tr0 mr0 md
-        (sk: Sk.t)
-    :
-      (ModSem.fnsems (Mod.get_modsem (transl tr0 mr0 md) sk)) =
-      (load_fnsems sk md (tr0 sk))
-  .
-  Proof.
-    unfold load_fnsems. cbn.
-    rewrite flat_map_concat_map.
-    replace (fun _x: string * fspecbody => let (fn, fsb) := _x in [(fn, tr0 sk fsb)]) with
-        (ret ∘ (fun _x: string * fspecbody => let (fn, fsb) := _x in (fn, tr0 sk fsb)));
-      cycle 1.
-    { apply func_ext. i. des_ifs. }
-    erewrite <- List.map_map with (g:=ret).
-    rewrite unconcat.
-    apply map_ext. ii. des_ifs.
-  Qed.
-
-  Lemma transl_fnsems
-        tr0 mr0 md
-    :
-      (ModSem.fnsems (Mod.enclose (transl tr0 mr0 md))) =
-      (load_fnsems (Sk.sort (Sk.add Sk.unit (sk md))) md (tr0 (Sk.sort (Sk.add Sk.unit (sk md)))))
-  .
-  Proof.
-    unfold Mod.enclose.
-    rewrite transl_fnsems_aux. f_equal.
-  Qed.
 
   Lemma flat_map_assoc
         A B C
@@ -748,46 +727,74 @@ Section SMOD.
   Qed.
 
   Lemma transl_fnsems_stable
-        tr0 tr1 mr0 mr1 md
+        tr0 tr1 mr0 mr1 mds
     :
-      List.map fst (Mod.enclose (transl tr0 mr0 md)).(ModSem.fnsems) =
-      List.map fst (Mod.enclose (transl tr1 mr1 md)).(ModSem.fnsems)
+      List.map fst (Mod.enclose (Mod.add_list (List.map (transl tr0 mr0) mds))).(ModSem.fnsems) =
+      List.map fst (Mod.enclose (Mod.add_list (List.map (transl tr1 mr1) mds))).(ModSem.fnsems)
   .
+
   Proof.
     rewrite ! transl_fnsems.
-    unfold load_fnsems.
+    set (Sk.sort (foldr Sk.add Sk.unit (map sk mds))).
+    clearbody a. revert a.
+    induction mds; ss. i.
+    unfold get_fnsems.
+    destruct mds. 
+    { 
+      rewrite <- ! red_do_ret.
+      rewrite ! flat_map_assoc. eapply flat_map_ext. i. des_ifs.
+    }
+    rewrite ! List.map_app.
+    rewrite ! List.map_map.
+    rewrite fun_fst_trans_l.
+    rewrite fun_fst_trans_r.
+    rewrite <- IHmds.
+    f_equal.
     rewrite <- ! red_do_ret.
-    rewrite ! flat_map_assoc. eapply flat_map_ext. i.
-    des_ifs.
-  Qed.
+    rewrite ! flat_map_assoc. eapply flat_map_ext. i. des_ifs.
+Qed.
+
+  Fixpoint link_mrs mrs : Any.t :=
+    match mrs with
+    | [] => tt↑
+    | h::[] => h
+    | h::t => Any.pair h (link_mrs t)
+    end.
 
 
-
-
-  Definition load_init_st {A} (sk: Sk.t) (md: t) (mr0: SModSem.t -> A): A :=
+  Definition load_initial_mrs (sk: Sk.t) (mds: list t) (mr0: SModSem.t -> Any.t): Any.t :=
+    let mrs := (do md <- mds;
     let ms := (get_modsem md sk) in
-    mr0 ms
+    ret (mr0 ms)) in
+    link_mrs mrs
+    (* How to link initial states *)
   .
 
-  Let transl_init_st_aux
-        tr0 mr0 md
+  Let transl_initial_mrs_aux
+        tr0 mr0 mds
         (sk: Sk.t)
     :
-      (ModSem.init_st (Mod.get_modsem (transl tr0 mr0 md) sk)) =
-      (load_init_st sk md mr0)
+      (ModSem.init_st (Mod.get_modsem (Mod.add_list (List.map (transl tr0 mr0) mds)) sk)) =
+      (load_initial_mrs sk mds mr0)
   .
-  Proof. ss. Qed.
+  Proof.
+    induction mds; ii; ss.
+    destruct mds; ss.
+    rewrite ModFacts.add_list_cons; ss. cbn. f_equal; ss.
+  Qed.
 
-  Lemma transl_init_st
-        tr0 mr0 md
+  Lemma transl_initial_mrs
+        tr0 mr0 mds
     :
-      (ModSem.init_st (Mod.enclose ((transl tr0 mr0 md)))) =
-      (load_init_st (Sk.sort (Sk.add Sk.unit (sk md))) md mr0)
+      (ModSem.init_st (Mod.enclose (Mod.add_list (List.map (transl tr0 mr0) mds)))) =
+      (load_initial_mrs (Sk.sort (List.fold_right Sk.add Sk.unit (List.map sk mds))) mds mr0)
   .
   Proof.
     unfold Mod.enclose.
-    rewrite transl_init_st_aux. f_equal.
+    rewrite transl_initial_mrs_aux. do 2 f_equal. rewrite transl_sk. ss.
   Qed.
+
+            
 
   Definition main (mainpre: Any.t -> iProp) (mainbody: Any.t -> itree hEs Any.t): t := {|
     get_modsem := fun _ => (SModSem.main mainpre mainbody);
