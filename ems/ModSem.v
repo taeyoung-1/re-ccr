@@ -83,6 +83,11 @@ Section ADD.
     | _ => es
     end. 
 
+  Definition emb_id : forall T, Es T -> Es T := fun T es => es.
+
+  Lemma emb_id_id {T} itr: (translate emb_id) T itr = itr.
+  Proof. erewrite (bisimulation_is_eq _ _ (translate_id _ _ _)). refl. Qed.
+    
   Definition trans_l '(fn, f): gname * (Any.t -> itree _ Any.t) :=
     (fn, (fun args => translate emb_l (f args))).
 

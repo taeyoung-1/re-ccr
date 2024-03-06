@@ -171,28 +171,66 @@ Section CANCEL.
   Ltac steps := repeat (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe).
   Ltac steps_strong := repeat (mred; try (_step ltac:(guclo simg_indC_spec)); des_ifs_safe).
 
+
+
   Lemma stb_find_iff_aux fn
     :
       ((<<NONE: alist_find fn _stb = None>>) /\
        (<<FINDSRC: alist_find fn (fnsems ms_mid2) = None>>) /\
        (<<FINDMID: alist_find fn (fnsems ms_mid) = None>>)) \/
 
-      (exists (f: fspecbody),
+      (exists (f: fspecbody) (emb: forall T, Es T -> Es T),
           (<<SOME: alist_find fn _stb = Some (f: fspec)>>) /\
           (<<FINDSRC: alist_find fn (fnsems ms_mid2) =
-                      Some (fun_to_mid2 (fsb_body f))>>) /\
+                      Some ((translate emb (T:=Any.t)) ∘ fun_to_mid2 (fsb_body f))>>) /\
           (<<FINDMID: alist_find fn (fnsems ms_mid) =
-                      Some (fun_to_mid stb (fsb_body f))>>)).
+                      Some ((translate emb (T:=Any.t)) ∘ fun_to_mid stb (fsb_body f))>>)).
   Proof.
     unfold ms_mid2, ms_mid, md_mid, md_mid2, mds_mid, mds_mid2, SMod.to_mid2, SMod.to_mid.
     rewrite SMod.transl_fnsems. rewrite SMod.transl_fnsems. fold sk.
-    unfold _stb at 1 2. unfold sbtb, ms.
-    unfold SMod.load_fnsems. rewrite ! SMod.red_do_ret2.
-    rewrite ! alist_find_map. uo.
-    destruct (alist_find fn (SModSem.fnsems (SMod.get_modsem md sk))) eqn:FIND.
-    - right. esplits; et.
-    - left. esplits; et.
-  Qed.
+    unfold _stb at 1 2. unfold sbtb, mss. rewrite alist_find_map.
+    generalize mds. induction mds0; ss; auto. unfold SMod.get_fnsems.
+
+
+    rewrite ! alist_find_app_o. erewrite ! SMod.red_do_ret2. uo. 
+    destruct (alist_find fn (SModSem.fnsems (SMod.get_modsem a sk))) eqn: AFIND.
+    { 
+      right. destruct mds0.
+      { 
+        rewrite ! alist_find_map. uo.  rewrite AFIND.
+        exists f. exists emb_id. esplits; et; (f_equal; apply func_ext; i; rewrite emb_id_id; refl).
+      }
+      { 
+        unfold trans_l, trans_r. rewrite ! alist_find_app_o.
+        rewrite ! alist_find_map. uo. rewrite AFIND.
+        esplits; et. 
+      }
+    }
+    { 
+      destruct mds0. 
+      { s. rewrite ! alist_find_map. uo. rewrite AFIND. left. esplits; et. }
+      { 
+        s. unfold trans_l, trans_r. rewrite ! alist_find_app_o.
+        rewrite ! alist_find_map. uo. rewrite AFIND. 
+        s in IHmds0. unfold SMod.get_fnsems, trans_l, trans_r in IHmds0.
+        rewrite ! alist_find_app_o in IHmds0. erewrite ! SMod.red_do_ret2 in IHmds0.
+        des.
+        { 
+          left. esplits; et; unfold SMod.get_fnsems; rewrite SMod.red_do_ret2.
+          - rewrite FINDSRC. refl.
+          - rewrite FINDMID. refl.        
+        }
+        {
+          right. exists f. esplits; et; unfold SMod.get_fnsems; rewrite SMod.red_do_ret2. 
+          - rewrite FINDSRC.
+            f_equal. apply func_ext. i. erewrite <- (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)). et.
+          - rewrite FINDMID.
+            f_equal. apply func_ext. i. erewrite <- (bisimulation_is_eq _ _ (translate_cmpE _ _ _ _ _ _ _)). et.
+        }
+      }
+    }
+  Qed. 
+          
 
   Lemma stb_find_iff fn
     :
@@ -200,12 +238,12 @@ Section CANCEL.
        (<<FINDSRC: alist_find fn (fnsems ms_mid2) = None>>) /\
        (<<FINDMID: alist_find fn (fnsems ms_mid) = None>>)) \/
 
-      (exists (f: fspecbody),
+      (exists (f: fspecbody) (emb: forall T, Es T -> Es T),
           (<<STB: stb fn = Some (f: fspec)>>) /\
           (<<FINDSRC: alist_find fn (fnsems ms_mid2) =
-                      Some (fun_to_mid2 (fsb_body f))>>) /\
+                      Some ((translate emb (T:=Any.t)) ∘ fun_to_mid2 (fsb_body f))>>) /\
           (<<FINDMID: alist_find fn (fnsems ms_mid) =
-                      Some (fun_to_mid stb (fsb_body f))>>)).
+                      Some ((translate emb (T:=Any.t)) ∘ fun_to_mid stb (fsb_body f))>>)).
   Proof.
     hexploit (stb_find_iff_aux fn). i. des.
     { left. esplits; et. }
@@ -234,9 +272,21 @@ Section CANCEL.
     steps. hexploit (stb_find_iff s). i. des.
     { rewrite NONE. steps. }
     { rewrite FIND. steps. exfalso. eapply x1; et. }
-    rewrite STB. steps. ss.
-    rewrite ! alist_find_map in *.
+    rewrite STB. steps.
+    (* rewrite ! alist_find_map in *. *)
     rewrite FINDMID. unfold fun_to_mid. steps.
+    rewrite Any.pair_split. steps.
+    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
+    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
+    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
+    
+
+    unfold unwrapN. destruct (Any.downcast (Any.upcast (ord_pure x2))) eqn:UN.
+    {  
+      erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
+      unfold interp_hCallE_mid.
+
+    }
    rewrite idK_spec at 1.
     guclo bindC_spec. econs.
     { unfold APC. steps. eapply simg_flag_down.
