@@ -587,7 +587,7 @@ Section PROOF.
       eapply IHvars; et. }
   Qed.
 
-  Lemma Csharpminor_wf_semantics prog
+  Lemma Clight_wf_semantics prog
     :
       wf_semantics (Clight.semantics2 prog).
   Proof.
