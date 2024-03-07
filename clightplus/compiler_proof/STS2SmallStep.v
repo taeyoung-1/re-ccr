@@ -856,6 +856,243 @@ Section SIM.
   Hint Unfold sim.
   Hint Resolve sim_mon: paco.
 
+  Inductive sim_indC
+            (sim: bool -> bool -> state L0 -> Smallstep.state L1 -> Prop)
+            (f_src f_tgt: bool) (st_src0: state L0) (st_tgt0: Smallstep.state L1) : Prop :=
+  | sim_indC_fin
+      retv
+      (SRT: _.(state_sort) st_src0 = final retv↑)
+      (SRT: _.(Smallstep.final_state) st_tgt0 retv)
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_vis
+      (SRT: _.(state_sort) st_src0 = vis)
+      (SRT: forall _st_tgt1, not (Step L1 st_tgt0 E0 _st_tgt1))
+      (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+      (SIM: forall ev_tgt st_tgt1
+          (STEP: Step L1 st_tgt0 ev_tgt st_tgt1)
+          (NPTERM: ev_tgt <> Some Event_pterm)
+        ,
+          exists st_src1 ev_src (STEP: _.(step) st_src0 (Some ev_src) st_src1),
+            (<<MATCH: Forall2 match_event ev_tgt [ev_src]>>) /\
+            (<<SIM: sim true true st_src1 st_tgt1>>))
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_demonic_src
+      (SRT: _.(state_sort) st_src0 = demonic)
+      (SIM: exists st_src1
+          (STEP: _.(step) st_src0 None st_src1)
+        ,
+          <<SIM: sim true f_tgt st_src1 st_tgt0>>)
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_demonic_tgt
+      (NOEVENT: forall tr _st_tgt1, Step L1 st_tgt0 tr _st_tgt1 -> tr = E0)
+      (SRT: exists _st_tgt1, Step L1 st_tgt0 E0 _st_tgt1)
+      (SIM: forall st_tgt1
+          (STEP: Step L1 st_tgt0 E0 st_tgt1)
+        ,
+          <<SIM: sim f_src true st_src0 st_tgt1>>)
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_angelic_src
+      (SRT: _.(state_sort) st_src0 = angelic)
+      (DTM: forall st1 st2, (<<DTM1: _.(step) st_src0 None st1>>) -> (<<DTM2: _.(step) st_src0 None st2>>) -> st1 = st2)
+      (SIM: forall st_src1
+          (STEP: _.(step) st_src0 None st_src1)
+        ,
+          <<SIM: sim true f_tgt st_src1 st_tgt0>>)
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_demonic_both
+      (SRT: _.(state_sort) st_src0 = demonic)
+      (NOEVENT: forall tr _st_tgt1, Step L1 st_tgt0 tr _st_tgt1 -> tr = E0)
+      (SRT: exists _st_tgt1, Step L1 st_tgt0 E0 _st_tgt1)
+      (SIM: forall st_tgt1
+          (STEP: Step L1 st_tgt0 E0 st_tgt1)
+        ,
+          exists st_src1 (STEP: _.(step) st_src0 None st_src1),
+            <<SIM: sim true true st_src1 st_tgt1>>)
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+
+  | sim_indC_pterm_tgt
+      (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+      (SRT: forall tr_tgt _st_tgt1, Step L1 st_tgt0 tr_tgt _st_tgt1 -> tr_tgt = [Event_pterm])
+    :
+      sim_indC sim f_src f_tgt st_src0 st_tgt0
+  .
+
+  Lemma sim_indC_mon: monotone4 sim_indC.
+  Proof.
+    ii. inv IN.
+    { econs 1; eauto. }
+    { econs 2; eauto. i. hexploit SIM; et. i. des. esplits; eauto. }
+    { econs 3; eauto. i. hexploit SIM; et. i. des. esplits; eauto. }
+    { econs 4; eauto. i. hexploit SIM; et. }
+    { econs 5; eauto. i. hexploit SIM; et. }
+    { econs 6; eauto. i. hexploit SIM; et. i. des. esplits; eauto. }
+    { econs 7; eauto. }
+  Qed.
+  Hint Resolve sim_indC_mon: paco.
+  Hint Resolve cpn4_wcompat: paco.
+
+  Lemma sim_indC_spec:
+    sim_indC <5= gupaco4 _sim (cpn4 _sim).
+  Proof.
+    eapply wrespect4_uclo; eauto with paco.
+    econs; eauto with paco. i. inv PR.
+    { econs 1; eauto. }
+    { econs 2; eauto. i. hexploit SIM; et. i. des. esplits; et. eapply rclo4_base. auto. }
+    { econs 3; eauto. des. eexists _,_. eapply sim_mon; eauto. i. eapply rclo4_base. auto. }
+    { econs 4; eauto. i. hexploit SIM; et. i. eapply sim_mon; eauto. i. eapply rclo4_base. auto. }
+    { econs 5; eauto. i. hexploit SIM; et. i. eapply sim_mon; eauto. i. eapply rclo4_base. auto. }
+    { econs 6; eauto. i. hexploit SIM; et. i. des. eexists _,_. eapply rclo4_base. eauto. }
+    { econs 7; eauto. }
+    Unshelve. all: et.
+  Qed.
+
+  Lemma sim_ind
+    (P : bool -> bool -> L0.(STS.state) -> L1.(Smallstep.state) -> Prop)
+    (RET: forall retv f_src f_tgt st_src0 st_tgt0
+            (SRT: _.(state_sort) st_src0 = final retv↑)
+            (SRT: _.(Smallstep.final_state) st_tgt0 retv),
+            P f_src f_tgt st_src0 st_tgt0 )
+    (VIS: forall f_src f_tgt st_src0 st_tgt0
+            (SRT: _.(state_sort) st_src0 = vis)
+            (NOSILENT: forall _st_tgt1, not (Step L1 st_tgt0 E0 _st_tgt1))
+            (TSAFE: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+            (SIM: forall ev_tgt st_tgt1 (STEP: Step L1 st_tgt0 ev_tgt st_tgt1)
+                    (NPTERM: ev_tgt <> Some Event_pterm),
+                    exists st_src1 ev_src (STEP: _.(step) st_src0 (Some ev_src) st_src1),
+                      (<<MATCH: Forall2 match_event ev_tgt [ev_src]>>) /\
+                      (<<SIM: sim true true st_src1 st_tgt1>>)),
+            P f_src f_tgt st_src0 st_tgt0)
+    (DSRC_STL: forall f_src f_tgt st_src0 st_tgt0
+                (SRT: _.(state_sort) st_src0 = demonic)
+                (SIM: exists st_src1 (STEP: _.(step) st_src0 None st_src1),
+                        <<SIM: sim true f_tgt st_src1 st_tgt0>> /\
+                        P true f_tgt st_src1 st_tgt0),
+                P f_src f_tgt st_src0 st_tgt0)
+    (DTGT_STL: forall f_src f_tgt st_src0 st_tgt0
+                (NOEVENT: forall tr _st_tgt1, Step L1 st_tgt0 tr _st_tgt1 -> tr = E0)
+                (SRT: exists _st_tgt1, Step L1 st_tgt0 E0 _st_tgt1)
+                (SIM: forall st_tgt1 (STEP: Step L1 st_tgt0 E0 st_tgt1),
+                        <<SIM: sim f_src true st_src0 st_tgt1>> /\
+                        P f_src true st_src0 st_tgt1),
+                P f_src f_tgt st_src0 st_tgt0)
+    (ASRC_STL: forall f_src f_tgt st_src0 st_tgt0
+                (SRT: _.(state_sort) st_src0 = angelic)
+                (DTM: forall st1 st2 (DTM1: _.(step) st_src0 None st1) 
+                        (DTM2: _.(step) st_src0 None st2), st1 = st2)
+                (SIM: forall st_src1 (STEP: _.(step) st_src0 None st_src1),
+                        <<SIM: sim true f_tgt st_src1 st_tgt0>> /\
+                        P true f_tgt st_src1 st_tgt0),
+                P f_src f_tgt st_src0 st_tgt0)
+    (D_PROG: forall f_src f_tgt st_src0 st_tgt0
+                  (NOEVENT: forall tr _st_tgt1, Step L1 st_tgt0 tr _st_tgt1 -> tr = E0)
+                  (SRT: exists _st_tgt1, Step L1 st_tgt0 E0 _st_tgt1)
+                  (SRT: _.(state_sort) st_src0 = demonic)
+                  (SIM: forall st_tgt1 (STEP: Step L1 st_tgt0 E0 st_tgt1),
+                        exists st_src1 (STEP: _.(step) st_src0 None st_src1),
+                          <<SIM: sim true true st_src1 st_tgt1>>),
+                P f_src f_tgt st_src0 st_tgt0)
+    (PTERM: forall f_src f_tgt st_src0 st_tgt0
+            (SRT: exists _ev_tgt _st_tgt1, Step L1 st_tgt0 [_ev_tgt] _st_tgt1)
+            (SRT: forall tr_tgt _st_tgt1, Step L1 st_tgt0 tr_tgt _st_tgt1 -> tr_tgt = [Event_pterm]),
+            P f_src f_tgt st_src0 st_tgt0)
+    (PROG: forall f_src f_tgt st_src0 st_tgt0
+            (SRC: f_src = true)
+            (TGT: f_tgt = true)
+            (SIM: sim false false st_src0 st_tgt0),
+            P f_src f_tgt st_src0 st_tgt0)
+:
+    forall f_src f_tgt st_src st_tgt
+           (SIM: sim f_src f_tgt st_src st_tgt),
+      P f_src f_tgt st_src st_tgt.
+  Proof.
+    i. punfold SIM. induction SIM using _sim_ind2; i; clarify.
+    { eapply RET; eauto. }
+    { eapply VIS; eauto. i. exploit SIM; eauto. i. des. pclearbot. eauto. }
+    { eapply DSRC_STL; eauto. des. esplits; et. }
+    { eapply DTGT_STL; eauto. i. exploit SIM; eauto. i. des. auto. }
+    { eapply ASRC_STL; eauto. i. exploit SIM; eauto. i. des. auto. }
+    { eapply D_PROG; eauto. i. exploit SIM; eauto. i. des. pclearbot. eauto. }
+    { eapply PTERM; eauto. }
+    { pclearbot. eapply PROG; eauto. }
+  Qed.
+
+  Inductive sim_flagC (r: bool -> bool -> state L0 -> Smallstep.state L1 -> Prop) : bool -> bool -> state L0 -> Smallstep.state L1 -> Prop :=
+  | flagC_intro
+    st_src st_tgt f_src1 f_tgt1 f_src0 f_tgt0
+    (SRC: f_src0 = true -> f_src1 = true)
+    (TGT: f_tgt0 = true -> f_tgt1 = true)
+    (SIM: r f_src0 f_tgt0 st_src st_tgt)
+  :
+    sim_flagC r f_src1 f_tgt1 st_src st_tgt.
+
+  Lemma sim_flagC_mon
+        r1 r2
+        (LE: r1 <4= r2)
+    :
+      sim_flagC r1 <4= sim_flagC r2
+  .
+  Proof. ii. destruct PR; econs; et. Qed.
+  Hint Resolve sim_flagC_mon: paco.
+
+  Lemma sim_flagC_wrespectful: wrespectful4 (_sim) sim_flagC.
+  Proof.
+    econs; eauto with paco.
+    ii. inv PR.
+    eapply GF in SIM.
+    revert x0 x1 SRC TGT. induction SIM using _sim_ind2; i; clarify.
+    { econs 1; eauto. }
+    { econs 2; eauto. i. hexploit SIM; et. i. des. esplits; et. eapply rclo4_base. auto. }
+    { econs 3; eauto. des. eexists _,_. eapply sim_mon; eauto. }
+    { econs 4; eauto. i. hexploit SIM; et. i. des. eapply sim_mon; eauto. }
+    { econs 5; eauto. i. hexploit SIM; et. i. des. eapply sim_mon; eauto. }
+    { econs 6; eauto. i. hexploit SIM; et. i. des. eexists _,_. eapply rclo4_base. eauto. }
+    { econs 7; eauto. }
+    { econs 8; eauto. eapply rclo4_clo_base. econs; eauto. }
+    Unshelve. all: et.
+  Qed.
+
+  Lemma sim_flagC_spec: sim_flagC <5= gupaco4 (_sim) (cpn4 (_sim)).
+  Proof.
+    intros. eapply wrespect4_uclo; eauto with paco. eapply sim_flagC_wrespectful.
+  Qed.
+
+  Lemma sim_flag_down r g st_src st_tgt f_src f_tgt
+        (SIM: gpaco4 _sim (cpn4 _sim) r g false false st_src st_tgt)
+    :
+      gpaco4 _sim (cpn4 _sim) r g f_src f_tgt st_src st_tgt.
+  Proof.
+    guclo sim_flagC_spec. econs; [..|eauto]; ss.
+  Qed.
+
+  Lemma sim_bot_flag_up b0 b1 st_src st_tgt f_src f_tgt
+        (SIM: sim b0 b1 st_src st_tgt)
+    :
+      sim f_src f_tgt st_src st_tgt.
+  Proof.
+    ginit. revert st_src st_tgt f_src f_tgt b0 b1 SIM.
+    gcofix CIH. i. revert f_src f_tgt.
+    induction SIM using sim_ind.
+    { gstep. econs 1; eauto. }
+    { gstep. econs 2; eauto. i. hexploit SIM; et. i. des. esplits; et. gbase. eapply CIH; eauto. }
+    { guclo sim_indC_spec. des. econs 3; eauto. }
+    { guclo sim_indC_spec. econs 4; et. i. hexploit SIM; et. i. des. et. }
+    { guclo sim_indC_spec. econs 5; et. i. hexploit SIM; et. i. des. et. }
+    { guclo sim_indC_spec. econs 6; et. i. hexploit SIM; et. i. des. esplits; et. gfinal. right. eapply paco4_mon; et. i. ss. }
+    { guclo sim_indC_spec. econs 7; eauto. }
+    { i. eapply sim_flag_down. gfinal. right. eapply paco4_mon; eauto. ss. }
+  Qed.
+
   Record simulation: Prop := mk_simulation {
     sim_init: forall st_tgt0 (INITT: L1.(Smallstep.initial_state) st_tgt0),
         (<<SIM: sim false false L0.(initial_state) st_tgt0>>);
