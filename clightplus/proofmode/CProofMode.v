@@ -9,7 +9,6 @@ Global Opaque equiv_prov.
 Global Opaque has_offset.
 Global Opaque points_to.
 Global Opaque ccallU.
-Global Opaque get_sk.
 Global Opaque build_composite_env'.
 Global Opaque build_composite_env.
 

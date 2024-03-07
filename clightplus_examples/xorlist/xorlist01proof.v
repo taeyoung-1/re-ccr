@@ -1306,7 +1306,7 @@ Section PROOF.
     { econs; ss. econs; ss. }
     i. econs; ss; cycle 1.
     { econs; ss. apply correct_mod; et. inv SKINCL. inv H6. ss. }
-    unfold _xor in VALID. unfold compile in VALID. clarify.
+    unfold _xor, compile, get_sk in VALID. des_ifs. ss.
     econstructor 1 with (wf := wf) (le := top2); et; ss; cycle 1.
     { eexists. econs. apply to_semantic. iIntros. et. }
     (* each functions has simulation relation *)
