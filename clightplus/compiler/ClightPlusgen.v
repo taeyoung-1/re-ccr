@@ -514,10 +514,13 @@ Section DECOMP_PROG.
   Definition chk_ident (name: ident) : bool := Pos.eq_dec name (ident_of_string (string_of_ident name)).
 
   Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=
-    let sk := List.filter def_filter defs in
-    let skn := (List.map fst sk ++ [ident_of_string "malloc"; ident_of_string "free"]) in
-    if List.forallb chk_ident skn && Coqlib.list_norepet_dec dec skn
-    then Some (List.map (map_fst string_of_ident) sk)
+    if Coqlib.list_norepet_dec dec (List.map fst defs)
+    then
+      let sk := List.filter def_filter defs in
+      let skn := (List.map fst sk ++ [ident_of_string "malloc"; ident_of_string "free"]) in
+      if List.forallb chk_ident skn && Coqlib.list_norepet_dec dec skn
+      then Some (List.map (map_fst string_of_ident) sk)
+      else None
     else None.
 
   Fixpoint get_fnsems (sk: Sk.t) (defs: list (string * globdef Clight.fundef type)) : list (string * (option string * Any.t -> itree Es Any.t)) :=
@@ -527,13 +530,16 @@ Section DECOMP_PROG.
     | _ :: defs' => get_fnsems sk defs'
     end.
 
-  Definition compile : option Mod.t := 
-    match get_sk defs with
-    | Some _sk =>
-      Some {| Mod.get_modsem := fun sk => {| ModSem.fnsems := get_fnsems sk _sk; ModSem.mn := mn; ModSem.initial_st := tt↑; |};
-              Mod.sk := _sk; |}
-    | None => None
-    end.
+  Definition compile : option Mod.t :=
+    if Pos.eq_dec (prog_main prog) (ident_of_string "main")
+    then
+      match get_sk defs with
+      | Some _sk =>
+        Some {| Mod.get_modsem := fun sk => {| ModSem.fnsems := get_fnsems sk _sk; ModSem.mn := mn; ModSem.initial_st := tt↑; |};
+                Mod.sk := _sk; |}
+      | None => None
+      end
+    else None.
 
 End DECOMP_PROG.  
 
