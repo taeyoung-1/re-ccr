@@ -51,7 +51,7 @@ Section MODSEM.
     | (fn_hd, body_hd)::tl =>
         if string_dec fn fn_hd then Some body_hd else get_fnsems tl fn
     end.
-
+(* 
 Section ADD.
   Variable M1 M2 : t.
 
@@ -103,8 +103,170 @@ Section ADD.
     fnsems := add_fnsems;
   |}.
 
+End ADD. *)
+
+
+Section ADD.
+  Variable M1 M2 : t.
+  Definition RUN : Type := forall V, (Any.t -> Any.t * V) -> (Any.t -> Any.t * V).
+  (* Definition translate_emb : Type := forall T, itree Es T -> itree Es T. *)
+
+  Definition emb_ : RUN -> (forall T, Es T -> Es T) :=
+    fun run_ch T es =>
+      match es with
+      | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (run_ch T run)))
+      | _ => es
+      end.
+
+  Definition run_id: RUN := fun T x => x.
+
+  Definition run_l: RUN := 
+    fun V run st =>
+      match Any.split st with
+      | Some (a, b) => let (a', v) := run a in (Any.pair a' b, v)
+      | None => run tt↑
+      end.
+
+  Definition run_r: RUN := 
+    fun V run st =>
+      match Any.split st with
+      | Some (a, b) => let (b', v) := run b in (Any.pair a b', v)
+      | None => run tt↑
+      end.
+
+  Definition emb_id : forall T, Es T -> Es T := fun T es => es.
+
+  Definition emb_l : forall T, Es T -> Es T :=
+    fun T es => 
+    match es with
+    | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (run_l run)))
+    | _ => es
+    end.   
+
+  Definition emb_r : forall T, Es T -> Es T :=
+    fun T es => 
+    match es with
+    | inr1 (inl1 (SUpdate run)) => inr1 (inl1 (SUpdate (run_r run)))
+    | _ => es
+    end.       
+
+  Definition trans_l '(fn, f): gname * (Any.t -> itree _ Any.t) :=
+    (fn, (fun args => translate emb_l (f args))).
+
+  Definition trans_r '(fn, f) : gname * (Any.t -> itree _ Any.t) :=
+    (fn, (fun args => translate emb_r (f args))).
+
+  Definition add_fnsems : alist gname (Any.t -> itree _ Any.t) :=
+    (List.map trans_l M1.(fnsems)) ++ (List.map trans_r M2.(fnsems)).
+
+  Definition add : t :=
+  {|
+    init_st := Any.pair (init_st M1) (init_st M2);
+    fnsems := add_fnsems;
+  |}.
+    
+
 End ADD.
 
+Section LEMMAS.
+
+  Lemma emb_run_id : emb_id = emb_ run_id.
+  Proof. unfold emb_, run_id, emb_id. extensionalities. des_ifs. Qed.
+
+  Lemma emb_id_equiv {T} itr: (translate emb_id) T itr = itr.
+  Proof. erewrite (bisimulation_is_eq _ _ (translate_id _ _ _)). refl. Qed.
+
+  Lemma translate_emb_bind
+    A B
+    (run_: RUN)
+    (itr: itree Es A) (ktr: A -> itree Es B)
+  :
+    translate (emb_ run_) (itr >>= ktr) = a <- (translate (emb_ run_) itr);; (translate (emb_ run_) (ktr a))
+  .
+  Proof. rewrite (bisim_is_eq (translate_bind _ _ _)). et. Qed.
+
+  Lemma translate_emb_tau
+    A
+    run_
+    (itr: itree Es A)
+  :
+    translate (emb_ run_) (tau;; itr) = tau;; (translate (emb_ run_) itr)
+  .
+  Proof. rewrite (bisim_is_eq (translate_tau _ _)). et. Qed.
+
+  Lemma translate_emb_ret
+      A
+      (a: A)
+      (run_: RUN)
+  :
+    translate (emb_ run_) (Ret a) = Ret a
+  .
+  Proof. rewrite (bisim_is_eq (translate_ret _ _)). et. Qed.
+
+  Lemma translate_emb_callE
+      run_ fn args
+  :
+    translate (emb_ run_) (trigger (Call fn args)) =
+    trigger (Call fn args)
+  .
+  Proof. 
+    unfold trigger. 
+    rewrite (bisim_is_eq (translate_vis _ _ _ _)). ss. 
+    do 2 f_equal. extensionalities. apply translate_emb_ret. 
+  Qed.
+
+  Lemma translate_emb_sE
+      T 
+      (run_: RUN)
+      (run : Any.t -> Any.t * T)
+  :
+    translate (emb_ run_) (trigger (SUpdate run)) = trigger (SUpdate (run_ T run))
+  .
+  Proof. 
+    unfold trigger. 
+    rewrite (bisim_is_eq (translate_vis _ _ _ _)). 
+    do 2 f_equal. extensionalities. apply translate_emb_ret. 
+  Qed.
+
+  Lemma translate_emb_eventE
+      T
+      (run_: RUN) 
+      (e: eventE T)
+    :
+      translate (emb_ run_) (trigger e) = trigger e.
+  Proof.
+    unfold trigger.
+    rewrite (bisim_is_eq (translate_vis _ _ _ _)). ss.
+    do 2 f_equal.
+    extensionalities. rewrite translate_emb_ret. et.
+  Qed.
+
+  Lemma translate_emb_triggerUB
+    T run_
+  
+  :
+    translate (emb_ run_) (triggerUB: itree _ T) = triggerUB
+  .
+  Proof. 
+    unfold triggerUB. rewrite translate_emb_bind. f_equal.
+    { apply translate_emb_eventE. }
+    extensionalities. ss.
+  Qed.
+
+  Lemma translate_emb_triggerNB
+    T run_
+  :
+    translate (emb_ run_) (triggerNB: itree _ T) = triggerNB
+  .
+  Proof.
+    unfold triggerNB. rewrite translate_emb_bind. f_equal. 
+    { apply translate_emb_eventE. }
+    extensionalities. ss.
+  Qed.
+  
+  
+
+End LEMMAS.
 
 Section INTERP.
 
