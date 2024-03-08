@@ -11,8 +11,6 @@ Set Implicit Arguments.
 
 Section LENV.
 
-
-
   Lemma match_update_le sk ge le tle o v
         (MLE: match_le sk ge le tle)
     :
@@ -115,59 +113,76 @@ Section LENV.
     ss. f_equal. eapply IHparams; eauto.
   Qed.
 
-(*   Lemma init_lenv_match
-        src le tle l
-        (SINIT: le = init_lenv l)
-        (TINIT: tle = create_undef_temps (List.map s2p l))
+  Lemma bind_parameter_temps_exists_if_same_length'
+        params args tle0
+        (LEN: List.length params = List.length args)
     :
-      <<MLINIT: match_le src le tle >>.
+      exists tle, (<<BIND: Clight.bind_parameter_temps params args tle0 = Some tle>>).
   Proof.
-    red. depgen src. depgen le. depgen tle. clear. induction l; ii; ss; clarify.
-    match goal with
-    | [ |- match_le _ (_ :: ?_le0) (PTree.set _ _ ?_tle0)] => specialize IHl with (tle:=_tle0) (le:=_le0) (src:=src) end.
-    hexploit IHl; eauto. clear IHl. i. inv H.
-    econs. i. ss. des_ifs.
-    { rewrite eq_rel_dec_correct in Heq. des_ifs. rewrite PTree.gss. ss. }
-    apply neg_rel_dec_correct in Heq.
-    rewrite PTree.gso; eauto. ii. apply Heq. apply s2p_inj in H0. ss.
-  Qed. *)
-
-  (*** TODO: lenv initialization has match ***)
-(*   Lemma _initial_lenv_match
-        src params rvs le0 le (tle0: temp_env) tle
-        (ML0: match_le src le0 tle0)
-        (ARGS: init_args params rvs le0 = Some le)
-        (BIND: bind_parameters (List.map s2p params)
-                               (List.map (map_val src) rvs) tle0
-               = Some tle)
-    :
-      (<<MLINIT: match_le src le tle>>).
-  Proof.
-    red. move params before builtins. revert_until params. clear. induction params; i; ss; clarify.
-    { destruct rvs; ss; clarify. }
-    destruct rvs eqn:RVS; ss; clarify.
-    eapply IHparams.
-    2: eapply ARGS.
-    2: eapply BIND.
-    depgen ML0. clear; i. econs; i. eapply alist_update_le; eauto.
+    depgen args. depgen tle0. clear. induction params; i; ss; clarify.
+    { exists tle0. des_ifs. }
+    destruct args; ss; clarify. destruct a. eauto.
   Qed.
 
-  Lemma initial_lenv_match
-        src impf rvs le0 le (tle0: temp_env)
-        (SINIT: le0 = init_lenv (impf.(Imp.fn_vars) ++ ["return"; "_"]))
-        (ARGS: init_args impf.(Imp.fn_params) rvs le0 = Some le)
-        (TINIT: tle0 = create_undef_temps
-                         (List.map (fun vn : string => s2p vn) (impf.(Imp.fn_vars) ++ ["return"; "_"])))
+  Lemma match_bind_parameter_temps
+        sk tge params sle rvs sbase tbase
+        (BIND_SRC: bind_parameter_temps params rvs sbase = Some sle)
+        (MLE: match_le sk tge sbase tbase)
     :
-      exists tle, (<<BIND: bind_parameters
-                        (List.map (fun vn : string => s2p vn) impf.(Imp.fn_params))
-                        (List.map (map_val src) rvs) tle0 = Some tle>>) /\
-             (<<MLINIT: match_le src le tle>>).
+      exists tle, (<<BIND_TGT: Clight.bind_parameter_temps params (List.map (map_val sk tge) rvs) tbase
+                      = Some tle>>)
+                  /\ (<<MLE: match_le sk tge sle tle>>).
   Proof.
-    hexploit bind_parameters_exists; eauto. i. des.
-    exists tle. split; eauto.
-    eapply _initial_lenv_match; eauto.
-    eapply init_lenv_match; eauto.
-  Qed. *)
+    hexploit (bind_parameter_temps_exists_if_same_length' params (List.map (map_val sk tge) rvs) tbase).
+    - rewrite ! map_length. clear -BIND_SRC. depgen sbase.
+      revert sle. depgen rvs. depgen params.
+      induction params; i; ss; des_ifs.
+      ss. f_equal. eapply IHparams; eauto.
+    - i. des. eexists; split; et. red. depgen sbase. depgen sle. depgen rvs. revert tbase tle. depgen params.
+      induction params; i; ss; des_ifs. simpl in Heq. clarify.
+      eapply IHparams. 2:et. 1:et.
+      inv MLE. econs.
+      i. destruct (dec id i). { subst. rewrite alist_add_find_eq in H. clarify. rewrite Maps.PTree.gss. et. }
+      rewrite Maps.PTree.gso; et. rewrite alist_add_find_neq in H; et.
+  Qed.
 
 End LENV.
+
+Section ENV.
+
+  Lemma match_update_e sk tge e te i blk t
+        (MLE: match_e sk tge e te)
+    :
+      match_e sk tge (alist_add i (blk, t) e) (Maps.PTree.set i (map_blk sk tge blk, t) te).
+  Proof.
+    inv MLE. econs; et.
+    { apply alist_add_nodup. et. }
+    split; i.
+    - destruct a. apply Maps.PTree.elements_complete in H.
+      rewrite in_map_iff. destruct (Pos.eq_dec p i).
+      + subst. rewrite Maps.PTree.gss in H. clarify. 
+        exists (i, (blk, t)). split; et. ss. et.
+      + rewrite Maps.PTree.gso in H; et. apply Maps.PTree.elements_correct in H.
+        apply ME in H. apply in_map_iff in H. des. eexists; split; et.
+        destruct x. destruct p1. simpl in H. clarify.
+        eapply alist_find_some.
+        rewrite alist_add_find_neq; et.
+        apply alist_find_some_iff; et.
+    - destruct a. rewrite in_map_iff in H. des. destruct x. destruct p1.
+      simpl in H. clarify. apply Maps.PTree.elements_correct.
+      destruct (Pos.eq_dec p i).
+      + subst. rewrite Maps.PTree.gss in *. eapply alist_find_some_iff in H0.
+        * rewrite alist_add_find_eq in H0. clarify.
+        * apply alist_add_nodup. et.
+      + rewrite Maps.PTree.gso; et.
+        apply Maps.PTree.elements_complete.
+        rewrite ME.
+        change ((_, (_,_))) with (map_env_entry sk tge (p, (b, t0))). 
+        apply in_map.
+        eapply alist_find_some_iff in H0; cycle 1.
+        { apply alist_add_nodup. et. }
+        rewrite alist_add_find_neq in H0; et.
+        apply alist_find_some in H0. et.
+  Qed.
+
+End ENV.
