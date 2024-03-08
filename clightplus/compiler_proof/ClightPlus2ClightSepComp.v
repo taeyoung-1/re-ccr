@@ -17,9 +17,11 @@ Require Import ClightPlus2ClightArith.
 Require Import ClightPlus2ClightLenv.
 Require Import ClightPlus2ClightMem.
 Require Import ClightPlus2ClightMatchStmt.
+
 Require Import STS2SmallStep.
 Require Import ClightPlus2ClightSimExpr.
-(* Require Import ClightPlus2ClightSimAll.  *)
+Require Import ClightPlus2ClightSimStmt.
+Require Import ClightPlus2ClightSim.
 
 Require Import ClightPlus2ClightGenv.
 (* Require Import ClightPlus2ClightLink. *)
