@@ -24,6 +24,8 @@ Require Import STS2SmallStep.
 (* Require Import ClightPlus2ClightLink. *)
 (* Require Import ClightPlus2ClightGenv. *)
 
+Require Import Admit.
+
 Lemma unbind_trigger E:
   forall [X0 X1 A : Type] (ktr0 : X0 -> itree E A) (ktr1 : X1 -> itree E A) e0 e1,
     (x <- trigger e0;; ktr0 x = x <- trigger e1;; ktr1 x) -> (X0 = X1 /\ e0 ~= e1 /\ ktr0 ~= ktr1).
@@ -78,22 +80,12 @@ Section PROOFSINGLE.
 
   Ltac dtm H H0 := eapply angelic_step in H; eapply angelic_step in H0; des; rewrite H; rewrite H0; ss.
 
-(*
-  Definition imp_sem (src : Imp.programL) := compile_val (ModL.add (Mod.lift (Mem (fun _ => false))) (ImpMod.get_modL src)).
-
-  Definition imp_initial_state (src : Imp.programL) := (imp_sem src).(initial_state).
- *)
-
-(** Why does final value determines sort of state? *)
-(** The reason why Vint is special is just "int main(void)"? *)
-
   Definition compile_val mdl := @ModL.compile _ EMSConfigC mdl. 
 
   Definition clightp_sem md := compile_val (ModL.add (Mod.lift Mem) (Mod.lift md)).
 
   Definition clightp_initial_state md := (clightp_sem md).(STS.initial_state).
-  Opaque ident_of_string.
-  
+
   Lemma NoDup_norepeat :
     forall A (l : list A), Coqlib.list_norepet l <-> NoDup l.
   Proof.
@@ -104,75 +96,142 @@ Section PROOFSINGLE.
     - inv H. econs; eauto.
   Qed.
 
+  Local Opaque ident_of_string.
   Arguments Es_to_eventE /.
-  Arguments itree_of_stmt /. 
-  Arguments sloop_iter_body_two /. 
-  Arguments ktree_of_cont_itree /. 
+  Arguments itree_of_stmt /.
+  Arguments sloop_iter_body_two /.
+  Arguments ktree_of_cont_itree /.
 
   (* THIS THM IS JUST FOR INITIALIZATION TEST *)
 
+  Lemma in_get_fnsems_decomp clight_prog fn sk l i :
+    NoDup (List.map fst l) ->
+    alist_find fn (get_fnsems clight_prog sk l) = Some i ->
+    exists f, i = cfunU (decomp_func sk (get_ce clight_prog) f) /\ alist_find fn l = Some (Gfun (Internal f)).
+  Proof.
+    ginduction l; i; ss. des_ifs_safe. inv H. destruct g as [[f|? ? ? ?]|v].
+    - ss. des_ifs; cycle 1. { apply IHl; et. } esplits; et.
+    - hexploit IHl; et. i. des. esplits; et. des_ifs.
+      unfold rel_dec in Heq; ss. destruct dec; clarify.
+      apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
+    - hexploit IHl; et. i. des. esplits; et. des_ifs.
+      unfold rel_dec in Heq; ss. destruct dec; clarify.
+      apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
+  Qed.
+
+  Lemma get_sk_nodup l t : get_sk l = Some t -> NoDup (List.map fst t).
+  Proof.
+    revert t. induction l; unfold get_sk; i; des_ifs; ss; cycle 2.
+    { apply IHl. unfold get_sk. des_ifs. inv l0. exfalso. et. } { econs. }
+    bsimpl. des. destruct a. ss. rewrite Heq0 in *. clear Heq0. ss.
+    des_ifs. bsimpl. des. unfold chk_ident in Heq.
+    rewrite forallb_app in Heq0. bsimpl. destruct Pos.eq_dec; clarify.
+    clear Heq Heq1. rewrite list_norepet_app in l1. des. clear l2 l3.
+    rewrite (List.map_map _ fst).
+    replace (_ ∘ _) with (string_of_ident ∘ (@fst ident (globdef Clight.fundef type))).
+    2:{ extensionalities. destruct H. ss. }
+    rewrite <- (List.map_map _ string_of_ident).
+    econs.
+    - ii. apply n. apply in_map with (f:=ident_of_string) in H. rewrite <- e in H.
+      apply in_app. left. eassert (X: List.map fst (List.filter def_filter l) = _); [|rewrite X; et].
+      clear - Heq0. ginduction l; ss. i. des_ifs; ss; et.
+      bsimpl. des. unfold chk_ident in Heq0. destruct Pos.eq_dec; clarify. f_equal; et.
+    - clear -Heq0 l1. ginduction l; i; ss. { econs. }
+      des_ifs; cycle 1. { apply IHl; et. }
+      inv l1. ss. bsimpl. des. econs; et.
+      ii. apply H1. apply in_map with (f:=ident_of_string) in H.
+      unfold chk_ident in Heq0. destruct Pos.eq_dec; clarify.
+      rewrite <- e in H.
+      eassert (X: List.map fst (List.filter def_filter l) = _); [|rewrite X; et].
+      clear - Heq1. induction l; i; ss.
+      des_ifs; et. ss. bsimpl. des. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify.
+      f_equal; et.
+  Qed.
+
+  Theorem in_tgt_prog_defs_decomp clight_prog mn md fn sk i :
+    compile clight_prog mn = Some md ->
+    alist_find fn (ModSem.fnsems (Mod.get_modsem md sk)) = Some i ->
+    exists f, i = cfunU (decomp_func sk (get_ce clight_prog) f) /\ alist_find (ident_of_string fn) (prog_defs clight_prog) = Some (Gfun (Internal f)).
+  Proof.
+    unfold compile. i. des_ifs. ss.
+    hexploit in_get_fnsems_decomp; et. { eapply get_sk_nodup; et. } 
+    i. des. clarify. esplits; et.
+    clear -Heq H1. revert_until clight_prog.
+    generalize (prog_defs clight_prog).
+    induction l; i; ss. { unfold get_sk in Heq. des_ifs. }
+    unfold get_sk in Heq. destruct list_norepet_dec; clarify.
+    destruct (_ && _) eqn: ?; clarify. bsimpl. des.
+    des_ifs.
+    - unfold def_filter in Heq0. ss. 
+      unfold rel_dec in Heq. ss. destruct dec; clarify. clear Heq.
+      rewrite string_of_ident_of_string in H1.
+      des_ifs; cycle 1.
+      all: unfold rel_dec in Heq; ss; destruct dec; clarify.
+    - exfalso.
+      hexploit IHl; et.
+      { ss. des_ifs. unfold get_sk. des_ifs. inv l0. clarify. }
+      i. apply alist_find_some in H. apply in_map with (f:=fst) in H.
+      unfold rel_dec in Heq. ss. destruct dec; clarify. clear Heq.
+      inv l0. et.
+    - ss. rewrite Heq0 in *. ss. bsimpl. des. unfold chk_ident in Heqb.
+      destruct Pos.eq_dec; clarify. rewrite e in *.
+      rewrite string_of_ident_of_string in *.
+      clear Heq0. des_ifs. { unfold rel_dec in *. ss. do 2 destruct dec; clarify. }
+      eapply IHl; et. unfold get_sk.
+      inv l0. des_ifs. ss. destruct list_norepet_dec; clarify.
+    - eapply IHl; et. unfold get_sk. ss. rewrite Heq0 in *. inv l0.
+      des_ifs.
+  Qed.
+
+  Theorem in_tgt_prog_main clight_prog mn md :
+    compile clight_prog mn = Some md -> prog_main clight_prog = ident_of_string "main".
+  Proof. unfold compile. des_ifs. Qed.
+
+  Lemma tgt_genv_match_symb_def
+        clight_prog md mn name b gd1 gd2
+        (COMP: compile clight_prog mn = Some md)
+        (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) name = Some b)
+        (GFDEF: Genv.find_def (Genv.globalenv clight_prog) b = Some gd1)
+        (INTGT: alist_find name (prog_defs clight_prog) = Some gd2)
+    :
+      gd1 = gd2.
+  Proof.
+    unfold compile, get_sk in COMP. des_ifs_safe. apply alist_find_some in INTGT.
+    change (prog_defs clight_prog) with (AST.prog_defs clight_prog) in INTGT.
+    hexploit prog_defmap_norepet; eauto; ss.
+    i. apply Genv.find_def_symbol in H. des. clarify.
+  Qed.
+
   Theorem single_compile_behavior_improves
-          (* (types: list Ctypes.composite_definition)
-          (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))
-          (public: list AST.ident)
-          (WF_TYPES: Clightdefs.wf_composites types) 
-          mn clight_prog
-          (WFDEF_NODUP: NoDup (List.map fst defs))
-          (WFDEF_EXT: forall a, In a Mem.(Mod.sk) -> In a (List.map (fun '(p, gd) => (string_of_ident p, gd↑)) defs))
-          (COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES) *)
-          clight_prog left_st right_st
-          (COMP: compile clight_prog = Some md)
+          clight_prog md mn left_st right_st
+          (COMP: compile clight_prog mn = Some md)
           (SINIT: left_st = clightp_initial_state md)
           (TINIT: Clight.initial_state clight_prog right_st)
         :
           <<IMPROVES: @improves2 _ (Clight.semantics2 clight_prog) left_st right_st>>.
   Proof.
     eapply adequacy; eauto.
-    { apply Csharpminor_wf_semantics. }
-    red. rewrite SINIT. unfold clightlight_initial_state in *. ss; clarify. inv TINIT.
+    { admit "apply Clight_wf_semantics.". }
+    red. ss; clarify. unfold clightp_initial_state. ss; clarify. inv TINIT.
     unfold ModSemL.initial_itr.
-    rename ge into tge, H into INIT_TMEM, H0 into MAIN_TBLOCK, H1 into FIND_TMAINF, H2 into MAIN_TYPE, f into tmain.
-    set (Build_genv tge (let (ce, _) := build_composite_env' types WF_TYPES in ce)) as ge.
-    pfold. econs 5; eauto; unfold assume.
-    { ss. grind. dtm H H0. }
-    grind. eapply angelic_step in STEP. des; clarify.
-    unfold ITree.map. sim_red.
+    rename ge into tge, H into INIT_TMEM, H0 into TMAINN_TBLOCK, H1 into TBLOCK_TMAINF, H2 into TMAIN_TYPE, f into tmainf.
 
-    set (sge_init:= Sk.sort _) in *.
-    destruct (alist_find "main" _) eqn:FOUNDMAIN;[|sim_triggerUB]. ss.
-    repeat match goal with | [ H : false = false |- _ ] => clear H end.
-    
-    rewrite alist_find_find_some in FOUNDMAIN. rewrite find_map in FOUNDMAIN.
-    rewrite find_map in FOUNDMAIN. uo; des_ifs; ss. inv H0. clear H1. 
-    unfold ModL.wf in WF. des. inv WF0. clear wf_initial_mrs.
-    apply found_itree_clight_function in Heq0. des. rename Heq1 into FIND_ITREE.
-    hexploit decomp_fundefs_decomp_func; eauto. i. des. rename H0 into FIND_TFUNC.
-    assert (WF_IDENT: NoDup (List.map string_of_ident (List.map fst defs))).
-    { admit "". }
-    hexploit Globalenvs.Genv.find_symbol_inversion; et. i.
-    replace (prog_defs_names _) with (List.map fst defs) in H0.
-    2:{ unfold mkprogram. des_ifs. }
-    replace (prog_main _) with (ident_of_string "main") in * by now solve_mkprogram.
-    assert (In p (List.map fst defs)).
-    { eapply in_map with (f := fst) in FIND_TFUNC. et. }
-    assert (p = ident_of_string "main").
-    { clear -H0 H1 WF_IDENT Heq0. rewrite <- string_of_ident_of_string in Heq0.
-      revert_until defs. generalize (List.map fst defs).
-      induction l; i; ss; et. des; subst; et; inv WF_IDENT.
-      { rewrite Heq0 in H2.
-        eapply in_map with (f:=string_of_ident) in H0. contradiction. }
-      { rewrite <- Heq0 in H2.
-        eapply in_map with (f:=string_of_ident) in H1. contradiction. }
-      eapply IHl; et. }
-    subst.
-    hexploit tgt_genv_match_symb_def; et.
-    { rewrite NoDup_norepeat. et. }
-    { unfold Globalenvs.Genv.find_funct_ptr in *. des_ifs; et. }
-    { unfold mkprogram. des_ifs; et. }
-      
-    i. clarify. rename f into tmain. 
+    (* remove not-wf-(mem+md) case *)
+    unfold ModL.wf_bool. destruct ModL.wf_dec; ss; [|sim_triggerUB].
+    grind. unfold ITree.map. sim_red.
+
+    (* if we find "main" in md, prog_main clight_prog in clight_prog, two functions should have same compilation relation *)
+    destruct (alist_find "main" _) eqn:SMAINN_MAINF;[|sim_triggerUB].
+    rewrite alist_find_map_snd in SMAINN_MAINF. uo; des_ifs; ss.
+    hexploit in_tgt_prog_defs_decomp; et. i. des. clarify.
+    hexploit in_tgt_prog_main; et. i. rewrite H in *.
+    hexploit tgt_genv_match_symb_def; et. { unfold Genv.find_funct_ptr in TBLOCK_TMAINF. des_ifs. et. }
+    i. clarify. rename f into tmainf.
+
     unfold cfunU. sim_red. unfold decomp_func. sim_red.
-    pfold_reverse. 
+    change (paco4 (_sim _ _) bot4) with (sim (clightp_sem md) (semantics2 clight_prog)).
+    eapply sim_bot_flag_up with (b0 := true) (b1 := false).
+
     eapply step_function_entry with (ge := ge) (sk := sge_init); et; ss.
     { unfold sge_init, tge, mkprogram, Globalenvs.Genv.globalenv. des_ifs_safe. ss.
       clear -WFDEF_NODUP WFDEF_EXT SK wf_fnsems.
