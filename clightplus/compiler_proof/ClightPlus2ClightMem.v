@@ -173,6 +173,22 @@ Section MEM.
     subst. et.
   Qed.
 
+  Lemma mem_construct nextblock (contents : PMap.t (ZMap.t memval)) concrete access 
+      (access_max: forall b (ofs : Z), Mem.perm_order'' (access !! b ofs Max) (access !! b ofs Cur))
+      (nextblock_noaccess: forall b ofs k, ~ Coqlib.Plt b nextblock ->  access !! b ofs k = None)
+      (contents_default: forall b, fst contents !! b = Undef)
+      (nextblocks_logical: forall b, ~ Coqlib.Plt b nextblock ->  concrete ! b = None)
+      (valid_address_bounded: forall bo addr, Mem.addr_in_block concrete access addr bo -> addr < Ptrofs.modulus - 1)
+      (no_concrete_overlap: forall addr, uniqueness (Mem.addr_in_block concrete access addr))
+      (concrete_align: forall b zero_addr, concrete ! b = Some zero_addr -> forall ofs chunk, (forall o, ofs <= o < ofs + size_chunk chunk -> Mem.perm_order' (access !! b o Max) Nonempty) -> (align_chunk chunk | zero_addr))
+      (weak_valid_address_range: forall b zero_addr ofs, concrete ! b = Some zero_addr -> 0 <= ofs < Ptrofs.modulus -> Mem._weak_valid_pointer access b ofs Max -> Mem.in_range (zero_addr + ofs) (1, Ptrofs.modulus))
+  : exists m, Mem.nextblock m = nextblock /\ Mem.mem_concrete m = concrete /\ Mem.mem_access m = access /\ Mem.mem_contents m = contents.
+  Proof.
+    eexists (Mem.mkmem contents access concrete nextblock _ _ _ _ _ _ _ _); et.
+    Unshelve. all: et.
+  Qed.
+
+
   Lemma free_list_same m m' m'' l :
     Mem.free_list m l = Some m' ->
     m.(Mem.nextblock) = m''.(Mem.nextblock) -> 
@@ -729,21 +745,6 @@ Section MEM.
     unfold IntPtrRel.to_int_val in *. destruct (Mem.to_int _ tm) eqn:?; destruct (Mem.to_int _ m) eqn:?; ss; clarify.
     - hexploit match_to_int; et. i. rewrite H in Heqo. clarify.
     - hexploit match_to_int; et. i. rewrite H in Heqo. clarify.
-  Qed.
-
-  Lemma mem_construct nextblock (contents : PMap.t (ZMap.t memval)) concrete access 
-      (access_max: forall b (ofs : Z), Mem.perm_order'' (access !! b ofs Max) (access !! b ofs Cur))
-      (nextblock_noaccess: forall b ofs k, ~ Coqlib.Plt b nextblock ->  access !! b ofs k = None)
-      (contents_default: forall b, fst contents !! b = Undef)
-      (nextblocks_logical: forall b, ~ Coqlib.Plt b nextblock ->  concrete ! b = None)
-      (valid_address_bounded: forall bo addr, Mem.addr_in_block concrete access addr bo -> addr < Ptrofs.modulus - 1)
-      (no_concrete_overlap: forall addr, uniqueness (Mem.addr_in_block concrete access addr))
-      (concrete_align: forall b zero_addr, concrete ! b = Some zero_addr -> forall ofs chunk, (forall o, ofs <= o < ofs + size_chunk chunk -> Mem.perm_order' (access !! b o Max) Nonempty) -> (align_chunk chunk | zero_addr))
-      (weak_valid_address_range: forall b zero_addr ofs, concrete ! b = Some zero_addr -> 0 <= ofs < Ptrofs.modulus -> Mem._weak_valid_pointer access b ofs Max -> Mem.in_range (zero_addr + ofs) (1, Ptrofs.modulus))
-  : exists m, Mem.nextblock m = nextblock /\ Mem.mem_concrete m = concrete /\ Mem.mem_access m = access /\ Mem.mem_contents m = contents.
-  Proof.
-    eexists (Mem.mkmem contents access concrete nextblock _ _ _ _ _ _ _ _); et.
-    Unshelve. all: et.
   Qed.
 
   Lemma match_capture m tm sk tge b addr tm'
