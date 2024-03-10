@@ -84,10 +84,10 @@ Section PROOFSINGLE.
           <<IMPROVES: @improves2 _ (Clight.semantics2 clight_prog) left_st right_st>>.
   Proof.
     eapply adequacy; eauto.
-    { admit "apply Clight_wf_semantics.". }
+    { apply Clight_wf_semantics. }
     red. ss; clarify. unfold clightp_initial_state. ss; clarify. inv TINIT.
-    unfold ModSemL.initial_itr.
-    rename ge into tge, H into INIT_TMEM, H0 into TMAINN_TBLOCK, H1 into TBLOCK_TMAINF, H2 into TMAIN_TYPE, f into tmainf.
+    unfold ModSemL.initial_itr. unfold ge in *. clear ge.
+    rename H into INIT_TMEM, H0 into TMAINN_TBLOCK, H1 into TBLOCK_TMAINF, H2 into TMAIN_TYPE, f into tmainf.
 
     (* remove not-wf-(mem+md) case *)
     unfold ModL.wf_bool. destruct ModL.wf_dec; ss; [|sim_triggerUB].
@@ -98,12 +98,37 @@ Section PROOFSINGLE.
     rewrite alist_find_map_snd in SMAINN_MAINF. uo; des_ifs; ss.
     hexploit in_tgt_prog_defs_decomp; et. i. des. clarify.
     hexploit in_tgt_prog_main; et. i. rewrite H in *.
-    hexploit tgt_genv_match_symb_def; et. { unfold Genv.find_funct_ptr in TBLOCK_TMAINF. des_ifs. et. }
+    hexploit tgt_genv_match_symb_def; et. { unfold Genv.find_funct_ptr in TBLOCK_TMAINF. des_ifs. }
     i. clarify. rename f into tmainf.
 
     unfold cfunU. sim_red. unfold decomp_func. sim_red.
     change (paco4 (_sim _ _) bot4) with (sim (clightp_sem md) (semantics2 clight_prog)).
     eapply sim_bot_flag_up with (b0 := true) (b1 := false).
+
+    set (sort _) as sk_init in *.
+    eapply step_function_entry with (modl:=md) (tm:=m0) (ge:=globalenv clight_prog) (sk:=sk_init); et.
+    { unfold sk_init. econs.
+      - change sort with (@Sk.canon _). apply Sk.wf_canon. unfold ModL.wf in w. ss. des. et.
+      - i. unfold ModL.wf in w. ss. des. apply Sk.wf_canon in SK.
+        hexploit load_skenv_wf; et. i. unfold SkEnv.wf in H2. red in H2. rewrite H2 in H1.
+        clear H2.
+        assert (exists tb, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string str) = Some tb) by admit "".
+        des. unfold map_blk. destruct le_dec. { admit "". }
+        replace (Init.Nat.pred _) with idx by nia. ss. rewrite H1.
+        des_ifs. unfold fundef in *. clarify.
+      - i. unfold compile, get_sk in COMP. des_ifs. ss.
+        fold sk_init in H1.
+        assert (SkEnv.blk2id (load_skenv sk_init) n = Some s) by admit "".
+        assert (exists b, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some b) by admit "".
+        des.
+        assert (Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some (map_blk sk_init (Genv.globalenv clight_prog) (Pos.of_succ_nat n))) by admit "".
+        clear H3.
+        assert (Maps.PTree.get (ident_of_string s) (prog_defmap clight_prog) = Some gd).
+        { unfold prog_defmap. ss. apply Maps.PTree_Properties.of_list_norepet; et. 
+          unfold sk_init in H1. 
+
+        }
+        rewrite Genv.find_def_symbol in H3. des. clarify. }
 
     eapply step_function_entry with (ge := ge) (sk := sge_init); et; ss.
     { unfold sge_init, tge, mkprogram, Globalenvs.Genv.globalenv. des_ifs_safe. ss.
