@@ -3951,7 +3951,7 @@ Section SIMMODSEM.
     Unshelve. all: et. all: try apply Eqsth; try apply Qp_le_po.
   Qed.
 
-  Theorem correct_mod: ModPair.sim ClightPlusMem1.Mem ClightPlusMem0.Mem.
+  Theorem correct_mod sk: ModPair.sim (ClightPlusMem1.Mem sk) (ClightPlusMem0.Mem sk).
   Proof.
   Local Opaque Pos.add.
     econs; ss. i.
@@ -3979,4 +3979,5 @@ Section SIMMODSEM.
     - apply sim_memcpy.
     - apply sim_capture.
   Qed.
+
 End SIMMODSEM.

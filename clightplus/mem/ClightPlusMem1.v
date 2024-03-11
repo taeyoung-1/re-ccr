@@ -1494,14 +1494,13 @@ Section SMOD.
       SModSem.initial_st := tt↑;
     |} .
 
-  Definition SMem: SMod.t := {|
+  Definition SMem sk: SMod.t := {|
     SMod.get_modsem := SMemSem;
-    SMod.sk := [("malloc", Gfun (F:=Clight.fundef) (V:=type) (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default));
-                ("free", Gfun (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))];
+    SMod.sk := sk;
   |}
   .
 
-  Definition Mem: Mod.t := (SMod.to_tgt (fun _ => to_stb [])) SMem.
+  Definition Mem sk: Mod.t := (SMod.to_tgt (fun _ => to_stb [])) (SMem sk).
 
 End SMOD.
 

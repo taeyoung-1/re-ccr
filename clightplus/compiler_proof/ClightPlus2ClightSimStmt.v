@@ -53,22 +53,23 @@ Section PROOF.
 
   Local Opaque Pos.of_succ_nat.
 
-  Lemma _step_freeing_stack M cprog f_table modl r b ktr tstate sk ge tge ce tce e te pstate mn m
+  Lemma _step_freeing_stack cprog f_table modl sk_mem sk ge tge ce tce e te pstate m
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MCE: match_ce ce tce)
     (ME: match_e sk tge e te)
     (PSTATE: pstate "Mem"%string = m↑) 
+  r b tstate mn ktr
     (NEXT: forall m', 
       Mem.free_list m (List.map (map_fst (fun b => pair b 0%Z)) (ClightPlusExprgen.blocks_of_env ce e)) = Some m' ->
       paco4
-        (_sim (ModL.compile M) (semantics2 cprog)) r true b
+        (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
         (ktr (update pstate "Mem" m'↑, ()))
         tstate)
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * ()) <- 
         (EventsL.interp_Es (prog f_table)
           (transl_all mn (free_list_aux (ClightPlusExprgen.blocks_of_env ce e))) 
@@ -89,25 +90,26 @@ Section PROOF.
       unfold update. apply func_ext. i. des_ifs.
   Qed.
 
-  Lemma step_freeing_stack M cprog f_table modl r b ktr tstate ge sk tge tce ce e te pstate mn m tm
+  Lemma step_freeing_stack cprog f_table modl ge sk_mem sk tge tce ce e te pstate m tm
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (PSTATE: pstate "Mem"%string = m↑) 
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MCE: match_ce ce tce)
     (MM: match_mem sk tge m tm)
+  r b tstate mn ktr
     (NEXT: forall m' tm', 
       Mem.free_list tm (Clight.blocks_of_env ge te) = Some tm' ->
       match_mem sk tge m' tm' ->
       paco4
-        (_sim (ModL.compile M) (semantics2 cprog)) r true b
+        (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
         (ktr (update pstate "Mem" m'↑, ()))
         tstate)
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * ()) <- 
         (EventsL.interp_Es (prog f_table)
           (transl_all mn (free_list_aux (ClightPlusExprgen.blocks_of_env ce e))) 
@@ -122,9 +124,9 @@ Section PROOF.
   Lemma update_shadow V pstate (x: string) (v v': V) : update (update pstate x v) x v' = update pstate x v'.
   Proof. unfold update. apply func_ext. i. des_ifs. Qed.
 
-  Lemma step_alloc M pstate f_table modl cprog sk tge m tm
+  Lemma step_alloc pstate f_table modl cprog sk_mem sk tge m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (MM: match_mem sk tge m tm)
     sz
@@ -133,12 +135,12 @@ Section PROOF.
             Mem.alloc tm 0 sz = (tm', map_blk sk tge blk) ->
             match_mem sk tge m' tm' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, blk))
               tstate)
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * block <-
         (EventsL.interp_Es
           (prog f_table)
@@ -151,11 +153,11 @@ Section PROOF.
     hexploit match_mem_alloc; et. i. des. eapplyf NEXT; et.
   Qed.
 
-  Lemma step_alloc_variables M pstate ge tce ce f_table modl cprog sk tge e te m tm
+  Lemma step_alloc_variables pstate ge tce ce f_table modl cprog sk_mem sk tge e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MCE: match_ce ce tce)
@@ -167,12 +169,12 @@ Section PROOF.
             match_mem sk tge m' tm' ->
             match_e sk tge e' te' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, e'))
               tstate)
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * ClightPlusExprgen.env) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -185,7 +187,7 @@ Section PROOF.
       replace pstate with (update pstate "Mem" m↑) 
         by now unfold update; apply func_ext; i; des_ifs.
       eapply NEXT; et. econs; et.
-    - ss. remove_UBcase. eapply step_alloc with (modl:=modl); et. i. eapply IHl; et. 
+    - ss. remove_UBcase. eapply step_alloc with (modl:=modl) (sk_mem:=sk_mem); et. i. eapply IHl; et.
       2:{ eapply match_update_e; et. }
       i. rewrite update_shadow. eapply NEXT; et. econs; et.
       erewrite match_sizeof; et.
@@ -201,11 +203,11 @@ Section PROOF.
     unfold Coqlib.list_disjoint in *. eapply l0; et. 
   Qed.
 
-  Lemma step_function_entry M pstate ge tce ce f_table modl cprog sk tge m tm
+  Lemma step_function_entry pstate ge tce ce f_table modl cprog sk_mem sk tge m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (MCE: match_ce ce tce)
     (MM: match_mem sk tge m tm)
@@ -217,12 +219,12 @@ Section PROOF.
             match_e sk tge e' te' ->
             match_le sk tge le' tle' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, (e', le')))
               tstate)
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * (ClightPlusExprgen.env * ClightPlusExprgen.temp_env)) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -231,7 +233,7 @@ Section PROOF.
       tstate.
   Proof.
     unfold function_entry_c. remove_UBcase.
-    eapply step_alloc_variables with (te := empty_env) (modl:=modl); et.
+    eapply step_alloc_variables with (te := empty_env) (modl:=modl) (sk_mem := sk_mem); et.
     { econs; ss. econs. }
     i. sim_red. unfold unwrapU. remove_UBcase.
     hexploit (@match_bind_parameter_temps sk ge); et.

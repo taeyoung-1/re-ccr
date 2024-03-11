@@ -43,9 +43,9 @@ Section PROOF.
 
   Local Opaque Pos.of_succ_nat.
 
-  Lemma step_load M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_load pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -55,12 +55,12 @@ Section PROOF.
     (NEXT: forall v,
             Mem.loadv chunk tm (map_val sk tge addr) = Some (map_val sk tge v) ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * val <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -79,9 +79,9 @@ Section PROOF.
       i. rewrite H. hexploit match_mem_load; et.
   Qed.
 
-  Lemma step_store M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_store pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -92,12 +92,12 @@ Section PROOF.
             Mem.storev chunk tm (map_val sk tge addr) (map_val sk tge v) = Some tm' ->
             match_mem sk tge m' tm' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, ()))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * () <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -114,9 +114,9 @@ Section PROOF.
     - hexploit match_mem_store; et. i. des. eapplyf NEXT; et.
   Qed.
 
-  Lemma step_memcpy M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_memcpy pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -127,12 +127,12 @@ Section PROOF.
             extcall_memcpy_sem sz al tge [map_val sk tge vp; map_val sk tge v] tm E0 Vundef tm' ->
             match_mem sk tge m' tm' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, Vundef))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * val <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -166,9 +166,9 @@ Section PROOF.
         all: ii; apply n1; eapply map_blk_inj; et.
   Qed.
 
-  (* Lemma step_loadbytes pstate f_table modl cprog sk tge le tle e te m tm
+  (* Lemma step_loadbytes pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -178,12 +178,12 @@ Section PROOF.
     (NEXT: forall l,
             Mem.loadbytes tm (map_blk sk tge blk) (Ptrofs.unsigned ofs) n = Some (List.map (map_memval sk tge) l) ->
             paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, l))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * list memval <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -196,9 +196,9 @@ Section PROOF.
     sim_red. eapplyf NEXT. hexploit match_mem_loadbytes; et.
   Qed.
 
-  Lemma step_storebytes pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_storebytes pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -209,12 +209,12 @@ Section PROOF.
             Mem.storebytes tm (map_blk sk tge blk) (Ptrofs.unsigned ofs) (List.map (map_memval sk tge) l) = Some tm' ->
             match_mem sk tge m' tm' ->
             paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, ()))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: p_state * () <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -227,9 +227,9 @@ Section PROOF.
     sim_red. hexploit match_mem_storebytes; et. i. des. eapplyf NEXT; et.
   Qed.
 
-  Lemma step_load_bitfield pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_load_bitfield pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -239,12 +239,12 @@ Section PROOF.
     (NEXT: forall v,
             Cop.load_bitfield ty sz sg pos width tm (map_val sk tge addr) (map_val sk tge v)->
             paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -257,9 +257,9 @@ Section PROOF.
       i; remove_UBcase; eapplyf NEXT; econs; try nia; try des_ifs.
   Qed.
 
-  Lemma step_store_bitfield pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_store_bitfield pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -270,12 +270,12 @@ Section PROOF.
             match_mem sk tge m' tm' ->
             Cop.store_bitfield ty sz sg pos width tm (map_val sk tge addr) (map_val sk tge v) tm' (map_val sk tge v')->
             paco4
-              (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, v'))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile (ModL.add Mem modl)) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -289,9 +289,9 @@ Section PROOF.
           eapplyf NEXT; et; econs; et; try nia; des_ifs.
   Qed. *)
 
-  Lemma step_sub_ptr M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_sub_ptr pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
     (MGE: match_ge sk tge)
@@ -302,12 +302,12 @@ Section PROOF.
           Cop._sem_ptr_sub_join_common (map_val sk tge v1) (map_val sk tge v2) tm = Some ofs ->
           (0 < sz <= Ptrofs.max_signed)%Z ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
               (ktr (pstate, Vptrofs (Ptrofs.divs ofs (Ptrofs.repr sz))))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -495,9 +495,9 @@ Section PROOF.
     - des_ifs; exfalso; apply n.
       +  *)
 
-  Lemma step_cmp_ptr M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_cmp_ptr pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
     (MGE: match_ge sk tge)
@@ -507,12 +507,12 @@ Section PROOF.
     (NEXT: forall b,
           Cop.cmp_ptr_join_common tm c (map_val sk tge v1) (map_val sk tge v2) = Some (Val.of_bool b) ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
               (ktr (pstate, b))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
       (`r0: (p_state * bool) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -773,9 +773,9 @@ Section PROOF.
   Qed.
 
         
-  Lemma step_non_null_ptr M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_non_null_ptr pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
@@ -783,12 +783,12 @@ Section PROOF.
     tf tcode tcont ktr bflag r mn
     (NEXT: Mem.weak_valid_pointer tm (map_blk sk tge blk) (Ptrofs.unsigned ofs) = true ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
               (ktr (pstate, true))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
       (`r0: (p_state * bool) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -807,9 +807,9 @@ Section PROOF.
     destruct Mem.perm_dec in Heq; clarify.
   Qed.
 
-  Lemma step_bool_val M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_bool_val pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -819,12 +819,12 @@ Section PROOF.
     (NEXT: forall b, 
             Cop.bool_val (map_val sk tge v) ty tm = Some b ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
               (ktr (pstate, b))
               (State tf tcode tcont te tle tm))
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true bflag
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true bflag
       (`r0: (p_state * bool) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -838,9 +838,9 @@ Section PROOF.
     eapply NEXT; unfold Cop.bool_val; rewrite Heq; ss; des_ifs.
   Qed.
 
-  Lemma step_sem_cast M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_sem_cast pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
@@ -849,12 +849,12 @@ Section PROOF.
     (NEXT: forall v',
             Cop.sem_cast (map_val sk tge v) ty1 ty2 tm = Some (map_val sk tge v') ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v'))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -865,14 +865,14 @@ Section PROOF.
     unfold sem_cast_c. des_ifs_safe. unfold cast_to_ptr. remove_UBcase.
     all: try solve [eapplyf NEXT; unfold Cop.sem_cast; des_ifs].
     all: try solve [unfold unwrapU; remove_UBcase; eapplyf NEXT; unfold Cop.sem_cast; des_ifs; ss; clarify].
-    eapply step_non_null_ptr with (modl := modl); et. i. sim_red. eapplyf NEXT; et.
+    eapply step_non_null_ptr; et. i. sim_red. eapplyf NEXT; et.
     unfold Cop.sem_cast. rewrite Heq1; des_ifs_safe.
     ss. clarify.
   Qed.
 
-  Lemma step_assign_loc M pstate f_table modl cprog sk tge le tle e te m tm ce tce
+  Lemma step_assign_loc pstate f_table modl cprog sk_mem sk tge le tle e te m tm ce tce
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -884,12 +884,12 @@ Section PROOF.
             match_mem sk tge m' tm' ->
             assign_loc tce ty tm (map_val sk tge vp) (map_val sk tge v) tm' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (update pstate "Mem" m'↑, ()))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * ())<- 
         (EventsL.interp_Es
           (prog f_table)
@@ -899,16 +899,16 @@ Section PROOF.
   Proof.
     unfold assign_loc_c. des_ifs; try sim_red; try sim_triggerUB.
     - eapply step_store; et. i. eapply NEXT; et. econs; et.
-    - eapply step_memcpy with (modl:=modl); et. i. sim_red. eapply NEXT; et.
+    - eapply step_memcpy; et. i. sim_red. eapply NEXT; et.
       inv H. 2:{ econs 3; et. erewrite match_sizeof; et. }
       erewrite <- !match_sizeof in *; et.
       erewrite <- !match_alignof_blockcopy in *; et.
       econs 2; et.
   Qed.
 
-  Lemma step_deref_loc M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_deref_loc pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -918,12 +918,12 @@ Section PROOF.
     (NEXT: forall v,
             deref_loc ty tm (map_val sk tge vp) (map_val sk tge v) ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -937,9 +937,9 @@ Section PROOF.
     - eapplyf NEXT; ss; econs 3; et.
   Qed.
 
-  Lemma step_unary_op M pstate f_table modl cprog sk tge le tle e te m tm
+  Lemma step_unary_op pstate f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
     (MM: match_mem sk tge m tm)
@@ -948,12 +948,12 @@ Section PROOF.
     (NEXT: forall v',
             Cop.sem_unary_operation uop (map_val sk tge v) ty tm = Some (map_val sk tge v') ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v'))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -965,7 +965,7 @@ Section PROOF.
     - unfold bool_val_c. remove_UBcase.
       + apply NEXT. unfold Cop.sem_unary_operation. unfold Cop.sem_notbool. ss. unfold Cop.bool_val. rewrite Heq. ss. unfold Val.of_bool. des_ifs.
       + apply NEXT. unfold Cop.sem_unary_operation. unfold Cop.sem_notbool. ss. unfold Cop.bool_val. rewrite Heq. ss. unfold Val.of_bool. des_ifs.
-      + eapply step_non_null_ptr with (modl:=modl); et. i. sim_red. apply NEXT. unfold Cop.sem_unary_operation, Cop.sem_notbool, Cop.bool_val. rewrite Heq. ss. rewrite H. des_ifs.
+      + eapply step_non_null_ptr; et. i. sim_red. apply NEXT. unfold Cop.sem_unary_operation, Cop.sem_notbool, Cop.bool_val. rewrite Heq. ss. rewrite H. des_ifs.
       + apply NEXT. unfold Cop.sem_unary_operation. unfold Cop.sem_notbool. ss. unfold Cop.bool_val. rewrite Heq. ss. unfold Val.of_bool. des_ifs.
       + apply NEXT. unfold Cop.sem_unary_operation. unfold Cop.sem_notbool. ss. unfold Cop.bool_val. rewrite Heq. ss. unfold Val.of_bool. des_ifs.
     - unfold unwrapU. remove_UBcase. apply NEXT.
@@ -979,9 +979,9 @@ Section PROOF.
       des_ifs; ss; clarify.
   Qed.
 
-  Lemma step_binary_op M pstate f_table modl cprog sk tge ce tce le tle e te m tm
+  Lemma step_binary_op pstate f_table modl cprog sk_mem sk tge ce tce le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
-    (EQ: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -992,12 +992,12 @@ Section PROOF.
     (NEXT: forall v',
             Cop.sem_binary_operation tce biop (map_val sk tge v1) ty1 (map_val sk tge v2) ty2 tm = Some (map_val sk tge v') ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v'))
               (State tf tcode tcont te tle tm))
 :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1015,8 +1015,8 @@ Section PROOF.
         all: apply NEXT; erewrite <- match_sizeof; et; unfold Cop.sem_binary_operation, Cop.sem_add, Cop.sem_add_ptr_int; ss; des_ifs.
       + unfold sem_add_ptr_long_c. remove_UBcase.
         all: apply NEXT; erewrite <- match_sizeof; et; unfold Cop.sem_binary_operation, Cop.sem_add, Cop.sem_add_ptr_long; ss; des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_add, Cop.sem_binarith; rewrite Heq; rewrite Heq0; des_ifs.
     - remove_UBcase.
       + apply NEXT. erewrite <- match_sizeof; et. unfold Cop.sem_binary_operation, Cop.sem_sub. ss; des_ifs.
@@ -1026,26 +1026,26 @@ Section PROOF.
         destruct Coqlib.zle; destruct Coqlib.zlt; ss; try nia.
       + apply NEXT. erewrite <- match_sizeof; et. unfold Cop.sem_binary_operation, Cop.sem_sub. ss; des_ifs.
       + apply NEXT. erewrite <- match_sizeof; et. unfold Cop.sem_binary_operation, Cop.sem_sub. ss; des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_sub, Cop.sem_binarith; rewrite Heq; rewrite Heq0; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_mul, Cop.sem_binarith; rewrite Heq; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_div, Cop.sem_binarith; rewrite Heq; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_mod, Cop.sem_binarith; rewrite Heq; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_and, Cop.sem_binarith; rewrite Heq; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_or, Cop.sem_binarith; rewrite Heq; des_ifs.
-    - unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-      eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+    - unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+      eapply step_sem_cast; et. i. remove_UBcase.
       all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_xor, Cop.sem_binarith; rewrite Heq; des_ifs.
     - unfold unwrapU. remove_UBcase.
        eapplyf NEXT. i; clarify; unfold Cop.sem_binary_operation, Cop.sem_shl; unfold Cop.sem_binarith; 
@@ -1054,156 +1054,156 @@ Section PROOF.
       eapplyf NEXT; i; clarify; unfold Cop.sem_binary_operation, Cop.sem_shr; unfold Cop.sem_binarith; 
         unfold Cop.sem_shift in *; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
     - destruct Cop.classify_cmp eqn:?; remove_UBcase.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. ss. unfold Cop.sem_cmp. des_ifs.
         unfold Vptrofs in *. des_ifs. ss.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + eapply step_cmp_ptr with (modl:=modl); et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
+      + eapply step_cmp_ptr; et. i. sim_red. eapply NEXT. simpl. unfold Cop.sem_cmp. des_ifs.
         simpl map_val in H.
         rewrite H. unfold Val.of_bool. des_ifs.
-      + unfold sem_binarith_c. sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red.
-        eapply step_sem_cast with (modl:=modl); et. i. remove_UBcase.
+      + unfold sem_binarith_c. sim_red. eapply step_sem_cast; et. i. sim_red.
+        eapply step_sem_cast; et. i. remove_UBcase.
         all: apply NEXT; unfold Cop.sem_binary_operation, Cop.sem_cmp, Cop.sem_binarith; rewrite Heq; des_ifs.
         all: unfold Val.of_bool; des_ifs; ss; clarify.
   Qed.
 
-  Lemma _step_eval M pstate ge ce tce f_table modl cprog sk tge le tle e te m tm
+  Lemma _step_eval pstate ge ce tce f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv))
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -1215,12 +1215,12 @@ Section PROOF.
     (forall vp, 
       eval_lvalue ge te tle tm a (map_val sk tge vp) ->
       paco4
-        (_sim (ModL.compile M) (semantics2 cprog)) r true b
+        (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
         (ktr1 (pstate, vp))
         (State tf tcode tcont te tle tm)) 
     ->
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1232,12 +1232,12 @@ Section PROOF.
     (forall v, 
       eval_expr ge te tle tm a (map_val sk tge v) ->
       paco4
-        (_sim (ModL.compile M) (semantics2 cprog)) r true b
+        (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
         (ktr2 (pstate, v))
         (State tf tcode tcont te tle tm)) 
     ->
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * Values.val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1253,19 +1253,19 @@ Section PROOF.
         * econs. eapply env_match_some in ME; et.
         * econs 2; try solve [eapply env_match_none; et]. inv MGE. unfold valid_check in Heq.
           destruct Pos.eq_dec; ss. rewrite e0. eapply MGE0; et.
-      + remove_UBcase; eapply step_deref_loc with (modl:=modl); et; i; sim_red; eapply H; et; econs; et.
+      + remove_UBcase; eapply step_deref_loc; et; i; sim_red; eapply H; et; econs; et.
         * econs. hexploit env_match_some; et.
         * econs 2; try solve [eapply env_match_none; et]. inv MGE. unfold valid_check in Heq.
           destruct Pos.eq_dec; ss. rewrite e0. eapply MGE0; et.
     - unfold unwrapU. remove_UBcase. eapply H; et. econs. inv MLE. eapply ML. et.
     - eapply IHa. i. eapply H; et. econs; et.
-    - eapply IHa0. i. eapply step_unary_op with (modl:=modl); et. i. eapply H; et. econs; et.
-    - eapply IHa3. i. sim_red. eapply IHa0. i. eapply step_binary_op with (modl:=modl); et.
+    - eapply IHa0. i. eapply step_unary_op; et. i. eapply H; et. econs; et.
+    - eapply IHa3. i. sim_red. eapply IHa0. i. eapply step_binary_op; et.
       i. eapply H; et. econs; et.
-    - eapply IHa0. i. eapply step_sem_cast with (modl:=modl); et. i. eapply H; et. econs; et. 
+    - eapply IHa0. i. eapply step_sem_cast; et. i. eapply H; et. econs; et. 
     - des; split; i; ss; remove_UBcase; eapply IHa0; i; remove_UBcase.
       + eapply H. econs; et. destruct v; ss.
-      + eapply step_deref_loc with (modl:=modl); et. i. sim_red. eapply H. econs; et. econs;et. destruct v; ss.
+      + eapply step_deref_loc; et. i. sim_red. eapply H. econs; et. econs;et. destruct v; ss.
     - des. split; i; ss; sim_red; eapply IHa0; i; subst. 
       + remove_UBcase; unfold unwrapU; remove_UBcase; remove_UBcase; eapply H; et.
         * econs; et. { destruct v; ss. }
@@ -1280,7 +1280,7 @@ Section PROOF.
         * econs 5; et. { destruct v; ss. }
           inv MCE. rewrite <- MCE0 in Heq1. apply Maps.PTree.elements_complete. et.
       + remove_UBcase; unfold unwrapU; remove_UBcase; remove_UBcase;
-        eapply step_deref_loc with (modl:=modl); et; i; sim_red; eapply H; et; econs; et.
+        eapply step_deref_loc; et; i; sim_red; eapply H; et; econs; et.
         * econs; et. { destruct v; ss. }
           { inv MCE. rewrite <- MCE0 in Heq2. apply Maps.PTree.elements_complete. et. }
           2:{ des_ifs. destruct v; ss. }
@@ -1308,11 +1308,11 @@ Section PROOF.
         replace tce with (ge.(genv_cenv)). econs.
   Qed.
 
-  Lemma step_eval_lvalue M pstate ge tce ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_eval_lvalue pstate ge tce ce f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -1322,12 +1322,12 @@ Section PROOF.
     (NEXT: forall vp, 
             eval_lvalue ge te tle tm a (map_val sk tge vp) ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, vp))
               (State tf tcode tcont te tle tm))
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1336,11 +1336,11 @@ Section PROOF.
       (State tf tcode tcont te tle tm).
   Proof. hexploit _step_eval; et. i. des. et. Qed.
 
-  Lemma step_eval_expr M pstate ge tce ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_eval_expr pstate ge tce ce f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -1351,12 +1351,12 @@ Section PROOF.
             eval_expr ge te tle tm a v ->
             v = map_val sk tge v' ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, v'))
               (State tf tcode tcont te tle tm))
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * Values.val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1366,11 +1366,11 @@ Section PROOF.
   Proof. hexploit _step_eval; et. i. des. et. Qed.
 
 
-  Lemma step_eval_exprlist M pstate ge tce ce f_table modl cprog sk tge le tle e te m tm
+  Lemma step_eval_exprlist pstate ge tce ce f_table modl cprog sk_mem sk tge le tle e te m tm
     (PSTATE: pstate "Mem"%string = m↑)
     (EQ1: tce = ge.(genv_cenv)) 
     (EQ2: tge = ge.(genv_genv)) 
-    (EQ3: f_table = (ModL.add Mem modl).(ModL.enclose))
+    (EQ3: f_table = (ModL.add (Mem sk_mem) modl).(ModL.enclose))
     (MGE: match_ge sk tge)
     (ME: match_e sk tge e te)
     (MLE: match_le sk tge le tle)
@@ -1381,12 +1381,12 @@ Section PROOF.
     (NEXT: forall vl, 
             eval_exprlist ge te tle tm al tyl (List.map (map_val sk tge) vl) ->
             paco4
-              (_sim (ModL.compile M) (semantics2 cprog)) r true b
+              (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
               (ktr (pstate, vl))
               (State tf tcode tcont te tle tm))
   :
     paco4
-      (_sim (ModL.compile M) (semantics2 cprog)) r true b
+      (_sim (ModL.compile (ModL.add (Mem sk_mem) modl)) (semantics2 cprog)) r true b
       (`r0: (p_state * list Values.val) <- 
         (EventsL.interp_Es
           (prog f_table)
@@ -1396,8 +1396,8 @@ Section PROOF.
   Proof.
     depgen tyl. revert ktr. induction al; i.
     - ss. remove_UBcase. eapplyf NEXT. econs.
-    - ss. remove_UBcase. eapply step_eval_expr with (ge:=ge) (modl:=modl); et. i. clarify. sim_red. eapply IHal. i.
-      sim_red. eapply step_sem_cast with (modl:=modl); et. i. sim_red. eapplyf NEXT. econs; et.
+    - ss. remove_UBcase. eapply step_eval_expr; et. i. clarify. sim_red. eapply IHal. i.
+      sim_red. eapply step_sem_cast; et. i. sim_red. eapplyf NEXT. econs; et.
   Qed.
 
 End PROOF.

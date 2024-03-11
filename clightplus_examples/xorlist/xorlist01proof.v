@@ -60,6 +60,8 @@ End LEMMA.
 
 Section PROOF.
 
+  Import ClightPlusMem1.
+
   Context `{@GRA.inG pointstoRA Σ}.
   Context `{@GRA.inG allocatedRA Σ}.
   Context `{@GRA.inG blocksizeRA Σ}.
@@ -76,17 +78,26 @@ Section PROOF.
       unit
       (fun _ st_src st_tgt => ⌜True⌝)%I.
 
+  Let mfsk : Sk.t := [("malloc", Gfun (F:=Clight.fundef) (V:=type) (Ctypes.External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default)); ("free", Gfun (Ctypes.External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))].
   Let ce := Maps.PTree.elements (prog_comp_env prog).
 
   Section SIMFUNS.
   Variable xor0 : Mod.t.
   Hypothesis VALID : xorlist0._xor = Some xor0.
 
-
   Variable sk: Sk.t.
   Hypothesis SKINCL1 : Sk.le (xor0.(Mod.sk)) sk.
-  Hypothesis SKINCL2 : Sk.le (ClightPlusMem0.Mem.(Mod.sk)) sk.
+  Hypothesis SKINCL2 : Sk.le mfsk sk.
   Hypothesis SKWF : Sk.wf sk.
+
+  Ltac unfold_comp optsrc EQ :=
+    unfold optsrc, compile, get_sk in EQ;
+    destruct Coqlib.list_norepet_dec; clarify; des_ifs; ss;
+    repeat match goal with
+          | H: Coqlib.list_norepet _ |- _ => clear H
+          | H: forallb _ _ = true |- _ => clear H
+          | H: Ctypes.prog_main _ = _ |- _ => clear H
+          end.
 
   Lemma sim_add_tl :
     sim_fnsem wf top2
@@ -95,6 +106,7 @@ Section PROOF.
   Proof.
     (* Local Opaque encode_val.
     Local Opaque cast_to_ptr.
+    unfold_comp _xor VALID.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -414,6 +426,7 @@ Section PROOF.
   Proof.
     (* Local Opaque encode_val.
     Local Opaque cast_to_ptr.
+    unfold_comp _xor VALID.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -722,6 +735,7 @@ Section PROOF.
       ("delete_tl", cfunU (decomp_func sk ce f_delete_tl)).
   Proof.
     (* Local Opaque encode_val.
+    unfold_comp _xor VALID.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -1015,6 +1029,7 @@ Section PROOF.
       ("delete_hd", cfunU (decomp_func sk ce f_delete_hd)).
   Proof.
     (* Local Opaque encode_val.
+    unfold_comp _xor VALID.
     econs; ss. red.
 
     (* current state: 1 *)
@@ -1300,7 +1315,7 @@ Section PROOF.
   Variable xor0 : Mod.t.
   Hypothesis VALID : xorlist0._xor = Some xor0.
 
-  Theorem correct : refines2 [xor0; ClightPlusMem0.Mem] [xorlist1.xor xor0 GlobalStb; ClightPlusMem1.Mem].
+  Theorem correct : refines2 [xor0; (ClightPlusMem0.Mem mfsk)] [xorlist1.xor xor0 GlobalStb; (ClightPlusMem1.Mem mfsk)].
   Proof.
     eapply adequacy_local_strong_l. econs; cycle 1.
     { econs; [ss|]. econs; ss. }

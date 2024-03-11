@@ -513,15 +513,51 @@ Section DECOMP_PROG.
 
   Definition chk_ident (name: ident) : bool := Pos.eq_dec name (ident_of_string (string_of_ident name)).
 
+  Definition call_ban (entry: ident * globdef Clight.fundef type) : bool :=
+    let (ident, gd) := entry in
+    match gd with
+    | Gfun (External EF_malloc _ _ _) => Pos.eq_dec ident (ident_of_string "malloc")
+    | Gfun (External EF_free _ _ _) => Pos.eq_dec ident (ident_of_string "free")
+    | Gfun (External EF_capture _ _ _) => Pos.eq_dec ident (ident_of_string "capture")
+    | _ => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"])
+    end.
+
+  Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=
+    if Coqlib.list_norepet_dec dec (List.map fst defs) && (forallb call_ban defs)
+    then
+      let sk := List.filter def_filter defs in
+      if List.forallb chk_ident (List.map fst sk)
+      then Some (List.map (map_fst string_of_ident) sk)
+      else None
+    else None.
+
+
+  (* Definition def_filter (gdef: ident * globdef Clight.fundef type) : bool :=
+    match gdef with
+    | (_, Gvar _) | (_, Gfun (Internal _))
+    | (_, Gfun (External EF_malloc _ _ _))
+    | (_, Gfun (External EF_free _ _ _))
+    | (_, Gfun (External EF_capture _ _ _)) => true
+    | _ => false
+    end.
+
+  Definition chk_ident (entry: ident * globdef Clight.fundef type) : bool :=
+    let (ident, gd) := entry in
+    match gd with
+    | Gfun (External EF_malloc _ _ _)  => Pos.eq_dec ident (ident_of_string "malloc")
+    | Gfun (External EF_free _ _ _)  => Pos.eq_dec ident (ident_of_string "free")
+    | Gfun (External EF_capture _ _ _)  => Pos.eq_dec ident (ident_of_string "capture")
+    | _ => Pos.eq_dec ident (ident_of_string (string_of_ident ident))
+    end.
+
   Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=
     if Coqlib.list_norepet_dec dec (List.map fst defs)
     then
       let sk := List.filter def_filter defs in
-      let skn := (List.map fst sk ++ [ident_of_string "malloc"; ident_of_string "free"]) in
-      if List.forallb chk_ident skn && Coqlib.list_norepet_dec dec skn
+      if List.forallb chk_ident sk
       then Some (List.map (map_fst string_of_ident) sk)
       else None
-    else None.
+    else None. *)
 
   Fixpoint get_fnsems (sk: Sk.t) (defs: list (string * globdef Clight.fundef type)) : list (string * (option string * Any.t -> itree Es Any.t)) :=
     match defs with

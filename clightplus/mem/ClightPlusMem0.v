@@ -390,10 +390,9 @@ End MODSEM.
 
 Local Open Scope clight_scope.
 
-Definition Mem: Mod.t :=
+Definition Mem sk: Mod.t :=
   {|
     Mod.get_modsem := MemSem;
-    Mod.sk := [("malloc", Gfun (F:=Clight.fundef) (V:=type) (External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default));
-               ("free", Gfun (External EF_free (Tcons (tptr tvoid) Tnil) tvoid cc_default))];
+    Mod.sk := sk;
   |}
 .
