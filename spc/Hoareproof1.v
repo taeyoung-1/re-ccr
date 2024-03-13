@@ -172,103 +172,6 @@ Section CANCEL.
   Ltac steps_strong := repeat (mred; try (_step ltac:(guclo simg_indC_spec)); des_ifs_safe).
 
 
-
-  (* Move to ModSem.v *)
-  Let RUN : Type := forall V, (Any.t -> Any.t * V) -> (Any.t -> Any.t * V). 
-
-  Definition run_id: RUN := fun T x => x.
-  Definition emb_id : forall T, Es T -> Es T := fun T es => es.
-
-  Lemma emb_run_id {T} itr: (translate (emb_ run_id)) T itr = itr.
-  Proof.
-    assert (emb_ run_id = emb_id).
-    { unfold emb_, run_id, emb_id. extensionalities. des_ifs. }
-    rewrite H. erewrite (bisimulation_is_eq _ _ (translate_id _ _ _)).
-    refl.
-  Qed.
-
-  Lemma translate_emb_bind
-    A B
-    (run_: RUN)
-    (itr: itree Es A) (ktr: A -> itree Es B)
-  :
-    translate (emb_ run_) (itr >>= ktr) = a <- (translate (emb_ run_) itr);; (translate (emb_ run_) (ktr a))
-  .
-  Proof. rewrite (bisim_is_eq (translate_bind _ _ _)). et. Qed.
-
-  Lemma translate_emb_tau
-    A
-    run_
-    (itr: itree Es A)
-  :
-    translate (emb_ run_) (tau;; itr) = tau;; (translate (emb_ run_) itr)
-  .
-  Proof. rewrite (bisim_is_eq (translate_tau _ _)). et. Qed.
-
-  Lemma translate_emb_ret
-      A
-      (a: A)
-      (run_: RUN)
-  :
-    translate (emb_ run_) (Ret a) = Ret a
-  .
-  Proof. rewrite (bisim_is_eq (translate_ret _ _)). et. Qed.
-
-  Lemma translate_emb_callE
-      run_ fn args
-  :
-    translate (emb_ run_) (trigger (ModSemE.Call fn args)) =
-    trigger (ModSemE.Call fn args)
-  .
-  Proof. unfold trigger. rewrite (bisim_is_eq (translate_vis _ _ _ _)). ss. do 2 f_equal. extensionalities. apply translate_emb_ret. Qed.
-
-  Lemma translate_emb_sE
-      T 
-      (run_: RUN)
-      (run : Any.t -> Any.t * T)
-  :
-    translate (emb_ run_) (trigger (SUpdate run)) = trigger (SUpdate (run_ T run))
-  .
-  Proof. unfold trigger. rewrite (bisim_is_eq (translate_vis _ _ _ _)). do 2 f_equal. extensionalities. apply translate_emb_ret. Qed.
-
-
-
-  Lemma translate_emb_eventE
-      T
-      (run_: RUN) 
-      (e: eventE T)
-    :
-      translate (emb_ run_) (trigger e) = trigger e.
-  Proof.
-    unfold trigger.
-    rewrite (bisim_is_eq (translate_vis _ _ _ _)). ss.
-    do 2 f_equal.
-    extensionalities. rewrite translate_emb_ret. et.
-  Qed.
-
-  Lemma translate_emb_triggerUB
-    T run_
-  
-  :
-    translate (emb_ run_) (triggerUB: itree _ T) = triggerUB
-  .
-  Proof. 
-    unfold triggerUB. rewrite translate_emb_bind. f_equal.
-    { apply translate_emb_eventE. }
-    extensionalities. ss.
-  Qed.
-
-  Lemma translate_emb_triggerNB
-    T run_
-  :
-    translate (emb_ run_) (triggerNB: itree _ T) = triggerNB
-  .
-  Proof.
-    unfold triggerNB. rewrite translate_emb_bind. f_equal. 
-    { apply translate_emb_eventE. }
-    extensionalities. ss.
-  Qed.
-
   Lemma stb_find_iff_aux fn
     :
       ((<<NONE: alist_find fn _stb = None>>) /\
@@ -298,7 +201,7 @@ Section CANCEL.
         exists f. exists run_id. 
         (* esplits; et.
         { unfold run_id. f_equal. apply func_ext. i. erewrite (bisimulation_is_eq _ _ (translate_id _ _ _)). } *)
-        esplits; et; (f_equal; apply func_ext; i; rewrite emb_run_id ; refl).
+        esplits; et; (f_equal; apply func_ext; i; rewrite <- emb_run_id; rewrite emb_id_eq; refl).
       }
       { 
         unfold trans_l, trans_r. rewrite ! alist_find_app_o.
@@ -354,28 +257,56 @@ Section CANCEL.
   Qed.
 
 
-  (* Temporary tactics. *)
+  (************** Temporary tactics. ***************)
   (* Ltac steps := repeat (mred; try _step ltac:(guclo simg_safe_spec); des_ifs_safe). *)
 
-  Ltac t1 := rewrite ! translate_emb_bind.
-  Ltac t2 := rewrite ! translate_emb_ret.
-  Ltac t3 := rewrite ! translate_emb_tau.
-  Ltac t4 := rewrite translate_emb_callE.
-  Ltac t5 := rewrite translate_emb_eventE.
-  Ltac t6 := rewrite translate_emb_sE.
-  Ltac t7 := rewrite translate_emb_triggerUB.
-  Ltac t8 := rewrite translate_emb_triggerNB.
+  Ltac a1 := try rewrite ! Any.pair_split.
+  Ltac a2 := try rewrite ! Any.upcast_downcast.
 
-  Ltac tstep := try t1; try t2; try t3; try t4; try t5; try t6; try t7; try t8; steps.
+  Ltac t1 := try rewrite ! translate_emb_bind.
+  Ltac t2 := try rewrite ! translate_emb_ret.
+  Ltac t3 := try rewrite ! translate_emb_tau.
+  Ltac t4 := try rewrite translate_emb_callE.
+  Ltac t5 := try rewrite translate_emb_eventE.
+  Ltac t6 := try rewrite translate_emb_sE.
+  Ltac t7 := try rewrite translate_emb_triggerUB.
+  Ltac t8 := try rewrite translate_emb_triggerNB.
 
-  Ltac m1 := rewrite ! interp_mid_bind.
-  Ltac m2 := rewrite ! interp_mid_ret.
-  Ltac m3 := rewrite ! interp_mid_tau.
-  Ltac m4 := rewrite interp_mid_hcall.
-  Ltac m5 := rewrite interp_mid_triggere.
-  Ltac m6 := rewrite interp_mid_triggerp.
+  Ltac tset := t1; t2; t3; t4; t5; t6; t7; t8.
 
-  Ltac mstep := repeat (try m1; try m2; try m3; try m4; try m5; try m6; tstep); steps.
+  Ltac m1 := try rewrite ! interp_mid_bind.
+  Ltac m2 := try rewrite ! interp_mid_ret.
+  Ltac m3 := try rewrite ! interp_mid_tau.
+  Ltac m4 := try rewrite interp_mid_hcall.
+  Ltac m5 := try rewrite interp_mid_triggere.
+  Ltac m6 := try rewrite interp_mid_triggerp.
+
+  Ltac mset := m1; m2; m3; m4; m5; m6.
+
+  Ltac n1 := try rewrite ! interp_mid2_bind.
+  Ltac n2 := try rewrite ! interp_mid2_ret.
+  Ltac n3 := try rewrite ! interp_mid2_tau.
+  Ltac n4 := try rewrite interp_mid2_hcall.
+  Ltac n5 := try rewrite interp_mid2_triggere.
+  Ltac n6 := try rewrite interp_mid2_triggerp.
+
+  Ltac nset := n1; n2; n3; n4; n5; n6.
+
+
+  Ltac h1 := try rewrite ! interp_hEs_tgt_bind.
+  Ltac h2 := try rewrite ! interp_hEs_tgt_ret.
+  Ltac h3 := try rewrite ! interp_hEs_tgt_tau.
+  Ltac h4 := try rewrite ! interp_hEs_tgt_hapc.
+  Ltac h5 := try rewrite interp_hEs_tgt_triggere.
+  Ltac h6 := try rewrite interp_hEs_tgt_triggerp.
+
+  Ltac hset := h1; h2; h3; h4; h5; h6.
+
+
+  Ltac tstep := repeat (unfold guarantee; a1; a2; tset; steps).
+  Ltac mstep := repeat (unfold guarantee; a1; a2; tset; mset; steps).
+  Ltac nstep := repeat (unfold guarantee; a1; a2; tset; mset; nset; steps).
+  Ltac hstep := repeat (unfold guarantee; a1; a2; tset; mset; nset; hset; steps).
 
 
   (* emb too general. Need a property that it only changes SUpdate event. *)
@@ -394,140 +325,26 @@ Section CANCEL.
     intros ? ?. remember (mk_opair o0 at_most) as fuel. move fuel at top. revert at_most o0 Heqfuel.
     pattern fuel. eapply well_founded_induction. { eapply wf_opair_lt. } clear fuel.
     intros fuel IH. i.
-
     rewrite unfold_APC.
-    (* steps *)
     mstep.
-    (* rewrite interp_mid_bind.
-    tstep.
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). 
-    rewrite interp_mid_triggere.
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)).  steps.
-    rewrite translate_emb_eventE. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_tau _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.  *)
-
     destruct x.
     { mstep. } 
-    (* { rewrite interp_mid_ret. erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps. } *)
-
     mstep.
-    unfold guarantee.
-    mstep.
-
-    (* rewrite interp_mid_bind. rewrite interp_mid_triggere.
-    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-    rewrite translate_emb_eventE. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_tau _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    rewrite interp_mid_bind.  
-    rewrite interp_mid_guarantee. 
-    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-    unfold guarantee.
-    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)).
-    rewrite translate_emb_eventE. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_tau _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    rewrite interp_mid_bind. rewrite interp_mid_triggere.
-    erewrite ! (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-    rewrite translate_emb_eventE. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_tau _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    rewrite interp_mid_bind. rewrite interp_mid_hcall. steps. *)
-
-
-
-
     hexploit (stb_find_iff s). i. des.
-    { 
-
-      rewrite NONE. mstep.
-      rewrite ! translate_emb_bind.
-      rewrite translate_emb_tau. steps.
-      rewrite translate_emb_bind. steps.
-      rewrite translate_emb_triggerNB. steps.
-    }
-    { 
-      rewrite FIND. steps.
-      rewrite ! translate_emb_bind.
-      rewrite translate_emb_tau. steps.
-      rewrite ! translate_emb_bind. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite ! translate_emb_bind. steps.
-      unfold guarantee.
-      rewrite ! translate_emb_bind.
-      rewrite ! translate_emb_eventE. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite ! translate_emb_bind.
-      rewrite ! translate_emb_eventE. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite translate_emb_callE. steps.
-      unfold unwrapU. steps.
-      eapply x1; et. 
-    }
-    rewrite STB. steps.
-    (* rewrite ! alist_find_map in *. *)
-    unfold guarantee.
-    rewrite ! translate_emb_bind.
-    rewrite translate_emb_tau. steps.
-    rewrite ! translate_emb_bind.
-    rewrite translate_emb_ret. steps.
-    rewrite ! translate_emb_bind.
-    rewrite ! translate_emb_eventE. steps. 
-    rewrite translate_emb_ret. steps.
-    rewrite translate_emb_ret. steps.
-    rewrite ! translate_emb_bind. 
-    rewrite ! translate_emb_eventE. steps. 
-    rewrite translate_emb_ret. steps.
-    rewrite translate_emb_callE. steps.
-
-    
-    
-
-    rewrite FINDMID. unfold fun_to_mid. steps.
-    rewrite Any.pair_split. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). 
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). 
-    rewrite Any.upcast_downcast. steps.
-    erewrite (bisimulation_is_eq _ _ (translate_ret _ _)). steps.
-    rewrite interp_hEs_tgt_bind. 
-    rewrite interp_mid_bind.
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-    rewrite interp_hEs_tgt_hapc.
-    rewrite interp_mid_bind. 
-    erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-
+    { rewrite NONE. mstep. }
+    { rewrite FIND. mstep. unfold unwrapU. steps. eapply x1; et. }
+    rewrite STB. hstep.
+    rewrite FINDMID. unfold fun_to_mid. hstep.
    rewrite idK_spec at 1.
     guclo bindC_spec. econs.
     { 
-      unfold APC. rewrite interp_mid_bind.
-      erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-      rewrite interp_mid_triggere.
-      erewrite (bisimulation_is_eq _ _ (translate_bind _ _ _)). steps.
-      rewrite translate_emb_eventE. steps.
-      rewrite translate_emb_tau. steps.
-      rewrite translate_emb_ret. steps.      
-    
-      steps. eapply simg_flag_down.
+      unfold APC. mstep.
+      eapply simg_flag_down.
       eapply IH; auto. econs. left. auto.
     }
-
     i. ss. destruct vret_tgt as [? []]. destruct vret_src as [? []]. ss. des; subst.
     unfold idK.
-    rewrite interp_mid_tau. rewrite translate_emb_tau. steps.
-    rewrite interp_mid_ret. rewrite translate_emb_ret. steps.
-    rewrite interp_hEs_tgt_triggere. rewrite interp_mid_bind. rewrite interp_mid_triggere.
-    rewrite translate_emb_bind. steps.
-    rewrite translate_emb_bind. rewrite translate_emb_eventE. steps.
-    rewrite translate_emb_tau. steps.
-    rewrite translate_emb_ret. steps.
-    rewrite interp_mid_tau. rewrite translate_emb_tau. steps.
-    rewrite interp_mid_ret. rewrite translate_emb_ret. steps.
-    rewrite translate_emb_tau. steps.
-    rewrite translate_emb_ret. steps.
+    mstep.
     eapply simg_flag_down.
     eapply IH; et. econs; et. right; split; et. refl.
   Qed.
@@ -543,11 +360,7 @@ Section CANCEL.
     ginit.
     { i. eapply cpn7_wcompat; eauto with paco. }
     i. unfold APC.
-    rewrite interp_mid_bind. rewrite interp_mid_triggere.
-    rewrite ! translate_emb_bind. rewrite translate_emb_eventE. steps.
-    rewrite translate_emb_tau. steps.
-    rewrite translate_emb_ret. steps.
-     
+    mstep.
     eapply simg_flag_down.
     gfinal. right.
     eapply adequacy_type_aux__APC.
@@ -571,66 +384,40 @@ Section CANCEL.
     ginit.
     { i. eapply cpn7_wcompat; eauto with paco. }
     gcofix CIH. i. ides body.
-    { 
-      rewrite interp_mid2_ret, interp_mid_ret.
-      rewrite translate_emb_ret. steps.
-    }
-    {
-      rewrite interp_mid2_tau, interp_mid_tau.
-      rewrite ! translate_emb_tau. 
-      steps. eapply simg_progress_flag. gbase. eapply CIH; ss. 
-    }
+    { nstep. } 
+    { nstep. eapply simg_progress_flag. gbase. eapply CIH; ss. } 
 
     destruct e; cycle 1.
-    { rewrite <- bind_trigger. resub. steps.
+    { rewrite <- bind_trigger. resub. nstep.
       destruct s; ss.
       { destruct s; resub; ss.
-        rewrite interp_mid2_bind, interp_mid_bind.
-        rewrite ! translate_emb_bind. steps.
-        rewrite interp_mid2_triggerp, interp_mid_triggerp.
-        rewrite ! translate_emb_bind. steps.
-        rewrite translate_emb_sE. steps.
-        rewrite translate_emb_tau. steps.
-        rewrite translate_emb_ret. steps.
-        steps. eapply simg_progress_flag. gbase. eapply CIH; ss; et.
+        nstep. eapply simg_progress_flag. gbase. eapply CIH; ss; et.
       }
       {
-         dependent destruction e; resub; ss; rewrite interp_mid2_bind, interp_mid_bind; rewrite ! translate_emb_bind;
-         rewrite interp_mid2_triggere, interp_mid_triggere; rewrite ! translate_emb_bind; rewrite translate_emb_eventE; steps;
-         rewrite translate_emb_tau; steps; rewrite translate_emb_ret; steps.
-        - steps_strong. exists x. steps. 
-          rewrite translate_emb_tau. steps. rewrite translate_emb_ret. steps.
+         dependent destruction e; resub; ss; nstep; steps_strong.
+        - exists x. nstep.  
           eapply simg_progress_flag. gbase. eapply CIH; et.
-        - steps. steps_strong. exists x. steps. 
-          rewrite translate_emb_tau. steps. rewrite translate_emb_ret. steps.
+        - exists x. nstep. 
           eapply simg_progress_flag. gbase. eapply CIH; et.
-        - steps_strong. eapply simg_progress_flag. gbase. eapply CIH; et.
+        - eapply simg_progress_flag. gbase. eapply CIH; et.
       }
     }
     dependent destruction h.
     rewrite <- bind_trigger. resub.
-    rewrite interp_mid2_bind, interp_mid_bind. rewrite ! translate_emb_bind.
-    rewrite interp_mid2_hcall, interp_mid_hcall. rewrite ! translate_emb_bind. 
+    nstep. 
     ired_both. hexploit (stb_find_iff fn). i. des.
-    { rewrite NONE. steps. }
-    { rewrite FIND. steps. destruct tbr.
+    { rewrite NONE. nstep. }
+    { rewrite FIND. nstep. destruct tbr.
       { exfalso. eapply x; ss. }
-      steps.
-      ss. rewrite FINDSRC. steps.
+      nstep.
+      ss. rewrite FINDSRC. nstep.
     }
-    rewrite STB. steps. destruct tbr.
+    rewrite STB. nstep. destruct tbr.
     (* PURE *)
-    { Local Opaque ord_lt. ired_both. steps.
+    { Local Opaque ord_lt. ired_both. nstep.
       ss. 
       rewrite FINDMID. unfold fun_to_mid. ired_both.
-      rewrite Any.pair_split. 
-      rewrite ! translate_emb_bind. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite Any.upcast_downcast.
-      rewrite ! translate_emb_bind. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite interp_hEs_tgt_bind. rewrite interp_mid_bind. rewrite translate_emb_bind. steps.
-      rewrite interp_hEs_tgt_hapc. rewrite interp_mid_bind. rewrite translate_emb_bind. steps.
+      hstep.
 
 
 
@@ -638,49 +425,52 @@ Section CANCEL.
       rewrite idK_spec2 at 1.
       guclo bindC_spec. econs.
       { eapply simg_flag_down. gfinal. right. eapply paco7_mon. { eapply adequacy_type_aux_APC. } ii; ss. }
-      i. steps.
-      rewrite interp_mid_tau. rewrite translate_emb_tau. steps.
-      rewrite interp_mid_ret. rewrite translate_emb_ret. steps.
-      rewrite interp_hEs_tgt_triggere. rewrite interp_mid_bind. rewrite translate_emb_bind. steps.
-      rewrite interp_mid_triggere. rewrite translate_emb_bind. rewrite translate_emb_eventE. steps. 
-      rewrite translate_emb_tau. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite interp_mid_tau. rewrite translate_emb_tau. steps.
-      rewrite interp_mid_ret. rewrite translate_emb_ret. steps.
-    
-      steps_strong. exists x2. steps. eapply simg_progress_flag.
+      i. nstep.
+      steps_strong. exists x2. nstep. eapply simg_progress_flag.
       gbase. eapply CIH. ss.
     }
 
     (* IMPURE *)
-    { Local Opaque ord_lt. unfold guarantee. steps.
+    { Local Opaque ord_lt. nstep.
       ss. 
       rewrite FINDMID. rewrite FINDSRC.
-      unfold fun_to_mid2, cfunN, fun_to_mid. steps.
-      rewrite Any.pair_split. 
-      rewrite ! translate_emb_bind. steps.
-      rewrite translate_emb_ret. steps.
-      rewrite Any.upcast_downcast.
-      rewrite ! translate_emb_bind. steps.
-      rewrite translate_emb_ret. steps.
+      unfold fun_to_mid2, cfunN, fun_to_mid. tstep.
+
 
 
       guclo bindC_spec. econs.
       { eapply simg_progress_flag. gbase. eapply CIH with (A:=Any.t). ss. }
-      i. subst. steps.
-      steps.
+      i. subst. tstep.
       eapply simg_progress_flag. gbase. eapply CIH. ss.
     }
     Unshelve. all: ss.
   Qed.
 
+
+  Require Import ModSemFacts.
+
   Lemma sk_eq:
     Mod.sk md_mid = Mod.sk md_mid2.
-  Proof. ss. Qed.
+  Proof. 
+    unfold md_mid, md_mid2, mds_mid, mds_mid2.
+    rewrite ! ModFacts.add_list_sk. f_equal.
+    generalize mds. clear. i.  induction mds; ss.
+    rewrite IHl. ss.
+  Qed.
 
   Lemma initial_mrs_eq:
     init_st ms_mid = init_st ms_mid2.
-  Proof. ss. Qed.
+  Proof.
+    pose proof sk_eq.
+    unfold ms_mid, ms_mid2, md_mid, md_mid2, mds_mid, mds_mid2, Mod.enclose.
+    unfold md_mid, md_mid2, mds_mid, mds_mid2 in H. rewrite H.
+    generalize (Mod.sk (Mod.add_list (List.map (SMod.to_mid2 stb) mds))). i.
+    rewrite ! ModFacts.add_list_initial_mrs.
+    generalize mds. clear. i. 
+    induction mds; et.
+    destruct l; ss.
+    rewrite IHl. ss.
+  Qed.
 
   Lemma fns_eq:
     (List.map fst (fnsems (Mod.enclose (md_mid))))
@@ -688,10 +478,11 @@ Section CANCEL.
     (List.map fst (fnsems (Mod.enclose (md_mid2)))).
   Proof.
     pose proof sk_eq. unfold Mod.enclose.
-    unfold md_mid2, md_mid, Mod.enclose.
-    unfold md_mid2, md_mid in H. rewrite H.
-    generalize (Mod.sk ((SMod.to_mid2 stb) md)). i.
-    ss. rewrite ! List.map_map. f_equal. 
+    unfold md_mid2, md_mid, mds_mid2, mds_mid, Mod.enclose.
+    unfold md_mid2, md_mid, mds_mid2, mds_mid in H. rewrite H.
+    generalize (Mod.sk (Mod.add_list (List.map (SMod.to_mid2 stb) mds))). i.
+    rewrite ! ModFacts.add_list_fns. rewrite ! List.map_map. f_equal. 
+    f_equal. extensionality sm. ss. rewrite ! List.map_map. f_equal.
     extensionality fnsb. destruct fnsb as [fn sb]. ss.
   Qed.
 
@@ -716,20 +507,20 @@ Section CANCEL.
       { inv H. econs.
         rewrite fns_eq. auto. 
       }
-      { ss. }
+      { ss. rewrite sk_eq. et. }
     }
     steps.
 
     (* stb main *)
     hexploit (stb_find_iff "main"). i. des.
-    { ss. rewrite FINDSRC. steps. }
-    { ss. rewrite FINDSRC. steps. }
+    { unfold ms_mid2 in FINDSRC. rewrite FINDSRC. steps. }
+    { unfold ms_mid2 in FINDSRC. rewrite FINDSRC. steps. }
 
-    fold ms_mid2. fold ms_mid. ss.
-    rewrite FINDSRC. rewrite FINDMID. steps.
-    unfold fun_to_mid2, fun_to_mid, cfunN. steps.
+    fold ms_mid2. fold ms_mid. 
+    rewrite FINDSRC. rewrite FINDMID. hstep.
+    unfold fun_to_mid2, fun_to_mid, cfunN. hstep.
     guclo bindC_spec. econs.
-    { eapply simg_flag_down. gfinal. right. eapply adequacy_type_aux. ss. }
+    { eapply simg_flag_down. gfinal. right. eapply adequacy_type_aux. ss. rewrite initial_mrs_eq. et. }
     { i. subst. steps. }
   Qed.
 

@@ -173,7 +173,7 @@ Section LEMMAS.
   Lemma emb_run_id : emb_id = emb_ run_id.
   Proof. unfold emb_, run_id, emb_id. extensionalities. des_ifs. Qed.
 
-  Lemma emb_id_equiv {T} itr: (translate emb_id) T itr = itr.
+  Lemma emb_id_eq {T} itr: (translate emb_id) T itr = itr.
   Proof. erewrite (bisimulation_is_eq _ _ (translate_id _ _ _)). refl. Qed.
 
   Lemma translate_emb_bind

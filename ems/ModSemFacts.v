@@ -29,6 +29,7 @@ Require Import Any.
 Set Implicit Arguments.
 
 
+
 Module ModSemFacts.
 Import ModSem.
 Section COMM.
@@ -978,6 +979,56 @@ Proof. Admitted. *)
   (* ginduction xs; ii; ss.
   { cbn. rewrite add_empty_l, add_empty_r. et. }
   { cbn. rewrite <- add_assoc'.  r in IHxs. r. f_equal.}  *)
+
+  Lemma add_list_sk (mdl: list t)
+  :
+    Mod.sk (add_list mdl)
+    =
+    fold_right Sk.add Sk.unit (List.map sk mdl).
+  Proof.
+    induction mdl; ss. rewrite <- IHmdl.
+    destruct mdl; ss.
+    rewrite Sk.add_unit_r. et.
+  Qed.
+
+  Fixpoint add_mrs_list (xs: list Any.t): Any.t :=
+    match xs with
+    | [] => tt↑
+    | x::[] => x
+    | x::l => Any.pair x (add_mrs_list l)
+    end.
+
+
+  Lemma add_list_initial_mrs (mdl: list t) (ske: Sk.t)
+     :
+       ModSem.init_st (Mod.get_modsem (add_list mdl) ske)
+       =
+       add_mrs_list ((List.map (fun md => ModSem.init_st (get_modsem md ske)) mdl)).
+   Proof.
+     induction mdl; ss.
+     destruct mdl; ss.
+     rewrite <- IHmdl; ss.
+   Qed.
+
+
+  Lemma add_list_fns (mdl: list t) (ske: Sk.t)
+  :
+    List.map fst (ModSem.fnsems (Mod.get_modsem (add_list mdl) ske))
+    =
+    fold_right (@app _) [] (List.map (fun md => List.map fst (ModSem.fnsems (get_modsem md ske))) mdl).
+Proof.
+  induction mdl.
+  { auto. }
+  transitivity ((List.map fst (ModSem.fnsems (get_modsem a ske)))++(fold_right (@app _) [] (List.map (fun md => List.map fst (ModSem.fnsems (get_modsem md ske))) mdl))); auto.
+  rewrite <- IHmdl. clear.
+  ss. destruct mdl; ss. 
+  - rewrite app_nil_r. ss.
+  - unfold ModSem.add_fnsems. 
+    rewrite ! map_app. rewrite ! List.map_map.
+    rewrite fun_fst_trans_l, fun_fst_trans_r. 
+    f_equal.
+Qed.
+
 
 End BEH.
 End ModFacts.
