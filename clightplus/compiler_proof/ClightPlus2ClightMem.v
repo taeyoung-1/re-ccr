@@ -173,22 +173,6 @@ Section MEM.
     subst. et.
   Qed.
 
-  Lemma mem_construct nextblock (contents : PMap.t (ZMap.t memval)) concrete access 
-      (access_max: forall b (ofs : Z), Mem.perm_order'' (access !! b ofs Max) (access !! b ofs Cur))
-      (nextblock_noaccess: forall b ofs k, ~ Coqlib.Plt b nextblock ->  access !! b ofs k = None)
-      (contents_default: forall b, fst contents !! b = Undef)
-      (nextblocks_logical: forall b, ~ Coqlib.Plt b nextblock ->  concrete ! b = None)
-      (valid_address_bounded: forall bo addr, Mem.addr_in_block concrete access addr bo -> addr < Ptrofs.modulus - 1)
-      (no_concrete_overlap: forall addr, uniqueness (Mem.addr_in_block concrete access addr))
-      (concrete_align: forall b zero_addr, concrete ! b = Some zero_addr -> forall ofs chunk, (forall o, ofs <= o < ofs + size_chunk chunk -> Mem.perm_order' (access !! b o Max) Nonempty) -> (align_chunk chunk | zero_addr))
-      (weak_valid_address_range: forall b zero_addr ofs, concrete ! b = Some zero_addr -> 0 <= ofs < Ptrofs.modulus -> Mem._weak_valid_pointer access b ofs Max -> Mem.in_range (zero_addr + ofs) (1, Ptrofs.modulus))
-  : exists m, Mem.nextblock m = nextblock /\ Mem.mem_concrete m = concrete /\ Mem.mem_access m = access /\ Mem.mem_contents m = contents.
-  Proof.
-    eexists (Mem.mkmem contents access concrete nextblock _ _ _ _ _ _ _ _); et.
-    Unshelve. all: et.
-  Qed.
-
-
   Lemma free_list_same m m' m'' l :
     Mem.free_list m l = Some m' ->
     m.(Mem.nextblock) = m''.(Mem.nextblock) -> 
@@ -771,13 +755,15 @@ Section MEM.
       + assert (tm = tm') by now apply mem_eq; et. rewrite <- H0. econs; et.
       + econs; et. { i. clarify. } { i. rewrite E in H0. clarify. }
     - hexploit CAPTURED; et. i.
-      hexploit (@mem_construct m.(Mem.nextblock) m.(Mem.mem_contents) (PTree.set b addr m.(Mem.mem_concrete)) m.(Mem.mem_access)).
+      assert (exists mem, mem.(Mem.mem_contents) = m.(Mem.mem_contents) /\ mem.(Mem.mem_access) = m.(Mem.mem_access) /\ mem.(Mem.nextblock) = m.(Mem.nextblock) /\ mem.(Mem.mem_concrete) = PTree.set b addr m.(Mem.mem_concrete)).
+      { econs. instantiate (1:= Mem.mkmem _ _ _ _ _ _ _ _ _ _ _ _). ss. }
+      Unshelve. all: cycle 1.
       + apply m.(Mem.access_max).
       + apply m.(Mem.nextblock_noaccess).
       + apply m.(Mem.contents_default).
       + i. unfold Coqlib.Plt in *. destruct (Pos.eq_dec b0 b). { subst. clarify. }
         rewrite Maps.PTree.gso; et. apply m.(Mem.nextblocks_logical). et.
-      + i. inv H1. destruct (Pos.eq_dec bo b); cycle 1.
+      + i. inv IN_BLOCK. destruct (Pos.eq_dec bo b); cycle 1.
         { rewrite Maps.PTree.gso in CONCRETE; et.
           eapply m.(Mem.valid_address_bounded). econs; et. }
         subst. rewrite Maps.PTree.gss in CONCRETE. clarify.
@@ -816,25 +802,24 @@ Section MEM.
           { econs. 2:{ exists perm0. et. } { rewrite H0. rewrite Maps.PTree.gss. et. } nia. }
           i. eapply map_blk_inj; et.
       + i. destruct (Pos.eq_dec b b0); cycle 1.
-        { rewrite Maps.PTree.gso in H1; et. eapply m.(Mem.concrete_align); et. }
-        subst. rewrite Maps.PTree.gss in H1. clarify.
+        { rewrite Maps.PTree.gso in CADDR; et. eapply m.(Mem.concrete_align); et. }
+        subst. rewrite Maps.PTree.gss in CADDR. clarify.
         eapply tm'.(Mem.concrete_align); et. rewrite H0. rewrite Maps.PTree.gss; et.
         rewrite <- ACCESS. rewrite <- MEM_PERM. et.
       + i. destruct (Pos.eq_dec b b0); cycle 1.
-        { rewrite Maps.PTree.gso in H1; et. eapply m.(Mem.weak_valid_address_range); et. }
-        subst. rewrite Maps.PTree.gss in H1. clarify.
+        { rewrite Maps.PTree.gso in CADDR; et. eapply m.(Mem.weak_valid_address_range); et. }
+        subst. rewrite Maps.PTree.gss in CADDR. clarify.
         eapply tm'.(Mem.weak_valid_address_range); et. rewrite H0. rewrite Maps.PTree.gss; et.
         rewrite <- ACCESS. red. unfold Mem._valid_pointer. rewrite <- MEM_PERM. et.
-      + i. des. exists m0. split; cycle 1.
+      + i. des. exists mem. split; cycle 1.
         { econs; et. i. rewrite E in H5. clarify. }
         econs.
-        * rewrite H1. et.
-        * rewrite H1. rewrite <- NEXTBLOCK. et.
-        * rewrite H4. rewrite <- CONTENTS. et.
-        * rewrite H3. rewrite <- ACCESS. et.
-        * rewrite H2. rewrite H0. i.
-          destruct (Pos.eq_dec b b0);
-            [subst; rewrite !Maps.PTree.gss|rewrite !Maps.PTree.gso]; et.
+        * rewrite H3. et.
+        * rewrite H3. rewrite <- NEXTBLOCK. et.
+        * rewrite H1. rewrite <- CONTENTS. et.
+        * rewrite H2. rewrite <- ACCESS. et.
+        * rewrite H4. rewrite H0. i.
+          destruct (Pos.eq_dec b b0); [subst; rewrite !Maps.PTree.gss|rewrite !Maps.PTree.gso]; et.
           ii. hexploit map_blk_inj; et.
   Qed.
 
