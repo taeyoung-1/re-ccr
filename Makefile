@@ -1,5 +1,5 @@
 COQMODULE    := SimComp
-COQTHEORIES  := $(shell find . -not -path "./deprecated/*" -not -path "./_opam/*" -iname '*.v')
+COQTHEORIES  := $(shell find . -not -path "./deprecated/*" -not -path "./_opam/*" -not -path "./DONOTCOMPILE/*" -iname '*.v')
 
 .PHONY: all proof proof-quick graph
 
