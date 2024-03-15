@@ -63,9 +63,13 @@ Section PROOFSINGLE.
 
   Definition compile_val mdl := @ModL.compile _ EMSConfigC mdl. 
 
-  Definition clightp_sem md := compile_val (ModL.add (Mod.lift Mem) (Mod.lift md)).
+  Definition clightp_sem sk_mem md := compile_val (ModL.add (Mod.lift (Mem sk_mem)) (Mod.lift md)).
 
-  Definition clightp_initial_state md := (clightp_sem md).(STS.initial_state).
+  Definition clightp_initial_state sk_mem md := (clightp_sem sk_mem md).(STS.initial_state).
+
+  Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"].
+
+  Definition sk_mem (clight_prog: Clight.program) := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) (prog_defs clight_prog)).
 
   Local Opaque ident_of_string.
   Arguments Es_to_eventE /.
@@ -73,12 +77,69 @@ Section PROOFSINGLE.
   Arguments sloop_iter_body_two /.
   Arguments ktree_of_cont_itree /.
 
-  (* THIS THM IS JUST FOR INITIALIZATION TEST *)
+  Lemma asdf' clight_prog mn md str gd:
+    compile clight_prog mn = Some md ->
+    In (str, gd) (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) ->
+    In (ident_of_string str, gd) (prog_defs clight_prog).
+  Proof.
+    i. unfold compile in H. unfold get_sk in H. des_ifs. ss. bsimpl. des.
+    let x := type of Sk.le_canon_rev in
+    let y := eval red in x in
+    eapply (Sk.le_canon_rev: x) in H0.
+    ss. apply in_map with (f:=(map_fst ident_of_string)) in H0. ss.
+    unfold Sk.add in H0. ss. rewrite map_app in H0. rewrite List.in_app_iff in H0.
+    unfold sk_mem in H0. clear - H0 Heq1. revert_until clight_prog.
+    generalize (prog_defs clight_prog). clear. induction l; i; ss; try tauto.
+    des_ifs.
+    - ss. bsimpl. des.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+    - ss. bsimpl. des; clarify.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+    - ss. bsimpl. des; clarify.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+    - ss. bsimpl. des; clarify.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + left. destruct a. ss. clarify. rewrite string_of_ident_of_string in H1. f_equal; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+    - ss. bsimpl. des; clarify.
+      + right. eapply IHl; et.
+      + left. destruct a. ss. clarify. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify. rewrite <- e in H1. f_equal; et.
+      + right. eapply IHl; et.
+    - ss. bsimpl. des; clarify.
+      + right. eapply IHl; et.
+      + right. eapply IHl; et.
+  Qed.
 
+  Lemma asdf clight_prog mn md idx str:
+    compile clight_prog mn = Some md ->
+    SkEnv.blk2id (load_skenv (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md)))) idx = Some str ->
+    exists tb, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string str) = Some tb.
+  Proof.
+    i. hexploit in_env_in_sk; et. i. des. clear H0.
+    apply Genv.find_symbol_exists with (g:=def).
+    eapply asdf'; et.
+  Qed.
+
+  (* This single thm will be used in final thm. *)
   Theorem single_compile_behavior_improves
           clight_prog md mn left_st right_st
           (COMP: compile clight_prog mn = Some md)
-          (SINIT: left_st = clightp_initial_state md)
+          (SINIT: left_st = clightp_initial_state (sk_mem clight_prog) md)
           (TINIT: Clight.initial_state clight_prog right_st)
         :
           <<IMPROVES: @improves2 _ (Clight.semantics2 clight_prog) left_st right_st>>.
@@ -102,7 +163,7 @@ Section PROOFSINGLE.
     i. clarify. rename f into tmainf.
 
     unfold cfunU. sim_red. unfold decomp_func. sim_red.
-    change (paco4 (_sim _ _) bot4) with (sim (clightp_sem md) (semantics2 clight_prog)).
+    change (paco4 (_sim _ _) bot4) with (sim (clightp_sem (sk_mem clight_prog) md) (semantics2 clight_prog)).
     eapply sim_bot_flag_up with (b0 := true) (b1 := false).
 
     set (sort _) as sk_init in *.
@@ -111,33 +172,32 @@ Section PROOFSINGLE.
       - change sort with (@Sk.canon _). apply Sk.wf_canon. unfold ModL.wf in w. ss. des. et.
       - i. unfold ModL.wf in w. ss. des. apply Sk.wf_canon in SK.
         hexploit load_skenv_wf; et. i. unfold SkEnv.wf in H2. red in H2. rewrite H2 in H1.
-        clear H2.
-        assert (exists tb, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string str) = Some tb) by admit "".
-        des. unfold map_blk. destruct le_dec. { admit "". }
-        replace (Init.Nat.pred _) with idx by nia. ss. rewrite H1.
-        des_ifs. unfold fundef in *. clarify.
-      - i. unfold compile, get_sk in COMP. des_ifs. ss.
-        fold sk_init in H1.
-        assert (SkEnv.blk2id (load_skenv sk_init) n = Some s) by admit "".
-        assert (exists b, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some b) by admit "".
-        des.
-        assert (Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some (map_blk sk_init (Genv.globalenv clight_prog) (Pos.of_succ_nat n))) by admit "".
+        hexploit asdf; et. i. clear H2.
+        des. unfold map_blk. destruct le_dec; cycle 1.
+        { replace (Init.Nat.pred _) with idx by nia. ss. rewrite H1.
+          des_ifs. unfold fundef in *. clarify. }
+        exfalso. assert (List.length (sort (Sk.add (sk_mem clight_prog) (Mod.sk md))) <= idx) by nia.
+        Local Transparent load_skenv. ss. uo. des_ifs.
+        apply nth_error_None in H2. clarify.
+      - i. fold sk_init in H1.
+        assert (SkEnv.blk2id (load_skenv sk_init) n = Some s) by now ss; uo; des_ifs.
+        hexploit asdf; et. i. des.
+        assert (Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some (map_blk sk_init (Genv.globalenv clight_prog) (Pos.of_succ_nat n))).
+        { unfold map_blk. destruct le_dec; cycle 1.
+          { replace (Init.Nat.pred _) with n by nia. rewrite H2.
+            des_ifs. unfold fundef in *. clarify. }
+          exfalso. assert (List.length sk_init <= n) by nia. ss. uo. des_ifs.
+          apply nth_error_None in H4. clarify. }
         clear H3.
         assert (Maps.PTree.get (ident_of_string s) (prog_defmap clight_prog) = Some gd).
         { unfold prog_defmap. ss. apply Maps.PTree_Properties.of_list_norepet; et. 
-          unfold sk_init in H1. 
-
-        }
+          { unfold compile, get_sk in COMP. des_ifs. destruct list_norepet_dec; clarify. }
+          apply nth_error_in in H1. unfold sk_init in H1. eapply asdf'; et. }
         rewrite Genv.find_def_symbol in H3. des. clarify. }
-
-    eapply step_function_entry with (ge := ge) (sk := sge_init); et; ss.
-    { unfold sge_init, tge, mkprogram, Globalenvs.Genv.globalenv. des_ifs_safe. ss.
-      clear -WFDEF_NODUP WFDEF_EXT SK wf_fnsems.
-      admit "This can be proved from these hypothesis". }
-    { instantiate (1 := m0). clear -INIT_TMEM. admit "This can be proved from these hypothesis". }
-    i. tgt_step.
-    { econs. unfold ge in H. unfold tge in H. ss. unfold mkprogram in *. des_ifs; et. }
-    econs 7; et. left. 
+    { admit "". }
+    { admit "". }
+    i. pfold. econs 4. { i. inv H5. et. } { eexists. econs. et. }
+    i. inv STEP. econs 8; et. left. 
 
     eapply match_states_sim; eauto.
     { i. ss. clear - H5. depgen s. revert fd. induction defs; i; ss.
