@@ -85,7 +85,7 @@ Qed.
 Section HEADER.
 
   Context `{Σ: GRA.t}.
-
+  
   Definition fspec_weaker (fsp_src fsp_tgt: fspec): Prop :=
     forall x_src,
     exists x_tgt,

@@ -124,7 +124,7 @@ Section DEFINES.
 
   Definition Es: Type -> Type := (callE +' sE +' eventE).
 
-  Definition rGet : Any.t -> Any.t * Any.t := fun x => (x, x).
+  (* Definition rGet : Any.t -> Any.t * Any.t := fun x => (x, x).
 
   Definition rPut x : Any.t -> Any.t * unit := fun _ => (x, tt).
 
@@ -132,13 +132,13 @@ Section DEFINES.
     SUpdate (rGet).
 
   Definition sPut x : sE unit :=
-    SUpdate (rPut x).
+    SUpdate (rPut x). *)
 
-  (* Definition sGet : sE (Any.t) := 
+  Definition sGet : sE (Any.t) := 
     SUpdate (fun x => (x, x)).
 
   Definition sPut x : sE unit :=
-    SUpdate (fun _ => (x, tt)). *)
+    SUpdate (fun _ => (x, tt)).
 
   Definition handle_sE {E}: sE ~> stateT Any.t (itree E) := 
     fun _ e glob =>

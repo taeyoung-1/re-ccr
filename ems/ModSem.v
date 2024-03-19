@@ -264,6 +264,13 @@ Section LEMMAS.
     extensionalities. ss.
   Qed.
   
+  Lemma translate_emb_ext
+    T run_ (itr0 itr1: itree _ T)
+    (EQ: itr0 = itr1)
+  :
+    translate (emb_ run_) itr0 = translate (emb_ run_) itr1
+  .
+
   
 
 End LEMMAS.
@@ -736,6 +743,25 @@ Section AUX.
       (mk_box interp_Es_guarantee)
       (mk_box interp_Es_ext)
   .
+
+  Global Program Instance transl_emb_rdb: red_database (mk_box (@translate)) :=
+    mk_rdb
+      0
+      (mk_box ModSem.transl_emb_bind)
+      (mk_box ModSem.transl_emb_tau)
+      (mk_box ModSem.transl_emb_ret)
+      (mk_box ModSem.transl_emb_sE)
+      (mk_box ModSem.transl_emb_callE)
+      (mk_box ModSem.transl_emb_eventE)
+      (mk_box ModSem.transl_emb_triggerUB)
+      (mk_box ModSem.transl_emb_triggerNB)
+      (mk_box transl_emb_unwrapU)
+      (mk_box transl_emb_unwrapN)
+      (mk_box transl_emb_assume)
+      (mk_box transl_emb_guarantee)
+      (mk_box transl_emb_ext)
+  .
+
 
 End AUX.
 
