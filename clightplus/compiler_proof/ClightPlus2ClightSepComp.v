@@ -73,22 +73,6 @@ Section PROOFSINGLE.
   Arguments sloop_iter_body_two /.
   Arguments ktree_of_cont_itree /.
 
-  (* mem initialization condition : every Gvar has aligned and every Gvar address is in genv *)
-  (* src align <-> tgt align is valid, Gvar is remain in both *)
-  (* second condition makes src valid addr -> tgt valid addr but not inverse *)
-  (* so, src init succ -> tgt init succ *)
-  (* compiler should check whether src init is a success *)
-  Lemma compile_init_mem_success clight_prog mn md sk_mem:
-    compile clight_prog mn = Some md ->
-    mem_skel clight_prog = Some sk_mem ->
-    exists m tm,
-    load_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) = Some m 
-    /\ Genv.init_mem clight_prog = Some tm
-    /\ match_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) (globalenv clight_prog) m tm.
-  Proof.
-  Admitted.
-
-
   (* The thm is targeting closed program *)
   Theorem single_compile_behavior_improves
           clight_prog md sk_mem mn left_st right_st
@@ -155,17 +139,37 @@ Section PROOFSINGLE.
         - apply alist_find_some_iff; et. rewrite CoqlibC.NoDup_norepet. apply Maps.PTree.elements_keys_norepet.
         - eapply alist_find_some; et. }
       { instantiate (1:= init_pstate). unfold init_pstate. unfold update. ss. }
-      { admit "internal_proof". }
-      (* { unfold fnsem_has_internal. i. apply Sk.sort_incl_rev in H5. ss. des; clarify.
-        { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
-        { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
-        exists mn.
-        admit "relation between decomp_fundef and get_sk". } *)
+      { ii. unfold compile in COMP. des_ifs. set (ModSemL.fnsems _).
+        eassert (a = (ModSemL.fnsems (MemSem t)) ++ _) by ss.
+        rewrite H18. rewrite alist_find_app_o. clear H18 a.
+        (* assert (alist_find s (ModSemL.fnsems (MemSem t)) = None).
+        { destruct (alist_find s) eqn:?; et.
+          apply alist_find_some in Heqo.
+          unfold ModL.wf in w. des. ss.
+          inv WF. ss. pose proof Sk.le_canon_rev. ss. apply H18 in H14.
+          apply in_app in H14. destruct H14. { unfold mem_skel in *. des_ifs. }
+          assert (In s (List.map fst (List.map (map_snd (fun sem => transl_all mn (T:=Any.t) ∘ sem)) (get_fnsems clight_prog (sort (Sk.add sk_mem t)) t)))).
+          { clear - H14. 
+            induction (sort _); ss. des; clarify. { unfold get_fnsems. }
+
+          }
+       unfold ModSemL.wf.
+
+        }
+        rewrite H18. clear H18. ss. exists mn.  *)
+
+         admit "internal_proof". }
       { econs; et. }
-      instantiate (1 := mn). 
-      admit "itree eq". }
+      unfold itree_of_stmt, itree_stop, Es_to_eventE, kstop_itree, itree_of_cont_pop. 
+      unfold sk_init. ss. sim_redE. apply bind_extk. i.
+      repeat (des_ifs; progress (sim_redE; grind)). }
   Qed.
 
+  (* mem initialization condition : every Gvar has aligned and every Gvar address is in genv *)
+  (* src align <-> tgt align is valid, Gvar is remain in both *)
+  (* second condition makes src valid addr -> tgt valid addr but not inverse *)
+  (* so, src init succ -> tgt init succ *)
+  (* compiler should check whether src init is a success *)
   Theorem single_compile_program_improves
           (types: list Ctypes.composite_definition)
           (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))

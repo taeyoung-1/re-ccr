@@ -532,10 +532,16 @@ Section DECOMP_PROG.
       else None
     else None.
 
+  Definition finalize (gn: string) (v: val) : itree Es val :=
+    match string_dec gn "main", v with
+    | in_right, _ | _, Vint _ => Ret v
+    | _, _ => triggerUB
+    end.
+
   Fixpoint get_fnsems (sk: Sk.t) (defs: list (string * globdef Clight.fundef type)) : list (string * (option string * Any.t -> itree Es Any.t)) :=
     match defs with
     | [] => []
-    | (gn, Gfun (Internal f)) :: defs' => (gn, cfunU (decomp_func sk ce f)) :: get_fnsems sk defs'
+    | (gn, Gfun (Internal f)) :: defs' => (gn, cfunU (fun vl => decomp_func sk ce f vl >>= finalize gn)) :: get_fnsems sk defs'
     | _ :: defs' => get_fnsems sk defs'
     end.
 

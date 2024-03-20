@@ -6,16 +6,16 @@ Require Import ClightPlusExprgen ClightPlusgen ClightPlusSkel.
 Lemma in_get_fnsems_decomp clight_prog fn sk l i :
   NoDup (List.map fst l) ->
   alist_find fn (get_fnsems clight_prog sk l) = Some i ->
-  exists f, i = cfunU (decomp_func sk (get_ce clight_prog) f) /\ alist_find fn l = Some (Gfun (Internal f)).
+  exists f, i = cfunU (fun vl => decomp_func sk (get_ce clight_prog) f vl >>= finalize fn) /\ alist_find fn l = Some (Gfun (Internal f)).
 Proof.
   ginduction l; i; ss. des_ifs_safe. inv H. destruct g as [[f|? ? ? ?]|v].
-  - ss. des_ifs; cycle 1. { apply IHl; et. } esplits; et.
+  - ss. des_ifs; cycle 1. { apply IHl; et. } esplits; et. unfold rel_dec in Heq. ss. destruct dec; clarify.
   - hexploit IHl; et. i. des. esplits; et. des_ifs.
-      unfold rel_dec in Heq; ss. destruct dec; clarify.
-      apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
+    unfold rel_dec in Heq; ss. destruct dec; clarify.
+    apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
   - hexploit IHl; et. i. des. esplits; et. des_ifs.
-      unfold rel_dec in Heq; ss. destruct dec; clarify.
-      apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
+    unfold rel_dec in Heq; ss. destruct dec; clarify.
+    apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
 Qed.
 
 Lemma get_sk_nodup l t : get_sk l = Some t -> NoDup (List.map fst t).
@@ -48,7 +48,7 @@ Qed.
 Theorem in_tgt_prog_defs_decomp clight_prog mn md fn sk i :
   compile clight_prog mn = Some md ->
   alist_find fn (ModSem.fnsems (Mod.get_modsem md sk)) = Some i ->
-  exists f, i = cfunU (decomp_func sk (get_ce clight_prog) f) /\ alist_find (ident_of_string fn) (prog_defs clight_prog) = Some (Gfun (Internal f)).
+  exists f, i = cfunU (fun vl => decomp_func sk (get_ce clight_prog) f vl >>= finalize fn) /\ alist_find (ident_of_string fn) (prog_defs clight_prog) = Some (Gfun (Internal f)).
 Proof.
   Local Opaque call_ban.
   unfold compile. i. des_ifs. ss.
@@ -222,6 +222,7 @@ Proof.
     rewrite Genv.find_def_symbol in H2. des. clarify.
 Qed.
 
+Require Import ClightPlusMem0.
 
 Lemma compile_init_mem_success clight_prog mn md sk_mem:
   compile clight_prog mn = Some md ->
@@ -231,4 +232,4 @@ Lemma compile_init_mem_success clight_prog mn md sk_mem:
   /\ Genv.init_mem clight_prog = Some tm
   /\ match_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) (globalenv clight_prog) m tm.
 Proof.
-  i. unfold compile, get_sk, mem_skel in *. des_ifs. ss.
+Admitted.

@@ -1333,6 +1333,11 @@ Section PROOF.
     econs; cycle 1.
     econs; et.
     all: des_ifs; inv SKINCL; inv H6; ss.
+    all: match goal with
+         | |- context G [cfunU ?x] => 
+         let X := fresh in
+         eassert (X: x = _);[unfold finalize; destruct string_dec; [exfalso| extensionalities; rewrite bind_ret_r]; clarify| rewrite X]
+         end.
     - eapply sim_delete_tl; et.
     - eapply sim_delete_hd; et.
     - eapply sim_add_tl; et.
