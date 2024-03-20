@@ -23,7 +23,7 @@ Require Import ClightPlus2ClightSimExpr.
 Require Import ClightPlus2ClightSimStmt.
 Require Import ClightPlus2ClightSim.
 
-Require Import ClightPlus2ClightGenv.
+Require Import ClightPlus2ClightInit.
 (* Require Import ClightPlus2ClightLink. *)
 
 Require Import Admit.
