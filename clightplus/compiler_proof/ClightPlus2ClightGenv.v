@@ -101,3 +101,117 @@ Proof.
   hexploit prog_defmap_norepet; eauto; ss.
   i. apply Genv.find_def_symbol in H. des. clarify.
 Qed.
+
+Require Import ClightPlus2ClightMatchEnv.
+Local Opaque in_dec.
+Local Opaque ident_of_string.
+Local Transparent call_ban.
+
+Lemma compile_sk_incl clight_prog mn md str gd:
+  compile clight_prog mn = Some md ->
+  In (str, gd) (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) ->
+  In (ident_of_string str, gd) (prog_defs clight_prog).
+Proof.
+  i. unfold compile in H. unfold get_sk in H. des_ifs. ss. bsimpl. des.
+  let x := type of Sk.le_canon_rev in
+  let y := eval red in x in
+  eapply (Sk.le_canon_rev: x) in H0.
+  ss. apply in_map with (f:=(map_fst ident_of_string)) in H0. ss.
+  unfold Sk.add in H0. ss. rewrite map_app in H0. rewrite List.in_app_iff in H0.
+  unfold sk_mem in H0. clear - H0 Heq1. revert_until clight_prog.
+  generalize (prog_defs clight_prog). clear. induction l; i; ss; try tauto.
+  des_ifs.
+  - ss. bsimpl. des.
+    + left. destruct a. ss. clarify. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify. rewrite <- e in H1. f_equal; et.
+    + right. eapply IHl; et.
+    + left. destruct a. ss. clarify. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify. rewrite <- e in H1. f_equal; et.
+    + right. eapply IHl; et.
+  - ss. bsimpl. des; clarify.
+    + left. destruct a. ss. clarify.
+      destruct in_dec; clarify. unfold mem_keywords in i0. ss.
+      des; clarify; rewrite string_of_ident_of_string in *; f_equal; et.
+    + right. eapply IHl; et.
+    + right. eapply IHl; et.
+  - ss. bsimpl. des; clarify.
+    + right. eapply IHl; et.
+    + left. destruct a. ss. clarify. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify. rewrite <- e in H1. f_equal; et.
+    + right. eapply IHl; et.
+  - ss. bsimpl. des; clarify.
+    + right. eapply IHl; et.
+    + right. eapply IHl; et.
+Qed.
+
+Lemma compile_tgt_blk_exists clight_prog mn md idx str:
+  compile clight_prog mn = Some md ->
+  SkEnv.blk2id (load_skenv (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md)))) idx = Some str ->
+  exists tb, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string str) = Some tb.
+Proof.
+  i. hexploit in_env_in_sk; et. i. des. clear H0.
+  apply Genv.find_symbol_exists with (g:=def).
+  eapply compile_sk_incl; et.
+Qed.
+
+Lemma compile_sk_wf clight_prog mn md:
+  compile clight_prog mn = Some md ->
+  Sk.wf (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))).
+Proof.
+  i. apply Sk.wf_canon. unfold Sk.wf. ss. rewrite CoqlibC.NoDup_norepet.
+  unfold Sk.add. ss. rewrite List.map_app. rewrite list_norepet_app.
+  splits.
+  - unfold sk_mem. unfold compile, get_sk in H. des_ifs. destruct list_norepet_dec; clarify. bsimpl.
+    clear -l Heq0. induction (prog_defs clight_prog); i; ss. { econs. }
+    inv l. bsimpl. des. destruct in_dec; ss; et. destruct a. ss.
+    econs; et. ii. apply H1. clear -H i.
+    induction l0; i; ss. destruct in_dec; ss; clarify. 2:{ right. et. }
+    destruct a; ss. des; clarify; et.
+  - unfold compile, get_sk in H. des_ifs. destruct list_norepet_dec; clarify. ss.
+    clear -l Heq1. revert_until clight_prog. generalize (prog_defs clight_prog).
+    clear clight_prog. induction l; i; ss. { econs. }
+    inv l0. des_ifs; et. ss. bsimpl. des. econs; et.
+    ii. apply H1. destruct a. ss. unfold chk_ident in Heq1. destruct Pos.eq_dec; clarify.
+    clear - H Heq0 e. induction l; i; ss. des_ifs; et. ss. bsimpl. des; et. destruct a. ss.
+    left. rewrite e. unfold chk_ident in Heq0. destruct Pos.eq_dec; clarify. rewrite e0. f_equal; et.  
+  - ii. unfold compile, get_sk in H. des_ifs. ss. unfold sk_mem in H0.
+    bsimpl. des. clear - Heq1 Heq2 H0 H1. revert_until clight_prog. generalize (prog_defs clight_prog).
+    clear clight_prog. induction l; i; ss. bsimpl. des. des_ifs; et.
+    + destruct in_dec; clarify. clear -Heq2 Heq i. destruct a; ss. des_ifs; destruct in_dec; clarify.
+    + ss. bsimpl. des; et. clarify. destruct in_dec; clarify. clear - Heq1 n H0. induction l; ss.
+      destruct in_dec; clarify. ss. destruct H0; et. destruct a; destruct a0; ss. unfold chk_ident in Heq1.
+      destruct Pos.eq_dec; clarify. clear Heq1. des; try tauto; clarify; rewrite string_of_ident_of_string in *; rewrite <- H in *; et.
+    + ss. des; et. clarify. clear - Heq1 Heq0 Heq3 H1. induction l; ss. bsimpl. des.
+      des_ifs; et. ss. bsimpl. des; et. clear - Heq0 Heq Heq1 Heq3 H1.
+      destruct a; destruct a0; ss. unfold chk_ident in Heq1. destruct Pos.eq_dec in Heq1; clarify.
+      des_ifs; do 2 destruct in_dec; clarify.
+      all: ss; des; clarify; rewrite H1 in *; rewrite e in *; et.
+Qed.
+
+Lemma compile_match_genv clight_prog mn md:
+  compile clight_prog mn = Some md ->
+  match_ge (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) (Genv.globalenv clight_prog).
+Proof.
+  i. econs.
+  - eapply compile_sk_wf; et.
+  - i. hexploit compile_sk_wf; et. i.
+    hexploit load_skenv_wf; et. i. unfold SkEnv.wf in H2. red in H2. rewrite H2 in H0.
+    hexploit compile_tgt_blk_exists; et. i. clear H2.
+    des. unfold map_blk. destruct le_dec; cycle 1.
+    { replace (Init.Nat.pred _) with idx by nia. ss. rewrite H0.
+      des_ifs. unfold fundef in *. clarify. }
+    exfalso. assert (List.length (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) <= idx) by nia.
+    Local Transparent load_skenv. ss. uo. des_ifs.
+    apply nth_error_None in H2. clarify.
+  - i. assert (SkEnv.blk2id (load_skenv (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md)))) n = Some s) by now ss; uo; des_ifs.
+    hexploit compile_tgt_blk_exists; et. i. des.
+    assert (Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string s) = Some (map_blk (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) (Genv.globalenv clight_prog) (Pos.of_succ_nat n))).
+    { unfold map_blk. destruct le_dec; cycle 1.
+      { replace (Init.Nat.pred _) with n by nia. rewrite H1.
+        des_ifs. unfold fundef in *. clarify. }
+      exfalso. assert (List.length (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) <= n) by nia. ss. uo. des_ifs.
+      apply nth_error_None in H3. clarify. }
+    clear H2.
+    assert (Maps.PTree.get (ident_of_string s) (prog_defmap clight_prog) = Some gd).
+    { unfold prog_defmap. ss. apply Maps.PTree_Properties.of_list_norepet; et. 
+      { unfold compile, get_sk in H. des_ifs. destruct list_norepet_dec; clarify. }
+      apply nth_error_in in H0. eapply compile_sk_incl; et. }
+    rewrite Genv.find_def_symbol in H2. des. clarify.
+Qed.

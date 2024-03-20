@@ -577,6 +577,11 @@ Section DECOMP_PROG.
       end
     else None.
 
+  Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"].
+
+  Definition sk_mem (clight_prog: Clight.program) := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) (prog_defs clight_prog)).
+
+
 End DECOMP_PROG.  
 
 (* Section EXECUTION_STRUCTURE. *)
