@@ -505,6 +505,7 @@ Section DECOMP_PROG.
   (* Fixpoint get_source_name (filename : string) := *)
   (*   String.substring 0 (String.length filename - 2) filename. *)
 
+  (* local compilation condition *)
   Definition def_filter (gdef: ident * globdef Clight.fundef type) : bool :=
     match gdef with
     | (_, Gvar _) | (_, Gfun (Internal _)) => true
@@ -531,34 +532,6 @@ Section DECOMP_PROG.
       else None
     else None.
 
-
-  (* Definition def_filter (gdef: ident * globdef Clight.fundef type) : bool :=
-    match gdef with
-    | (_, Gvar _) | (_, Gfun (Internal _))
-    | (_, Gfun (External EF_malloc _ _ _))
-    | (_, Gfun (External EF_free _ _ _))
-    | (_, Gfun (External EF_capture _ _ _)) => true
-    | _ => false
-    end.
-
-  Definition chk_ident (entry: ident * globdef Clight.fundef type) : bool :=
-    let (ident, gd) := entry in
-    match gd with
-    | Gfun (External EF_malloc _ _ _)  => Pos.eq_dec ident (ident_of_string "malloc")
-    | Gfun (External EF_free _ _ _)  => Pos.eq_dec ident (ident_of_string "free")
-    | Gfun (External EF_capture _ _ _)  => Pos.eq_dec ident (ident_of_string "capture")
-    | _ => Pos.eq_dec ident (ident_of_string (string_of_ident ident))
-    end.
-
-  Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=
-    if Coqlib.list_norepet_dec dec (List.map fst defs)
-    then
-      let sk := List.filter def_filter defs in
-      if List.forallb chk_ident sk
-      then Some (List.map (map_fst string_of_ident) sk)
-      else None
-    else None. *)
-
   Fixpoint get_fnsems (sk: Sk.t) (defs: list (string * globdef Clight.fundef type)) : list (string * (option string * Any.t -> itree Es Any.t)) :=
     match defs with
     | [] => []
@@ -577,12 +550,23 @@ Section DECOMP_PROG.
       end
     else None.
 
+  (* global compilation condition *)
+  Require Import ClightPlusMem0.
+
   Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"].
 
-  Definition sk_mem (clight_prog: Clight.program) := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) (prog_defs clight_prog)).
+  Definition mem_skel : option Sk.t :=
+    match get_sk defs with
+    | Some sk =>
+      let sk_mem := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) defs) in
+      match load_mem (Sk.canon (Sk.add sk_mem sk)) with
+      | Some _ => Some sk_mem
+      | None => None
+      end
+    | None => None
+    end.
 
-
-End DECOMP_PROG.  
+End DECOMP_PROG.
 
 (* Section EXECUTION_STRUCTURE. *)
 (*   (*   execution modules consist of modules executes in sites independently  *) *)

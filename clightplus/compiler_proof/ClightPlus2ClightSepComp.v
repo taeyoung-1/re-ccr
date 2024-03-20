@@ -78,37 +78,23 @@ Section PROOFSINGLE.
   (* second condition makes src valid addr -> tgt valid addr but not inverse *)
   (* so, src init succ -> tgt init succ *)
   (* compiler should check whether src init is a success *)
-  (* suggestion 1: compiler initialize its memory *)
-
-  (* if address points to external name *)
-  (* restrict thm to src initialization success (total program) *)
-  (* or ub when initialization fails *)
-
-  Lemma compile_init_mem_success clight_prog mn md tm:
+  Lemma compile_init_mem_success clight_prog mn md sk_mem:
     compile clight_prog mn = Some md ->
-    Genv.init_mem clight_prog = Some tm ->
-    exists m, load_mem (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) = Some m /\ match_mem (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) (globalenv clight_prog) m tm.
-
-  Lemma init_memory clight_prog mn md tm:
-    compile clight_prog mn = Some md ->
-    Genv.init_mem clight_prog = Some tm ->
-    exists m, load_mem (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) = Some m /\ match_mem (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) (globalenv clight_prog) m tm.
+    mem_skel clight_prog = Some sk_mem ->
+    exists m tm,
+    load_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) = Some m 
+    /\ Genv.init_mem clight_prog = Some tm
+    /\ match_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) (globalenv clight_prog) m tm.
   Proof.
-    i. assert (forall str gd, In (str, gd) (Sk.canon (Sk.add (sk_mem clight_prog) (Mod.sk md))) -> In (ident_of_string str, gd) (prog_defs clight_prog)) by now intros str gd; eapply asdf'; et.
-    set (Sk.canon _) as sk_init in *. clearbody sk_init.
-    unfold load_mem, Genv.init_mem in *.
-    assert
-    unfold compile, get_sk, sk_mem. i.
-    des_ifs. ss. 
-
-    clearbody sk_init.
+  Admitted.
 
 
-  (* This single thm will be used in final thm. *)
+  (* The thm is targeting closed program *)
   Theorem single_compile_behavior_improves
-          clight_prog md mn left_st right_st
+          clight_prog md sk_mem mn left_st right_st
           (COMP: compile clight_prog mn = Some md)
-          (SINIT: left_st = clightp_initial_state (sk_mem clight_prog) md)
+          (MEMSKEL: mem_skel clight_prog = Some sk_mem)
+          (SINIT: left_st = clightp_initial_state sk_mem md)
           (TINIT: Clight.initial_state clight_prog right_st)
         :
           <<IMPROVES: @improves2 _ (Clight.semantics2 clight_prog) left_st right_st>>.
@@ -132,57 +118,52 @@ Section PROOFSINGLE.
     i. clarify. rename f into tmainf.
 
     unfold cfunU. sim_red. unfold decomp_func. sim_red.
-    change (paco4 (_sim _ _) bot4) with (sim (clightp_sem (sk_mem clight_prog) md) (semantics2 clight_prog)).
+    change (paco4 (_sim _ _) bot4) with (sim (clightp_sem sk_mem md) (semantics2 clight_prog)).
     eapply sim_bot_flag_up with (b0 := true) (b1 := false).
 
     set (sort _) as sk_init in *.
     hexploit compile_match_genv; et. i.
-    eapply step_function_entry with (modl:=md) (tm:=m0) (ge:=globalenv clight_prog) (sk:=sk_init); et.
+    hexploit compile_init_mem_success; et. i. des. rewrite H3 in INIT_TMEM. clarify.
+    eapply step_function_entry with (modl:=md) (ge:=globalenv clight_prog) (sk:=sk_init); et.
     { unfold get_ce. ss. econs. split; i.
       - apply alist_find_some_iff; et. rewrite CoqlibC.NoDup_norepet. apply Maps.PTree.elements_keys_norepet.
       - eapply alist_find_some; et. }
-    { admit "". }
-    i. pfold. econs 4. { i. inv H5. et. } { eexists. econs. et. }
-    i. inv STEP. econs 8; et. left. 
+    { unfold sk_init. ss. rewrite H2. et. }
+    i. pfold. econs 4. { i. inv H9. et. } { eexists. econs. et. }
+    i. inv STEP. ss. unfold hide in H5. inv H5. inv H14.
+    rewrite H13 in *. clarify. hexploit alloc_variables_determ;[apply H12|apply H17|].
+    i. des. clarify. econs 8; et. left.
 
-    eapply match_states_sim; eauto.
-    { i. ss. clear - H5. depgen s. revert fd. induction defs; i; ss.
-      des_ifs; et.
-      { ss. des; et. clarify. apply Any.upcast_inj in H0. des.
-        apply JMeq_eq in EQ0. clarify. et. }
-      { ss. des; et. clarify. apply Any.upcast_inj in H0. des.
-        apply JMeq_eq in EQ0. clarify. } }
+    eapply match_states_sim; et.
+    { i. ss. clear - COMP H14. unfold compile, get_sk in COMP. des_ifs. ss.
+      clear - H14. apply in_map_iff in H14. des. destruct x. ss. clarify.
+      apply filter_In in H0. des. ss. des_ifs. et. }
+    { i. clear -MEMSKEL H14. unfold mem_skel, get_sk in MEMSKEL. des_ifs.
+      apply in_map_iff in H14. des. destruct x. ss. clarify. bsimpl. des.
+      apply incl_filter in H0. rewrite forallb_forall in Heq3.
+      hexploit Heq3; et. i. ss. destruct Pos.eq_dec; clarify. }
+    { i. clear -MEMSKEL H14. unfold mem_skel, get_sk in MEMSKEL. des_ifs.
+      apply in_map_iff in H14. des. destruct x. ss. clarify. bsimpl. des.
+      apply incl_filter in H0. rewrite forallb_forall in Heq3.
+      hexploit Heq3; et. i. ss. destruct Pos.eq_dec; clarify. }
+    { i. clear -MEMSKEL H14. unfold mem_skel, get_sk in MEMSKEL. des_ifs.
+      apply in_map_iff in H14. des. destruct x. ss. clarify. bsimpl. des.
+      apply incl_filter in H0. rewrite forallb_forall in Heq3.
+      hexploit Heq3; et. i. ss. destruct Pos.eq_dec; clarify. }
     { set (update _ _ _) as init_pstate. econs; et. 
-      { admit "global proof". }
+      { instantiate (1:=get_ce clight_prog). unfold get_ce. ss. econs. split; i.
+        - apply alist_find_some_iff; et. rewrite CoqlibC.NoDup_norepet. apply Maps.PTree.elements_keys_norepet.
+        - eapply alist_find_some; et. }
       { instantiate (1:= init_pstate). unfold init_pstate. unfold update. ss. }
-      { unfold fnsem_has_internal. i. apply Sk.sort_incl_rev in H5. ss. des; clarify.
+      { admit "internal_proof". }
+      (* { unfold fnsem_has_internal. i. apply Sk.sort_incl_rev in H5. ss. des; clarify.
         { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
         { apply Any.upcast_inj in H5. des. apply JMeq_eq in EQ0. clarify. }
         exists mn.
-        admit "relation between decomp_fundef and get_sk". }
+        admit "relation between decomp_fundef and get_sk". } *)
       { econs; et. }
-      instantiate (1 := mn).
-      ss. unfold itree_stop, kstop_itree, itree_of_cont_pop. ss. sim_redE.
-      unfold sge_init. ss.
-      set (EventsL.interp_Es _ _ _) as s. 
-      set (EventsL.interp_Es _ _ _) as s'.
-      assert (s = s').
-      { unfold s, s'. sim_redE. unfold prog_comp_env, mkprogram. des_ifs. } 
-      rewrite H5. apply bind_extk. i. sim_redE. des_ifs_safe. sim_redE.
-      clear FIND_ITREE.
-      destruct o.
-      { sim_redE. unfold mkprogram.  des_ifs_safe. ss. apply bind_extk. i. des_ifs_safe. sim_redE.
-
-
-        apply bind_extk. i. des_ifs_safe. sim_redE. et. }
-      { destruct o0.
-        { des_ifs_safe. sim_redE. apply bind_extk. i. des_ifs_safe. sim_redE. apply bind_extk.
-          i. des_ifs_safe. sim_redE. apply bind_extk.
-          i. des_ifs_safe. sim_redE. et. }
-        { sim_redE. do 2 f_equal. des_ifs_safe. sim_redE.
-          unfold mkprogram. des_ifs. ss. apply bind_extk.
-          i. des_ifs_safe. sim_redE. apply bind_extk.
-          i. des_ifs_safe. sim_redE. et. } } }
+      instantiate (1 := mn). 
+      admit "itree eq". }
   Qed.
 
   Theorem single_compile_program_improves
