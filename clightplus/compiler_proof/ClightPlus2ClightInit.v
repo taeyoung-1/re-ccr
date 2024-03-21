@@ -222,6 +222,203 @@ Proof.
     rewrite Genv.find_def_symbol in H2. des. clarify.
 Qed.
 
+(* 
+Require Import ClightPlusMem0.
+From compcert Require Import Memory Maps Values.
+
+to prove (GEND: map_blk (Pos.of_succ_nat (length sk)) = Genv.genv_next tge) => unfold map_blk. des_ifs; try nia.
+
+(* memory problem starts here : src memory init -> tgt init is not valid because of ill formed symb *)
+Definition bytes_of_init_data skenv (i : init_data) : list memval :=
+  match i with
+  | Init_int8 n => inj_bytes (encode_int 1 (Int.unsigned n))
+  | Init_int16 n => inj_bytes (encode_int 2 (Int.unsigned n))
+  | Init_int32 n => inj_bytes (encode_int 4 (Int.unsigned n))
+  | Init_int64 n => inj_bytes (encode_int 8 (Int64.unsigned n))
+  | Init_float32 n => inj_bytes (encode_int 4 (Int.unsigned (Float32.to_bits n)))
+  | Init_float64 n => inj_bytes (encode_int 8 (Int64.unsigned (Float.to_bits n)))
+  | Init_space n => repeat (Byte Byte.zero) (Z.to_nat n)
+  | Init_addrof symb ofs => 
+      match SkEnv.id2blk skenv (string_of_ident symb) with
+      | Some idx => inj_value (if Archi.ptr64 then Q64 else Q32) (Vptr (Pos.of_succ_nat idx) ofs)
+      | None => repeat Undef (if Archi.ptr64 then 8 else 4)
+      end
+  end.
+
+Fixpoint bytes_of_init_data_list skenv (il : list init_data) : list memval :=
+  match il with
+  | [] => []
+  | i :: il0 => bytes_of_init_data skenv i ++ bytes_of_init_data_list skenv il0
+  end.
+
+Definition sk_unsafe defs sk := Sk.canon (Sk.add (List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) defs)) sk).
+
+Definition load_mem_inversion sk m (SUCC: load_mem sk = Some m):
+  forall id v, In (id, Gvar v) sk -> 
+    Genv.init_data_list_aligned 0 (gvar_init v) /\ (forall symb ofs, In (Init_addrof symb ofs) (gvar_init v) -> exists idx, SkEnv.id2blk (load_skenv sk) (string_of_ident symb) = Some idx).
+Proof.
+Admitted.
+
+Lemma addrof_is_wf_in_global clight_prog sk_mem : 
+  mem_skel clight_prog = Some sk_mem -> 
+  exists sk, get_sk (prog_defs clight_prog) = Some sk 
+    /\ forall v symb ofs, In (Gvar v) (List.map snd (sk_unsafe (prog_defs clight_prog) sk)) -> In (Init_addrof symb ofs) (gvar_init v) -> SkEnv.id2blk (load_skenv (sk_unsafe (prog_defs clight_prog) sk)) (string_of_ident symb) <> None /\ chk_ident symb = true.
+Proof.
+  i. unfold mem_skel in H. des_ifs.
+  assert (forall v symb ofs, In (Gvar v) (List.map snd (sk_unsafe (prog_defs clight_prog) t)) -> In (Init_addrof symb ofs) (gvar_init v) -> SkEnv.id2blk (load_skenv (sk_unsafe (prog_defs clight_prog) t)) (string_of_ident symb) <> None /\ chk_ident symb = true); et.
+  unfold get_sk in Heq. des_ifs. i. unfold sk_unsafe in H.
+  apply in_map_iff in H. des. destruct x. simpl in H. clarify. hexploit load_mem_inversion; et.
+  i. des. hexploit H2; et. i. des. unfold sk_unsafe, gdef, proj_sumbool, sumbool_to_bool in *.
+  rewrite H3. split; clarify. clear -H3 Heq2.
+  destruct (in_dec Pos.eq_dec symb (List.map fst (List.filter def_filter (prog_defs clight_prog)))).
+  { rewrite forallb_forall in Heq2. apply Heq2. et. }
+Admitted.
+
+Lemma match_bytes_of_init_data sk tge i
+  (MGE: match_ge sk tge)
+  (VALID: forall symb ofs, i = Init_addrof symb ofs -> SkEnv.id2blk (load_skenv sk) (string_of_ident symb) <> None /\ chk_ident symb = true)
+:
+  List.map (map_memval sk tge) (bytes_of_init_data (load_skenv sk) i) = Genv.bytes_of_init_data tge i.
+Proof.
+  i. inv MGE. unfold bytes_of_init_data. des_ifs.
+  - ss. induction (Z.to_nat z); ss. f_equal; et.
+  - apply MGE0 in Heq. ss. hexploit VALID; et. i. des.
+    unfold chk_ident in H0. destruct Pos.eq_dec; clarify.
+    rewrite <- e in Heq. des_ifs.
+  - hexploit VALID; et. i. des. clarify.
+Qed.
+
+Lemma match_bytes_of_init_data_list sk tge il
+  (MGE: match_ge sk tge)
+  (VALID: forall symb ofs, In (Init_addrof symb ofs) il -> SkEnv.id2blk (load_skenv sk) (string_of_ident symb) <> None /\ chk_ident symb = true)
+:
+  List.map (map_memval sk tge) (bytes_of_init_data_list (load_skenv sk) il) = Genv.bytes_of_init_data_list tge il.
+Proof.
+  set il as il'. assert (List.incl il' il) by refl. clearbody il'.
+  induction il'; ss. rewrite map_app. f_equal; cycle 1.
+  { apply IHil'. etrans; et. ii. ss. et. }
+  apply match_bytes_of_init_data; et. i. ss. 
+  apply VALID with (ofs := ofs). apply H. clarify. ss. et.
+Qed.
+
+Lemma match_bytes_of_gvar_init clight_prog tge sk_mem
+  (MGE: match_ge (List.map (map_fst string_of_ident) (List.filter def_filter (prog_defs clight_prog))) tge)
+  (GCOMP: mem_skel clight_prog = Some sk_mem)
+:
+  forall idx s v, nth_error (List.map (map_fst string_of_ident) (List.filter def_filter (prog_defs clight_prog))) idx = Some (s, Gvar v) ->
+  List.map (map_memval (List.map (map_fst string_of_ident) (List.filter def_filter (prog_defs clight_prog))) tge) (bytes_of_init_data_list (load_skenv (List.map (map_fst string_of_ident) (List.filter def_filter (prog_defs clight_prog)))) (gvar_init v)) = Genv.bytes_of_init_data_list tge (gvar_init v).
+Proof.
+  hexploit addrof_is_wf_in_global; et. clear GCOMP. i. des.
+  apply match_bytes_of_init_data_list; et. i.
+  unfold get_sk in H. des_ifs. eapply H1; et. 
+  apply nth_error_in in H0. apply in_map with (f:=snd) in H0. et.
+Qed.
+
+Lemma tgt_init_mem_cnt_inbound (clight_prog: Clight.program) tm : 
+  Genv.init_mem clight_prog = Some tm ->
+  forall b gd, Genv.find_def (Genv.globalenv clight_prog) b = Some gd ->
+    match gd with
+    | Gfun _ => tm.(Mem.mem_contents) !! b = ZMap.init Undef
+    | Gvar v => tm.(Mem.mem_contents) !! b = Mem.setN (Genv.bytes_of_init_data_list (Genv.globalenv clight_prog) (gvar_init v)) 0 (ZMap.init Undef)
+    end.
+Proof.
+Admitted.
+
+Lemma tgt_init_mem_cnt_outbound (clight_prog: Clight.program) tm : 
+  Genv.init_mem clight_prog = Some tm ->
+  forall b gd, Genv.find_def (Genv.globalenv clight_prog) b = Some gd ->
+    match gd with
+    | Gfun _ => tm.(Mem.mem_contents) !! b = ZMap.init Undef
+    | Gvar v => tm.(Mem.mem_contents) !! b = Mem.setN (Genv.bytes_of_init_data_list (Genv.globalenv clight_prog) (gvar_init v)) 0 (ZMap.init Undef)
+    end.
+Proof.
+Admitted.
+
+(* outbound case is resolved by nextblock-argument *)
+Lemma tgt_init_mem_access (clight_prog: Clight.program) tm : 
+  Genv.init_mem clight_prog = Some tm ->
+  forall b gd, Genv.find_def (Genv.globalenv clight_prog) b = Some gd ->
+    match gd with
+    | Gfun _ => tm.(Mem.mem_access) !! b = fun ofs k => if zle 0 ofs && zlt ofs 1 then Some Nonempty else None
+    | Gvar v => tm.(Mem.mem_access) !! b = fun ofs k => if zle 0 ofs && zlt ofs (init_data_list_size (gvar_init v)) then Some (Genv.perm_globvar v) else None
+    end.
+Proof.
+Admitted.
+
+(* tgt_init_mem_nextblock = Genv.init_mem_genv_next *)
+(* tgt_init_mem_concrete = Genv.init_mem_logical *)
+
+Lemma src_init_mem_cnt_inbound (clight_prog: Clight.program) tm : 
+  Genv.init_mem clight_prog = Some tm ->
+  forall b gd, Genv.find_def (Genv.globalenv clight_prog) b = Some gd ->
+    match gd with
+    | Gfun _ => tm.(Mem.mem_contents) !! b = ZMap.init Undef
+    | Gvar v => tm.(Mem.mem_contents) !! b = Mem.setN (Genv.bytes_of_init_data_list (Genv.globalenv clight_prog) (gvar_init v)) 0 (ZMap.init Undef)
+    end.
+Proof.
+Admitted.
+
+Lemma src_init_mem_cnt_outbound (clight_prog: Clight.program) tm : 
+  Genv.init_mem clight_prog = Some tm ->
+  forall b gd, Genv.find_def (Genv.globalenv clight_prog) b = Some gd ->
+    match gd with
+    | Gfun _ => tm.(Mem.mem_contents) !! b = ZMap.init Undef
+    | Gvar v => tm.(Mem.mem_contents) !! b = Mem.setN (Genv.bytes_of_init_data_list (Genv.globalenv clight_prog) (gvar_init v)) 0 (ZMap.init Undef)
+    end.
+Proof.
+Admitted.
+
+Lemma src_init_mem_access (sk: Sk.t) m : 
+  load_mem sk = Some m ->
+  forall idx s gd, nth_error sk idx = Some (s, gd) ->
+    match gd with
+    | Gfun _ => m.(Mem.mem_access) !! (Pos.of_succ_nat idx) = fun ofs k => if zle 0 ofs && zlt ofs 1 then Some Nonempty else None
+    | Gvar v => m.(Mem.mem_access) !! (Pos.of_succ_nat idx) = fun ofs k => if zle 0 ofs && zlt ofs (init_data_list_size (gvar_init v)) then Some (Genv.perm_globvar v) else None
+    end.
+Proof.
+Admitted.
+
+Lemma src_init_mem_nextblock sk m :
+  load_mem sk = Some m -> Pos.of_succ_nat (List.length sk) = Mem.nextblock m.
+Proof.
+Admitted.
+
+Lemma src_init_mem_concrete sk m b :
+  load_mem sk = Some m -> m.(Mem.mem_concrete) ! b = None.
+Proof.
+Admitted.
+
+Lemma compile_init_mem_success clight_prog mn md sk_mem:
+  compile clight_prog mn = Some md ->
+  mem_skel clight_prog = Some sk_mem ->
+  exists m tm,
+  load_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) = Some m 
+  /\ Genv.init_mem clight_prog = Some tm
+  /\ match_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) (globalenv clight_prog) m tm.
+Proof.
+  i. hexploit compile_match_genv; et. i. unfold compile, mem_skel in *. des_ifs.
+  ss. rewrite Heq0.
+  assert (exists tm, Genv.init_mem clight_prog = Some tm /\
+          match_mem (sort (Sk.add (List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) (prog_defs clight_prog))) t)) (Genv.globalenv clight_prog) m tm); [|des;et].
+  clear - Heq Heq0 H1.
+  unfold Genv.init_mem, load_mem in *.
+  set (sort _) as sg in *. set (Genv.globalenv clight_prog) as tg in *.
+  Search Genv.init_mem.
+  assert (exists tm, Genv.init_mem clight_prog = Some tm). { admit. }
+  des.
+  assert (match_mem sg tg m tm); et.
+  apply Genv.init_mem_characterization_gen in H.
+  red in H. 
+  Print Genv.alloc_global.
+  
+  unfold sg in Heq0 at 2.
+  unfold 
+  dup H1. unfold tg in H1. unfold Genv.globalenv in H1. ss.
+  unfold Genv.globalenv in tg. Set Printing All.
+  clearbody sg tg. clear t clight_prog.
+
+Admitted. *)
+
 Require Import ClightPlusMem0.
 
 Lemma compile_init_mem_success clight_prog mn md sk_mem:

@@ -165,11 +165,17 @@ Section PROOFSINGLE.
       repeat (des_ifs; progress (sim_redE; grind)). }
   Qed.
 
+  (* TODO those should be intensly concerned in this week *)
   (* mem initialization condition : every Gvar has aligned and every Gvar address is in genv *)
   (* src align <-> tgt align is valid, Gvar is remain in both *)
-  (* second condition makes src valid addr -> tgt valid addr but not inverse *)
-  (* so, src init succ -> tgt init succ *)
-  (* compiler should check whether src init is a success *)
+  (* second condition makes src and tgt are decoupled *)
+  (* first, i may add initialization routine like finalization *)
+  (* so, src init succ -> tgt init succ should be forced *)
+  (* compiler should check the reasonalbe conditions *)
+  (* SO, THE THM IS TO BE PROVED FIRST *)
+
+  (* i added finalize routine in main but, this may occur problem when we prove main called program *)
+  (* i added finalize routine in main but, this may occur problem when we prove main called program *)
   Theorem single_compile_program_improves
           (types: list Ctypes.composite_definition)
           (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))
