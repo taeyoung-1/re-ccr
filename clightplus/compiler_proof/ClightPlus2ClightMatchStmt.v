@@ -68,7 +68,7 @@ Section MATCH.
                               triggerUB 
                               triggerUB 
                               (tau;;free_list_aux (blocks_of_env ce e);;; Ret (e, le, None, Some Vundef))) optb optv;; 
-      v <- optv'?;; (match v with | Vint _ => Ret v | _ => triggerUB end).
+      optv'?.
 
   Definition itree_stop (mn: string) := fun '(pstate, renv) => Es_to_eventE ms mn (kstop_itree renv) pstate.
 

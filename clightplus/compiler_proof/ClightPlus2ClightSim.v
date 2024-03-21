@@ -313,7 +313,11 @@ Section PROOF.
     destruct tcode.
     - ss. unfold hide. ss. sim_red.
       destruct tcont; inv MCONT; ss; clarify.
-      + step. eapplyfarg step_freeing_stack ge. i. sim_red. sim_triggerUB.
+      + step. eapplyfarg step_freeing_stack ge. i. sim_red.
+        try pfold. econs 5.
+        { ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et. }
+        { i. inv H1. }
+        i. inv STEP.
       + step. tgt_step. i. inv STEP; ss. wrap_up. apply CIH. econs; et.
       + step. tgt_step. i. inv STEP; ss. wrap_up. apply CIH. econs; et.
         { econs; et. }
@@ -701,7 +705,11 @@ Section PROOF.
       + step. eapplyf return_cont; et. i.
         rewrite H0. clear H0. remember (call_cont tcont) as tcont'. 
         inv H; try solve [specialize (call_cont_is_call_cont tcont); rewrite <- H3; clarify].
-        * ss. step. eapply step_freeing_stack with (ge := ge); et. i. sim_triggerUB.
+        * ss. step. eapply step_freeing_stack with (ge := ge); et. i. sim_red. 
+          try pfold. econs 5.
+          { ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et. }
+          { i. inv H1. }
+          i. inv STEP.
         * ss. sim_red. eapply step_freeing_stack with (ge := ge); et. i. step.
           tgt_step. i. inv STEP. all: des; clarify. rewrite <- H3.
           tgt_step. i. inv STEP. all: des; clarify.
@@ -718,6 +726,8 @@ Section PROOF.
         * ss. step. eapply step_freeing_stack with (ge := ge); et. i. step.
           remove_UBcase. tgt_step. i. inv STEP. all: des; clarify.
           ss. rewrite GCEQ in H11. determ Clight_eval_expr_determ eval_expr.
+          destruct v'0.
+          all: try solve [try pfold; econs 5; [ss; unfold state_sort; ss; rewrite Any.upcast_downcast; et| let X := fresh in intros st1 st2 X; inv X| i; inv STEP]].
           econs 1. 2:{ ss. rewrite <- H6. econs. }
           ss. unfold state_sort. ss. rewrite Any.upcast_downcast. et.
         * ss. step. eapply step_freeing_stack with (ge := ge); et. i. step. tgt_step.
