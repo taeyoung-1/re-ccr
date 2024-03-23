@@ -503,7 +503,7 @@ Section DECOMP_PROG.
   Variable mn: string.
 
   (* Fixpoint get_source_name (filename : string) := *)
-  (*   String.substring 0 (String.length filename - 2) filename. *)
+  (* String.substring 0 (String.length filename - 2) filename. *)
 
   (* local compilation condition *)
   Definition def_filter (gdef: ident * globdef Clight.fundef type) : bool :=
@@ -513,6 +513,19 @@ Section DECOMP_PROG.
     end.
 
   Definition chk_ident (name: ident) : bool := Pos.eq_dec name (ident_of_string (string_of_ident name)).
+
+  Definition chk_init_data (i: init_data) : bool :=
+    match i with
+    | Init_addrof symb _ => chk_ident symb
+    | _ => true
+    end.
+
+  Definition chk_gd (gd: globdef Clight.fundef type) : bool :=
+    match gd with
+    | Gvar (mkglobvar _ il _ _) => forallb chk_init_data il
+    | _ => true
+    end.
+
 
   Definition call_ban (entry: ident * globdef Clight.fundef type) : bool :=
     let (ident, gd) := entry in
@@ -527,7 +540,7 @@ Section DECOMP_PROG.
     if Coqlib.list_norepet_dec dec (List.map fst defs) && (forallb call_ban defs)
     then
       let sk := List.filter def_filter defs in
-      if List.forallb chk_ident (List.map fst sk)
+      if List.forallb chk_ident (List.map fst sk) && forallb chk_gd (List.map snd sk)
       then Some (List.map (map_fst string_of_ident) sk)
       else None
     else None.
@@ -555,13 +568,47 @@ Section DECOMP_PROG.
 
   Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"].
 
+  Definition mem_init_cond (sk sk': Sk.t) := forall s v, In (s, Gvar v) sk -> Genv.init_data_list_aligned 0 (gvar_init v) /\ (forall symb ofs, In (Init_addrof symb ofs) (gvar_init v) -> exists idx, SkEnv.id2blk (load_skenv sk') (string_of_ident symb) = Some idx).
+
+  Definition init_data_list_aligned_dec il p : { Genv.init_data_list_aligned p il} + { ~ Genv.init_data_list_aligned p il}.
+  Proof.
+    revert p. induction il; ss; et. i. destruct (IHil (p + init_data_size a)%Z); cycle 1. { right. ii. apply n. des. et. }
+    destruct (Zdivide_dec (Genv.init_data_alignment a) p). { left. et. } right. ii. apply n. des. et.
+  Qed.
+
+  Definition addr_find_dec sk il : { forall symb ofs, In (Init_addrof symb ofs) il -> exists idx, SkEnv.id2blk (load_skenv sk) (string_of_ident symb) = Some idx } + {~ (forall symb ofs, In (Init_addrof symb ofs) il -> exists idx, SkEnv.id2blk (load_skenv sk) (string_of_ident symb) = Some idx) }.
+  Proof.
+    induction il; ss. { left. i. clarify. }
+    destruct IHil; cycle 1.
+    - right. ii. apply n. i. et.
+    - destruct a.
+      all: try solve [left; ii; des; clarify; et].
+      destruct (SkEnv.id2blk (load_skenv sk) (string_of_ident i)) eqn:?.
+      + left. i. des; et. clarify. et.
+      + right. ii. hexploit H; et. i. des. clarify.
+  Qed.
+
+  Definition mem_init_cond_dec sk sk' : { mem_init_cond sk sk'} + { ~ mem_init_cond sk sk'}.
+  Proof.
+    revert sk'. induction sk; i. { left. ss. }
+    destruct (IHsk sk'); cycle 1.
+    - right. ii. apply n. ii. red in H. hexploit H; et. ss. et.
+    - destruct a. destruct g. 
+      + left. ii. red in m. ss. des; et. clarify.
+      + destruct (init_data_list_aligned_dec (gvar_init v) 0); cycle 1.
+        { right. ii. apply n. red in H. hexploit H; et. { ss. et. } i. des. et. }
+        destruct (addr_find_dec sk' (gvar_init v)).
+        { left. ii. ss. des; et. clarify. }
+        right. ii. red in H. hexploit H; et. { ss. et. } i. des. et.
+  Qed.
+
   Definition mem_skel : option Sk.t :=
     match get_sk defs with
     | Some sk =>
       let sk_mem := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) defs) in
-      match load_mem (Sk.canon (Sk.add sk_mem sk)) with
-      | Some _ => Some sk_mem
-      | None => None
+      match mem_init_cond_dec (Sk.canon (Sk.add sk_mem sk)) (Sk.canon (Sk.add sk_mem sk)) with
+      | in_left => Some sk_mem
+      | in_right => None
       end
     | None => None
     end.

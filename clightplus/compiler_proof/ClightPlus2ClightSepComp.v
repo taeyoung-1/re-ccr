@@ -174,8 +174,6 @@ Section PROOFSINGLE.
   (* compiler should check the reasonalbe conditions *)
   (* SO, THE THM IS TO BE PROVED FIRST *)
 
-  (* i added finalize routine in main but, this may occur problem when we prove main called program *)
-  (* i added finalize routine in main but, this may occur problem when we prove main called program *)
   Theorem single_compile_program_improves
           (types: list Ctypes.composite_definition)
           (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))
