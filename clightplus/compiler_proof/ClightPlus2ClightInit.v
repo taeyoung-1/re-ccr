@@ -179,7 +179,7 @@ Proof.
   - ii. unfold compile, get_sk in H. des_ifs. ss. unfold mem_skel in H0. des_ifs.
     bsimpl. des. clear - Heq1 Heq3 H1 H2. revert_until clight_prog. generalize (prog_defs clight_prog).
     clear clight_prog. induction l; i; ss. bsimpl. des. des_ifs; et.
-    + destruct in_dec; clarify. clear -Heq3 Heq i. destruct a; ss. des_ifs; destruct in_dec; clarify.
+    + destruct in_dec; clarify. clear -Heq3 Heq i. destruct a; ss. des_ifs; destruct in_dec; des; clarify; ss; et.
     + ss. bsimpl. des; et. clarify. destruct in_dec; clarify. clear - Heq1 n H1. induction l; ss.
       destruct in_dec; clarify. ss. destruct H1; et. destruct a; destruct a0; ss. unfold chk_ident in Heq1.
       destruct Pos.eq_dec; clarify. clear Heq1. des; try tauto; clarify; rewrite string_of_ident_of_string in *; rewrite <- H in *; et.
@@ -376,7 +376,7 @@ Proof.
   clear - H1 H2 Heq. unfold get_sk in Heq. des_ifs. bsimpl. des.
   - unfold sk_mem in H1. rewrite in_map_iff in H1. des. destruct x; ss; clarify.
     apply filter_In in H0. des. rewrite forallb_forall in Heq3. apply Heq3 in H0. ss.
-    destruct in_dec; clarify.
+    destruct in_dec; clarify. destruct in_dec; clarify. ss. des; clarify; ss; et. exfalso. et.
   - clear sk_mem. rewrite forallb_forall in Heq2.
     rewrite in_map_iff in H1. des. destruct x; ss; clarify.
     apply in_map with (f:=snd) in H0. ss. apply Heq2 in H0. ss. des_ifs.

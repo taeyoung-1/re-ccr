@@ -533,7 +533,7 @@ Section DECOMP_PROG.
     | Gfun (External EF_malloc _ _ _) => Pos.eq_dec ident (ident_of_string "malloc")
     | Gfun (External EF_free _ _ _) => Pos.eq_dec ident (ident_of_string "free")
     | Gfun (External EF_capture _ _ _) => Pos.eq_dec ident (ident_of_string "capture")
-    | _ => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"])
+    | _ => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"; ident_of_string "salloc"; ident_of_string "sfree";ident_of_string "load";ident_of_string "store";ident_of_string "sub_ptr";ident_of_string "cmp_ptr";ident_of_string "non_null?";ident_of_string "memcpy"])
     end.
 
   Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=

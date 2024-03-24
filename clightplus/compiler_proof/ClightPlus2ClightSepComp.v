@@ -139,40 +139,48 @@ Section PROOFSINGLE.
         - apply alist_find_some_iff; et. rewrite CoqlibC.NoDup_norepet. apply Maps.PTree.elements_keys_norepet.
         - eapply alist_find_some; et. }
       { instantiate (1:= init_pstate). unfold init_pstate. unfold update. ss. }
-      { ii. unfold compile in COMP. des_ifs. set (ModSemL.fnsems _).
-        eassert (a = (ModSemL.fnsems (MemSem t)) ++ _) by ss.
-        rewrite H18. rewrite alist_find_app_o. clear H18 a.
-        (* assert (alist_find s (ModSemL.fnsems (MemSem t)) = None).
+      { ii. hexploit compile_sk_incl; et. i. 
+        set (ModSemL.fnsems _). eassert (a = (ModSemL.fnsems (MemSem sk_mem)) ++ _) by ss.
+        rewrite H19. rewrite alist_find_app_o.
+        assert (alist_find s (ModSemL.fnsems (MemSem sk_mem)) = None).
         { destruct (alist_find s) eqn:?; et.
           apply alist_find_some in Heqo.
-          unfold ModL.wf in w. des. ss.
-          inv WF. ss. pose proof Sk.le_canon_rev. ss. apply H18 in H14.
-          apply in_app in H14. destruct H14. { unfold mem_skel in *. des_ifs. }
-          assert (In s (List.map fst (List.map (map_snd (fun sem => transl_all mn (T:=Any.t) ∘ sem)) (get_fnsems clight_prog (sort (Sk.add sk_mem t)) t)))).
-          { clear - H14. 
-            induction (sort _); ss. des; clarify. { unfold get_fnsems. }
-
-          }
-       unfold ModSemL.wf.
-
-        }
-        rewrite H18. clear H18. ss. exists mn.  *)
-
-         admit "internal_proof". }
+          unfold compile, get_sk in COMP. des_ifs.
+          bsimpl. des. rewrite forallb_forall in Heq3. hexploit Heq3; et. i.
+          Local Opaque in_dec. ss. exfalso. destruct in_dec; clarify.
+          apply n. des; clarify; ss; tauto. }
+        rewrite H20. move H14 at bottom. set (List.map _ _).
+        assert (alist_find s l <> None).
+        { destruct (alist_find s l) eqn:?; clarify.
+          clear a H19. eapply alist_find_none in Heqo. exfalso. apply Heqo.
+          unfold l. rewrite in_map_iff. set (sort _).
+          eexists (s, cfunU (decomp_func a (get_ce clight_prog) f)). split; et. 
+          generalize Sk.le_canon_rev. i. clear H20.
+          ss. apply H19 in H14. unfold Sk.add in H14.
+          ss. apply in_app in H14. des.
+          { unfold mem_skel in MEMSKEL.
+            des_ifs. rewrite in_map_iff in H14. des. destruct x; ss. clarify.
+            apply filter_In in H20. des.
+            unfold compile, get_sk in COMP. des_ifs.
+            bsimpl. des. rewrite forallb_forall in Heq4. hexploit Heq4; et. i.
+            destruct in_dec; clarify. ss. destruct in_dec; clarify. ss. exfalso. tauto. }
+          unfold compile, get_sk in COMP. des_ifs. ss.
+          clearbody a. clear - H14.
+          induction (List.map (map_fst string_of_ident) (List.filter def_filter (prog_defs clight_prog))); i; ss.
+          des. { clarify. ss. et. } des_ifs; et. ss. et. }
+        destruct (alist_find s l) eqn:?; clarify.
+        unfold l in Heqo. rewrite alist_find_map_snd in Heqo. uo. des_ifs.
+        hexploit in_tgt_prog_defs_decomp; et. i. des. clarify.
+        replace f0 with f. { eexists. f_equal. extensionalities. des_ifs. }
+        clear -H23 H18 COMP. 
+        assert (alist_find (ident_of_string s) (prog_defs clight_prog) = Some (Gfun (Internal f))); clarify.
+        apply alist_find_some_iff; et. unfold compile, get_sk in COMP. des_ifs. destruct list_norepet_dec; clarify.
+        apply CoqlibC.NoDup_norepet. et. }
       { econs; et. }
       unfold itree_of_stmt, itree_stop, Es_to_eventE, kstop_itree, itree_of_cont_pop. 
       unfold sk_init. ss. sim_redE. apply bind_extk. i.
       repeat (des_ifs; progress (sim_redE; grind)). }
   Qed.
-
-  (* TODO those should be intensly concerned in this week *)
-  (* mem initialization condition : every Gvar has aligned and every Gvar address is in genv *)
-  (* src align <-> tgt align is valid, Gvar is remain in both *)
-  (* second condition makes src and tgt are decoupled *)
-  (* first, i may add initialization routine like finalization *)
-  (* so, src init succ -> tgt init succ should be forced *)
-  (* compiler should check the reasonalbe conditions *)
-  (* SO, THE THM IS TO BE PROVED FIRST *)
 
   Theorem single_compile_program_improves
           (types: list Ctypes.composite_definition)
