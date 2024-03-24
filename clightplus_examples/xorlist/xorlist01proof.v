@@ -96,6 +96,7 @@ Section PROOF.
     repeat match goal with
           | H: Coqlib.list_norepet _ |- _ => clear H
           | H: forallb _ _ = true |- _ => clear H
+          | H: forallb _ _ && _ = true |- _ => clear H
           | H: Ctypes.prog_main _ = _ |- _ => clear H
           end.
 
@@ -104,7 +105,7 @@ Section PROOF.
       ("add_tl", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure add_tl_spec))
       ("add_tl", cfunU (decomp_func sk ce f_add_tl)).
   Proof.
-    (* Local Opaque encode_val.
+    Local Opaque encode_val.
     Local Opaque cast_to_ptr.
     unfold_comp _xor VALID.
     econs; ss. red.
@@ -416,15 +417,14 @@ Section PROOF.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
-  Qed. *)
-  Admitted.
+  Qed.
 
   Lemma sim_add_hd :
     sim_fnsem wf top2
       ("add_hd", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure add_hd_spec))
       ("add_hd", cfunU (decomp_func sk ce f_add_hd)).
   Proof.
-    (* Local Opaque encode_val.
+    Local Opaque encode_val.
     Local Opaque cast_to_ptr.
     unfold_comp _xor VALID.
     econs; ss. red.
@@ -726,15 +726,14 @@ Section PROOF.
     - unfold Vptrofs in *. des_ifs. f_equal. 
       rewrite int64_ptrofs_xor_comm. f_equal. rewrite Ptrofs.xor_commut.
       f_equal. rewrite Ptrofs.xor_zero_l. et.
-  Qed. *)
-  Admitted.
+  Qed.
 
   Lemma sim_delete_tl :
     sim_fnsem wf top2
       ("delete_tl", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_tl_spec))
       ("delete_tl", cfunU (decomp_func sk ce f_delete_tl)).
   Proof.
-    (* Local Opaque encode_val.
+    Local Opaque encode_val.
     unfold_comp _xor VALID.
     econs; ss. red.
 
@@ -1020,15 +1019,14 @@ Section PROOF.
       rewrite <- Ptrofs.xor_assoc. 
       rewrite Ptrofs.xor_idem.
       rewrite Ptrofs.xor_zero_l. et.
-  Qed. *)
-  Admitted.
+  Qed.
 
   Lemma sim_delete_hd :
     sim_fnsem wf top2
       ("delete_hd", fun_to_tgt "xorlist" (GlobalStb sk) (mk_pure delete_hd_spec))
       ("delete_hd", cfunU (decomp_func sk ce f_delete_hd)).
   Proof.
-    (* Local Opaque encode_val.
+    Local Opaque encode_val.
     unfold_comp _xor VALID.
     econs; ss. red.
 
@@ -1304,8 +1302,7 @@ Section PROOF.
       rewrite <- Ptrofs.xor_assoc. 
       rewrite Ptrofs.xor_idem.
       rewrite Ptrofs.xor_zero_l. et.
-  Qed. *)
-  Admitted.
+  Qed.
 
   End SIMFUNS.
 
