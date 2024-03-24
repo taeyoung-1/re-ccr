@@ -526,6 +526,10 @@ Section DECOMP_PROG.
     | _ => true
     end.
 
+  Definition main_type ident fd : bool :=
+    if Pos.eq_dec ident (ident_of_string "main")
+    then type_eq (type_of_fundef fd) (Tfunction Ctypes.Tnil type_int32s cc_default)
+    else true.
 
   Definition call_ban (entry: ident * globdef Clight.fundef type) : bool :=
     let (ident, gd) := entry in
@@ -533,6 +537,7 @@ Section DECOMP_PROG.
     | Gfun (External EF_malloc _ _ _) => Pos.eq_dec ident (ident_of_string "malloc")
     | Gfun (External EF_free _ _ _) => Pos.eq_dec ident (ident_of_string "free")
     | Gfun (External EF_capture _ _ _) => Pos.eq_dec ident (ident_of_string "capture")
+    | Gfun fd => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"; ident_of_string "salloc"; ident_of_string "sfree";ident_of_string "load";ident_of_string "store";ident_of_string "sub_ptr";ident_of_string "cmp_ptr";ident_of_string "non_null?";ident_of_string "memcpy"]) && main_type ident fd
     | _ => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"; ident_of_string "salloc"; ident_of_string "sfree";ident_of_string "load";ident_of_string "store";ident_of_string "sub_ptr";ident_of_string "cmp_ptr";ident_of_string "non_null?";ident_of_string "memcpy"])
     end.
 

@@ -103,6 +103,21 @@ Proof.
   i. apply Genv.find_def_symbol in H. des. clarify.
 Qed.
 
+Lemma tgt_genv_match_symb_def_by_blk
+    clight_prog md mn name b gd
+    (COMP: compile clight_prog mn = Some md)
+    (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) name = Some b)
+    (INTGT: alist_find name (prog_defs clight_prog) = Some gd)
+:
+    Genv.find_def (Genv.globalenv clight_prog) b = Some gd.
+Proof.
+  unfold compile, get_sk in COMP. des_ifs_safe. apply alist_find_some in INTGT.
+  change (prog_defs clight_prog) with (AST.prog_defs clight_prog) in INTGT.
+  bsimpl. des. destruct list_norepet_dec; clarify.
+  hexploit prog_defmap_norepet; eauto; ss.
+  i. apply Genv.find_def_symbol in H. des. clarify.
+Qed.
+
 (* These theorems are conditions should satisfied in closed program *)
 Require Import ClightPlus2ClightMatchEnv.
 Local Opaque in_dec.

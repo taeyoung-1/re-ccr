@@ -183,69 +183,46 @@ Section PROOFSINGLE.
   Qed.
 
   Theorem single_compile_program_improves
-          (types: list Ctypes.composite_definition)
-          (defs: list (AST.ident * AST.globdef Clight.fundef Ctypes.type))
-          (public: list AST.ident)
-          (WF_TYPES: Clightdefs.wf_composites types)
-          mn clight_prog
-          (WFDEF_NODUP: NoDup (List.map fst defs))
-          (WFDEF_EXT: forall a, In a Mem.(Mod.sk) -> In a (List.map (fun '(p, gd) => (string_of_ident p, gd↑)) defs))
-          (COMP: clight_prog = mkprogram types defs public (ident_of_string "main") WF_TYPES)
+          clight_prog md sk_mem mn
+          (COMP: compile clight_prog mn = Some md)
+          (MEMSKEL: mem_skel clight_prog = Some sk_mem)
     :
-      <<IMPROVES: improves2_program (clightligt_sem types defs WF_TYPES mn) (Clight.semantics2 clight_prog)>>.
+      <<IMPROVES: improves2_program (clightp_sem sk_mem md) (Clight.semantics2 clight_prog)>>.
   Proof.
     red. unfold improves2_program. i. inv BEH.
     { hexploit single_compile_behavior_improves.
-      1,2,3: et. 1: refl. 1: ss; et. unfold improves2, clightlight_initial_state. i.
+      { et. } { et. } { reflexivity. } { et. }
+      unfold improves2, clightp_initial_state. i.
       eapply H1; et. }
     (* initiall wrong case, for us only when main is not found *)
     exists (Tr.ub). split; red; eauto.
     2:{ pfold. econs 4; eauto.
         - ss.
-        - unfold Behaviors.behavior_prefix. exists (Behaviors.Goes_wrong Events.E0). ss.
-    }
-    Print Clight.initial_state.
+        - unfold Behaviors.behavior_prefix. exists (Behaviors.Goes_wrong Events.E0). ss. }
     ss. unfold ModSemL.initial_itr.
-    pfold. econs 6; ss; eauto.
-    unfold Beh.inter. ss. unfold assume. grind.
-    apply ModSemL.step_trigger_take_iff in STEP. des. clarify. split; eauto.
-    red. unfold ITree.map; ss.
+    destruct ModL.wf_bool.
+    2:{ unfold triggerUB. grind. pfold. econs 6; ss; et.
+        unfold Beh.inter. ss. i. apply ModSemL.step_trigger_take_iff in STEP.
+        des. clarify. }
+    red. grind. unfold ITree.map; ss.
     unfold unwrapU. des_ifs.
     (* main do not exists, ub *)
-    2:{ sim_red. unfold triggerUB. grind. econs 6; ss. grind. ss. apply ModSemL.step_trigger_take_iff in STEP. des. clarify. }
-
+    2:{ sim_red. unfold triggerUB. grind. pfold. econs 6; ss. grind. ss. apply ModSemL.step_trigger_take_iff in STEP. des. clarify. }
     (* found main, contradiction *)
     exfalso.
-    rename Heq into FSEM.
-    grind. rewrite alist_find_find_some in FSEM. rewrite find_map in FSEM.
-    match goal with
-    | [ FSEM: o_map (?a) _ = _ |- _ ] => destruct a eqn:FOUND; ss; clarify
-    end.
-    destruct p as [? ?]; ss; clarify. rewrite find_map in FOUND.
-    uo. des_ifs_safe.
-    eapply found_itree_clight_function in Heq. des; clarify.
-    assert (exists f, In (p0, Gfun (Internal f)) defs).
-    { clear -Heq0 Heq. set (Sk.sort _) as sk in *. clearbody sk.
-      revert_until defs. induction defs; et.
-      i. ss. destruct a. destruct g.
-      - destruct f.
-        + ss. destruct Heq0.
-          * clarify. et. 
-          * eapply IHdefs in H; et. des. et.
-        + eapply IHdefs in Heq0; et. des. et.
-      - eapply IHdefs in Heq0; et. des. et. }
-    des. replace defs with (mkprogram types defs public (ident_of_string "main") WF_TYPES).(AST.prog_defs) in H0 by solve_mkprogram.
-    hexploit Globalenvs.Genv.find_symbol_exists; et. i. des.
-    hexploit tgt_genv_find_def_by_blk; eauto. 1:{ admit "provable". }
-    i. assert (exists m, Genv.init_mem (mkprogram types defs public (ident_of_string "main") WF_TYPES) = Some m) by admit "hypothesis".
-    des. 
-    specialize H with (Callstate (Internal f) [] Kstop m).
-    eapply H.
-    econs; ss; eauto.
-    { solve_mkprogram. ss. replace (ident_of_string "main") with p0 by admit "provable". et. }
-    { unfold Genv.find_funct_ptr. rewrite H3. et. }
-    admit "hypothesis".
-    Unshelve. inv Heq0.
+    rewrite alist_find_map_snd in Heq10. uo; des_ifs; ss.
+    hexploit in_tgt_prog_defs_decomp; et. i. des. clarify.
+    hexploit in_tgt_prog_main; et. i. rewrite <- H0 in *.
+    hexploit compile_init_mem_success; et. i. des.
+    change (prog_defs clight_prog) with (AST.prog_defs (program_of_program clight_prog)) in H1.
+    dup H1. apply alist_find_some in H1. hexploit Genv.find_symbol_exists; et.
+    i. des. hexploit tgt_genv_match_symb_def_by_blk; et.
+    i. apply (H (Callstate (Internal f) [] Kstop tm)).
+    econs; et. { unfold Genv.find_funct_ptr. des_ifs. }
+    clear - COMP H1 H0. unfold compile, get_sk in COMP. des_ifs.
+    bsimpl. des. rewrite forallb_forall in Heq3. apply Heq3 in H1.
+    ss. bsimpl. des. unfold main_type in H2.
+    des_ifs. destruct type_eq; clarify.
   Qed.
 
 End PROOFSINGLE.
