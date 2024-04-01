@@ -28,6 +28,24 @@ Require Import ClightPlus2ClightInit.
 
 Require Import Admit.
 
+Definition compile_val mdl := @ModL.compile _ EMSConfigC mdl.
+
+Definition clightp_sem sk_mem mdl := compile_val (ModL.add (Mod.lift (Mem sk_mem)) mdl).
+
+Definition clightp_initial_state sk_mem mdl := (clightp_sem sk_mem mdl).(STS.initial_state).
+
+
+Section REF.
+
+  Theorem refine_improve_trans mdl1 mdl2 clight_prog sk: refines_closed (ModL.add (Mem sk) mdl1) (ModL.add (Mem sk) mdl2) -> improves2_program (clightp_sem sk mdl1) (Clight.semantics2 clight_prog) -> improves2_program (clightp_sem sk mdl2) (Clight.semantics2 clight_prog).
+  Proof.
+    i. unfold refines_closed, improves2_program in *. i. hexploit H0. { apply BEH. }
+    i. des. unfold Beh.of_program in H. unfold clightp_sem, compile_val in BEH0. hexploit H. { apply BEH0. }
+    i. esplits. { apply H1. } apply SIM.
+  Qed.
+
+End REF.
+
 Section PROOFSINGLE.
 
   Ltac sim_red := try red; Red.prw ltac:(_red_gen) 2 0. (* these are itree normalization tactic *)
@@ -60,12 +78,6 @@ Section PROOFSINGLE.
   Ltac tgt_step := try pfold; econs 4; eexists; eexists.
 
   Ltac wrap_up := try pfold; econs 7; et; right.
-
-  Definition compile_val mdl := @ModL.compile _ EMSConfigC mdl.
-
-  Definition clightp_sem sk_mem md := compile_val (ModL.add (Mod.lift (Mem sk_mem)) (Mod.lift md)).
-
-  Definition clightp_initial_state sk_mem md := (clightp_sem sk_mem md).(STS.initial_state).
 
   Local Opaque ident_of_string.
   Arguments Es_to_eventE /.
