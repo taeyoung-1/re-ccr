@@ -83,7 +83,7 @@ Section PROOF.
 
   Section SIMFUNS.
   Variable xor0 : Mod.t.
-  Hypothesis VALID : xorlist0._xor = Some xor0.
+  Hypothesis VALID : xorlist0._xor = Errors.OK xor0.
 
   Variable sk: Sk.t.
   Hypothesis SKINCL1 : Sk.le (xor0.(Mod.sk)) sk.
@@ -1310,7 +1310,7 @@ Section PROOF.
   Require Import ClightPlusMem01Proof.
 
   Variable xor0 : Mod.t.
-  Hypothesis VALID : xorlist0._xor = Some xor0.
+  Hypothesis VALID : xorlist0._xor = Errors.OK xor0.
 
   Theorem correct : refines2 [xor0; (ClightPlusMem0.Mem mfsk)] [xorlist1.xor xor0 GlobalStb; (ClightPlusMem1.Mem mfsk)].
   Proof.

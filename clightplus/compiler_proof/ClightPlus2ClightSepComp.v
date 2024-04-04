@@ -46,6 +46,23 @@ Section REF.
 
 End REF.
 
+(* Section SEPCOMP.
+
+  Theorem compile_behavior_improves
+          (srcs : list Imp.program) (tgts : Coqlib.nlist Csharpminor.program)
+          (COMP: Forall2 (fun src tgt => compile_imp src = OK tgt) srcs tgts)
+          (LINKSRC: exists srcl, link_imps srcs = Some srcl)
+    :
+      exists tgtl, ((link_list tgts = Some tgtl) /\
+               (improves2_program (imps_sem srcs) (Csharpminor.semantics tgtl))).
+  Proof.
+    hexploit compile_behavior_improves_compile_exists; eauto. i. des. exists tgtl. split; eauto.
+    eapply compile_behavior_improves_compile; eauto.
+  Qed.
+
+
+End SEPCOMP. *)
+
 Section PROOFSINGLE.
 
   Ltac sim_red := try red; Red.prw ltac:(_red_gen) 2 0. (* these are itree normalization tactic *)
@@ -88,8 +105,8 @@ Section PROOFSINGLE.
   (* The thm is targeting closed program *)
   Theorem single_compile_behavior_improves
           clight_prog md sk_mem mn left_st right_st
-          (COMP: compile clight_prog mn = Some md)
-          (MEMSKEL: mem_skel clight_prog = Some sk_mem)
+          (COMP: compile clight_prog mn = Errors.OK md)
+          (MEMSKEL: mem_skel clight_prog = Errors.OK sk_mem)
           (SINIT: left_st = clightp_initial_state sk_mem md)
           (TINIT: Clight.initial_state clight_prog right_st)
         :
@@ -196,8 +213,8 @@ Section PROOFSINGLE.
 
   Theorem single_compile_program_improves
           clight_prog md sk_mem mn
-          (COMP: compile clight_prog mn = Some md)
-          (MEMSKEL: mem_skel clight_prog = Some sk_mem)
+          (COMP: compile clight_prog mn = Errors.OK md)
+          (MEMSKEL: mem_skel clight_prog = Errors.OK sk_mem)
     :
       <<IMPROVES: improves2_program (clightp_sem sk_mem md) (Clight.semantics2 clight_prog)>>.
   Proof.

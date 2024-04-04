@@ -1,4 +1,4 @@
-From compcert Require Import Coqlib Behaviors Integers Floats AST Globalenvs Ctypes Cop Clight Clightdefs.
+From compcert Require Import Coqlib Errors Behaviors Integers Floats AST Globalenvs Ctypes Cop Clight Clightdefs.
 Require Import CoqlibCCR.
 Require Import ModSem.
 Require Import ClightPlusExprgen ClightPlusgen ClightPlusSkel.
@@ -18,7 +18,7 @@ Proof.
     apply alist_find_some in H1. eapply in_map with (f:=fst) in H1. ss.
 Qed.
 
-Lemma get_sk_nodup l t : get_sk l = Some t -> NoDup (List.map fst t).
+Lemma get_sk_nodup l t : get_sk l = OK t -> NoDup (List.map fst t).
 Proof.
   revert t. induction l; unfold get_sk; i; des_ifs. { econs. }
   2:{ apply IHl. unfold get_sk. ss. des_ifs. ss. bsimpl. des. clarify. }
@@ -45,7 +45,7 @@ Proof.
 Qed.
 
 Theorem in_tgt_prog_defs_decomp clight_prog mn md fn sk i :
-  compile clight_prog mn = Some md ->
+  compile clight_prog mn = OK md ->
   alist_find fn (ModSem.fnsems (Mod.get_modsem md sk)) = Some i ->
   exists f, i = cfunU (decomp_func sk (get_ce clight_prog) f) /\ alist_find (ident_of_string fn) (prog_defs clight_prog) = Some (Gfun (Internal f)).
 Proof.
@@ -84,12 +84,12 @@ Proof.
 Qed.
 
 Theorem in_tgt_prog_main clight_prog mn md :
-  compile clight_prog mn = Some md -> prog_main clight_prog = ident_of_string "main".
+  compile clight_prog mn = OK md -> prog_main clight_prog = ident_of_string "main".
 Proof. unfold compile. des_ifs. Qed.
 
 Lemma tgt_genv_match_symb_def
     clight_prog md mn name b gd1 gd2
-    (COMP: compile clight_prog mn = Some md)
+    (COMP: compile clight_prog mn = OK md)
     (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) name = Some b)
     (GFDEF: Genv.find_def (Genv.globalenv clight_prog) b = Some gd1)
     (INTGT: alist_find name (prog_defs clight_prog) = Some gd2)
@@ -105,7 +105,7 @@ Qed.
 
 Lemma tgt_genv_match_symb_def_by_blk
     clight_prog md mn name b gd
-    (COMP: compile clight_prog mn = Some md)
+    (COMP: compile clight_prog mn = OK md)
     (GFSYM: Genv.find_symbol (Genv.globalenv clight_prog) name = Some b)
     (INTGT: alist_find name (prog_defs clight_prog) = Some gd)
 :
@@ -125,8 +125,8 @@ Local Opaque ident_of_string.
 Local Transparent call_ban.
 
 Lemma compile_sk_incl clight_prog mn md str gd sk_mem:
-  compile clight_prog mn = Some md ->
-  mem_skel clight_prog = Some sk_mem ->
+  compile clight_prog mn = OK md ->
+  mem_skel clight_prog = OK sk_mem ->
   In (str, gd) (Sk.canon (Sk.add sk_mem (Mod.sk md))) ->
   In (ident_of_string str, gd) (prog_defs clight_prog).
 Proof.
@@ -160,8 +160,8 @@ Proof.
 Qed.
 
 Lemma compile_tgt_blk_exists clight_prog mn md idx str sk_mem:
-  compile clight_prog mn = Some md ->
-  mem_skel clight_prog = Some sk_mem ->
+  compile clight_prog mn = OK md ->
+  mem_skel clight_prog = OK sk_mem ->
   SkEnv.blk2id (load_skenv (Sk.canon (Sk.add sk_mem (Mod.sk md)))) idx = Some str ->
   exists tb, Genv.find_symbol (Genv.globalenv clight_prog) (ident_of_string str) = Some tb.
 Proof.
@@ -171,8 +171,8 @@ Proof.
 Qed.
 
 Lemma compile_sk_wf clight_prog mn md sk_mem:
-  compile clight_prog mn = Some md ->
-  mem_skel clight_prog = Some sk_mem ->
+  compile clight_prog mn = OK md ->
+  mem_skel clight_prog = OK sk_mem ->
   Sk.wf (Sk.canon (Sk.add sk_mem (Mod.sk md))).
 Proof.
   i. apply Sk.wf_canon. unfold Sk.wf. ss. rewrite CoqlibC.NoDup_norepet.
@@ -207,8 +207,8 @@ Proof.
 Qed.
 
 Lemma compile_match_genv clight_prog mn md sk_mem:
-  compile clight_prog mn = Some md ->
-  mem_skel clight_prog = Some sk_mem ->
+  compile clight_prog mn = OK md ->
+  mem_skel clight_prog = OK sk_mem ->
   match_ge (Sk.canon (Sk.add sk_mem (Mod.sk md))) (Genv.globalenv clight_prog).
 Proof.
   i. econs.
@@ -379,8 +379,8 @@ Proof.
 Qed.
 
 Lemma addrof_is_wf_in_global clight_prog sk_mem sk : 
-  mem_skel clight_prog = Some sk_mem -> 
-  get_sk (prog_defs clight_prog) = Some sk ->
+  mem_skel clight_prog = OK sk_mem -> 
+  get_sk (prog_defs clight_prog) = OK sk ->
   forall s v symb ofs, In (s, Gvar v) (Sk.canon (Sk.add sk_mem sk)) -> 
     In (Init_addrof symb ofs) (gvar_init v) 
     -> SkEnv.id2blk (load_skenv (Sk.canon (Sk.add sk_mem sk))) (string_of_ident symb) <> None /\ chk_ident symb = true.
@@ -426,8 +426,8 @@ Proof.
 Qed.
 
 Lemma match_bytes_of_gvar_init clight_prog tge sk_mem sk
-  (GCOMP: mem_skel clight_prog = Some sk_mem)
-  (SK: get_sk (prog_defs clight_prog) = Some sk)
+  (GCOMP: mem_skel clight_prog = OK sk_mem)
+  (SK: get_sk (prog_defs clight_prog) = OK sk)
   (MGE: match_ge (Sk.canon (Sk.add sk_mem sk)) tge)
 :
   forall s v, In (s, Gvar v) (Sk.canon (Sk.add sk_mem sk)) ->
@@ -1114,8 +1114,8 @@ Proof.
 Qed.
 
 Theorem compile_init_mem_success clight_prog mn md sk_mem:
-  compile clight_prog mn = Some md ->
-  mem_skel clight_prog = Some sk_mem ->
+  compile clight_prog mn = OK md ->
+  mem_skel clight_prog = OK sk_mem ->
   exists m tm,
   load_mem (Sk.canon (Sk.add sk_mem (Mod.sk md))) = Some m 
   /\ Genv.init_mem clight_prog = Some tm

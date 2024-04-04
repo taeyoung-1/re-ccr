@@ -491,6 +491,7 @@ End Clight.
 
 (* End SITE_APP. *)
 
+From compcert Require Import Errors.
 
 Section DECOMP_PROG.
 
@@ -541,14 +542,14 @@ Section DECOMP_PROG.
     | _ => negb (in_dec Pos.eq_dec ident [ident_of_string "malloc"; ident_of_string "free"; ident_of_string "capture"; ident_of_string "salloc"; ident_of_string "sfree";ident_of_string "load";ident_of_string "store";ident_of_string "sub_ptr";ident_of_string "cmp_ptr";ident_of_string "non_null?";ident_of_string "memcpy"])
     end.
 
-  Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : option Sk.t :=
+  Definition get_sk (defs: list (ident * globdef Clight.fundef type)) : res Sk.t :=
     if Coqlib.list_norepet_dec dec (List.map fst defs) && (forallb call_ban defs)
     then
       let sk := List.filter def_filter defs in
       if List.forallb chk_ident (List.map fst sk) && forallb chk_gd (List.map snd sk)
-      then Some (List.map (map_fst string_of_ident) sk)
-      else None
-    else None.
+      then OK (List.map (map_fst string_of_ident) sk)
+      else Error [MSG "failed in gdchk"]
+    else Error [MSG "failed in norepet"].
 
   Fixpoint get_fnsems (sk: Sk.t) (defs: list (string * globdef Clight.fundef type)) : list (string * (option string * Any.t -> itree Es Any.t)) :=
     match defs with
@@ -557,21 +558,21 @@ Section DECOMP_PROG.
     | _ :: defs' => get_fnsems sk defs'
     end.
 
-  Definition compile : option Mod.t :=
+  Definition compile : res Mod.t :=
     if Pos.eq_dec (prog_main prog) (ident_of_string "main")
     then
       match get_sk defs with
-      | Some _sk =>
-        Some {| Mod.get_modsem := fun sk => {| ModSem.fnsems := get_fnsems sk _sk; ModSem.mn := mn; ModSem.initial_st := tt↑; |};
-                Mod.sk := _sk; |}
-      | None => None
+      | OK _sk =>
+        OK {| Mod.get_modsem := fun sk => {| ModSem.fnsems := get_fnsems sk _sk; ModSem.mn := mn; ModSem.initial_st := tt↑; |};
+              Mod.sk := _sk; |}
+      | Error msgs => Error msgs
       end
-    else None.
+    else Error [MSG "entry point is not main"].
 
   (* global compilation condition *)
   Require Import ClightPlusMem0.
 
-  Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"].
+  Definition mem_keywords := List.map ident_of_string ["malloc"; "free"; "capture"]%string.
 
   Definition mem_init_cond (sk sk': Sk.t) := forall s v, In (s, Gvar v) sk -> Genv.init_data_list_aligned 0 (gvar_init v) /\ (forall symb ofs, In (Init_addrof symb ofs) (gvar_init v) -> exists idx, SkEnv.id2blk (load_skenv sk') (string_of_ident symb) = Some idx).
 
@@ -607,15 +608,15 @@ Section DECOMP_PROG.
         right. ii. red in H. hexploit H; et. { ss. et. } i. des. et.
   Qed.
 
-  Definition mem_skel : option Sk.t :=
+  Definition mem_skel : res Sk.t :=
     match get_sk defs with
-    | Some sk =>
+    | OK sk =>
       let sk_mem := List.map (map_fst string_of_ident) (List.filter (fun x => in_dec Pos.eq_dec (fst x) mem_keywords) defs) in
       match mem_init_cond_dec (Sk.canon (Sk.add sk_mem sk)) (Sk.canon (Sk.add sk_mem sk)) with
-      | in_left => Some sk_mem
-      | in_right => None
+      | in_left => OK sk_mem
+      | in_right => Error [MSG "memory initialization failed"]
       end
-    | None => None
+    | Error msgs => Error msgs
     end.
 
 End DECOMP_PROG.
