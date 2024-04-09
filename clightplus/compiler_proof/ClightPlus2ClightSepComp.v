@@ -1,4 +1,4 @@
-From compcert Require Import Coqlib Behaviors Integers Floats AST Globalenvs Ctypes Cop Clight Clightdefs.
+From compcert Require Import Coqlib Behaviors Integers Floats AST Globalenvs Linking Ctypes Cop Clight Clightdefs.
 
 Require Import CoqlibCCR.
 Require Import ITreelib.
@@ -46,22 +46,90 @@ Section REF.
 
 End REF.
 
-(* Section SEPCOMP.
+Section LINKLIST.
 
-  Theorem compile_behavior_improves
-          (srcs : list Imp.program) (tgts : Coqlib.nlist Csharpminor.program)
-          (COMP: Forall2 (fun src tgt => compile_imp src = OK tgt) srcs tgts)
-          (LINKSRC: exists srcl, link_imps srcs = Some srcl)
+  Definition fold_left_option {T} f (t : list T) (opth : option T) :=
+    fold_left (fun opt s2 => match opt with | Some s1 => f s1 s2 | None => None end) t opth.
+
+  Lemma fold_left_option_None {T} :
+    forall f (l : list T), fold_left_option f l None = None.
+  Proof.
+    intros f. induction l; ss; clarify.
+  Qed.
+
+  Definition fold_right_option {T} f (opt : option T) (l : list T) :=
+    fold_right (fun s2 o => match o with | Some s1 => f s2 o | None => None end) opt l.
+
+  Definition fold_right_option_None {T} :
+    forall f (l : list T), fold_right_option f None l = None.
+  Proof.
+    intros f. induction l; ss; clarify. rewrite IHl; ss.
+  Qed.
+
+  Fixpoint nlist2list {A} (nl : Coqlib.nlist A) : list A :=
+    match nl with
+    | Coqlib.nbase a => [a]
+    | Coqlib.ncons a nt => a :: (nlist2list nt)
+    end.
+
+  Fixpoint list2nlist {A} (a : A) (l : list A) : Coqlib.nlist A :=
+    match l with
+    | [] => Coqlib.nbase a
+    | h :: t => Coqlib.ncons a (list2nlist h t)
+    end.
+
+  Lemma n2l_not_nil {A} :
+    forall nl, @nlist2list A nl = [] -> False.
+  Proof.
+    i. induction nl; ss.
+  Qed.
+
+  Lemma n2l_cons_exists {A} :
+    forall nl a b t (CONS: @nlist2list A nl = a :: b :: t),
+      <<EXISTS: exists nt, (nlist2list nt = b :: t) /\ (nl = Coqlib.ncons a nt)>>.
+  Proof.
+    induction nl; i; ss; clarify.
+    destruct t; ss; clarify.
+    { exists nl. rewrite H0. ss. }
+    eapply IHnl in H0. des. exists nl. split; eauto.
+    rewrite H1. ss. rewrite H0. auto.
+  Qed.
+
+  Lemma n2l_l2n {A} :
+    forall nl,
+      (exists (h : A) t, (<<HT: nlist2list nl = h :: t>>) /\ (<<BACK: (list2nlist h t = nl)>>)).
+  Proof.
+    i. induction nl.
+    - exists a, []. ss.
+    - ss. des. exists a, (h :: t). ss. rewrite HT. split; ss. red. rewrite BACK. ss.
+  Qed.
+
+  Lemma l2n_n2l {A} :
+    forall (h : A) t,
+      (nlist2list (list2nlist h t)) = h :: t.
+  Proof.
+    i. depgen h. induction t; i; ss; clarify.
+    f_equal. auto.
+  Qed.
+
+End LINKLIST.
+
+(* Coercion nlist2list : Coqlib.nlist >-> list. *)
+
+Section SEPCOMP.
+
+  (* Theorem compile_behavior_improves
+          (progs : nlist Clight.program) (mds : list Mod.t)
+          (COMP: Forall2 (fun prog md => exists mn, compile prog mn = Errors.OK md) (nlist2list progs) mds)
+          (WFSRC: ModL.wf (Mod.add_list mds))
     :
-      exists tgtl, ((link_list tgts = Some tgtl) /\
-               (improves2_program (imps_sem srcs) (Csharpminor.semantics tgtl))).
+      exists progl sk_mem, link_list progs = Some progl /\ mem_skel progl = Errors.OK sk_mem /\ improves2_program (clightp_sem sk_mem (Mod.add_list mds)) (Clight.semantics2 progl).
   Proof.
     hexploit compile_behavior_improves_compile_exists; eauto. i. des. exists tgtl. split; eauto.
     eapply compile_behavior_improves_compile; eauto.
-  Qed.
+  Qed. *)
 
-
-End SEPCOMP. *)
+End SEPCOMP.
 
 Section PROOFSINGLE.
 
