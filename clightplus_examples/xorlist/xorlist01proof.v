@@ -41,11 +41,9 @@ Section LEMMA.
 
   Lemma null_zero i : Vptrofs i = Vnullptr -> i = Ptrofs.zero.
   Proof.
-    unfold Vptrofs, Vnullptr. des_ifs. i. inv H. 
-    rewrite <- (Ptrofs.of_int64_to_int64 Heq i).
-    rewrite <- (Ptrofs.of_int64_to_int64 Heq Ptrofs.zero).
-    f_equal. des_ifs. change (Ptrofs.to_int64 Ptrofs.zero) with Int64.zero.
-    rewrite Heq1. f_equal. apply proof_irrel.
+    unfold Vptrofs, Vnullptr. des_ifs. i.
+    apply (f_equal (fun v: val => match v with Vlong i => i | _ => Int64.zero end)) in H.
+    rewrite <- (Ptrofs.of_int64_to_int64 Heq i). rewrite H. et.
   Qed.
 
   Context `{eventE -< eff}.
@@ -390,7 +388,10 @@ Section PROOF.
     iPoseProof (offset_slide_rev with "tl_ofs") as "tl_ofs".
     iPoseProof (null_equiv with "prev_addr") as "%".
     assert (i_prev = Ptrofs.zero).
-    { unfold Vptrofs, Vnullptr in *. des_ifs. replace intrange with intrange0 in * by apply proof_irrel. rewrite <- Heq0 in Heq. apply (f_equal Ptrofs.of_int64) in Heq. rewrite Ptrofs.of_int64_to_int64 in Heq; et. }
+    { unfold Vptrofs, Vnullptr in *.
+      destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+      apply (f_equal (fun v => match v with Vlong i => i | _ => Int64.zero end)) in H3.
+      apply (f_equal Ptrofs.of_int64) in H3. rewrite Ptrofs.of_int64_to_int64 in H3; et. }
     clear H3. clarify.
 
     iExists _,_,_,_,_,_,_,_. iFrame. iSplit; ss.
@@ -705,7 +706,10 @@ Section PROOF.
     iPoseProof (offset_slide_rev with "hd_ofs") as "hd_ofs".
     iPoseProof (null_equiv with "prev_addr") as "%".
     assert (i_prev = Ptrofs.zero).
-    { unfold Vptrofs, Vnullptr in *. des_ifs. replace intrange with intrange0 in * by apply proof_irrel. rewrite <- Heq0 in Heq. apply (f_equal Ptrofs.of_int64) in Heq. rewrite Ptrofs.of_int64_to_int64 in Heq; et. }
+    { unfold Vptrofs, Vnullptr in *.
+      destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+      apply (f_equal (fun v => match v with Vlong i => i | _ => Int64.zero end)) in H3.
+      apply (f_equal Ptrofs.of_int64) in H3. rewrite Ptrofs.of_int64_to_int64 in H3; et. }
     clear H3. clarify.
 
     iExists _,_,_,_,_,_,_,_. iFrame. iSplit; ss.
@@ -867,7 +871,10 @@ Section PROOF.
     replace (Vlong (Int64.repr _)) with Vnullptr by et.
     iPoseProof (null_equiv with "tl_next_equiv") as "%".
     assert (i_tl_next = Ptrofs.zero).
-    { unfold Vptrofs, Vnullptr in *. des_ifs. replace intrange with intrange0 in * by apply proof_irrel. rewrite <- Heq1 in Heq0. apply (f_equal Ptrofs.of_int64) in Heq0. rewrite Ptrofs.of_int64_to_int64 in Heq0; et. }
+    { unfold Vptrofs, Vnullptr in *.
+      destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+      apply (f_equal (fun v => match v with Vlong i => i | _ => Int64.zero end)) in H3.
+      apply (f_equal Ptrofs.of_int64) in H3. rewrite Ptrofs.of_int64_to_int64 in H3; et. }
     subst. clear H3. rewrite Ptrofs.xor_zero_l.
 
     destruct lnext.
@@ -1155,7 +1162,10 @@ Section PROOF.
     replace (Vlong (Int64.repr _)) with Vnullptr by et.
     iPoseProof (null_equiv with "hd_prev_equiv") as "%".
     assert (i_hd_prev = Ptrofs.zero).
-    { unfold Vptrofs, Vnullptr in *. des_ifs. replace intrange with intrange0 in * by apply proof_irrel. rewrite <- Heq1 in Heq0. apply (f_equal Ptrofs.of_int64) in Heq0. rewrite Ptrofs.of_int64_to_int64 in Heq0; et. }
+    { unfold Vptrofs, Vnullptr in *.
+      destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+      apply (f_equal (fun v => match v with Vlong i => i | _ => Int64.zero end)) in H3.
+      apply (f_equal Ptrofs.of_int64) in H3. rewrite Ptrofs.of_int64_to_int64 in H3; et. }
     subst. clear H3. rewrite Ptrofs.xor_zero_l.
 
     destruct lnext.

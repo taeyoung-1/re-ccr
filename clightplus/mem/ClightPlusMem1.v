@@ -322,10 +322,10 @@ Section RULES.
         et.
       + iDestruct "A" as "[A %]".
         iFrame. iPureIntro. des. clarify.
-        ss. des_ifs. unfold Vptrofs in *. des_ifs.
-        split; et. rewrite Ptrofs.of_int64_to_int64 in Heq; et.
-        replace intrange0 with intrange in * by apply proof_irrel.
-        rewrite <- Heq2 in Heq.
+        ss. unfold Vptrofs in Heq. dup Heq.
+        apply (f_equal (fun v => match v with Vptr _ ofs => ofs | _ => Ptrofs.zero end)) in Heq.
+        destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+        inversion Heq0. subst. split; et. rewrite Ptrofs.of_int64_to_int64 in Heq; et.
         apply (f_equal (fun x => Ptrofs.add x (Ptrofs.neg k))) in Heq.
         rewrite Ptrofs.add_assoc in Heq.
         rewrite Ptrofs.add_assoc in Heq.
@@ -744,12 +744,11 @@ Section RULES.
       rewrite Ptrofs.to_int64_of_int64 in H; et.
       rewrite Ptrofs.to_int64_of_int64 in H; et. }
     subst. rewrite <- Heq in Heq1.
-    clear -Heq1. unfold Vptrofs in *. des_ifs.
-    replace intrange with intrange0 in * by apply proof_irrel.
-    rewrite <- Heq1 in Heq0. 
-    apply (f_equal Ptrofs.of_int64) in Heq0.
-    rewrite Ptrofs.of_int64_to_int64 in Heq0; et.
-    rewrite Ptrofs.of_int64_to_int64 in Heq0; et.
+    clear -Heq1. unfold Vptrofs in *. destruct Archi.ptr64 eqn:?. 2:{ clarify. }
+    apply (f_equal (fun v => match v with Vlong i => i | _ => Int64.zero end)) in Heq1.
+    apply (f_equal Ptrofs.of_int64) in Heq1.
+    rewrite Ptrofs.of_int64_to_int64 in Heq1; et.
+    rewrite Ptrofs.of_int64_to_int64 in Heq1; et.
   Qed.
 
   Lemma _ii_offset_eq i j ofs m :
