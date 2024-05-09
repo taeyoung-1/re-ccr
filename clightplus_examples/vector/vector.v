@@ -104,16 +104,16 @@ Section SPEC.
 
   Definition vector_resize_spec : fspec :=
     mk_simple
-      (fun '(vec_ptr, newcap, vec_m, size, total, oldcap, memlist, qb) => (
+      (fun '(vec_ptr, newcap, vec_m, vec_m', size, total, oldcap, memlist) => (
         (ord_pure 1%nat),
         (fun varg =>
           ⌜varg = [vec_ptr; (Vlong (Int64.repr (newcap : nat)))]↑
           /\ 0 < newcap * size < (Z.to_nat Ptrofs.max_unsigned)
           /\ total < newcap⌝
-          ** is_vector vec_m 1 qb vec_ptr size total oldcap memlist)%I,
+          ** is_vector vec_m 1 1 vec_ptr size total oldcap memlist)%I,
         (fun vret =>
           ⌜vret = Vundef↑⌝
-          ** is_vector vec_m 1 qb vec_ptr size total newcap memlist))
+          ** is_vector vec_m' 1 1 vec_ptr size total newcap memlist))
       ).
 
   Definition vector_add_spec : fspec :=
